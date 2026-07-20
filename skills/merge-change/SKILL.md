@@ -19,10 +19,12 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
    `git merge main` (resolve conflicts here, never on main).
 2. **Run the full verification suite** — every `verify_commands` entry.
    Conflict fallout and integration breakage stop the merge right here.
-3. **Finalize IDs:**
+3. **Finalize IDs and draft doc files:**
    `.guardrails/scripts/finalize-ids.sh --base main` (preview with
-   `--dry-run` first). Commit the rewrite:
-   `git -c commit.gpgsign=false commit -am "chore: finalize trace IDs"`.
+   `--dry-run` first). This mints final sequential IDs AND renames any
+   `DRAFT-<branch>-<slug>.md` ledger files to `<merge-date>-<slug>.md`.
+   Commit the rewrite (renames included):
+   `git add -A && git -c commit.gpgsign=false commit -m "chore: finalize trace IDs"`.
 4. **`.guardrails/scripts/check-ids.sh --base main`** — zero drafts, zero
    duplicates.
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.

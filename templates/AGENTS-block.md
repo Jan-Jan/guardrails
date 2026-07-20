@@ -18,7 +18,10 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 3. **Traceability is mechanical.** New requirement/hazard/control/design/
    problem items are minted as draft IDs (`<PREFIX>-DRAFT-<branch>-<n>`)
    inside the worktree and finalized to sequential IDs only at merge time by
-   `finalize-ids.sh`. Every new test declares what it verifies
+   `finalize-ids.sh`. On ledger-layout projects the same applies to document
+   files: new items go into `docs/<area>/DRAFT-<branch>-<slug>.md`, renamed
+   to `<merge-date>-<slug>.md` at merge; existing items are edited in the
+   dated file that defines them. Every new test declares what it verifies
    (`verifies: <IDs>` — annotate the lowest level present: LLR where one
    exists, else REQ/RC; the parent REQ is covered transitively).
    `check-trace.sh` and `check-ids.sh` must pass before any merge.

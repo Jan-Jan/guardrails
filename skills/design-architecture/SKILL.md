@@ -8,8 +8,12 @@ description: Create or evolve the IEC 62304 software architecture - SDD items tr
 **Announce at start:** "Using the design-architecture skill."
 
 Work happens **in a worktree** (`worktree-discipline`); update
-`docs/architecture/sad.md` and `docs/architecture/soup.md` (paths from
-`.guardrails/config.yaml`); integrate via `merge-change`.
+the architecture ledger (`doc_sad`) and `docs/architecture/soup.md` (paths
+from `.guardrails/config.yaml`); integrate via `merge-change`. New SDD/LLR
+items go into this change's draft file
+(`docs/architecture/DRAFT-<branch>-<slug>.md`); amendments to existing items
+are edited in the dated file that defines them. `soup.md` stays a single
+inventory file.
 
 ## Process
 

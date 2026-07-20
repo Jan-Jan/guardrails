@@ -1,4 +1,11 @@
-# Risk Management File
+# Risk management ledger
+
+This directory is a per-change ledger: each merged change contributes one
+dated file, `YYYY-MM-DD-<slug>.md` (merge date, assigned by `merge-change`
+from your worktree's `DRAFT-<branch>-<slug>.md`). **Edit existing items in
+the file that defines them.** This README holds the project-wide
+acceptability matrix; the dated files hold hazards, controls, derived
+assessments, and residual-risk statements.
 
 <!--
 Item grammar (enforced by .guardrails/scripts/check-trace.sh):
@@ -10,9 +17,12 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 
 - Every hazard must have at least one risk control that `mitigates:` it.
 - Every risk control must be implemented by at least one requirement carrying
-  `(implements: RC-NNN)` in the SRS.
-- Mint new items as drafts in worktrees (see SRS header).
-- Record residual risk and its acceptability after controls are in place.
+  `(implements: RC-NNN)` in the requirements ledger.
+- Derived REQ/LLR assessments live here too: name the ID and its hazard
+  impact ("no hazard impact because <reason>" is valid; silence fails
+  check-trace as UNANALYZED-DERIVED).
+- Mint new items as drafts in worktrees; record residual risk and its
+  acceptability after controls are in place.
 -->
 
 ## Risk acceptability matrix
@@ -27,16 +37,3 @@ Probability: P1 improbable · P2 occasional · P3 frequent
 | **S1** | TBD | TBD | TBD |
 
 <!-- Fill each cell with ACCEPTABLE or UNACCEPTABLE per your quality manual. -->
-
-## Hazards
-
-## Risk controls
-
-## Derived requirements assessment
-
-<!-- One line per derived REQ/LLR (satisfies: derived), naming the ID:
-     does it introduce a hazard, affect a hazardous situation, or change a
-     control's effectiveness? "No hazard impact because <reason>" is valid;
-     silence fails check-trace (UNANALYZED-DERIVED). -->
-
-## Residual risk evaluation

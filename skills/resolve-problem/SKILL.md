@@ -13,8 +13,9 @@ as the fix (IEC 62304 problem resolution; DO-178C §7.2.8 problem reports).
 
 ## 1. Record before you touch anything
 
-In a worktree (`worktree-discipline`), add the problem to
-`docs/problems/log.md` (path: `doc_problems` in `.guardrails/config.yaml`):
+In a worktree (`worktree-discipline`), add the problem to this change's
+draft file in the problems ledger, `docs/problems/DRAFT-<branch>-<slug>.md`
+(directory from `doc_problems` in `.guardrails/config.yaml`):
 
 ```
 **PR-DRAFT-<branch>-<n>**: <observable symptom, one sentence>.
@@ -50,7 +51,8 @@ refactor. The reproduction test is permanent regression evidence.
 
 ## 4. Resolve in the same change that merges the fix
 
-In the worktree that fixes it, update the PR item: `status: resolved`, and
+In the worktree that fixes it, update the PR item **in the dated ledger
+file that defines it**: `status: resolved`, and
 append a one-line resolution: root cause + fix reference (the reproducing
 test name or file). The PR item and the fix merge together — never mark a
 problem resolved in a change that doesn't contain its fix.

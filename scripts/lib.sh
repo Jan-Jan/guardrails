@@ -37,3 +37,20 @@ cfg_list() {
 gr_prefix_re() {
     cfg_get id_prefixes | tr ' ' '|'
 }
+
+# gr_doc_files KEY — resolve a doc_* config value to a file list, one per
+# line. A directory yields its *.md files (sorted); a file yields itself;
+# missing key or path yields nothing. Lets projects use either a single
+# document or a per-change dated ledger directory.
+gr_doc_files() {
+    _v=$(cfg_get "$1")
+    [ -n "$_v" ] || return 0
+    if [ -d "$_v" ]; then
+        for _f in "$_v"/*.md; do
+            [ -f "$_f" ] && printf '%s\n' "$_f"
+        done
+    elif [ -f "$_v" ]; then
+        printf '%s\n' "$_v"
+    fi
+    return 0
+}

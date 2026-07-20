@@ -28,8 +28,12 @@ work is a change like any other: do it **in a worktree**
 
 ## Write requirements as they crystallize
 
-Update `docs/requirements/srs.md` (path from `.guardrails/config.yaml`)
-inline — don't batch:
+Update the requirements ledger (`doc_srs` in `.guardrails/config.yaml`)
+inline — don't batch. **New items go into this change's draft file**,
+`docs/requirements/DRAFT-<branch>-<slug>.md` (merge-change renames it to the
+merge date). **Amendments to existing requirements are edited in the dated
+file that defines them** — definitions never move. On single-file projects
+(`doc_srs` points at a file), edit that file.
 
 - REQ items are **high-level requirements**: system-observable behavior,
   written from outside the software. The "how", per software item, belongs

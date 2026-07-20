@@ -71,6 +71,16 @@ New items minted inside a worktree use **draft IDs**
 sequential numbers at merge time and rewrites every reference — parallel
 worktrees can never collide on an ID.
 
+**Document ledgers:** each doc area is a directory of per-change files, not
+a monolith — so parallel worktrees never conflict on documents either. In a
+worktree, new items go into `docs/<area>/DRAFT-<branch>-<slug>.md`;
+`merge-change` renames it to `YYYY-MM-DD-<slug>.md` (the merge date, so
+`ls` reads chronologically; same-day collisions get `-2`). Existing items
+are always edited in the dated file that defines them. Each directory's
+README carries the grammar; `soup.md` stays a single inventory file, and
+every `doc_*` config key also accepts a single file (legacy monoliths keep
+working).
+
 ## Check scripts
 
 Source of truth in `scripts/`; `/ratchet` copies them into target projects
@@ -78,10 +88,10 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 
 | Script | Purpose |
 |---|---|
-| `check-ids.sh [--allow-drafts] [--base REF]` | no leftover drafts, no duplicate IDs |
+| `check-ids.sh [--allow-drafts] [--base REF]` | no leftover draft IDs or draft-named files, no duplicate IDs |
 | `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; open PRs listed as warnings |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified |
-| `finalize-ids.sh [--dry-run] [--base REF]` | mint final IDs, rewrite references |
+| `finalize-ids.sh [--dry-run] [--base REF]` | mint final IDs, rewrite references, rename draft ledger files to merge date |
 
 Safety-class awareness (IEC 62304 A/B/C) lives in `.guardrails/config.yaml`;
 skills scale required documentation and verification to the class.

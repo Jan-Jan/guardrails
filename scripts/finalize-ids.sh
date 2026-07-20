@@ -66,11 +66,45 @@ for p in $prefixes; do
     done
 done
 
-[ -n "$mapping" ] || exit 0
+# --- Draft doc files: DRAFT-<branch>-<slug>.md → <merge-date>-<slug>.md ----
+today=$(date +%Y-%m-%d)
+branch=$(git branch --show-current 2>/dev/null | tr -c 'A-Za-z0-9\n' '-')
+renames=""
+for key in doc_srs doc_rmf doc_sad doc_problems; do
+    dir=$(cfg_get "$key")
+    [ -n "$dir" ] && [ -d "$dir" ] || continue
+    for f in "$dir"/DRAFT-*.md; do
+        [ -f "$f" ] || continue
+        slug=${f##*/}
+        slug=${slug#DRAFT-}
+        slug=${slug%.md}
+        # strip the current branch's name prefix when it matches
+        [ -n "$branch" ] && slug=${slug#"${branch}"-}
+        # collision check covers files on disk AND targets already planned
+        # in this run (two drafts can reduce to the same slug)
+        target="$dir/${today}-${slug}.md"
+        n=2
+        while [ -e "$target" ] || printf '%s' "$renames" \
+                | awk -v t="$target" '$2 == t { found = 1 } END { exit !found }'; do
+            target="$dir/${today}-${slug}-${n}.md"
+            n=$((n + 1))
+        done
+        renames="${renames}${f} ${target}
+"
+    done
+done
+
+if [ -z "$mapping" ] && [ -z "$renames" ]; then
+    exit 0
+fi
 
 printf '%s' "$mapping" | while IFS=' ' read -r d final; do
     [ -n "$d" ] || continue
     echo "$d -> $final"
+done
+printf '%s' "$renames" | while IFS=' ' read -r f target; do
+    [ -n "$f" ] || continue
+    echo "${f##*/} -> ${target##*/}"
 done
 
 [ "$dry" -eq 1 ] && exit 0
@@ -84,6 +118,14 @@ printf '%s' "$mapping" | awk '{ print length($1), $0 }' | sort -rn | cut -d' ' -
     | while IFS= read -r f; do
         sed -i.bak "s/${d}/${final}/g" "$f" && rm -f "${f}.bak"
     done
+done
+
+# Rename draft doc files (tracked via git mv; untracked via plain mv).
+# Never overwrite: a pre-existing target here is a bug, not a fallback.
+printf '%s' "$renames" | while IFS=' ' read -r f target; do
+    [ -n "$f" ] || continue
+    [ ! -e "$target" ] || gr_die "rename target already exists: $target"
+    git mv "$f" "$target" 2>/dev/null || mv "$f" "$target"
 done
 
 exit 0

@@ -34,11 +34,18 @@ signed squash merges (`merge-change`).
 
 ## Inside the worktree
 
-- **Draft IDs only.** New SRS/RMF/SAD items are minted as
-  `<PREFIX>-DRAFT-<branch>-<n>` where `<branch>` is the branch name and `<n>`
-  counts up from 1 within this change. Never hand-pick a final number —
-  finals are assigned by `finalize-ids.sh` during `merge-change`, which makes
-  parallel worktrees collision-free.
+- **Draft IDs only.** New requirement/risk/design/problem items are minted
+  as `<PREFIX>-DRAFT-<branch>-<n>` where `<branch>` is the branch name and
+  `<n>` counts up from 1 within this change. Never hand-pick a final
+  number — finals are assigned by `finalize-ids.sh` during `merge-change`,
+  which makes parallel worktrees collision-free.
+- **Draft doc files.** On ledger-layout projects (doc config keys point at
+  directories), new items go into this change's own file:
+  `docs/<area>/DRAFT-<branch>-<slug>.md`. merge-change renames it to
+  `YYYY-MM-DD-<slug>.md` (merge date) — the same finalize-at-merge idea as
+  draft IDs, so parallel worktrees never touch the same file. Amendments to
+  existing items are edited in the dated file that defines them; never move
+  a definition between files.
 - Reference draft IDs freely in code, tests (`verifies:`), and the plan —
   finalization rewrites every occurrence.
 - Commit early and often. Worktree commits may be unsigned

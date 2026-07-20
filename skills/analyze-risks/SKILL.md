@@ -8,8 +8,11 @@ description: ISO 14971 risk analysis interview - identify hazards, hazardous sit
 **Announce at start:** "Using the analyze-risks skill for ISO 14971 risk analysis."
 
 Work happens **in a worktree** (`worktree-discipline`); the risk management
-file (`docs/risk/rmf.md`, path from `.guardrails/config.yaml`) is updated
-inline as the analysis proceeds; integrate via `merge-change`.
+ledger (`doc_rmf` in `.guardrails/config.yaml`) is updated inline as the
+analysis proceeds; integrate via `merge-change`. New HAZ/RC items and
+derived assessments go into this change's draft file
+(`docs/risk/DRAFT-<branch>-<slug>.md`); amendments to existing items are
+edited in the dated file that defines them.
 
 ## The interview
 

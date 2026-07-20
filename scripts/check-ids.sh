@@ -48,6 +48,14 @@ if [ "$allow_drafts" -eq 0 ]; then
         printf '%s\n' "$drafts" | sed 's/^/DRAFT-ID /'
         fail=1
     fi
+
+    # DRAFT-FILE: no draft-named ledger files may remain either
+    draft_files=$(git ls-files --cached --others --exclude-standard 2>/dev/null \
+        | grep -E '(^|/)DRAFT-[^/]*$' || true)
+    if [ -n "$draft_files" ]; then
+        printf '%s\n' "$draft_files" | sed 's/^/DRAFT-FILE /'
+        fail=1
+    fi
 fi
 
 # --- DUPLICATE-ID: a final ID defined at more than one site in the tree ---

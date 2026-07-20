@@ -36,14 +36,20 @@ ls src lib app AGENTS.md docs 2>/dev/null
 3. Copy in, from the guardrails repo:
    - `templates/config.yaml` → `.guardrails/config.yaml`
    - `scripts/*.sh` → `.guardrails/scripts/` (keep executable bits)
-   - `templates/srs.md` → `docs/requirements/srs.md`
-   - `templates/rmf.md` → `docs/risk/rmf.md`
-   - `templates/sad.md` → `docs/architecture/sad.md`
+   - `templates/srs.md` → `docs/requirements/README.md`
+   - `templates/rmf.md` → `docs/risk/README.md`
+   - `templates/sad.md` → `docs/architecture/README.md`
    - `templates/soup.md` → `docs/architecture/soup.md`
-   - `templates/problems.md` → `docs/problems/log.md`
+   - `templates/problems.md` → `docs/problems/README.md`
    - `templates/CONTEXT.md` → `docs/CONTEXT.md`
    - `templates/CLAUDE.md` → `CLAUDE.md` (skip if one exists)
    - `templates/AGENTS-block.md` → becomes the body of a new `AGENTS.md`
+
+   The requirements/risk/architecture/problems directories are **per-change
+   ledgers**: each merged change contributes one dated file
+   (`YYYY-MM-DD-<slug>.md`, merge date), created in the worktree as
+   `DRAFT-<branch>-<slug>.md` and renamed by `merge-change`. The README in
+   each directory carries the item grammar.
 4. Create `docs/adr/`, `docs/plans/`, and `docs/verification/` directories.
    Ensure `.gitignore` excludes worktree directories and sed backups — add
    any of these that are missing:
@@ -66,7 +72,7 @@ Never overwrite. Sequence:
 1. **Inventory** (read, don't write): existing AGENTS.md/CLAUDE.md content and
    any rules that conflict with guardrails (e.g. "commit to main directly");
    existing requirement/risk/architecture docs in any format; a bug tracker
-   or problem log (feeds `docs/problems/log.md`); verification evidence
+   or problem log (feeds the `docs/problems/` ledger); verification evidence
    (test reports, coverage) worth archiving under `docs/verification/`;
    test layout and command; CI config; signing status of recent commits
    (`git log -20 --format='%h %G? %s'`); existing `.guardrails/` version if
@@ -89,7 +95,12 @@ Never overwrite. Sequence:
    migrate legacy requirement/risk docs into ID'd form via
    `grill-requirements` / `analyze-risks`; extend `strict_paths` as areas are
    brought under trace discipline; enable `--strict` signing checks once
-   allowed_signers is set up.
+   allowed_signers is set up. **Monolith → ledger migration:** doc config
+   keys accept a file or a directory, so an existing single `srs.md` keeps
+   working; for multi-developer repos recommend switching each `doc_*` key
+   to a directory (move the monolith in as its first dated file, add the
+   README) — new changes then land as dated per-change files and stop
+   conflicting.
 5. Integrate via `merge-change` like any other change.
 
 ## Step 4: Safety-class interview (IEC 62304 4.3)
