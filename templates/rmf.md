@@ -32,4 +32,11 @@ Probability: P1 improbable · P2 occasional · P3 frequent
 
 ## Risk controls
 
+## Derived requirements assessment
+
+<!-- One line per derived REQ/LLR (satisfies: derived), naming the ID:
+     does it introduce a hazard, affect a hazardous situation, or change a
+     control's effectiveness? "No hazard impact because <reason>" is valid;
+     silence fails check-trace (UNANALYZED-DERIVED). -->
+
 ## Residual risk evaluation

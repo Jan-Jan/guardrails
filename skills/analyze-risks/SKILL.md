@@ -46,6 +46,17 @@ under analysis, walk the ISO 14971 chain explicitly:
   software (hardware interlocks, labeling) are recorded in the RMF with a
   note that implementation lies outside this codebase.
 
+## Derived-requirements intake
+
+`grill-requirements` and `design-architecture` send you every REQ/LLR marked
+`satisfies: derived` — requirements that exist because of design decisions,
+not system needs. For each one, assess: does it introduce a new hazard,
+affect an existing hazardous situation, or change a risk control's
+effectiveness? Record the assessment in the RMF under "Derived requirements
+assessment", naming the ID explicitly — `check-trace.sh` fails
+UNANALYZED-DERIVED on any derived item the RMF never mentions. "No hazard
+impact because <reason>" is a valid assessment; silence is not.
+
 ## Class awareness
 
 The severity answers here justify the project's IEC 62304 class

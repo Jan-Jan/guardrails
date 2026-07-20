@@ -3,7 +3,10 @@
 Agent skills for managing and developing software projects under
 **IEC 62304** (medical device software lifecycle) and **ISO 14971**
 (risk management), with mechanically checked traceability, mandatory git
-worktrees, and signed squash merges.
+worktrees, and signed squash merges. Borrows DO-178C's strongest mechanics:
+high/low-level requirements, derived-requirements feedback into risk
+analysis, problem reports, structural-coverage targets, independent review,
+and verification records.
 
 > Guardrails supports your quality management system; it is **not** itself
 > regulatory compliance. Your quality manual, design controls, and human
@@ -36,9 +39,10 @@ flowchart TD
     D --> P[plan-change]
     P --> W[worktree-discipline<br/>isolate + draft IDs]
     W --> DEV[develop-change<br/>TDD, verifies: annotations]
+    B[resolve-problem<br/>PR items for every bug] --> DEV
     DEV --> CT[check-traceability]
-    CT --> V[verify-before-merge<br/>evidence gate]
-    V --> M[merge-change<br/>finalize IDs, signed squash merge,<br/>cleanup worktree]
+    CT --> V[verify-before-merge<br/>evidence + coverage gate]
+    V --> M[merge-change<br/>finalize IDs, independent review,<br/>verification record, signed squash merge,<br/>cleanup worktree]
 ```
 
 Three rules carry the whole system:
@@ -58,7 +62,9 @@ Three rules carry the whole system:
 | Hazard | `docs/risk/rmf.md` | `**HAZ-NNN**: hazard, situation, harm. Severity: S_. Probability: P_.` |
 | Risk control | `docs/risk/rmf.md` | `**RC-NNN**: control. mitigates: HAZ-NNN` |
 | Design item | `docs/architecture/sad.md` | `**SDD-NNN**: item. traces: REQ-NNN` |
-| Test link | test files | comment/name containing `verifies: REQ-NNN, RC-NNN` |
+| Low-level req | `docs/architecture/sad.md` | `**LLR-NNN**: behavior. satisfies: REQ-NNN` (or `satisfies: derived` — must then be assessed in the RMF) |
+| Problem report | `docs/problems/log.md` | `**PR-NNN**: symptom. affects: <IDs>. status: open\|resolved` |
+| Test link | test files | comment/name containing `verifies: <IDs>` — lowest level present; REQs covered transitively via tested LLRs |
 
 New items minted inside a worktree use **draft IDs**
 (`<PREFIX>-DRAFT-<branch>-<n>`); `finalize-ids.sh` assigns the next
@@ -73,7 +79,7 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 | Script | Purpose |
 |---|---|
 | `check-ids.sh [--allow-drafts] [--base REF]` | no leftover drafts, no duplicate IDs |
-| `check-trace.sh` | every REQ tested, HAZ mitigated, RC implemented, SDD traced; no dangling refs |
+| `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; open PRs listed as warnings |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified |
 | `finalize-ids.sh [--dry-run] [--base REF]` | mint final IDs, rewrite references |
 

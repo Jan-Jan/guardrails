@@ -40,5 +40,5 @@ setup() { make_fixture_repo; }
 @test "gr_prefix_re builds alternation from id_prefixes" {
     run sh -c '. .guardrails/scripts/lib.sh && gr_prefix_re'
     [ "$status" -eq 0 ]
-    [ "$output" = "REQ|HAZ|RC|SDD" ]
+    [ "$output" = "REQ|HAZ|RC|SDD|LLR|PR" ]
 }

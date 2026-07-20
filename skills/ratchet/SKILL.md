@@ -40,10 +40,11 @@ ls src lib app AGENTS.md docs 2>/dev/null
    - `templates/rmf.md` → `docs/risk/rmf.md`
    - `templates/sad.md` → `docs/architecture/sad.md`
    - `templates/soup.md` → `docs/architecture/soup.md`
+   - `templates/problems.md` → `docs/problems/log.md`
    - `templates/CONTEXT.md` → `docs/CONTEXT.md`
    - `templates/CLAUDE.md` → `CLAUDE.md` (skip if one exists)
    - `templates/AGENTS-block.md` → becomes the body of a new `AGENTS.md`
-4. Create `docs/adr/` and `docs/plans/` directories.
+4. Create `docs/adr/`, `docs/plans/`, and `docs/verification/` directories.
    Ensure `.gitignore` excludes worktree directories and sed backups — add
    any of these that are missing:
 
@@ -64,8 +65,10 @@ Never overwrite. Sequence:
 
 1. **Inventory** (read, don't write): existing AGENTS.md/CLAUDE.md content and
    any rules that conflict with guardrails (e.g. "commit to main directly");
-   existing requirement/risk/architecture docs in any format; test layout and
-   command; CI config; signing status of recent commits
+   existing requirement/risk/architecture docs in any format; a bug tracker
+   or problem log (feeds `docs/problems/log.md`); verification evidence
+   (test reports, coverage) worth archiving under `docs/verification/`;
+   test layout and command; CI config; signing status of recent commits
    (`git log -20 --format='%h %G? %s'`); existing `.guardrails/` version if
    re-ratcheting.
 2. **Write the gap analysis** to `docs/plans/<YYYY-MM-DD>-ratchet-gap-analysis.md`:
@@ -120,7 +123,16 @@ Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`:
 - [ ] Branch protection on main: no direct pushes, require signed commits.
 - [ ] CI: run `verify_commands`, `check-ids.sh`, `check-trace.sh`, and
       `check-signing.sh --strict <base>..HEAD` on every merge.
-- [ ] Decide the human review/approval policy for merges (who signs off).
+- [ ] Decide the human review/approval policy for merges (who signs off),
+      including who acts as the independent reviewer in `merge-change`
+      step 6a when a human is preferred over a fresh agent.
+- [ ] **Tool qualification (DO-330-lite):** the `.guardrails/scripts/` are
+      verification tools — their failure could mask errors. Qualification
+      basis: the guardrails bats suite at the `guardrails_version` recorded
+      in config (this document records the version and the suite result at
+      install time). When `/ratchet` updates the scripts, it re-records
+      both. Do not modify the scripts in the target project; change them
+      upstream where the tests live.
 - [ ] **Guardrails supports your QMS but is not itself regulatory
       compliance.** Your quality manual, design controls, and human sign-offs
       govern; keep your notified-body/auditor requirements authoritative.

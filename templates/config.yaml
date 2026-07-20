@@ -8,13 +8,16 @@ guardrails_version: 0.1.0
 safety_class: TBD
 
 # ID prefixes managed by the check/finalize scripts.
-id_prefixes: REQ HAZ RC SDD
+# LLR = low-level requirements (design data, live in the SAD).
+# PR  = problem reports (docs/problems/log.md).
+id_prefixes: REQ HAZ RC SDD LLR PR
 
 # Canonical document locations.
 doc_srs: docs/requirements/srs.md
 doc_rmf: docs/risk/rmf.md
 doc_sad: docs/architecture/sad.md
 doc_soup: docs/architecture/soup.md
+doc_problems: docs/problems/log.md
 
 # Paths where traceability is enforced. On retrofit projects this list
 # starts small and grows as untraced code is brought under guardrails.
@@ -28,3 +31,9 @@ test_paths:
 # Commands merge-change and verify-before-merge must run and pass.
 verify_commands:
   - make test
+
+# Optional: structural-coverage report command, judged against the class
+# target (A: none required, B: statement, C: statement + decision).
+# Uncomment and adapt to enable the coverage gate:
+# coverage_command:
+#   - make coverage

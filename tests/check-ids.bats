@@ -29,6 +29,30 @@ EOF
     [ "$status" -eq 0 ]
 }
 
+@test "check-ids: LLR draft token fails without --allow-drafts" {
+    printf '**LLR-DRAFT-mybranch-1**: draft low-level req.\n' > docs/architecture/sad.md
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DRAFT-ID"* ]]
+    [[ "$output" == *"LLR-DRAFT-mybranch-1"* ]]
+}
+
+@test "check-ids: PR draft token fails without --allow-drafts" {
+    printf '**PR-DRAFT-mybranch-1**: draft problem. status: open\n' > docs/problems/log.md
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"PR-DRAFT-mybranch-1"* ]]
+}
+
+@test "check-ids: duplicate LLR definitions fail with DUPLICATE-ID" {
+    printf '**LLR-001**: clamp dose. satisfies: REQ-001\n' > docs/architecture/sad.md
+    printf '**LLR-001**: duplicate.\n' > src/extra.md
+    commit_all llr-dup
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DUPLICATE-ID LLR-001"* ]]
+}
+
 @test "check-ids: duplicate in-tree definitions fail with DUPLICATE-ID" {
     printf '**REQ-001**: duplicate definition.\n' > src/extra.md
     commit_all dup

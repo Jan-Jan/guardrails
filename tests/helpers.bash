@@ -4,11 +4,12 @@ write_config() {
     cat > .guardrails/config.yaml <<'EOF'
 guardrails_version: 0.1.0
 safety_class: B
-id_prefixes: REQ HAZ RC SDD
+id_prefixes: REQ HAZ RC SDD LLR PR
 doc_srs: docs/requirements/srs.md
 doc_rmf: docs/risk/rmf.md
 doc_sad: docs/architecture/sad.md
 doc_soup: docs/architecture/soup.md
+doc_problems: docs/problems/log.md
 strict_paths:
   - src
 test_paths:
@@ -28,7 +29,7 @@ make_fixture_repo() {
     git config user.name test
     git config user.email test@example.com
     git config commit.gpgsign false
-    mkdir -p .guardrails/scripts docs/requirements docs/risk docs/architecture src tests
+    mkdir -p .guardrails/scripts docs/requirements docs/risk docs/architecture docs/problems src tests
     cp "$BATS_TEST_DIRNAME"/../scripts/*.sh .guardrails/scripts/ 2>/dev/null || true
     write_config
     git add -A

@@ -22,8 +22,12 @@ the same violation.
    what it verifies, in a comment or test name:
 
    ```
-   # verifies: <REQ and/or RC IDs — draft IDs fine>
+   # verifies: <IDs — draft IDs fine>
    ```
+
+   Annotate the **lowest requirement level that exists**: where an item has
+   LLRs, tests verify the LLR (the parent REQ is covered transitively);
+   where there are no LLRs, tests verify the REQ/RC directly.
 
    A test you can't annotate is testing a requirement that doesn't exist —
    stop and run `grill-requirements` (or, if it's risk-control behavior,
@@ -40,11 +44,13 @@ the same violation.
 ## Class awareness
 
 `safety_class` from `.guardrails/config.yaml`:
-- **B and C:** failure behavior is part of every requirement — write the
-  failure-path tests (bad input, resource exhaustion, dependency failure),
-  not just happy paths.
+- **B and C — robustness rule:** every REQ/LLR gets BOTH normal-case tests
+  and abnormal-input tests (bad input, boundary values, resource
+  exhaustion, dependency failure). A requirement with only happy-path
+  tests is not verified; the independent review at merge checks for this.
 - **C:** unit-level verification is required per software item — every SDD
-  item touched needs tests at its own interface, not only end-to-end.
+  item touched needs tests at its own interface (its LLRs), not only
+  end-to-end.
 
 ## Bugs
 

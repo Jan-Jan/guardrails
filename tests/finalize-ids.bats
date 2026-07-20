@@ -55,6 +55,18 @@ EOF
     [[ "$output" == *"HAZ-DRAFT-b-1 -> HAZ-001"* ]]
 }
 
+@test "finalize: LLR and PR prefixes finalize independently" {
+    printf '**LLR-DRAFT-b-1**: clamp dose. satisfies: REQ-001\n' > docs/architecture/sad.md
+    printf '**PR-DRAFT-b-1**: crash on empty input. affects: REQ-001. status: open\n' > docs/problems/log.md
+    commit_all drafts
+    run sh .guardrails/scripts/finalize-ids.sh --base main
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"LLR-DRAFT-b-1 -> LLR-001"* ]]
+    [[ "$output" == *"PR-DRAFT-b-1 -> PR-001"* ]]
+    grep -q '^\*\*LLR-001\*\*:' docs/architecture/sad.md
+    grep -q '^\*\*PR-001\*\*:' docs/problems/log.md
+}
+
 @test "finalize: idempotent second run does nothing" {
     printf '\n**REQ-DRAFT-b-1**: draft requirement.\n' >> docs/requirements/srs.md
     commit_all draft

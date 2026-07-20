@@ -30,8 +30,18 @@ Work happens **in a worktree** (`worktree-discipline`); update
    record them in the item text):
    - **A** — architecture documentation optional; keep the SAD to a sketch.
    - **B** — architecture required: items, interfaces, and the REQ trace.
-   - **C** — additionally, detailed design per item: interfaces, algorithms,
-     error/failure behavior, and resource limits in the item's subsection.
+     LLRs optional — write them for items complex enough to warrant them.
+   - **C** — additionally, **low-level requirements (LLRs)** per item,
+     replacing free-form detailed-design prose. Under each SDD item write:
+
+     `**LLR-…**: <directly codeable behavior>. satisfies: REQ-…[, REQ-…]`
+
+     Directly codeable means an engineer implements it without further
+     interpretation: interfaces, algorithms, error/failure behavior,
+     resource limits — each as its own testable LLR. An LLR that has no
+     parent REQ is marked `satisfies: derived` and goes to `analyze-risks`
+     (the RMF must assess it). Tests then verify LLRs, and REQs are covered
+     transitively (`check-trace.sh` understands this).
    - Segregation between items of different classes must be explicit: state
      the mechanism (process boundary, address space, hardware) and why it is
      adequate — a Class C item's failure modes must not reach through it.

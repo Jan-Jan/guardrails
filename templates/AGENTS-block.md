@@ -15,11 +15,30 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
    worktree commits may be unsigned; the squash commit must be signed and is
    verified with `check-signing.sh` before the worktree is cleaned up. There
    is no unsigned fallback.
-3. **Traceability is mechanical.** New requirement/hazard/control/design items
-   are minted as draft IDs (`<PREFIX>-DRAFT-<branch>-<n>`) inside the worktree
-   and finalized to sequential IDs only at merge time by `finalize-ids.sh`.
-   Every new test declares what it verifies (`verifies: <REQ or RC IDs>`).
+3. **Traceability is mechanical.** New requirement/hazard/control/design/
+   problem items are minted as draft IDs (`<PREFIX>-DRAFT-<branch>-<n>`)
+   inside the worktree and finalized to sequential IDs only at merge time by
+   `finalize-ids.sh`. Every new test declares what it verifies
+   (`verifies: <IDs>` — annotate the lowest level present: LLR where one
+   exists, else REQ/RC; the parent REQ is covered transitively).
    `check-trace.sh` and `check-ids.sh` must pass before any merge.
+
+## Verification rigor (by safety class, from config)
+
+| | Coverage target | Robustness tests | LLRs | Independent review |
+|---|---|---|---|---|
+| **A** | none required | recommended | no | optional |
+| **B** | statement | required (normal + abnormal per REQ/LLR) | per-item where complex | one reviewer |
+| **C** | statement + decision | required | required per SDD item | thorough |
+
+MC/DC beyond the class C target is optional extra credit. Requirements with
+no parent in system needs are marked `satisfies: derived` and must be
+assessed in the risk management file (UNANALYZED-DERIVED otherwise). Every
+bug becomes a problem report (`resolve-problem` skill) in the log at
+`doc_problems` (config); open PRs are listed at each merge and never
+silently forgotten. The coverage gate runs the config's `coverage_command`
+when one is configured — projects without one document why in their setup
+notes.
 
 ## Workflow map
 
@@ -32,6 +51,7 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 | Plan an implementation | `plan-change` |
 | Start any change | `worktree-discipline` |
 | Implement (TDD) | `develop-change` |
+| Handle a bug / anomaly | `resolve-problem` |
 | Check traceability | `check-traceability` |
 | Confirm work is done | `verify-before-merge` |
 | Integrate to main | `merge-change` |

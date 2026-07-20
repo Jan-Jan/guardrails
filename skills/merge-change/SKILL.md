@@ -28,6 +28,30 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.
 6. **Re-run the verification suite** — the ID rewrite touched code and tests;
    prove it broke nothing.
+
+6a. **Independent review** (DO-178C independence: the verifier is not the
+   author). Dispatch a fresh subagent — or hand off to a human reviewer,
+   per team policy — with ONLY: the diff, the relevant SRS/RMF/SAD
+   excerpts, and the plan. No implementation narrative, no chat history.
+   The reviewer answers:
+   - Does the code satisfy each REQ/LLR the change claims to implement?
+   - Do the tests actually verify what their `verifies:` annotations claim
+     (verification of verification)? Would they fail if the behavior broke?
+   - Are robustness (abnormal-input) cases present for every claimed ID
+     (class B/C)?
+   - Is there behavior with no requirement — unmarked derived work?
+
+   Findings block the merge: fix in the worktree, rerun from step 1.
+   Rigor scales with class — A may skip this step, B one reviewer, C a
+   thorough review (consider two independent reviewers for critical items).
+
+6b. **Verification record** — write `docs/verification/<date>-<branch>.md`
+   in the worktree and commit it (unsigned, like all worktree commits):
+   test totals from step 6, coverage summary (if configured), each check
+   script's result, open PR warnings, and the reviewer's verdict from 6a.
+   The squash commit then carries the evidence on main, and its
+   `Verified:` line references this record.
+
 7. **Signed squash merge onto main:**
 
    ```sh
@@ -35,9 +59,9 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
    git merge --squash <branch>
    git commit -S -m "<type>: <summary>
 
-   Implements: <final REQ/RC/SDD IDs>
+   Implements: <final REQ/RC/SDD/LLR IDs>
    Plan: docs/plans/<plan file>
-   Verified: <verify commands + check scripts that passed>"
+   Verified: docs/verification/<record file>"
    ```
 
    Signing may require the user's hardware-key touch — tell them before

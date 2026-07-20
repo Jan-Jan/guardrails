@@ -31,9 +31,17 @@ work is a change like any other: do it **in a worktree**
 Update `docs/requirements/srs.md` (path from `.guardrails/config.yaml`)
 inline — don't batch:
 
+- REQ items are **high-level requirements**: system-observable behavior,
+  written from outside the software. The "how", per software item, belongs
+  to low-level requirements (LLRs) in the SAD (`design-architecture`).
 - Item form: `**<ID>**: The software shall <single, testable behavior>.`
 - New items get **draft IDs**: `REQ-DRAFT-<branch>-<n>` (see
   `worktree-discipline`). Never hand-pick final numbers.
+- **Derived requirements:** when a requirement exists only because of how
+  the design turned out (no parent in system/user needs), do not invent a
+  fake parent — mark it `satisfies: derived` and hand it to `analyze-risks`
+  for assessment (the RMF must mention it; `check-trace.sh` enforces this
+  as UNANALYZED-DERIVED).
 - One behavior per requirement, phrased so a test can verify it. "Fast",
   "user-friendly", "robust" are not requirements — grill until they become
   numbers or observable behavior.

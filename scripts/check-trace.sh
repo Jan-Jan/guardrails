@@ -4,12 +4,19 @@
 # check-trace.sh
 #
 # Traceability gates (exit 1 with one line per violation):
-#   MISSING-TEST ID          — REQ with no `verifies:` reference in test_paths
+#   MISSING-TEST ID          — REQ or LLR with no `verifies:` reference in
+#                              test_paths. A REQ also counts as tested when a
+#                              tested LLR `satisfies:` it (transitive).
 #   UNMITIGATED-HAZARD ID    — HAZ with no RC `mitigates:` line naming it
 #   UNIMPLEMENTED-CONTROL ID — RC with no REQ `implements:` line naming it
 #   UNTRACED-DESIGN ID       — SDD whose block has no `traces:` REQ reference
+#   UNSATISFIED-LLR ID       — LLR whose block has no `satisfies:` naming a
+#                              REQ and is not marked `satisfies: derived`
+#   UNANALYZED-DERIVED ID    — REQ/LLR marked derived, never mentioned in RMF
 #   DANGLING-REF ID          — ID referenced in docs/strict/test paths but
 #                              defined nowhere
+#   UNRESOLVED-PR ID         — problem report with status: open. WARNING
+#                              only: listed for review, never fails the check
 #
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
@@ -24,6 +31,7 @@ srs=$(cfg_get doc_srs)
 rmf=$(cfg_get doc_rmf)
 sad=$(cfg_get doc_sad)
 soup=$(cfg_get doc_soup)
+problems=$(cfg_get doc_problems)
 test_paths=$(cfg_list test_paths)
 strict_paths=$(cfg_list strict_paths)
 fail=0
@@ -52,14 +60,94 @@ $2
     return 1
 }
 
-# --- MISSING-TEST: every REQ needs a verifies: reference in test_paths ------
+# --- LLR block parse: "<id> <REQ,REQ|derived|->" per LLR in the SAD ---------
+llr_info=""
+if [ -f "$sad" ]; then
+    llr_info=$(awk '
+        function flush() {
+            if (cur != "") {
+                if (der) print cur " derived"
+                else if (sat != "") print cur " " sat
+                else print cur " -"
+            }
+        }
+        /^\*\*LLR-[0-9][0-9][0-9]+\*\*:/ {
+            flush()
+            cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
+            sat = ""; der = 0; inblock = 1
+        }
+        # any other definition line or markdown heading ends the LLR block,
+        # so prose below headings can never satisfy an LLR
+        /^\*\*/ && $0 !~ /^\*\*LLR-[0-9][0-9][0-9]+\*\*:/ {
+            if (cur != "") { flush(); cur = ""; inblock = 0 }
+        }
+        /^#/ { if (cur != "") { flush(); cur = ""; inblock = 0 } }
+        inblock {
+            if ($0 ~ /satisfies:[ \t]*derived/) der = 1
+            else if ($0 ~ /satisfies:/) {
+                line = $0
+                sub(/.*satisfies:/, "", line)
+                n = split(line, a, /[^A-Za-z0-9-]+/)
+                for (i = 1; i <= n; i++)
+                    if (a[i] ~ /^REQ-[0-9][0-9][0-9]+$/)
+                        sat = sat (sat == "" ? "" : ",") a[i]
+            }
+        }
+        END { flush() }
+    ' "$sad")
+fi
+
+# --- MISSING-TEST: every REQ and LLR needs a verifies: reference ------------
 if [ -n "$test_paths" ]; then
     # shellcheck disable=SC2086
-    verified=$(ids_matching 'verifies:' REQ $test_paths)
+    verified_llr=$(ids_matching 'verifies:' LLR $test_paths)
+    for id in $(ids_defined LLR); do
+        contains "$verified_llr" "$id" || { echo "MISSING-TEST $id (no 'verifies:' reference in test paths)"; fail=1; }
+    done
+
+    # REQ coverage: direct verifies:, plus satisfies: lists of tested LLRs
+    # shellcheck disable=SC2086
+    covered=$(ids_matching 'verifies:' REQ $test_paths)
+    for llr in $verified_llr; do
+        sats=$(printf '%s\n' "$llr_info" \
+            | awk -v l="$llr" '$1 == l && $2 != "-" && $2 != "derived" { print $2 }' \
+            | tr ',' '\n')
+        covered="$covered
+$sats"
+    done
     for id in $(ids_defined REQ); do
-        contains "$verified" "$id" || { echo "MISSING-TEST $id (no 'verifies:' reference in test paths)"; fail=1; }
+        contains "$covered" "$id" || { echo "MISSING-TEST $id (no direct 'verifies:' and no tested LLR satisfies it)"; fail=1; }
     done
 fi
+
+# --- UNSATISFIED-LLR: every LLR satisfies a REQ or is marked derived --------
+for id in $(printf '%s\n' "$llr_info" | awk '$2 == "-" { print $1 }'); do
+    echo "UNSATISFIED-LLR $id (no 'satisfies:' REQ and not marked derived)"
+    fail=1
+done
+
+# --- UNANALYZED-DERIVED: derived REQ/LLR must be assessed in the RMF --------
+derived_ids=$(printf '%s\n' "$llr_info" | awk '$2 == "derived" { print $1 }')
+if [ -f "$srs" ]; then
+    derived_ids="$derived_ids
+$(awk '
+        /^\*\*REQ-[0-9][0-9][0-9]+\*\*:/ {
+            cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
+        }
+        /^\*\*/ && $0 !~ /^\*\*REQ-[0-9][0-9][0-9]+\*\*:/ { cur = "" }
+        /^#/ { cur = "" }
+        cur != "" && /satisfies:[ \t]*derived/ { print cur; cur = "" }
+    ' "$srs")"
+fi
+for id in $derived_ids; do
+    # word-ish match: the ID must not be a prefix of a longer ID in the RMF
+    if [ -f "$rmf" ] && git grep -qE --untracked -- "${id}([^0-9]|\$)" "$rmf" 2>/dev/null; then
+        :
+    else
+        echo "UNANALYZED-DERIVED $id (derived item not assessed in the RMF)"
+        fail=1
+    fi
+done
 
 # --- UNMITIGATED-HAZARD: every HAZ needs an RC that mitigates it ------------
 if [ -f "$rmf" ]; then
@@ -97,7 +185,7 @@ fi
 
 # --- DANGLING-REF: every referenced ID must be defined somewhere ------------
 scope=""
-for f in "$srs" "$rmf" "$sad" "$soup"; do
+for f in "$srs" "$rmf" "$sad" "$soup" "$problems"; do
     [ -n "$f" ] && [ -f "$f" ] && scope="$scope $f"
 done
 for d in $strict_paths $test_paths; do
@@ -113,6 +201,27 @@ $(ids_defined "$pfx")"
     done
     for id in $referenced; do
         contains "$defined" "$id" || { echo "DANGLING-REF $id (referenced but never defined)"; fail=1; }
+    done
+fi
+
+# --- UNRESOLVED-PR: open problem reports are listed for review, but this ----
+# --- is a WARNING — it never sets fail (DO-178C-style known-problem review) --
+if [ -n "$problems" ] && [ -f "$problems" ]; then
+    awk '
+        function flush() { if (cur != "" && open) print cur }
+        /^\*\*PR-[0-9][0-9][0-9]+\*\*:/ {
+            flush()
+            cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
+            open = 0
+        }
+        # any other definition line (including draft PRs) or heading ends
+        # the block, so a following item cannot leak status into this one
+        /^\*\*/ && $0 !~ /^\*\*PR-[0-9][0-9][0-9]+\*\*:/ { flush(); cur = "" }
+        /^#/ { flush(); cur = "" }
+        cur != "" && /status:[ \t]*open/ { open = 1 }
+        END { flush() }
+    ' "$problems" | while IFS= read -r id; do
+        [ -n "$id" ] && echo "UNRESOLVED-PR $id (open problem report — review before release)"
     done
 fi
 

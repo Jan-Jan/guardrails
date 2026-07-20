@@ -23,7 +23,16 @@ Run, in the worktree, and show actual output for each:
 4. The change's own claims: every ID the plan says it **Implements** has a
    `verifies:` test that you watched fail before it passed
    (`develop-change`).
-5. `git status` — no uncommitted work, no stray files.
+5. **Coverage gate** — if `coverage_command` is configured, run it and judge
+   the report against the class target: **A** none required · **B**
+   statement coverage · **C** statement + decision coverage (MC/DC beyond
+   that is optional extra credit). A shortfall is a failure unless the user
+   explicitly accepts a documented gap (record the acceptance in the
+   verification record).
+6. **Robustness completeness** (class B/C) — every Implements: ID has both
+   normal-case and abnormal-input tests, per `develop-change`'s robustness
+   rule.
+7. `git status` — no uncommitted work, no stray files.
 
 ## Rules
 
