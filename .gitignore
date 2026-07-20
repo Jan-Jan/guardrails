@@ -1,0 +1,3 @@
+.claude/worktrees/
+tests/.bats-core/
+*.bak

@@ -1,0 +1,30 @@
+# guardrails configuration — flat schema only:
+#   `key: value` scalars and two-space `- item` lists.
+# Parsed by .guardrails/scripts/lib.sh with awk; do not nest deeper.
+guardrails_version: 0.1.0
+
+# IEC 62304 software safety class: A, B, or C. Set by /ratchet.
+# Per-item overrides: document them in the SAD next to the SDD item.
+safety_class: TBD
+
+# ID prefixes managed by the check/finalize scripts.
+id_prefixes: REQ HAZ RC SDD
+
+# Canonical document locations.
+doc_srs: docs/requirements/srs.md
+doc_rmf: docs/risk/rmf.md
+doc_sad: docs/architecture/sad.md
+doc_soup: docs/architecture/soup.md
+
+# Paths where traceability is enforced. On retrofit projects this list
+# starts small and grows as untraced code is brought under guardrails.
+strict_paths:
+  - src
+
+# Paths searched for `verifies:` test annotations.
+test_paths:
+  - tests
+
+# Commands merge-change and verify-before-merge must run and pass.
+verify_commands:
+  - make test
