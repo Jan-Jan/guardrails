@@ -14,8 +14,17 @@ and verification records.
 
 ## Install
 
+Via the [skills CLI](https://skills.sh) (Claude Code, Cursor, Codex, and
+other agents):
+
 ```sh
-git clone <this repo>
+npx skills add Jan-Jan/guardrails
+```
+
+Or manually:
+
+```sh
+git clone git@github.com:Jan-Jan/guardrails.git
 cd guardrails
 ./install.sh          # symlinks skills into ~/.claude/skills
                       # (CLAUDE_SKILLS_DIR overrides; --copy for a static copy)
