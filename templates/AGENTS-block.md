@@ -8,13 +8,14 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 ## Non-negotiables
 
 1. **All work happens in a git worktree** — documentation and code alike.
-   Never commit directly to the main branch. Use the `worktree-discipline`
+   Never commit directly to the base branch (the branch the primary,
+   non-worktree checkout has checked out). Use the `worktree-discipline`
    skill before touching anything.
 2. **Integration is a signed squash merge** performed by the `merge-change`
-   skill. Main receives exactly one signed commit per change. Intermediate
-   worktree commits may be unsigned; the squash commit must be signed and is
-   verified with `check-signing.sh` before the worktree is cleaned up. There
-   is no unsigned fallback.
+   skill. The base branch receives exactly one signed commit per change.
+   Intermediate worktree commits may be unsigned; the squash commit must be
+   signed and is verified with `check-signing.sh` before the worktree is
+   cleaned up. There is no unsigned fallback.
 3. **Traceability is mechanical.** New requirement/hazard/control/design/
    problem items are minted as draft IDs (`<PREFIX>-DRAFT-<branch>-<n>`)
    inside the worktree and finalized to sequential IDs only at merge time by
@@ -57,7 +58,7 @@ notes.
 | Handle a bug / anomaly | `resolve-problem` |
 | Check traceability | `check-traceability` |
 | Confirm work is done | `verify-before-merge` |
-| Integrate to main | `merge-change` |
+| Integrate to the base branch | `merge-change` |
 
 ## Check scripts (run from repo root)
 

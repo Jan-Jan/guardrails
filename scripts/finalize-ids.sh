@@ -5,7 +5,8 @@
 #
 # Converts draft IDs (<PREFIX>-DRAFT-<slug>-<n>) into final sequential IDs.
 # For each prefix, the next number is one past the highest final ID found on
-# REF (default: main) or in the working tree. Draft definitions are numbered
+# REF (default: the branch checked out in the primary worktree) or in the
+# working tree. Draft definitions are numbered
 # in definition order (file path, then line). Every occurrence of each draft
 # token in tracked/untracked files is rewritten (longest token first, so
 # ...-1 never clobbers part of ...-12). Prints one "DRAFT -> FINAL" line per
@@ -18,7 +19,7 @@ set -u
 cd "$(gr_root)" || exit 2
 
 dry=0
-base="main"
+base=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) dry=1 ;;
@@ -31,6 +32,9 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+[ -n "$base" ] || base=$(gr_base_branch)
+[ -n "$base" ] || gr_die "cannot detect the base branch (primary checkout detached?); pass --base REF"
 
 prefixes=$(cfg_get id_prefixes)
 [ -n "$prefixes" ] || gr_die "id_prefixes not configured"

@@ -8,7 +8,8 @@ description: Mandatory isolation for every change in a guardrails project - crea
 **Announce at start:** "Using the worktree-discipline skill to isolate this change."
 
 In a guardrails project **no change happens outside a worktree** — writing an
-SRS section is a change exactly like writing code. Main only ever moves by
+SRS section is a change exactly like writing code. The base branch (whatever
+branch the primary, non-worktree checkout has checked out) only ever moves by
 signed squash merges (`merge-change`).
 
 ## Creating the worktree
@@ -50,8 +51,8 @@ signed squash merges (`merge-change`).
   finalization rewrites every occurrence.
 - Commit early and often. Worktree commits may be unsigned
   (`git -c commit.gpgsign=false commit`) — they are squashed away; only the
-  merge commit on main must be signed.
-- Never `git checkout main` / commit to main from here.
+  merge commit on the base branch must be signed.
+- Never check out or commit to the base branch from here.
 
 ## Leaving
 
@@ -65,4 +66,4 @@ explicit say-so.
 |---|---|
 | "It's just a doc tweak, no worktree" | Docs are regulated artifacts. Worktree. |
 | "I'll pick REQ-014, it's free" | Another worktree thinks so too. Draft IDs only. |
-| "Quick fix directly on main" | Main moves only by signed squash merge. |
+| "Quick fix directly on the base branch" | The base branch moves only by signed squash merge. |

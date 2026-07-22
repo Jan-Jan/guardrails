@@ -7,10 +7,12 @@
 #   DRAFT-ID      — draft IDs (<PREFIX>-DRAFT-<slug>-<n>) anywhere in the tree,
 #                   unless --allow-drafts
 #   DUPLICATE-ID  — a final ID defined (**ID**: ...) more than once in the tree;
-#                   with --base REF, also an ID newly defined since the merge
-#                   base that REF already defines. A definition moved to another
-#                   file in the same change is NOT flagged (its old line shows
-#                   as removed in the diff).
+#                   also an ID newly defined since the merge base that the base
+#                   ref already defines. The base defaults to the branch checked
+#                   out in the primary worktree (override with --base REF; the
+#                   check is skipped if no base can be detected). A definition
+#                   moved to another file in the same change is NOT flagged
+#                   (its old line shows as removed in the diff).
 #
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
@@ -32,6 +34,8 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+[ -n "$base" ] || base=$(gr_base_branch)
 
 P=$(gr_prefix_re)
 [ -n "$P" ] || gr_die "id_prefixes not configured"

@@ -112,6 +112,21 @@ EOF
     grep -rq 'content-b' docs/requirements
 }
 
+@test "finalize: default base is the primary checkout's branch, not main" {
+    git checkout -q main
+    git branch -m main trunk
+    git worktree add -q -b wt-change wt
+    # trunk advances past the worktree's fork point
+    printf '\n**REQ-002**: added on trunk after fork.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all trunk-advance
+    cd wt
+    printf '\n**REQ-DRAFT-b-1**: draft in worktree.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all draft
+    run sh .guardrails/scripts/finalize-ids.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"REQ-DRAFT-b-1 -> REQ-003"* ]]
+}
+
 @test "finalize: idempotent second run does nothing" {
     printf '\n**REQ-DRAFT-b-1**: draft requirement.\n' >> docs/requirements/0001-01-01-base.md
     commit_all draft

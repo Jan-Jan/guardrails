@@ -89,6 +89,19 @@ EOF
     [[ "$output" == *"DUPLICATE-ID REQ-002"* ]]
 }
 
+@test "check-ids: default base catches duplicate vs the primary checkout's branch" {
+    git branch -m main trunk
+    git worktree add -q -b wt-change wt
+    printf '\n**REQ-002**: added on trunk after fork.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all trunk-advance
+    cd wt
+    printf '\n**REQ-002**: independently minted in worktree.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all wt-req2
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DUPLICATE-ID REQ-002 (already defined on trunk)"* ]]
+}
+
 @test "check-ids: editing an inherited requirement is not flagged by --base" {
     git checkout -qb feature2
     sed -i.bak 's/shall exist/shall really exist/' docs/requirements/0001-01-01-base.md

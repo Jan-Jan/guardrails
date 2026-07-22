@@ -38,6 +38,18 @@ gr_prefix_re() {
     cfg_get id_prefixes | tr ' ' '|'
 }
 
+# gr_base_branch — the branch checked out in the primary (non-worktree)
+# checkout, which is what a change merges into. Prints nothing if the
+# primary checkout is detached; never falls back to a linked worktree's
+# branch.
+gr_base_branch() {
+    git worktree list --porcelain 2>/dev/null | awk '
+        /^worktree / { n++ }
+        n > 1 { exit }
+        sub(/^branch refs\/heads\//, "") { print; exit }
+    '
+}
+
 # gr_doc_files KEY — resolve a doc_* config value to a file list, one per
 # line. A directory yields its *.md files (sorted); a file yields itself;
 # missing key or path yields nothing. Lets projects use either a single

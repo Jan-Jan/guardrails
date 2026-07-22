@@ -56,10 +56,11 @@ flowchart TD
 
 Three rules carry the whole system:
 
-1. **All work happens in worktrees** — documentation and code alike. Main
-   never moves except by merge.
-2. **Integration is a signed squash merge** — main is one signed, verified,
-   auditable commit per change.
+1. **All work happens in worktrees** — documentation and code alike. The
+   base branch (whatever the primary checkout has checked out — the scripts
+   detect it, nothing assumes `main`) never moves except by merge.
+2. **Integration is a signed squash merge** — the base branch is one signed,
+   verified, auditable commit per change.
 3. **Traceability is mechanical** — grep-able IDs link requirements, risks,
    design, and tests; scripts gate every merge.
 

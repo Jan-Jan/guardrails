@@ -34,5 +34,5 @@ line: `<RULE> <ID> (<detail>)`. Fix the artifact, never the checker.
 
 - After any edit to SRS/RMF/SAD/SOUP or to tests.
 - Always inside `verify-before-merge` and `merge-change` (without
-  `--allow-drafts` there — no drafts may reach main).
+  `--allow-drafts` there — no drafts may reach the base branch).
 - In CI on every merge.

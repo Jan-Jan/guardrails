@@ -1,32 +1,39 @@
 ---
 name: merge-change
-description: The compliance chokepoint - integrate a worktree into main via ID finalization, full checks, and a verified signed squash merge, then clean up the worktree. Use when a change has passed verify-before-merge and is ready to integrate.
+description: The compliance chokepoint - integrate a worktree into the base branch via ID finalization, full checks, and a verified signed squash merge, then clean up the worktree. Use when a change has passed verify-before-merge and is ready to integrate.
 ---
 
 # Merge Change
 
 **Announce at start:** "Using the merge-change skill to integrate this change."
 
-Precondition: `verify-before-merge` passed in the worktree. Main only ever
-receives one verified, **signed** squash commit per change. Every step until
-the squash happens **in the worktree**.
+Precondition: `verify-before-merge` passed in the worktree. The **base
+branch** — whatever branch the primary (non-worktree) checkout currently has
+checked out; never assume `main` — only ever receives one verified,
+**signed** squash commit per change. Every step until the squash happens
+**in the worktree**. Detect the base once and use it throughout:
+
+```sh
+BASE=$(. .guardrails/scripts/lib.sh && gr_base_branch)
+```
 
 ## The sequence
 
 Halt on any failure, fix in the worktree, and rerun from step 1.
 
-1. **Merge latest main into the worktree branch:**
-   `git merge main` (resolve conflicts here, never on main).
+1. **Merge the latest base branch into the worktree branch:**
+   `git merge "$BASE"` (resolve conflicts here, never on the base branch).
 2. **Run the full verification suite** — every `verify_commands` entry.
    Conflict fallout and integration breakage stop the merge right here.
 3. **Finalize IDs and draft doc files:**
-   `.guardrails/scripts/finalize-ids.sh --base main` (preview with
-   `--dry-run` first). This mints final sequential IDs AND renames any
+   `.guardrails/scripts/finalize-ids.sh` (preview with `--dry-run` first;
+   the base branch is auto-detected, `--base REF` overrides). This mints
+   final sequential IDs AND renames any
    `DRAFT-<branch>-<slug>.md` ledger files to `<merge-date>-<slug>.md`.
    Commit the rewrite (renames included):
    `git add -A && git -c commit.gpgsign=false commit -m "chore: finalize trace IDs"`.
-4. **`.guardrails/scripts/check-ids.sh --base main`** — zero drafts, zero
-   duplicates.
+4. **`.guardrails/scripts/check-ids.sh`** — zero drafts, zero duplicates
+   (also checks against the auto-detected base branch).
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.
 6. **Re-run the verification suite** — the ID rewrite touched code and tests;
    prove it broke nothing.
@@ -51,13 +58,13 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
    in the worktree and commit it (unsigned, like all worktree commits):
    test totals from step 6, coverage summary (if configured), each check
    script's result, open PR warnings, and the reviewer's verdict from 6a.
-   The squash commit then carries the evidence on main, and its
+   The squash commit then carries the evidence on the base branch, and its
    `Verified:` line references this record.
 
-7. **Signed squash merge onto main:**
+7. **Signed squash merge onto the base branch:**
 
    ```sh
-   cd <main checkout>          # or exit the worktree via your harness tool
+   cd <primary checkout>       # or exit the worktree via your harness tool
    git merge --squash <branch>
    git commit -S -m "<type>: <summary>
 
@@ -87,7 +94,7 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
 | Thought | Reality |
 |---|---|
 | "Skip re-verification, finalize only touched IDs" | It rewrote code and tests. Re-run (step 6). |
-| "Sign later, merge now" | Unsigned main is a broken audit trail. Stop instead. |
-| "Merge main in afterwards if something breaks" | Step 1 exists so breakage surfaces in the worktree. |
-| "Leave the worktree around just in case" | Merged work lives on main. Clean up (step 8). |
+| "Sign later, merge now" | An unsigned base branch is a broken audit trail. Stop instead. |
+| "Merge the base branch in afterwards if something breaks" | Step 1 exists so breakage surfaces in the worktree. |
+| "Leave the worktree around just in case" | Merged work lives on the base branch. Clean up (step 8). |
 | "Checks fail but the change is obviously fine" | Fix the artifact or the genuine gap. Never bypass. |

@@ -64,3 +64,27 @@ setup() { make_fixture_repo; }
     [ "$status" -eq 0 ]
     [ "$output" = "REQ|HAZ|RC|SDD|LLR|PR" ]
 }
+
+@test "gr_base_branch prints the primary checkout's branch" {
+    run sh -c '. .guardrails/scripts/lib.sh && gr_base_branch'
+    [ "$status" -eq 0 ]
+    [ "$output" = "main" ]
+}
+
+@test "gr_base_branch from a linked worktree prints the primary branch" {
+    git branch -m main trunk
+    git worktree add -q -b feature wt
+    cd wt
+    run sh -c '. .guardrails/scripts/lib.sh && gr_base_branch'
+    [ "$status" -eq 0 ]
+    [ "$output" = "trunk" ]
+}
+
+@test "gr_base_branch on detached primary prints nothing, never a linked branch" {
+    git worktree add -q -b feature wt
+    git checkout -q --detach
+    cd wt
+    run sh -c '. .guardrails/scripts/lib.sh && gr_base_branch'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}

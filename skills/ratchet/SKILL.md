@@ -29,8 +29,9 @@ ls src lib app AGENTS.md docs 2>/dev/null
 
 ## Step 2 (greenfield): Scaffold
 
-1. `git init -b main` if not a repo; make an initial commit if there is none
-   (a worktree needs a base).
+1. `git init` if not a repo (any default branch name works — the scripts
+   detect the base branch rather than assuming `main`); make an initial
+   commit if there is none (a worktree needs a base).
 2. Create a worktree for the scaffold work (use the `worktree-discipline`
    skill — ratchet practices what it preaches).
 3. Copy in, from the guardrails repo:
@@ -70,7 +71,8 @@ ls src lib app AGENTS.md docs 2>/dev/null
 Never overwrite. Sequence:
 
 1. **Inventory** (read, don't write): existing AGENTS.md/CLAUDE.md content and
-   any rules that conflict with guardrails (e.g. "commit to main directly");
+   any rules that conflict with guardrails (e.g. "commit to the base branch
+   directly");
    existing requirement/risk/architecture docs in any format; a bug tracker
    or problem log (feeds the `docs/problems/` ledger); verification evidence
    (test reports, coverage) worth archiving under `docs/verification/`;
@@ -131,7 +133,8 @@ Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`:
       `git config gpg.ssh.allowedSignersFile <path>`. Until this exists,
       `check-signing.sh` passes signed commits with WARN-UNVERIFIED; after,
       enable `--strict` in CI.
-- [ ] Branch protection on main: no direct pushes, require signed commits.
+- [ ] Branch protection on the base branch: no direct pushes, require signed
+      commits.
 - [ ] CI: run `verify_commands`, `check-ids.sh`, `check-trace.sh`, and
       `check-signing.sh --strict <base>..HEAD` on every merge.
 - [ ] Decide the human review/approval policy for merges (who signs off),
