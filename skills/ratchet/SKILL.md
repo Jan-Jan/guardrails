@@ -60,11 +60,74 @@ ls src lib app AGENTS.md docs 2>/dev/null
    .claude/worktrees/
    *.bak
    ```
-5. Run the **safety-class interview** (Step 4) and write the answer into
+5. **Make every configured path exist in the commit**, and every ledger
+   directory hold at least one `*.md`. `check-trace.sh` exits 2 otherwise —
+   that is what stops a typo'd path from silently disabling a gate. Git does
+   not track empty directories, so anything that exists only on your disk is
+   missing for everyone who clones the repo, and CI fails at exit 2. Two
+   different remedies, and they are not interchangeable:
+
+   - `strict_paths` / `test_paths` entries need to **match at least one file
+     that is present in the working tree**, so a `.gitkeep` in an as-yet-empty
+     `src/` or `tests/` is enough. Each entry is a **git pathspec** handed to
+     `git grep` verbatim — a plain path, or a pattern like `*_test.sh` that git
+     matches recursively. The shell never expands it, so the pattern means the
+     same thing wherever it is run from.
+   - `doc_*` values are plain paths, not patterns: a file, or a directory whose
+     `*.md` files sit directly in it (subdirectories are not read).
+   - `doc_*` directories need an actual `*.md` — a `.gitkeep` does **not**
+     satisfy them. Step 3 above already copies a README template into each of
+     the four ledger directories, which is what makes them valid; keep it.
+
+   Do **not** reach for the other apparent option — leaving the key out of the
+   config until the directory has content. A missing key reads as "this
+   project does not use that", which silently disables the gates that would
+   have used it and still exits 0. Point the key at a real path, or accept
+   that the gate is off and record why.
+6. Run the **safety-class interview** (Step 4) and write the answer into
    `.guardrails/config.yaml` (`safety_class:`), replacing the `TBD` sentinel.
    Also set `verify_commands` to the project's real test command.
-6. Commit in the worktree, then integrate with the `merge-change` skill
+7. Commit in the worktree, then integrate with the `merge-change` skill
    (signed squash merge). The check scripts must pass on the result.
+
+> **Upgrading the scripts in an existing project.** The config and layout
+> rules above are enforced from this version on, and several shapes the older
+> scripts accepted in silence are now exit 2. Before swapping in new
+> `scripts/`, run `check-trace.sh` once and work through whatever it reports:
+>
+> | Exit-2 cause | Why it was never safe |
+> |---|---|
+> | A ledger directory with no `*.md`, or a configured path that was never committed | The gates reading it did nothing and the run still passed |
+> | A configured directory that is empty | It exists, but matches no file, so the gate reading it scanned nothing |
+> | An `id_prefixes` entry that is not a bare identifier | It is interpolated into every scan pattern; an invalid pattern matches nothing, which looks like a clean tree |
+> | A config saved with CRLF line endings | The trailing `\r` lands inside every value; the diagnostic names a prefix or path that looks valid, so check the line endings first |
+>
+> Three changes are **exit 1**, not exit 2, and so are easy to miss.
+>
+> `strict_paths` and `test_paths` entries are now handed to `git grep` as
+> pathspecs instead of being expanded by the shell first. Git's `*` crosses
+> `/` where a shell glob does not, so an entry like `src/*.c` now reaches into
+> subdirectories that were previously out of scope, and files there can raise
+> failures for the first time. This is the entry meaning what it says; narrow
+> it if the wider scope is not what you wanted.
+>
+> An SDD
+> block now ends at the next definition line or markdown heading, the rule
+> low-level requirements already followed — so a `**Bold:**` aside or a fenced
+> block between an `**SDD-nnn**:` header and its `traces:` line now reports
+> `UNTRACED-DESIGN`. Move the annotation onto the header line or directly
+> beneath it.
+>
+> And annotations are now read as lists, with only the IDs immediately
+> following the keyword counting.
+> `verifies: LLR-001 and REQ-002` credits `LLR-001` alone, where the older
+> scripts credited both. A project using prose-joined ID lists will see new
+> `MISSING-TEST` / `UNMITIGATED-HAZARD` failures. Rewrite them as
+> `verifies: LLR-001, REQ-002`.
+>
+> Every one of these is a pre-existing gap the older scripts passed over, not
+> a new requirement invented by the upgrade. Fix the config or the layout;
+> there is no compatibility flag, deliberately.
 
 ## Step 3 (retrofit): Gap analysis first, then tighten
 

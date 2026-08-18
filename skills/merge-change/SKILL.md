@@ -32,8 +32,19 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
    `DRAFT-<branch>-<slug>.md` ledger files to `<merge-date>-<slug>.md`.
    Commit the rewrite (renames included):
    `git add -A && git -c commit.gpgsign=false commit -m "chore: finalize trace IDs"`.
+
+   **Exit 1 with `UNMINTED-DRAFT` lines** means a draft ID was never a
+   candidate to mint. Two causes, and the output names the file and line of
+   each: the item has no bold header (`**PREFIX-DRAFT-slug-n**:`, at line
+   start, colon immediately after), or its prefix is missing from
+   `id_prefixes` so nothing ever looked for it. Fix the header, or add the
+   prefix. Nothing was rewritten or renamed. Never hand-edit the draft IDs to
+   finals instead.
 4. **`.guardrails/scripts/check-ids.sh`** — zero drafts, zero duplicates
-   (also checks against the auto-detected base branch).
+   (also checks against the auto-detected base branch). If it prints
+   `SKIPPED-DUPLICATE-BASE`, the duplicate-vs-base half did not run — pass
+   `--base "$BASE"` and rerun, because that is the half that catches an ID the
+   base branch already defines.
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.
 6. **Re-run the verification suite** — the ID rewrite touched code and tests;
    prove it broke nothing.

@@ -98,10 +98,46 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 
 | Script | Purpose |
 |---|---|
-| `check-ids.sh [--allow-drafts] [--base REF]` | no leftover draft IDs or draft-named files, no duplicate IDs |
-| `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; open PRs listed as warnings |
+| `check-ids.sh [--allow-drafts] [--base REF]` | no leftover draft IDs or draft-named files, no duplicate IDs. Prints `SKIPPED-DUPLICATE-BASE` and leaves the duplicate-vs-base gate unrun when there is no usable base branch (a detached HEAD, or one with no commits yet); a `--base` you name yourself must resolve |
+| `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; open PRs listed as warnings. Ends with `checked:` (items found) and `sources:` (document files read, then the number of configured path entries) |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified |
-| `finalize-ids.sh [--dry-run] [--base REF]` | mint final IDs, rewrite references, rename draft ledger files to merge date |
+| `finalize-ids.sh [--dry-run] [--base REF]` | mint final IDs, rewrite references, rename draft ledger files to merge date; exits 1 without touching anything if a draft ID could never be minted — no bold item header, or a prefix missing from `id_prefixes` (`--dry-run` reports this too) |
+
+Annotations are read as lists: only the IDs immediately following the first
+occurrence of `verifies:`/`mitigates:`/`implements:`/`satisfies:`/`traces:`
+count, so `verifies: REQ-001 (was REQ-042)` credits REQ-001 alone. The rule
+has one definition, shared by every keyword.
+
+**A configured entry that matches nothing is an error, not an empty result.**
+Exit 2 — never a quiet exit 0 — for a `doc_*`, `strict_paths` or `test_paths`
+entry matching no file present in the working tree, a ledger directory holding
+no `*.md`, or an `id_prefixes` entry that is not a bare identifier.
+`strict_paths` and `test_paths` entries are **git pathspecs** — a plain path,
+or a pattern like `*_test.sh` that git matches recursively — and an empty
+directory matches no file. `doc_*` values are plain paths only: a file, or a
+directory whose `*.md` files sit directly in it.
+
+Every one of those would otherwise turn a whole gate family into a no-op that
+still reports success.
+
+**What this does not yet cover.** Two gaps are known, reproduced, and left to
+follow-up changes rather than hidden:
+
+1. **A missing or misspelled config KEY** still reads as "this project does
+   not use that". It is not only about documents: `doc_rmff:` disables every
+   hazard gate, `test_path:` disables `MISSING-TEST` entirely, and
+   `strict_path:` drops half of `DANGLING-REF` — each exiting 0. A config with
+   no `doc_*` keys and no path lists at all runs every gate off and still
+   exits 0. The `sources:` line is the tell: zeros there mean nothing was
+   read. `finalize-ids.sh` has the same blind spot — a misspelled `doc_*` key
+   leaves that ledger's `DRAFT-` file un-renamed and exits 0, though
+   `check-ids.sh` catches it at the next merge step.
+2. **`checked:` counts items found, not items examined.** An item defined
+   outside its configured document — `**SDD-001**:` in `docs/design.md` — is
+   counted here and read by no gate.
+
+Both are recorded, with reproductions, in
+`docs/plans/2026-08-12-false-green-fixes.md`.
 
 Safety-class awareness (IEC 62304 A/B/C) lives in `.guardrails/config.yaml`;
 skills scale required documentation and verification to the class.

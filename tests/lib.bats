@@ -53,10 +53,18 @@ setup() { make_fixture_repo; }
     [ "$output" = "docs/architecture/soup.md" ]
 }
 
-@test "gr_doc_files on missing key or path prints nothing, exit 0" {
+@test "gr_doc_files on a missing key prints nothing, exit 0" {
     run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_nonexistent'
     [ "$status" -eq 0 ]
     [ -z "$output" ]
+}
+
+@test "gr_doc_files dies when a configured path does not exist" {
+    rm -rf docs/risk
+    run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_rmf'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_rmf"* ]]
+    [[ "$output" == *"docs/risk"* ]]
 }
 
 @test "gr_prefix_re builds alternation from id_prefixes" {
@@ -88,3 +96,29 @@ setup() { make_fixture_repo; }
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
+
+@test "gr_doc_files dies when a configured directory holds no *.md" {
+    rm -f docs/risk/*.md
+    run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_rmf'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_rmf"* ]]
+    [[ "$output" == *"no *.md"* ]]
+}
+
+@test "gr_prefixes rejects a prefix that is not a bare identifier" {
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: REQ PR[/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    run sh -c '. .guardrails/scripts/lib.sh && gr_prefixes'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"bare identifier"* ]]
+}
+
+@test "gr_prefixes splits on spaces even when the caller set IFS to newline" {
+    run sh -c '. .guardrails/scripts/lib.sh
+IFS="
+"
+gr_prefixes | tr "\n" " "'
+    [ "$status" -eq 0 ]
+    [[ "$output" == "REQ HAZ RC SDD LLR PR "* ]]
+}
+

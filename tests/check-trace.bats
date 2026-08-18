@@ -28,7 +28,7 @@ EOF
 @test "check-trace: fully traced fixture passes" {
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
 }
 
 @test "check-trace: REQ without verifying test fails" {
@@ -68,7 +68,7 @@ EOF
     # and no direct test for REQ-001
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
 }
 
 @test "check-trace: LLR without satisfies fails" {
@@ -87,7 +87,7 @@ EOF
     commit_all derived
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
 }
 
 @test "check-trace: LLR without verifying test fails" {
@@ -137,7 +137,7 @@ EOF
     commit_all resolved-pr
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
 }
 
 @test "check-trace: open PR warning coexists with real failure exit 1" {
@@ -195,7 +195,7 @@ EOF
     commit_all cross-file
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
 }
 
 @test "check-trace: derived assessment in any rmf-directory file counts" {
@@ -205,7 +205,7 @@ EOF
     commit_all derived-cross
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
 }
 
 @test "check-trace: template READMEs in ledger dirs cause no false positives" {
@@ -216,7 +216,7 @@ EOF
     commit_all readmes
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 0 ]
 }
@@ -233,7 +233,7 @@ EOF
     commit_all single-file-layout
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [ -z "$output" ]
+    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
     printf '\n**HAZ-002**: Underdose.\n' >> docs/risk/rmf.md
     commit_all haz2-single
     run sh .guardrails/scripts/check-trace.sh
@@ -247,4 +247,284 @@ EOF
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"DANGLING-REF REQ-999"* ]]
+}
+
+@test "check-trace: a REQ in a parenthetical after the list is not coverage" {
+    printf '\n**REQ-002**: second requirement.\n' >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: LLR-001 (was REQ-002)\ntrue\n' > tests/test_a.sh
+    commit_all parenthetical
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISSING-TEST REQ-002"* ]]
+}
+
+@test "check-trace: comma lists, trailing commas and trailing prose all count" {
+    printf '\n**REQ-002**: second.\n\n**REQ-003**: third.\n' >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: LLR-001, REQ-002 — the fallback path\ntrue\n' > tests/test_a.sh
+    printf '# verifies: REQ-003,\ntrue\n' > tests/test_b.sh
+    commit_all lists
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"MISSING-TEST REQ-001"* ]]
+    [[ "$output" != *"MISSING-TEST REQ-002"* ]]
+    [[ "$output" != *"MISSING-TEST REQ-003"* ]]
+}
+
+@test "check-trace: a REQ in a parenthetical after satisfies: does not satisfy an LLR" {
+    printf '\n**REQ-002**: second.\n' >> docs/requirements/0001-01-01-base.md
+    cat > docs/architecture/0001-01-01-base.md <<'EOF'
+# Software Architecture
+
+**SDD-001**: Dose limiter module. traces: REQ-001
+
+**LLR-001**: Clamp requested dose. satisfies: REQ-001 (superseded REQ-002)
+EOF
+    commit_all satisfies-parenthetical
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISSING-TEST REQ-002"* ]]
+}
+
+@test "check-trace: traces: with no ID list is untraced even if a REQ appears later" {
+    cat > docs/architecture/0001-01-01-base.md <<'EOF'
+# Software Architecture
+
+**SDD-001**: Dose limiter module. traces: none — replaces REQ-001
+
+**LLR-001**: Clamp requested dose. satisfies: REQ-001
+EOF
+    commit_all bad-traces
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-001"* ]]
+}
+
+@test "check-trace: a configured doc path that is absent fails loudly, never silently passes" {
+    rm -rf docs/risk
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_rmf"* ]]
+}
+
+@test "check-trace: a configured test path that is absent fails loudly" {
+    rm -rf tests
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"test_paths"* ]]
+}
+
+@test "check-trace: prints how many items of each prefix were checked" {
+    # The whole summary line, matched exactly, with the prefixes deliberately
+    # holding different counts: asserting substrings like "REQ 3" would still
+    # pass if the loop reported one prefix's count under every prefix's name.
+    cat >> docs/requirements/0001-01-01-base.md <<'EOF'
+
+**REQ-002**: The system shall enforce the minimum dose. implements: RC-002
+
+**REQ-003**: The system shall log every dose decision.
+EOF
+    cat >> docs/risk/0001-01-01-base.md <<'EOF'
+
+**HAZ-002**: Underdose delivered to patient.
+
+**RC-002**: Software enforces the configured minimum. mitigates: HAZ-002
+EOF
+    printf '# verifies: REQ-002 REQ-003\ntrue\n' > tests/test_b.sh
+    commit_all counts
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"checked: REQ 3, HAZ 2, RC 2, SDD 1, LLR 1, PR 0"* ]]
+}
+
+@test "check-trace: reports how many source files each gate read" {
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    # docs/requirements holds the ratchet README plus the fixture ledger file
+    [[ "$output" == *"sources: srs 2,"* ]]
+    [[ "$output" == *"tests 1"* ]]
+}
+
+@test "check-trace: a requirements ledger with no REQ items reports REQ 0, not a silent pass" {
+    rm -f docs/requirements/0001-01-01-base.md
+    commit_all empty-srs
+    run sh .guardrails/scripts/check-trace.sh
+    # REQ-001 is still referenced from the SAD and the tests, so this run
+    # legitimately fails on DANGLING-REF. The point of the test is the
+    # denominator: the summary says REQ 0 instead of leaving a zero-item run
+    # indistinguishable from a full one.
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"REQ 0"* ]]
+    [[ "$output" == *"sources: srs 1,"* ]]
+}
+
+# --- Config shapes that would silently disable a gate ----------------------
+# Each of these produced a confident exit 0 over an unchecked hazard.
+
+@test "check-trace: a ledger directory holding no *.md is an error, not an empty document" {
+    rm -f docs/risk/*.md
+    commit_all no-rmf-files
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_rmf"* ]]
+    [[ "$output" == *"no *.md"* ]]
+}
+
+@test "check-trace: a configured strict path that is absent fails loudly" {
+    rm -rf src
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"strict_paths"* ]]
+}
+
+@test "check-trace: an absent path containing a space is named in full" {
+    sed -i.bak 's|^  - src$|  - my sources|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"my sources"* ]]
+}
+
+@test "check-trace: an ID prefix that is not a bare identifier is an error" {
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: REQ HAZ RC SDD LLR PR[/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"bare identifier"* ]]
+}
+
+# --- One annotation rule, applied identically to every keyword -------------
+
+@test "check-trace: traces: counts a REQ anywhere in its list, not only first" {
+    cat >> docs/architecture/0001-01-01-base.md <<'EOF'
+
+**SDD-002**: Dose logger. traces: SDD-001, REQ-001
+EOF
+    commit_all sdd2
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]]
+}
+
+@test "check-trace: a REQ named in prose after satisfies: does not satisfy an LLR" {
+    cat >> docs/architecture/0001-01-01-base.md <<'EOF'
+
+**LLR-002**: Round the dose. satisfies: none yet — use the satisfies: REQ-001 form
+EOF
+    printf '# verifies: LLR-001 LLR-002\ntrue\n' > tests/test_a.sh
+    commit_all llr2
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+# --- Configured paths must match something that is actually there ----------
+
+@test "check-trace: a strict path written as a glob still reaches the scan" {
+    # asserting exit 0 would prove nothing — a path that is silently dropped
+    # also exits 0. Put a dangling reference behind the glob and require the
+    # scan to find it.
+    printf '// see REQ-999\n' > src/a.c
+    sed -i.bak 's|^  - src$|  - src/*.c|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    commit_all glob-path
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-999"* ]]
+}
+
+@test "check-trace: a strict path glob that matches nothing is still an error" {
+    sed -i.bak 's|^  - src$|  - src/*.rs|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"src/*.rs"* ]]
+}
+
+# --- Path entries: plain paths, shell globs and git pathspecs --------------
+
+@test "check-trace: a recursive git pathspec in test_paths is accepted" {
+    # `*_test.sh` expands to nothing for the shell but matches recursively for
+    # git, which is what actually scans these paths. Rejecting it hard-failed
+    # a fully traced project.
+    mkdir -p tests/unit
+    git rm -q tests/test_a.sh
+    printf '# verifies: LLR-001\ntrue\n' > tests/unit/a_test.sh
+    sed -i.bak 's|^  - tests$|  - *_test.sh|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    commit_all pathspec
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == "checked:"* ]]
+}
+
+@test "check-trace: a pathspec matching no file at all is still an error" {
+    sed -i.bak 's|^  - tests$|  - *_nothing.sh|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"matches no file"* ]]
+}
+
+@test "check-trace: a pathspec matching a non-ASCII path is accepted" {
+    # git ls-files C-quotes any path with a non-ASCII byte, a quote, a tab or
+    # a newline. Testing [ -e ] on each returned name rejected a directory
+    # git grep scans perfectly well; counting is immune to the quoting.
+    mkdir -p 'tésts'
+    git rm -q tests/test_a.sh
+    printf '# verifies: LLR-001\ntrue\n' > 'tésts/a_test.sh'
+    sed -i.bak 's|^  - tests$|  - *_test.sh|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    commit_all nonascii
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == "checked:"* ]]
+}
+
+@test "check-trace: an unrelated later traces: does not credit an SDD block" {
+    # The SDD block must end at the next definition line or heading, the same
+    # rule parse_llr_file uses. Without a terminator an annotation far below
+    # credited an SDD that carries none of its own.
+    cat >> docs/architecture/0001-01-01-base.md <<'EOF'
+
+**SDD-002**: Logging module, no trace of its own.
+
+**LLR-002**: Log every dose change. satisfies: REQ-001. traces: REQ-001
+EOF
+    printf '# verifies: LLR-001 LLR-002\ntrue\n' > tests/test_a.sh
+    commit_all sdd-block
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]]
+}
+
+@test "check-trace: a configured directory that is empty matches no file" {
+    # An empty directory exists but holds nothing to scan; passing it would
+    # report `strict 1` for a source that read nothing.
+    rm -f src/.gitkeep
+    commit_all empty-src
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"strict_paths"* ]]
+    [[ "$output" == *"matches no file"* ]]
+}
+
+@test "check-trace: a path entry is a git pathspec, not shell-expanded at the root" {
+    # Left to the shell, `*.c` is replaced by whatever matches in the repo root
+    # and the recursive meaning is lost — src/ is never scanned, while
+    # `sources:` still reports strict 1. Deleting an unrelated root file then
+    # changes the verdict.
+    printf 'int main(void){return 0;}\n' > main.c
+    printf '// see REQ-999\n' > src/foo.c
+    sed -i.bak 's|^  - src$|  - *.c|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    commit_all glob-narrowing
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-999"* ]]
+}
+
+@test "check-trace: traces: on a line below the SDD header still counts" {
+    # The block terminator must not swallow the header's own block: an
+    # annotation on a continuation line is the shape a careless fix breaks.
+    cat >> docs/architecture/0001-01-01-base.md <<'EOF'
+
+**SDD-002**: Dose logger.
+traces: REQ-001
+EOF
+    commit_all sdd-continuation
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]]
 }

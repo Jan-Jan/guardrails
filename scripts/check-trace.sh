@@ -21,22 +21,121 @@
 # Each doc_* config value may be a single file or a directory of per-change
 # dated *.md files (see gr_doc_files in lib.sh).
 #
+# Nothing here may pass vacuously. These are all environment errors (exit 2),
+# never empty results:
+#   * a doc_*, strict_paths or test_paths entry matching no file present in
+#     the working tree;
+#   * a ledger directory holding no *.md at all;
+#   * an id_prefixes entry that is not a bare identifier — it is interpolated
+#     into every scan pattern, and a scan that errors finds nothing.
+#
+# KNOWN GAP, deliberately not closed here: a MISSING or MISSPELLED config key
+# reads as "this project does not use that", and no gate complains. It is not
+# only about documents — `doc_rmff:` disables every hazard gate, `test_path:`
+# disables MISSING-TEST entirely, `strict_path:` drops half of DANGLING-REF,
+# and a config with no doc_* keys and no path lists at all runs every gate off
+# and still exits 0. The `sources:` line is the tell: a zero there for
+# something the project does have is the symptom. Closing this needs the
+# config-schema change (see the plan's "How this landed" section); it is a
+# separate change, not an oversight.
+#
+# Annotation rule: for verifies:/mitigates:/implements:/satisfies:/traces:,
+# only the ID list immediately following the FIRST occurrence of the keyword
+# counts. The run ends at the first character that is not an ID, comma or
+# space, so `verifies: REQ-001 (was REQ-042)` credits REQ-001 alone. The rule
+# has exactly one definition — GR_AWK_ID_RUN in lib.sh.
+#
+# Every run ends with `checked:` (items found per prefix) and `sources:` (the
+# document files read, then the number of configured path entries — one entry
+# may be a directory or a pathspec), so a pass over zero cannot be
+# mistaken for a pass over sixty-three. Read them together: `checked:` counts
+# items found anywhere in the tree, which is NOT yet a guarantee that a gate
+# read them — an item defined outside its configured document is counted here
+# and examined by nothing. The placement gate that closes that is a separate
+# change (see the plan's "How this landed" section).
+#
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
 
 . "$(dirname "$0")/lib.sh"
 cd "$(gr_root)" || exit 2
 
-P=$(gr_prefix_re)
-[ -n "$P" ] || gr_die "id_prefixes not configured"
+prefixes=$(gr_prefixes) || exit 2
+P=$(gr_prefix_re) || exit 2
 
-srs_files=$(gr_doc_files doc_srs)
-rmf_files=$(gr_doc_files doc_rmf)
-sad_files=$(gr_doc_files doc_sad)
-soup_files=$(gr_doc_files doc_soup)
-problems_files=$(gr_doc_files doc_problems)
+# gr_doc_files dies on a configured-but-absent or empty path; because these run
+# in a command substitution its exit only kills the subshell, so propagate it.
+srs_files=$(gr_doc_files doc_srs) || exit 2
+rmf_files=$(gr_doc_files doc_rmf) || exit 2
+sad_files=$(gr_doc_files doc_sad) || exit 2
+soup_files=$(gr_doc_files doc_soup) || exit 2
+problems_files=$(gr_doc_files doc_problems) || exit 2
 test_paths=$(cfg_list test_paths)
 strict_paths=$(cfg_list strict_paths)
+
+# Every list above is newline-separated, so split on newlines alone: a path or
+# filename containing a space must reach git grep as one argument, and must be
+# named correctly in any error about it. `prefixes` is newline-separated too,
+# for the same uniformity.
+IFS='
+'
+
+# Pathname expansion OFF from here on. Configured path entries are git
+# pathspecs and must reach git verbatim. Left on, the shell expands them first
+# against the current directory, so `strict_paths: - *.c` is replaced by
+# whatever `*.c` matches in the repo ROOT and the recursive pathspec meaning is
+# silently lost: a root-level main.c makes `src/foo.c` invisible while
+# `sources:` still reports `strict 1`. Deleting that unrelated root file then
+# changes the verdict. gr_doc_files above needs globbing to expand its `*.md`,
+# so it has already run.
+set -f
+
+# A configured path that does not exist makes every gate that reads it a
+# silent no-op. Fail as an environment error instead of passing vacuously.
+#
+# The list expansions here and at the scan sites below are deliberately
+# unquoted so the newline-separated lists split into separate arguments —
+# never so the shell can expand a pattern. `set -f` above guarantees it does
+# not: every entry reaches git verbatim as a pathspec. An entry matching no
+# file at all scans no file, and that is what must be an error.
+require_paths() {
+    _key="$1"
+    shift
+    for _d in "$@"; do
+        [ -n "$_d" ] || continue
+        # No `[ -e ] && continue` short-circuit: an empty directory exists but
+        # holds nothing to scan, and passing it here would report `strict 1` in
+        # the summary for a source that read nothing — the exact false green
+        # the summary exists to expose. Every entry must match a FILE.
+        #
+        # The entry may be a plain path or a git pathspec: `*_test.sh`
+        # matches recursively for git, and git grep — which is what actually
+        # scans these — accepts it. So ask git. Only an entry matching no file
+        # at all is an error. NB git's `*` crosses `/` where a shell glob does
+        # not, so `src/*.c` reaches into subdirectories.
+        # Counted, never parsed. git ls-files C-quotes any path with a
+        # non-ASCII byte, a quote, a tab or a newline (core.quotePath), so
+        # testing [ -e ] on each returned name rejects a directory like
+        # `tésts/` that git grep scans perfectly well. Counting lines is
+        # immune to the quoting, and a quoted embedded newline still counts
+        # as the one line it is printed as.
+        #
+        # The match must also still be present in the working tree — git grep
+        # scans the tree, so a path that is tracked but deleted on disk would
+        # pass this check while scanning nothing. cached minus deleted, plus
+        # untracked-but-not-ignored, is exactly "matches a file that is there".
+        _cached=$(git ls-files --cached -- "$_d" 2>/dev/null | grep -c .)
+        _gone=$(git ls-files --deleted -- "$_d" 2>/dev/null | grep -c .)
+        _new=$(git ls-files --others --exclude-standard -- "$_d" 2>/dev/null | grep -c .)
+        [ $((_cached - _gone + _new)) -gt 0 ] && continue
+        gr_die "$_key entry matches no file present in the working tree: $_d"
+    done
+}
+# shellcheck disable=SC2086
+require_paths strict_paths $strict_paths
+# shellcheck disable=SC2086
+require_paths test_paths $test_paths
+
 fail=0
 
 # ids_defined PREFIX — all finalized IDs with a `**ID**:` definition site
@@ -45,30 +144,23 @@ ids_defined() {
         ":(exclude).guardrails" 2>/dev/null | sed 's/[*:]//g' | sort -u
 }
 
-# ids_matching PATTERN PREFIX PATHS… — IDs of PREFIX on lines matching PATTERN
+# ids_matching KEYWORD PREFIX PATHS… — IDs of PREFIX in the ID list that
+# immediately follows KEYWORD (see the annotation rule above).
 ids_matching() {
-    _pat="$1"
+    _kw="$1"
     _pfx="$2"
     shift 2
     [ $# -gt 0 ] || return 0
-    git grep -h --untracked -E "$_pat" -- "$@" 2>/dev/null \
-        | grep -oE "${_pfx}-[0-9]{3,}" | sort -u
-}
-
-contains() {
-    case "
-$1
-" in *"
-$2
-"*) return 0 ;; esac
-    return 1
+    git grep -hI --untracked -F "$_kw" -- "$@" 2>/dev/null \
+        | gr_id_run "$_kw" \
+        | grep -xE "${_pfx}-[0-9]{3,}" | sort -u
 }
 
 # --- LLR block parse: "<id> <REQ,REQ|derived|->" per LLR in the SAD files ---
 # Blocks end at any other definition line or markdown heading, so prose can
 # never satisfy an LLR. Parsed per file; blocks cannot span files.
 parse_llr_file() {
-    awk '
+    awk "$GR_AWK_ID_RUN"'
         function flush() {
             if (cur != "") {
                 if (der) print cur " derived"
@@ -87,13 +179,11 @@ parse_llr_file() {
         /^#/ { if (cur != "") { flush(); cur = ""; inblock = 0 } }
         inblock {
             if ($0 ~ /satisfies:[ \t]*derived/) der = 1
-            else if ($0 ~ /satisfies:/) {
-                line = $0
-                sub(/.*satisfies:/, "", line)
-                n = split(line, a, /[^A-Za-z0-9-]+/)
+            else {
+                run = gr_id_run($0, "satisfies:")
+                n = split(run, a, " ")
                 for (i = 1; i <= n; i++)
-                    if (a[i] ~ /^REQ-[0-9][0-9][0-9]+$/)
-                        sat = sat (sat == "" ? "" : ",") a[i]
+                    if (a[i] ~ /^REQ-/) sat = sat (sat == "" ? "" : ",") a[i]
             }
         }
         END { flush() }
@@ -111,7 +201,7 @@ if [ -n "$test_paths" ]; then
     # shellcheck disable=SC2086
     verified_llr=$(ids_matching 'verifies:' LLR $test_paths)
     for id in $(ids_defined LLR); do
-        contains "$verified_llr" "$id" || { echo "MISSING-TEST $id (no 'verifies:' reference in test paths)"; fail=1; }
+        gr_contains "$verified_llr" "$id" || { echo "MISSING-TEST $id (no 'verifies:' reference in test paths)"; fail=1; }
     done
 
     # REQ coverage: direct verifies:, plus satisfies: lists of tested LLRs
@@ -125,7 +215,7 @@ if [ -n "$test_paths" ]; then
 $sats"
     done
     for id in $(ids_defined REQ); do
-        contains "$covered" "$id" || { echo "MISSING-TEST $id (no direct 'verifies:' and no tested LLR satisfies it)"; fail=1; }
+        gr_contains "$covered" "$id" || { echo "MISSING-TEST $id (no direct 'verifies:' and no tested LLR satisfies it)"; fail=1; }
     done
 fi
 
@@ -134,7 +224,7 @@ if [ -n "$rmf_files" ]; then
     # shellcheck disable=SC2086
     mitigated=$(ids_matching 'mitigates:' HAZ $rmf_files)
     for id in $(ids_defined HAZ); do
-        contains "$mitigated" "$id" || { echo "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
+        gr_contains "$mitigated" "$id" || { echo "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
     done
 fi
 
@@ -143,20 +233,37 @@ if [ -n "$srs_files" ]; then
     # shellcheck disable=SC2086
     implemented=$(ids_matching 'implements:' RC $srs_files)
     for id in $(ids_defined RC); do
-        contains "$implemented" "$id" || { echo "UNIMPLEMENTED-CONTROL $id (no requirement 'implements:' it)"; fail=1; }
+        gr_contains "$implemented" "$id" || { echo "UNIMPLEMENTED-CONTROL $id (no requirement 'implements:' it)"; fail=1; }
     done
 fi
 
 # --- UNTRACED-DESIGN: every SDD block needs `traces:` naming a REQ ----------
 for f in $sad_files; do
-    untraced=$(awk '
+    untraced=$(awk "$GR_AWK_ID_RUN"'
         /^\*\*SDD-[0-9][0-9][0-9]+\*\*:/ {
             if (cur != "" && !ok) print cur
             cur = $0
             sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
             ok = 0
+            # deliberately no `next`: the header line itself usually carries
+            # the `traces:` annotation, so it must reach the scan below
         }
-        cur != "" && /traces:.*REQ-[0-9][0-9][0-9]/ { ok = 1 }
+        # The block ends at any other definition line or markdown heading, the
+        # same rule parse_llr_file uses. Without it an unrelated `traces:` far
+        # below credited an SDD that carries none of its own.
+        /^\*\*/ && $0 !~ /^\*\*SDD-[0-9][0-9][0-9]+\*\*:/ {
+            if (cur != "" && !ok) print cur
+            cur = ""; ok = 0
+        }
+        /^#/ {
+            if (cur != "" && !ok) print cur
+            cur = ""; ok = 0
+        }
+        cur != "" {
+            run = gr_id_run($0, "traces:")
+            n = split(run, a, " ")
+            for (i = 1; i <= n; i++) if (a[i] ~ /^REQ-/) ok = 1
+        }
         END { if (cur != "" && !ok) print cur }
     ' "$f")
     for id in $untraced; do
@@ -196,23 +303,24 @@ for id in $derived_ids; do
 done
 
 # --- DANGLING-REF: every referenced ID must be defined somewhere ------------
+# Newline-joined, like every other path list here, so a path with a space in
+# it stays one argument to git grep.
 scope=""
-for f in $srs_files $rmf_files $sad_files $soup_files $problems_files; do
-    [ -f "$f" ] && scope="$scope $f"
-done
-for d in $strict_paths $test_paths; do
-    [ -e "$d" ] && scope="$scope $d"
+for f in $srs_files $rmf_files $sad_files $soup_files $problems_files \
+        $strict_paths $test_paths; do
+    [ -n "$f" ] && scope="${scope}${scope:+
+}$f"
 done
 if [ -n "$scope" ]; then
     # shellcheck disable=SC2086
     referenced=$(git grep -h --untracked -oE "(${P})-[0-9]{3,}" -- $scope 2>/dev/null | sort -u)
     defined=""
-    for pfx in $(cfg_get id_prefixes); do
+    for pfx in $prefixes; do
         defined="$defined
 $(ids_defined "$pfx")"
     done
     for id in $referenced; do
-        contains "$defined" "$id" || { echo "DANGLING-REF $id (referenced but never defined)"; fail=1; }
+        gr_contains "$defined" "$id" || { echo "DANGLING-REF $id (referenced but never defined)"; fail=1; }
     done
 fi
 
@@ -234,5 +342,22 @@ for f in $problems_files; do
         [ -n "$id" ] && echo "UNRESOLVED-PR $id (open problem report — review before release)"
     done
 done
+
+# --- Summary: report the denominator ----------------------------------------
+# Two numbers, because one is not enough. `checked:` counts the items found;
+# `sources:` counts the files and paths each gate actually read. An item count
+# alone says nothing about whether the gate for those items ran at all.
+# Printed on pass and on failure alike, so every result states what it covered.
+count_lines() {
+    printf '%s' "$1" | grep -c . || true
+}
+
+summary=""
+for pfx in $prefixes; do
+    n=$(ids_defined "$pfx" | grep -c .) || true
+    summary="${summary}${summary:+, }${pfx} ${n}"
+done
+echo "checked: $summary"
+echo "sources: srs $(count_lines "$srs_files"), rmf $(count_lines "$rmf_files"), sad $(count_lines "$sad_files"), soup $(count_lines "$soup_files"), problems $(count_lines "$problems_files"); strict $(count_lines "$strict_paths"), tests $(count_lines "$test_paths")"
 
 exit $fail

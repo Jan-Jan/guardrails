@@ -110,3 +110,97 @@ EOF
     run sh .guardrails/scripts/check-ids.sh --base main
     [ "$status" -eq 0 ]
 }
+
+@test "check-ids: an ID prefix that is not a bare identifier is an error" {
+    # Before validation this printed "grep: Unmatched ( or \(" and exited 0 —
+    # an invalid pattern matches nothing, which looks exactly like a clean tree.
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: REQ HAZ RC SDD LLR PR[/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    printf '\n**REQ-DRAFT-b-1**: draft requirement.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all metachar
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"bare identifier"* ]]
+    # and only that: gr_prefix_re must propagate the die rather than returning
+    # an empty string that trips the unrelated "not configured" fallback
+    [[ "$output" != *"not configured"* ]]
+}
+
+@test "check-ids: a draft whose prefix is missing from id_prefixes is still a draft" {
+    # check-ids and finalize-ids must agree on what a draft is. When check-ids
+    # only looked for the declared prefixes, finalize-ids blocked on a draft
+    # this gate waved through — a hole between two gates of the same sequence.
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: REQ HAZ RC SDD LLR/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    printf '\n**PR-DRAFT-b-1**: a problem. status: open\n' >> docs/problems/README.md
+    commit_all undeclared-prefix-draft
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DRAFT-ID"* ]]
+    [[ "$output" == *"PR-DRAFT-b-1"* ]]
+}
+
+@test "check-ids: --allow-drafts still tolerates an undeclared-prefix draft" {
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: REQ HAZ RC SDD LLR/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    printf '\n**PR-DRAFT-b-1**: a problem. status: open\n' >> docs/problems/README.md
+    commit_all undeclared-prefix-draft-allowed
+    run sh .guardrails/scripts/check-ids.sh --allow-drafts
+    [ "$status" -eq 0 ]
+}
+
+@test "check-ids: an ID defined under .guardrails is not a duplicate of a minted one" {
+    # finalize-ids ignores .guardrails when picking the next number, so this
+    # gate must ignore it too. Otherwise finalize mints an ID that check-ids
+    # rejects as already defined on the base, and the merge sequence deadlocks
+    # with no permitted way forward.
+    printf '**REQ-002**: an item inside the guardrails dir.\n' > .guardrails/notes.md
+    commit_all guardrails-id
+    git checkout -qb feature
+    printf '\n**REQ-DRAFT-b-1**: draft requirement.\n' >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-DRAFT-b-1\ntrue\n' > tests/test_x.sh
+    commit_all draft
+    run sh .guardrails/scripts/finalize-ids.sh --base main
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"REQ-DRAFT-b-1 -> REQ-002"* ]]
+    commit_all finalized
+    run sh .guardrails/scripts/check-ids.sh --base main
+    [ "$status" -eq 0 ]
+}
+
+@test "check-ids: a named base ref that does not resolve is an error" {
+    # The caller asked for this gate; a silent pass is not an answer.
+    run sh .guardrails/scripts/check-ids.sh --base no-such-ref
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"no-such-ref"* ]]
+}
+
+@test "check-ids: a detected base with no commits yet is skipped, not fatal" {
+    # gr_base_branch reports the branch name from the worktree list, which
+    # exists before its first commit. Dying there aborts on a fresh repo with
+    # a complaint about a --base the caller never passed.
+    cd "$BATS_TEST_TMPDIR"
+    mkdir fresh && cd fresh
+    git init -q -b main
+    git config user.name test
+    git config user.email test@example.com
+    mkdir -p .guardrails/scripts
+    cp "$BATS_TEST_DIRNAME"/../scripts/*.sh .guardrails/scripts/
+    printf 'id_prefixes: REQ HAZ RC SDD LLR PR
+' > .guardrails/config.yaml
+    printf '**REQ-DRAFT-b-1**: a draft.
+' > notes.md
+    run sh .guardrails/scripts/check-ids.sh --allow-drafts
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"SKIPPED-DUPLICATE-BASE"* ]]
+}
+
+@test "check-ids: an undetectable base says the gate was skipped, and still passes" {
+    # A detached HEAD is what an ordinary CI checkout produces. Failing there
+    # would break every such project; passing silently would hide that the
+    # duplicate-vs-base gate never ran. Say so and carry on.
+    git checkout -q --detach
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"SKIPPED-DUPLICATE-BASE"* ]]
+}
