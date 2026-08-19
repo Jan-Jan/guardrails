@@ -667,11 +667,18 @@ EOF
     [[ "$output" == *"test_paths"* ]]
 }
 
-@test "check-trace: RC without doc_rmf still runs its gate, and is not rejected" {
-    # UNIMPLEMENTED-CONTROL reads doc_srs, not doc_rmf. Requiring doc_rmf here
-    # would reject a retrofit that has requirements, controls and design but no
-    # risk management file yet — while telling it a gate "could never run" that
-    # demonstrably does.
+@test "check-trace: RC declared without doc_rmf is rejected, not left unplaceable" {
+    # This test asserted the OPPOSITE until the placement gate landed, and the
+    # reversal is a premise change rather than an oscillation. Before the gate,
+    # nothing read where an RC was defined — UNIMPLEMENTED-CONTROL reads
+    # doc_srs — so requiring doc_rmf would have rejected a retrofit that had
+    # requirements, controls and design but no risk management file yet, while
+    # telling it a gate "could never run" that demonstrably did.
+    #
+    # MISPLACED-ITEM now reads doc_rmf to decide whether each control is
+    # defined where its gates can see it. Unconfigured, that gate is not
+    # skipped: it condemns every control in the project, once each, naming a
+    # key the config never set. One error before any gate runs says it better.
     cat > .guardrails/config.yaml <<'EOF'
 guardrails_version: 0.1.0
 safety_class: B
@@ -686,8 +693,9 @@ EOF
     printf '\n**RC-002**: an unimplemented control.\n' >> docs/requirements/0001-01-01-base.md
     commit_all rc-no-rmf
     run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]]
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"declares RC but doc_rmf is not configured"* ]]
+    [[ "$output" == *"only document a RC may be defined in"* ]]
 }
 
 @test "check-trace: a list item orphaned by a commented-out key is an error" {
@@ -698,4 +706,151 @@ EOF
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
     [[ "$output" == *"- src"* ]]
+}
+
+@test "check-trace: an SDD defined outside doc_sad is reported, not silently exempt" {
+    # No traces: line at all. Inside doc_sad this is UNTRACED-DESIGN; outside
+    # it, it was counted by `checked:` and examined by nothing.
+    printf '**SDD-002**: a design item nobody reads\n' > docs/design.md
+    commit_all sdd-outside
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM SDD-002"* ]]
+    [[ "$output" == *"doc_sad"* ]]
+}
+
+@test "check-trace: a REQ defined outside doc_srs is reported" {
+    printf '**REQ-002**: a requirement in the wrong file\n' > docs/notes.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all req-outside
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]]
+}
+
+@test "check-trace: a HAZ defined outside doc_rmf is reported" {
+    printf '**HAZ-002**: a hazard in the wrong file\n' > docs/notes.md
+    printf '\n**RC-002**: Alarm on the hazard. mitigates: HAZ-002\n' \
+        >> docs/risk/0001-01-01-base.md
+    sed -i.bak 's/implements: RC-001/implements: RC-001, RC-002/' \
+        docs/requirements/0001-01-01-base.md && rm -f docs/requirements/0001-01-01-base.md.bak
+    commit_all haz-outside
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM HAZ-002 (must be defined in the files doc_rmf resolves to"* ]]
+}
+
+@test "check-trace: an RC defined outside doc_rmf is reported" {
+    printf '**RC-002**: a control in the wrong file. mitigates: HAZ-001\n' > docs/notes.md
+    sed -i.bak 's/implements: RC-001/implements: RC-001, RC-002/' \
+        docs/requirements/0001-01-01-base.md && rm -f docs/requirements/0001-01-01-base.md.bak
+    commit_all rc-outside
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM RC-002 (must be defined in the files doc_rmf resolves to"* ]]
+}
+
+@test "check-trace: an LLR defined outside doc_sad is reported" {
+    # UNSATISFIED-LLR parses doc_sad only, so a misplaced LLR keeps no
+    # `satisfies:` obligation. MISSING-TEST does still see it — hence the
+    # `verifies:` below — which is why the message states the rule alone.
+    printf '**LLR-002**: a low-level requirement in the wrong file. satisfies: REQ-001\n' \
+        > docs/notes.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all llr-outside
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM LLR-002 (must be defined in the files doc_sad resolves to"* ]]
+}
+
+@test "check-trace: a PR defined outside doc_problems is reported" {
+    printf '**PR-001**: a problem report in the wrong file\n\nstatus: closed\n' > docs/notes.md
+    commit_all pr-outside
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM PR-001 (must be defined in the files doc_problems resolves to"* ]]
+}
+
+@test "check-trace: correctly placed items are not reported as misplaced" {
+    # A guard, not a RED test: it passed before the gate existed, because the
+    # gate did. Its value is in the mutation runs — removing the gr_contains
+    # check in check_placement turns it red while the misplacement tests stay
+    # green, which is what proves it constrains over-firing.
+    printf '**PR-001**: A closed problem.\n\nstatus: closed\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all placed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"MISPLACED-ITEM"* ]]
+}
+
+@test "check-trace: an item in a subdirectory of its doc directory is reported" {
+    # gr_doc_files expands "$dir"/*.md — one level deep. A file one level
+    # further down is not among the files doc_srs resolves to, so the gate
+    # keyed on that document never parses it.
+    mkdir -p docs/requirements/2026
+    printf '**REQ-002**: filed a level too deep\n' > docs/requirements/2026/r.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all nested
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]]
+}
+
+@test "every script is executable in the index, not just runnable via sh" {
+    # Not a duplicate of the tests above: those all invoke `sh <path>`, which
+    # works on a file with no executable bit. Every skill and template
+    # documents the bare path, and ratchet installs "keeping executable bits",
+    # so a mode lost here propagates into every target project as exit 126.
+    #
+    # Read from the INDEX (`git ls-files -s`), not from HEAD and not from the
+    # working tree. The accident this exists to catch — an `awk > tmp && mv`
+    # carrying 0644 across — reaches the index at `git add`, and HEAD only one
+    # commit later; a working-tree check would also pass silently on a
+    # mode-ignoring filesystem. With nothing staged the index equals HEAD, so
+    # this is strictly earlier, never later.
+    cd "$BATS_TEST_DIRNAME/.."
+    # tests/evidence.sh stages the base revision's scripts into a plain
+    # directory to run this same suite against them. There is no git there to
+    # ask, and a hard failure would book this test as "red against the base" —
+    # evidence that the change fixed something, when the base was fine. That
+    # exact miscount has now happened twice; skip rather than lie about it.
+    git rev-parse --git-dir >/dev/null 2>&1 || skip "not a git checkout"
+    run git ls-files -s scripts/
+    [ "$status" -eq 0 ]
+    seen=0
+    while read -r mode _hash _stage path; do
+        [ -n "$path" ] || continue
+        case "$path" in *.sh) ;; *) continue ;; esac
+        seen=$((seen + 1))
+        [ "$mode" = "100755" ] || { echo "not executable in the index: $path ($mode)"; false; }
+    done <<< "$output"
+    # Without this the test passes having examined nothing: guardrails unpacked
+    # inside some other repo answers `git rev-parse` fine and lists no
+    # scripts/, so every assertion above is vacuous. That is the shape
+    # require_paths and gr_doc_files exist to forbid; it must not appear here.
+    [ "$seen" -gt 0 ] || { echo "no scripts/*.sh in the index — this test proved nothing"; false; }
+}
+
+@test "check-trace: an item in a non-md file inside its doc directory is reported" {
+    # "Outside doc_srs" means outside what gr_doc_files resolves — its *.md
+    # files one level deep — not outside the directory. A .txt sitting right
+    # in the ledger is not among them either, so the message must not tell the
+    # operator to move a file that is already where they would move it.
+    printf '**REQ-002**: in a .txt inside the ledger directory\n' > docs/requirements/srs.txt
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all txt-ledger
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]]
+}
+
+@test "check-trace: every misplaced item is reported, not just the first" {
+    printf '**REQ-002**: first stray\n\n**REQ-003**: second stray\n' > docs/notes.md
+    printf '# verifies: REQ-002, REQ-003\ntrue\n' > tests/test_b.sh
+    commit_all two-strays
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002"* ]]
+    [[ "$output" == *"MISPLACED-ITEM REQ-003"* ]]
 }

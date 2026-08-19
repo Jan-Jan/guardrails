@@ -15,6 +15,8 @@
 #   UNANALYZED-DERIVED ID    — REQ/LLR marked derived, never mentioned in RMF
 #   DANGLING-REF ID          — ID referenced in docs/strict/test paths but
 #                              defined nowhere
+#   MISPLACED-ITEM ID        — item defined outside the document configured
+#                              for its prefix
 #   UNRESOLVED-PR ID         — problem report with status: open. WARNING
 #                              only: listed for review, never fails the check
 #
@@ -32,15 +34,11 @@
 #     one, a list item at column zero, or a UTF-8 BOM — each is invisible to
 #     the config reader, so the gate that key configures never runs;
 #   * an id_prefixes list naming none of REQ/HAZ/RC/SDD/LLR/PR, or a declared
-#     prefix whose gate inputs are unconfigured. An extra prefix alongside
-#     those is fine — DANGLING-REF, DUPLICATE-ID and ID finalization are keyed
-#     on the whole prefix list, so it is checked, just not by a gate of its own.
-#
-# KNOWN GAP, deliberately not closed here: `checked:` counts items found
-# anywhere in the tree, not items examined. An item defined outside the
-# document configured for its prefix is counted here and read by no gate.
-# Closing that is the item-placement change; it is separate work, not an
-# oversight.
+#     prefix whose gate inputs are unconfigured, or one whose definition
+#     document is unconfigured — every item of that prefix would be misplaced.
+#     An extra prefix alongside those is fine — DANGLING-REF, DUPLICATE-ID and
+#     ID finalization are keyed on the whole prefix list, so it is checked,
+#     just not by a gate of its own.
 #
 # Annotation rule: for verifies:/mitigates:/implements:/satisfies:/traces:,
 # only the ID list immediately following the FIRST occurrence of the keyword
@@ -51,11 +49,11 @@
 # Every run ends with `checked:` (items found per prefix) and `sources:` (the
 # document files read, then the number of configured path entries — one entry
 # may be a directory or a pathspec), so a pass over zero cannot be
-# mistaken for a pass over sixty-three. Read them together: `checked:` counts
-# items found anywhere in the tree, which is NOT yet a guarantee that a gate
-# read them — an item defined outside its configured document is counted here
-# and examined by nothing. The placement gate that closes that is a separate
-# change (see the plan's "How this landed" section).
+# mistaken for a pass over sixty-three. MISPLACED-ITEM is what makes `checked:`
+# trustworthy: while it is green, every item counted there sits in a document
+# some gate actually opened. It covers the six gated prefixes only — an extra
+# prefix has no configured document and is not placement-checked, so an item
+# of one is still counted without being examined.
 #
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
@@ -149,6 +147,21 @@ ids_defined() {
         ":(exclude).guardrails" 2>/dev/null | sed 's/[*:]//g' | sort -u
 }
 
+# ids_defined_in PREFIX FILES… — definitions of PREFIX inside the given files.
+# The empty-args guard is defence in depth, not a reachable branch: every
+# caller below passes a doc file list that gr_check_config's rule 2 and
+# gr_doc_files between them guarantee is non-empty. It is here because the
+# failure mode if a future caller does pass nothing is silent — `git grep -- `
+# with no pathspec scans the whole repository, so every item would look
+# correctly placed and the gate would report nothing at all.
+ids_defined_in() {
+    _p="$1"
+    shift
+    [ $# -gt 0 ] || return 0
+    git grep -h --untracked -oE "^\\*\\*${_p}-[0-9]{3,}\\*\\*:" -- "$@" 2>/dev/null \
+        | sed 's/[*:]//g' | sort -u
+}
+
 # ids_matching KEYWORD PREFIX PATHS… — IDs of PREFIX in the ID list that
 # immediately follows KEYWORD (see the annotation rule above).
 ids_matching() {
@@ -199,6 +212,76 @@ llr_info=""
 for f in $sad_files; do
     llr_info="$llr_info
 $(parse_llr_file "$f")"
+done
+
+# --- MISPLACED-ITEM: an item must be defined inside its own document -------
+# The message states the RULE and nothing else, deliberately. Two attempts at
+# stating the consequence were both disproved by the same run that printed
+# them, and the honest version has too many exceptions for one line:
+#
+#   * the item is still ENUMERATED — ids_defined scans the whole tree, so
+#     MISSING-TEST, UNMITIGATED-HAZARD and UNIMPLEMENTED-CONTROL fire on a
+#     misplaced item exactly as on a placed one;
+#   * its own block is not PARSED by the gate that would convict it on those
+#     annotations: UNTRACED-DESIGN, UNSATISFIED-LLR, UNRESOLVED-PR and the
+#     derived-assessment scan read only the configured document, so a
+#     misplaced SDD keeps no `traces:` obligation and a misplaced PR can never
+#     be reported open;
+#   * but DANGLING-REF scans every doc_* file plus strict_paths and
+#     test_paths, so an item misfiled into ANOTHER ledger still has its
+#     reference IDs read — by that gate, not by its own;
+#   * and a HAZ block carries no annotation of its own that a gate parses, but
+#     moving it out of the RMF still blinds one: UNANALYZED-DERIVED is a
+#     free-text grep over $rmf_files, so a derived item assessed inside a HAZ
+#     block stops being assessed when that block leaves. It fails RED, so no
+#     false green — but the loss is real.
+#
+# What is true for all six is the rule itself: an item belongs in the files
+# its key resolves to. The exceptions above are stated where there is room for
+# them — skills/check-traceability/SKILL.md and README.md.
+# `**SDD-001**:` in docs/design.md passed with no `traces:` at all, and moving
+# that same file into doc_sad turned the run red without changing a character
+# of it.
+#
+# "Outside" means outside what gr_doc_files RESOLVES: for a directory, its
+# *.md files one level deep; for a scalar, that one file whatever its
+# extension. A `.txt` sitting in a configured DIRECTORY, or a `.md` one level
+# further down, is outside it — hence the message naming the files the key
+# resolves to rather than the key's value, and not naming *.md, which is
+# wrong for a single-file doc_* config.
+#
+# This gate is what makes the summary trustworthy: while it is green, every
+# item counted in `checked:` sits in a document some gate actually opened.
+check_placement() {
+    _pfx="$1"
+    _key="$2"
+    shift 2
+    # No `[ $# -gt 0 ] || return 0` guard here, and deliberately so. The arms
+    # below cannot pass an empty list — rule 2 requires the key, gr_doc_files
+    # then yields at least one file or dies — so this is about which way to
+    # fail if that ever stops being true. With no files the correct verdict is
+    # "every item of this prefix is read by nothing", which is what an empty
+    # _inside produces. Skipping instead would be the silent exemption this
+    # gate exists to remove.
+    _inside=$(ids_defined_in "$_pfx" "$@")
+    for _id in $(ids_defined "$_pfx"); do
+        gr_contains "$_inside" "$_id" || {
+            echo "MISPLACED-ITEM $_id (must be defined in the files $_key resolves to)"
+            fail=1
+        }
+    done
+}
+for _pfx in $prefixes; do
+    case "$_pfx" in
+        # shellcheck disable=SC2086
+        REQ) check_placement REQ doc_srs $srs_files ;;
+        # shellcheck disable=SC2086
+        HAZ|RC) check_placement "$_pfx" doc_rmf $rmf_files ;;
+        # shellcheck disable=SC2086
+        SDD|LLR) check_placement "$_pfx" doc_sad $sad_files ;;
+        # shellcheck disable=SC2086
+        PR) check_placement PR doc_problems $problems_files ;;
+    esac
 done
 
 # --- MISSING-TEST: every REQ and LLR needs a verifies: reference ------------

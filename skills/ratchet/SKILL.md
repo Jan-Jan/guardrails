@@ -106,10 +106,28 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > | A list item orphaned from its key by a column-one comment or a `---` above it | Ambiguous: it either vanished with its list or was adopted by the block above, so `- src` under a commented-out `strict_paths:` could become a test path. **Commenting a list key out means commenting its items out too.** |
 > | A config saved with a UTF-8 BOM | The BOM made the first key unreadable, i.e. silently absent |
 > | `id_prefixes` naming none of REQ/HAZ/RC/SDD/LLR/PR | No traceability gate of its own would run for any prefix. Extra prefixes alongside the six stay valid and stay covered by DANGLING-REF, DUPLICATE-ID and ID finalization — do **not** remove them |
-> | A declared `id_prefixes` entry whose document is unconfigured — `REQ`/`RC` without `doc_srs`, `HAZ` without `doc_rmf`, `SDD`/`LLR` without `doc_sad`, `PR` without `doc_problems`, or `REQ`/`LLR` with an empty `test_paths` | Without it the gate for that prefix was skipped and the run still passed. Note `RC` needs `doc_srs`, not `doc_rmf`: `UNIMPLEMENTED-CONTROL` reads the document the *requirements* live in |
+> | A declared `id_prefixes` entry whose document is unconfigured — `REQ`/`RC` without `doc_srs`, `HAZ`/`RC` without `doc_rmf`, `SDD`/`LLR` without `doc_sad`, `PR` without `doc_problems`, or `REQ`/`LLR` with an empty `test_paths` | Without it the gate for that prefix was skipped and the run still passed. `RC` needs both: `UNIMPLEMENTED-CONTROL` reads `doc_srs`, where the *requirements* live, and `MISPLACED-ITEM` reads `doc_rmf`, the only document a control may be defined in |
 > | An `id_prefixes` entry that is not a bare identifier | It is interpolated into every scan pattern; an invalid pattern matches nothing, which looks like a clean tree |
 >
-> Three changes are **exit 1**, not exit 2, and so are easy to miss.
+> Four changes are **exit 1**, not exit 2, and so are easy to miss.
+>
+> An item defined outside the document configured for its prefix now reports
+> `MISPLACED-ITEM`. It used to be counted in `checked:` while the gate that
+> would convict it never parsed its block — `**SDD-001**:` in
+> `docs/design.md`, with no `traces:` line at all, passed. (Other gates did
+> still see it: a misplaced item has always drawn `MISSING-TEST`,
+> `UNMITIGATED-HAZARD` or `DANGLING-REF` where those applied. What it escaped
+> was the gate keyed on its own document.)
+> Move the definition into the configured document; adding the stray file to
+> `strict_paths` does **not** fix it, because that widens reference scanning
+> rather than the document a gate opens. A `doc_*` directory resolves to its
+> `*.md` files one level deep, so a `.md` in a subdirectory of one reports —
+> and so does a `.txt` sitting directly in it; a `doc_*` configured as a
+> single file resolves to that file whatever its extension. Where the ID is
+> illustrative text rather than a real item — an example in a plan, changelog
+> or README at column one — the remedy is the reverse: write `**REQ-NNN**:`,
+> which no scan matches. Measured on a project already keeping its items in
+> the configured ledgers, this gate reports nothing at all.
 >
 > `strict_paths` and `test_paths` entries are now handed to `git grep` as
 > pathspecs instead of being expanded by the shell first. Git's `*` crosses

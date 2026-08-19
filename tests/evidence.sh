@@ -46,9 +46,24 @@ cp -R tests templates "$work/base/" 2>/dev/null || true
 # `git show base:scripts/sub` writes a tree LISTING into a file of that name,
 # exits 0, and the real scripts are simply absent — every test then fails and
 # the run is booked as maximum coverage.
-for f in $(git ls-tree -r --name-only "$base" scripts/); do
-    git show "$base:$f" > "$work/base/$f"
-done
+# Modes come from the tree, not from the redirection: `git show > file` creates
+# it 0644 whatever the blob's mode was, so a base whose scripts are executable
+# would be staged non-executable here. A test that invokes a script BY PATH
+# then fails against the base for a reason that has nothing to do with the
+# base's behaviour, and gets booked as evidence that this change fixed
+# something. It did not: the base was fine.
+# Read from a file, not a pipe: a `while read` on the right of a `|` runs in a
+# subshell, where `set -e` no longer aborts this script if a `git show` fails.
+# A partial checkout would then run the suite against half a base and book the
+# missing half as coverage.
+git ls-tree -r "$base" scripts/ > "$work/tree.txt"
+while read -r _mode _type _hash _path; do
+    mkdir -p "$work/base/$(dirname "$_path")"
+    git show "$base:$_path" > "$work/base/$_path"
+    case "$_mode" in
+        *755) chmod +x "$work/base/$_path" ;;
+    esac
+done < "$work/tree.txt"
 _have=$(ls "$work/base/scripts"/*.sh 2>/dev/null | grep -c . || true)
 [ "${_have:-0}" -gt 0 ] || { echo "evidence: no scripts checked out from $base" >&2; exit 2; }
 

@@ -31,14 +31,15 @@ path entries, since one entry may be a directory or a pathspec.)
 lines above it is clean. `REQ 0` on a project that has requirements, or
 `rmf 0` on a project that has an RMF, means the checker found nothing and
 proved nothing — a config or layout problem, not a pass. `checked:` alone is
-not enough: it counts items found anywhere in the tree, while `sources:`
-counts the files the gate for those items actually opened.
+not enough on its own: it counts items found anywhere in the tree, while
+`sources:` counts the files the gate for those items actually opened.
 
-**One known gap, deliberate and recorded in the plan.** *`checked:` counts
-items found anywhere in the tree*, which is not yet proof that a gate read
-them — an item defined outside its configured document is counted here and
-examined by nothing. Treat a surprising count as a prompt to check where those
-items are defined.
+**`MISPLACED-ITEM` is what ties the two together.** Each of the six gated
+prefixes is checked against the one document it may be defined in
+(`REQ`→`doc_srs`, `HAZ`/`RC`→`doc_rmf`, `SDD`/`LLR`→`doc_sad`,
+`PR`→`doc_problems`), so while that gate is green every item in `checked:`
+sits in a document some gate opened. It covers those six only — an item of an
+extra declared prefix is still counted without being examined.
 
 A misspelled or misplaced config key no longer belongs on that list: the
 config is validated, and the shapes below are exit 2. Three things it still
@@ -69,7 +70,8 @@ would otherwise let a gate pass without running:
 | `config line(s) that are neither a comment, a top-level key, nor a '  - item' belonging to one` | A key that is not `identifier:` at column one (`strict-paths:`, ` strict_paths:`, `strict_paths :`); a list item at column zero; or a list item **orphaned** from its key by a column-one comment or a `---` separator above it. An orphan is ambiguous — it either vanishes with its list or is adopted by the block above — so it is rejected rather than guessed at. Commenting a list key out means commenting its items out too. |
 | `config begins with a UTF-8 BOM` | The BOM makes the first key unreadable, i.e. silently absent. |
 | `id_prefixes names no prefix with a traceability gate` | At least one of REQ, HAZ, RC, SDD, LLR, PR must appear. Extra prefixes alongside them are fine — `DANGLING-REF`, `DUPLICATE-ID` and ID finalization are keyed on the whole prefix list, so they are checked, just not by a gate of their own. Without any of the six the only checks left are those, and a config that also omits the document keys runs nothing at all. |
-| `id_prefixes declares RC but doc_srs is not configured` | A declared prefix needs the documents its gates READ, which is not always where it is defined: `UNIMPLEMENTED-CONTROL` looks for a REQ that implements each RC, so RC needs `doc_srs` and not `doc_rmf`. |
+| `id_prefixes declares RC but doc_srs is not configured` | A declared prefix needs the documents its gates READ, which is not always where it is defined: `UNIMPLEMENTED-CONTROL` looks for a REQ that implements each RC, so RC needs `doc_srs`. |
+| `id_prefixes declares RC but doc_rmf is not configured` | A prefix also needs the one document it may be DEFINED in, because `MISPLACED-ITEM` reads it. A control lives in the RMF, so `RC` needs `doc_rmf` as well — unconfigured, every control in the project would be misplaced. |
 | `id_prefixes declares REQ/LLR but test_paths is empty` | Nothing would be searched for `verifies:`. |
 | `strict_paths entry matches no file present in the working tree: src/*.rs` | A `strict_paths`/`test_paths` entry matching nothing. These are **git pathspecs** — a plain path, or a pattern like `*_test.sh` that git matches recursively. An entry matching nothing scans nothing, and an empty directory matches no file. |
 
@@ -87,6 +89,7 @@ Fix the config; never work around it by removing the prefix.
 | `UNIMPLEMENTED-CONTROL RC-…` | No requirement `implements:` this control | Grill the control into a testable REQ (`grill-requirements`); for non-software controls, note the external implementation in the RMF item and add the implementing REQ only if software plays a part. |
 | `UNTRACED-DESIGN SDD-…` | Design item has no `traces:` to a REQ | Add the trace if the requirement exists; if none does, the item is speculative — delete it or grill the requirement into existence first. |
 | `DANGLING-REF <ID>` | ID referenced but defined nowhere | Typo → fix the reference. Deleted item → remove or update every reference (deleting a defined item is a change requiring its own review). |
+| `MISPLACED-ITEM <ID>` | Item defined outside the document configured for its prefix. It is still *enumerated* — `MISSING-TEST` and the rest fire on it exactly as on a placed item — but the gate that would convict it on its own annotations parses only the configured document, so a misplaced `SDD` carries no `traces:` obligation and a misplaced `PR` can never be reported open. Two caveats worth knowing: `DANGLING-REF` scans every `doc_*` file plus `strict_paths` and `test_paths`, so an item misfiled into *another* ledger still has its reference IDs read — by that gate, not by its own; and a `HAZ` block carries no annotation of its own that a gate parses, yet moving it out of the RMF still blinds `UNANALYZED-DERIVED`, which greps the RMF as free text — a derived item assessed inside a hazard's block stops being assessed when that block leaves (it fails red, so nothing passes silently) | Move the definition into that document — `REQ`→`doc_srs`, `HAZ`/`RC`→`doc_rmf`, `SDD`/`LLR`→`doc_sad`, `PR`→`doc_problems`. Adding the stray file to `strict_paths` does **not** fix it: that widens reference scanning, not the document a gate opens. A `doc_*` directory resolves to its `*.md` files **one level deep**, so a `.md` in a subdirectory of it reports — and so does a `.txt` sitting directly in it. A `doc_*` configured as a single *file* resolves to that file whatever its extension. If the ID is illustrative text rather than a real item, write `**REQ-NNN**:` instead — no scan matches it. |
 | `UNRESOLVED-PR PR-…` | Open problem report (**warning — never fails**) | Review it: still valid? Fix via `resolve-problem`, or leave open knowingly — the point is that every merge sees the list. |
 | `DRAFT-ID …` / `DUPLICATE-ID …` (check-ids) | Drafts remaining / an ID defined twice | Drafts are fine mid-development (use `--allow-drafts`); at merge they're finalized by `merge-change`. Duplicates: keep one definition, re-mint the other as a fresh draft. |
 | `SKIPPED-DUPLICATE-BASE` (check-ids) | **Not a violation.** There is no usable base branch — a detached HEAD, or one with no commits — so the "already defined on the base" half of `DUPLICATE-ID` did not run | Nothing, if you are not merging. Before a merge, pass `--base REF` so that gate runs. The line exists because a gate that did not run must not look like one that passed. |

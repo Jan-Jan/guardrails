@@ -269,12 +269,13 @@ gr_check_config() {
   those two, and a config that also omits the document keys would run nothing
   at all and still exit 0."
 
-    # Each prefix needs the documents whose absence would SILENTLY SKIP one of
-    # its gates — which is not always the document the prefix is defined in:
+    # TWO rules, deliberately separate, because they answer different
+    # questions and one of them changed when the placement gate landed.
+    #
+    # Rule 1 — gate inputs: documents whose absence would SILENTLY SKIP one of
+    # this prefix's gates. Not always the document the prefix is defined in:
     # UNIMPLEMENTED-CONTROL looks for a REQ that implements each RC, so RC
-    # needs doc_srs and NOT doc_rmf. Requiring the definition document as well
-    # would reject a retrofit that has controls but no risk management file
-    # yet, while telling it a gate could never run that demonstrably does.
+    # needs doc_srs.
     #
     # This is deliberately NOT the full set of documents every gate reads.
     # UNANALYZED-DERIVED also reads doc_rmf, and the transitive half of
@@ -298,6 +299,31 @@ gr_check_config() {
             [ -n "$(cfg_get "$_k")" ] || \
                 gr_die "id_prefixes declares $_p but $_k is not configured — a gate for $_p reads it, so that gate could never run"
         done
+    done
+
+    # Rule 2 — definition documents: the one document MISPLACED-ITEM requires
+    # each item of this prefix to be defined in. Unconfigured, that gate is not
+    # skipped — it condemns every item of the prefix, correctly but once per
+    # item, naming a key the project never set. Say it once instead.
+    #
+    # Only RC differs from rule 1: a risk control is defined in the RMF, while
+    # the gate that reads controls reads the SRS. Every other entry is already
+    # required above, so this rule rejects exactly one new shape: RC declared
+    # with no doc_rmf, which configures a project where no control can ever be
+    # correctly placed. Change B's map had RC needing doc_srs and NOT doc_rmf,
+    # with the reason that no RC gate read doc_rmf — true until this gate
+    # existed, and recorded here so the reversal reads as the premise change it
+    # is rather than an oscillation.
+    for _p in $_pfx; do
+        case "$_p" in
+            REQ)    _home="doc_srs" ;;
+            HAZ|RC) _home="doc_rmf" ;;
+            SDD|LLR) _home="doc_sad" ;;
+            PR)     _home="doc_problems" ;;
+            *)      continue ;;
+        esac
+        [ -n "$(cfg_get "$_home")" ] || \
+            gr_die "id_prefixes declares $_p but $_home is not configured — that is the only document a $_p may be defined in, so every $_p would be misplaced"
     done
 
     if gr_contains "$_pfx" REQ || gr_contains "$_pfx" LLR; then

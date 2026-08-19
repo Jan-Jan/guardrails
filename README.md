@@ -133,11 +133,34 @@ that did not run. The exception is an unrecognised key, which may be a
 project-local annotation rather than a typo — the two are indistinguishable
 from here, and guessing wrong on a typo is the failure this exists to stop.
 
-**What this does not yet cover.** One gap is known, reproduced, and left to a
-follow-up change rather than hidden: **`checked:` counts items found, not items
-examined.** An item defined outside its configured document — `**SDD-001**:` in
-`docs/design.md` — is counted there and read by no gate. It is recorded, with a
-reproduction, in `docs/plans/2026-08-12-false-green-fixes.md`.
+**Items must live where their gates look.** `MISPLACED-ITEM` closes what was a
+recorded gap: `checked:` used to count items found, not items examined, so
+`**SDD-001**:` written in `docs/design.md` — with no `traces:` line at all —
+was counted there while the gate that would convict it never parsed its block.
+Each of the six gated prefixes is now
+checked against the one document it may be defined in (`REQ`→`doc_srs`,
+`HAZ`/`RC`→`doc_rmf`, `SDD`/`LLR`→`doc_sad`, `PR`→`doc_problems`), so while
+that gate is green every counted item sits somewhere a gate opened. A `doc_*`
+directory resolves to its `*.md` files one level deep, so an item in a
+subdirectory of one is reported — and so is one in a `.txt` sitting directly
+in it; a `doc_*` configured as a single file resolves to that file whatever its
+extension. What a misplaced item loses is not enumeration — `MISSING-TEST` and
+the rest still fire on it — but the gate that would convict it on its own
+annotations, which parses the configured document alone. Two caveats: `DANGLING-REF`
+scans every `doc_*` file plus `strict_paths` and `test_paths`, so an item
+misfiled into another ledger still has its reference IDs read — by that gate,
+not by its own; and a `HAZ` block carries no annotation of its own that a gate
+parses, yet moving it out of the RMF still blinds `UNANALYZED-DERIVED`, which
+greps the RMF as free text.
+
+The remedy is to move the definition into the configured document. For an ID
+that appears at column one in illustrative text — a plan, a changelog, a
+README example — the remedy is the opposite: stop using a real three-digit ID
+there and write `**REQ-NNN**:`, which no scan matches.
+
+**What this does not yet cover.** Placement covers the six gated prefixes only.
+An extra prefix declared alongside them has no configured document, so its
+items are still counted without being examined.
 
 Safety-class awareness (IEC 62304 A/B/C) lives in `.guardrails/config.yaml`;
 skills scale required documentation and verification to the class.

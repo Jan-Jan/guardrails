@@ -19,7 +19,16 @@
 #     own. With none of the six, only those checks remain;
 #   * a declared prefix needs the documents its gates READ, which is not always
 #     the document it is defined in: `RC` needs `doc_srs`, because
-#     UNIMPLEMENTED-CONTROL looks for a REQ that implements each control.
+#     UNIMPLEMENTED-CONTROL looks for a REQ that implements each control;
+#   * a declared prefix also needs the one document it may be DEFINED in —
+#     REQ `doc_srs`, HAZ/RC `doc_rmf`, SDD/LLR `doc_sad`, PR `doc_problems`.
+#     This one is not about a key the reader cannot see: MISPLACED-ITEM reads
+#     that document to decide whether each item is filed where the gate keyed
+#     on it can parse the item's block. `RC` therefore needs BOTH doc_srs and
+#     doc_rmf. The rejection happens before any gate runs, so the alternative
+#     it forecloses is never observed: were the key merely absent, the gate
+#     would not be skipped, it would condemn every item of the prefix once
+#     each while naming a key that was never set.
 #
 # A trailing ` # comment` after a value is stripped, for EVERY key — paths and
 # path-list entries as well as commands. It cannot be escaped, so any value
