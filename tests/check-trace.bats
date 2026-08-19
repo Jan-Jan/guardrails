@@ -528,3 +528,174 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]]
 }
+
+# --- Config value lexing ----------------------------------------------------
+
+@test "check-trace: a trailing comment on a scalar value is not part of the value" {
+    sed -i.bak 's|^doc_rmf: docs/risk$|doc_rmf: docs/risk  # the RMF|' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rmf 2"* ]]
+}
+
+@test "check-trace: a config with CRLF line endings still parses" {
+    sed -i.bak 's/$/\r/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == "checked:"* ]]
+}
+
+# --- Config shapes the reader cannot see ------------------------------------
+
+@test "check-trace: a key with a hyphen instead of an underscore is an error" {
+    sed -i.bak 's/^strict_paths:/strict-paths:/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"strict-paths"* ]]
+}
+
+@test "check-trace: an indented top-level key is an error" {
+    sed -i.bak 's/^strict_paths:/ strict_paths:/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"strict_paths"* ]]
+}
+
+@test "check-trace: a space before the colon is an error" {
+    sed -i.bak 's/^strict_paths:/strict_paths :/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"strict_paths"* ]]
+}
+
+@test "check-trace: a list item at column zero is an error" {
+    # cfg_list never read these, so the list was silently empty
+    sed -i.bak 's/^  - src$/- src/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"- src"* ]]
+}
+
+@test "check-trace: a config saved with a UTF-8 BOM is rejected, not half-read" {
+    printf '\xef\xbb\xbf' > .guardrails/config.new
+    cat .guardrails/config.yaml >> .guardrails/config.new
+    mv .guardrails/config.new .guardrails/config.yaml
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BOM"* ]]
+}
+
+@test "check-trace: a config with a YAML document separator still parses" {
+    # not `sed '1i'` — its one-line form is GNU-specific
+    printf -- '---\n' > .guardrails/config.new
+    cat .guardrails/config.yaml >> .guardrails/config.new
+    mv .guardrails/config.new .guardrails/config.yaml
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+}
+
+@test "check-trace: a typo'd doc key is an error, not a project without that document" {
+    cat >> docs/risk/0001-01-01-base.md <<'EOF'
+
+**HAZ-002**: Underdose delivered to patient.
+EOF
+    commit_all unmitigated
+    # sanity: with the key spelled correctly this run fails on HAZ-002, so the
+    # exit 2 below closes a hole that was really open
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]]
+
+    sed -i.bak 's/^doc_rmf:/doc_rmff:/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_rmff"* ]]
+}
+
+# --- A prefix must have gates, and those gates must have their inputs -------
+
+@test "check-trace: a config with no gated prefix at all is an error" {
+    # Not "every prefix must be gated" — an extra prefix is covered by
+    # DANGLING-REF and DUPLICATE-ID and is a legitimate thing to declare. What
+    # is not legitimate is a config where NO prefix has a traceability gate:
+    # every gate is then off and the run still exits 0.
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: TC/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"TC"* ]]
+    [[ "$output" == *"no prefix with a traceability gate"* ]]
+}
+
+@test "check-trace: an extra prefix alongside the gated ones is accepted and still checked" {
+    # DANGLING-REF is keyed on the configured prefix list, so an extra prefix
+    # IS checked. Rejecting it told the operator to remove it, which removed
+    # that coverage and turned a reported violation into exit 0.
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: REQ HAZ RC SDD LLR PR ADR/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    printf '// see ADR-007\n' > src/main.c
+    commit_all extra-prefix
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF ADR-007"* ]]
+}
+
+
+@test "check-trace: RC declared without doc_srs is an error, not a skipped gate" {
+    # UNIMPLEMENTED-CONTROL looks for a REQ that implements each RC, so it
+    # reads doc_srs — a document RC is not defined in.
+    cat > .guardrails/config.yaml <<'EOF'
+guardrails_version: 0.1.0
+safety_class: B
+id_prefixes: HAZ RC
+doc_rmf: docs/risk
+EOF
+    commit_all haz-rc-only
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_srs"* ]]
+    [[ "$output" == *"RC"* ]]
+}
+
+@test "check-trace: REQ declared with an empty test_paths is an error, not zero tests to search" {
+    # A present-but-empty list, not a typo: `test_path:` is already caught as
+    # an unknown key, so it would not exercise this rule at all.
+    sed -i.bak 's|^  - tests$||' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"test_paths"* ]]
+}
+
+@test "check-trace: RC without doc_rmf still runs its gate, and is not rejected" {
+    # UNIMPLEMENTED-CONTROL reads doc_srs, not doc_rmf. Requiring doc_rmf here
+    # would reject a retrofit that has requirements, controls and design but no
+    # risk management file yet — while telling it a gate "could never run" that
+    # demonstrably does.
+    cat > .guardrails/config.yaml <<'EOF'
+guardrails_version: 0.1.0
+safety_class: B
+id_prefixes: REQ RC SDD
+doc_srs: docs/requirements
+doc_sad: docs/architecture
+strict_paths:
+  - src
+test_paths:
+  - tests
+EOF
+    printf '\n**RC-002**: an unimplemented control.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all rc-no-rmf
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]]
+}
+
+@test "check-trace: a list item orphaned by a commented-out key is an error" {
+    # Absorbing it into the block above turns a production source path into a
+    # test path, so a `verifies:` annotation in src/ counts as a test.
+    sed -i.bak 's/^strict_paths:$/# strict_paths:/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"- src"* ]]
+}

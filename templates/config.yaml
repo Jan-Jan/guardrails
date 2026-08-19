@@ -1,6 +1,33 @@
 # guardrails configuration — flat schema only:
 #   `key: value` scalars and two-space `- item` lists.
 # Parsed by .guardrails/scripts/lib.sh with awk; do not nest deeper.
+#
+# The schema is CLOSED and validated before any gate runs. Every rule below
+# exists because breaking it made a key invisible to the reader, which silently
+# disabled the gate that key configures while the run still exited 0:
+#
+#   * a key must be `identifier:` at column one — not `strict-paths:`, not
+#     ` strict_paths:`, not `strict_paths :`;
+#   * a key must be one of those below. Comment one out to disable it — and if
+#     it is a list key, comment its `  - items` out too, or they are orphaned
+#     and rejected. Never misspell one;
+#   * list items are indented (`  - src`), never at column zero;
+#   * the file must be plain UTF-8 with no byte-order mark;
+#   * `id_prefixes` must name at least one prefix with a traceability gate:
+#     REQ, HAZ, RC, SDD, LLR, PR. Others may be listed alongside them and are
+#     covered by DANGLING-REF and DUPLICATE-ID, just not by a gate of their
+#     own. With none of the six, only those checks remain;
+#   * a declared prefix needs the documents its gates READ, which is not always
+#     the document it is defined in: `RC` needs `doc_srs`, because
+#     UNIMPLEMENTED-CONTROL looks for a REQ that implements each control.
+#
+# A trailing ` # comment` after a value is stripped, for EVERY key — paths and
+# path-list entries as well as commands. It cannot be escaped, so any value
+# whose own whitespace-delimited token starts with `#` is truncated silently.
+# A directory literally named `docs/req #1` cannot be configured here.
+#
+# A duplicate key, or a second list block for the same key, is accepted and the
+# later one ignored. Do not rely on overriding a key by repeating it.
 guardrails_version: 0.1.0
 
 # IEC 62304 software safety class: A, B, or C. Set by /ratchet.

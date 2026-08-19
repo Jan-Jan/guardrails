@@ -7,7 +7,7 @@ the accumulated work to be three units, and the maintainer agreed:
 | Change | Contents | Status |
 |---|---|---|
 | **A — false-green fixes** (this branch) | F1 unminted-draft pre-flight, F2 the single annotation rule, F3a configured-path and empty-ledger validation, F3b the `checked:`/`sources:` summary, plus the shell-correctness defects these uncovered: `gr_die` inside pipeline subshells, a pipeline swallowing an exit status, whitespace in draft ledger names, newline-only splitting of path lists, and mint/pre-flight/rewrite scan-scope alignment | here |
-| **B — config schema validation** | `gr_check_config`: closed key set, column-one key grammar, closed prefix set, the per-prefix required-document map, and CRLF / inline-comment / BOM / `---` lexing. This changes the compatibility contract of every existing guardrails project, so it needs its own change, its own migration note and its own review | follow-up |
+| **B — config schema validation** | `gr_check_config`: closed key set, column-one key grammar, a required-gated-prefix rule, the per-prefix required-document map, and CRLF / inline-comment / BOM / `---` lexing. This changes the compatibility contract of every existing guardrails project, so it needs its own change, its own migration note and its own review | landed — `docs/plans/2026-08-18-config-schema.md` |
 | **C — item placement** | The `MISPLACED-ITEM` gate: an item must be defined in the document configured for its prefix. A new user-visible traceability rule — in this project's own vocabulary a REQ, not a problem-report fix — so it needs a requirement behind it | follow-up |
 
 **What change A knowingly ships with, because B and C are not here yet.**
@@ -18,6 +18,10 @@ deferred:
    use that document". `doc_rmff:` instead of `doc_rmf:` leaves every hazard
    unchecked and exits 0. Change A closes the case where a key is present and
    its *path* is wrong; change B closes the case where the key itself is wrong.
+   **Change B has since landed and closed this.** The paragraph is left as
+   written because it records what was true of change A at the time it was
+   signed; the statements in `README.md` and the `check-traceability` skill
+   were updated by change B, as its Task 6 required.
 2. `checked:` counts items found anywhere in the tree, so an item defined
    outside its configured document is counted without being examined —
    `**SDD-001**:` in `docs/design.md` with no `traces:` at all passes. Change C
@@ -887,6 +891,9 @@ and is what found it.
 - Suite: **121 tests, all green** (65 → 77 → 98 → 112 → 121).
 - Round-4 mutations, each cited by the test name it reddens:
   - remove the unmanaged-prefix check → `an ID prefix guardrails has no gates for is an error`
+    (that rule and its test left with change B and were superseded there by an
+    at-least-one-gated-prefix rule; this line records the combined work as it
+    stood, not the shipped behaviour)
   - `RC` requires only `doc_rmf` → `RC declared without doc_srs is an error, not a skipped gate`
   - remove the pathspec fallback → `a recursive git pathspec in test_paths is accepted`
   - accept a pathspec match without checking it exists on disk → `a configured test path that is absent fails loudly`

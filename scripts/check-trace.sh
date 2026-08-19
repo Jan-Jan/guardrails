@@ -27,17 +27,20 @@
 #     the working tree;
 #   * a ledger directory holding no *.md at all;
 #   * an id_prefixes entry that is not a bare identifier — it is interpolated
-#     into every scan pattern, and a scan that errors finds nothing.
+#     into every scan pattern, and a scan that errors finds nothing;
+#   * an unrecognised config key, a key that is not `identifier:` at column
+#     one, a list item at column zero, or a UTF-8 BOM — each is invisible to
+#     the config reader, so the gate that key configures never runs;
+#   * an id_prefixes list naming none of REQ/HAZ/RC/SDD/LLR/PR, or a declared
+#     prefix whose gate inputs are unconfigured. An extra prefix alongside
+#     those is fine — DANGLING-REF, DUPLICATE-ID and ID finalization are keyed
+#     on the whole prefix list, so it is checked, just not by a gate of its own.
 #
-# KNOWN GAP, deliberately not closed here: a MISSING or MISSPELLED config key
-# reads as "this project does not use that", and no gate complains. It is not
-# only about documents — `doc_rmff:` disables every hazard gate, `test_path:`
-# disables MISSING-TEST entirely, `strict_path:` drops half of DANGLING-REF,
-# and a config with no doc_* keys and no path lists at all runs every gate off
-# and still exits 0. The `sources:` line is the tell: a zero there for
-# something the project does have is the symptom. Closing this needs the
-# config-schema change (see the plan's "How this landed" section); it is a
-# separate change, not an oversight.
+# KNOWN GAP, deliberately not closed here: `checked:` counts items found
+# anywhere in the tree, not items examined. An item defined outside the
+# document configured for its prefix is counted here and read by no gate.
+# Closing that is the item-placement change; it is separate work, not an
+# oversight.
 #
 # Annotation rule: for verifies:/mitigates:/implements:/satisfies:/traces:,
 # only the ID list immediately following the FIRST occurrence of the keyword
@@ -59,6 +62,8 @@ set -u
 
 . "$(dirname "$0")/lib.sh"
 cd "$(gr_root)" || exit 2
+
+gr_check_config
 
 prefixes=$(gr_prefixes) || exit 2
 P=$(gr_prefix_re) || exit 2

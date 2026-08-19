@@ -49,18 +49,17 @@ done
 # A typo'd doc_* key makes the rename loop below skip that ledger entirely and
 # still exit 0 — the same silent no-op the pre-flight exists to prevent, in the
 # same script. Validate the config before trusting any key it holds.
+# gr_check_config validates a key's SPELLING, gr_doc_files below validates its
+# VALUE. Both are needed: a misspelled doc_* key reads as "this project has no
+# such ledger", so its DRAFT- file is never renamed while the IDs are minted
+# and rewritten — the same half-finalized tree, one key-position over.
+gr_check_config
+
 # A doc_* whose VALUE points at a path that does not exist makes the rename
 # loop below skip that ledger silently: the IDs are minted and rewritten, the
 # DRAFT- file is left in place, and the run exits 0 over exactly the
 # half-finalized tree this script must never produce. gr_doc_files validates
 # the value.
-#
-# KNOWN GAP: it cannot validate the KEY. A misspelled `doc_problemss:` reads as
-# "this project has no problem ledger", so its DRAFT- file is not renamed and
-# this script still exits 0 — the same half-finalized tree, one key-position
-# over. Closing it needs the config-schema change (see the plan's "How this
-# landed" section). Until then `check-ids.sh` catches it one step later with
-# DRAFT-FILE, so the merge sequence as a whole still holds.
 for _key in doc_srs doc_rmf doc_sad doc_soup doc_problems; do
     gr_doc_files "$_key" >/dev/null || exit 2
 done

@@ -80,10 +80,11 @@ ls src lib app AGENTS.md docs 2>/dev/null
      the four ledger directories, which is what makes them valid; keep it.
 
    Do **not** reach for the other apparent option — leaving the key out of the
-   config until the directory has content. A missing key reads as "this
-   project does not use that", which silently disables the gates that would
-   have used it and still exits 0. Point the key at a real path, or accept
-   that the gate is off and record why.
+   config until the directory has content. For any key a declared prefix
+   requires that is now exit 2, not a silent pass; and for the rest, a missing
+   key still reads as "this project does not use that". Point the key at a
+   real path. The one remaining way to switch a gate off is to drop its prefix
+   from `id_prefixes`, which is honest but wholesale — record why if you do.
 6. Run the **safety-class interview** (Step 4) and write the answer into
    `.guardrails/config.yaml` (`safety_class:`), replacing the `TBD` sentinel.
    Also set `verify_commands` to the project's real test command.
@@ -99,8 +100,14 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > |---|---|
 > | A ledger directory with no `*.md`, or a configured path that was never committed | The gates reading it did nothing and the run still passed |
 > | A configured directory that is empty | It exists, but matches no file, so the gate reading it scanned nothing |
+> | An unrecognised key (`doc_rmff:`) | Nothing read it, so the gate it configured never ran |
+> | A key that is not `identifier:` at column one (`strict-paths:`, ` strict_paths:`, `strict_paths :`) | The config reader never saw it, so its value read as absent |
+> | A list item at column zero (`- src` unindented) | `cfg_list` never read those entries either |
+> | A list item orphaned from its key by a column-one comment or a `---` above it | Ambiguous: it either vanished with its list or was adopted by the block above, so `- src` under a commented-out `strict_paths:` could become a test path. **Commenting a list key out means commenting its items out too.** |
+> | A config saved with a UTF-8 BOM | The BOM made the first key unreadable, i.e. silently absent |
+> | `id_prefixes` naming none of REQ/HAZ/RC/SDD/LLR/PR | No traceability gate of its own would run for any prefix. Extra prefixes alongside the six stay valid and stay covered by DANGLING-REF, DUPLICATE-ID and ID finalization — do **not** remove them |
+> | A declared `id_prefixes` entry whose document is unconfigured — `REQ`/`RC` without `doc_srs`, `HAZ` without `doc_rmf`, `SDD`/`LLR` without `doc_sad`, `PR` without `doc_problems`, or `REQ`/`LLR` with an empty `test_paths` | Without it the gate for that prefix was skipped and the run still passed. Note `RC` needs `doc_srs`, not `doc_rmf`: `UNIMPLEMENTED-CONTROL` reads the document the *requirements* live in |
 > | An `id_prefixes` entry that is not a bare identifier | It is interpolated into every scan pattern; an invalid pattern matches nothing, which looks like a clean tree |
-> | A config saved with CRLF line endings | The trailing `\r` lands inside every value; the diagnostic names a prefix or path that looks valid, so check the line endings first |
 >
 > Three changes are **exit 1**, not exit 2, and so are easy to miss.
 >
@@ -127,7 +134,16 @@ ls src lib app AGENTS.md docs 2>/dev/null
 >
 > Every one of these is a pre-existing gap the older scripts passed over, not
 > a new requirement invented by the upgrade. Fix the config or the layout;
-> there is no compatibility flag, deliberately.
+> **there is no compatibility flag, deliberately.** Almost every shape above
+> was a gate that did not run, so an opt-out would be a supported way to keep
+> a false green. The exception is an unrecognised key — a project-local
+> annotation was harmless before and is now rejected. That is accepted
+> deliberately: a typo and an extension are indistinguishable from here, and
+> guessing wrong on a typo is what this change exists to stop.
+>
+> The fastest way through the list is to run `check-trace.sh` once and work
+> from the top: config errors are reported before any gate runs, so each fix
+> reveals the next.
 
 ## Step 3 (retrofit): Gap analysis first, then tighten
 

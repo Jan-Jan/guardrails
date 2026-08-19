@@ -292,3 +292,18 @@ EOF
     [[ "$output" == *"UNMINTED-DRAFT"* ]]
     [ -f docs/problems/DRAFT-feature-notes.md ]
 }
+
+@test "finalize: a typo'd doc key is an error, not a ledger it quietly skips" {
+    # gr_check_config validates a key's SPELLING; gr_doc_files validates its
+    # VALUE. Without the first, the misspelled key read as "no problem ledger",
+    # so its DRAFT- file was never renamed while the IDs were minted and
+    # rewritten — exit 0 over a half-finalized tree.
+    sed -i.bak 's/^doc_problems:/doc_problemss:/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    printf '**PR-DRAFT-b-1**: a problem. status: open\n' > docs/problems/DRAFT-feature-notes.md
+    commit_all typo-key
+    run sh .guardrails/scripts/finalize-ids.sh --base main
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_problemss"* ]]
+    [ -f docs/problems/DRAFT-feature-notes.md ]
+}

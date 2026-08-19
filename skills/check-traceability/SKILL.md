@@ -34,20 +34,28 @@ proved nothing — a config or layout problem, not a pass. `checked:` alone is
 not enough: it counts items found anywhere in the tree, while `sources:`
 counts the files the gate for those items actually opened.
 
-**Two known gaps, both deliberate and both recorded in the plan.**
+**One known gap, deliberate and recorded in the plan.** *`checked:` counts
+items found anywhere in the tree*, which is not yet proof that a gate read
+them — an item defined outside its configured document is counted here and
+examined by nothing. Treat a surprising count as a prompt to check where those
+items are defined.
 
-*`checked:` counts items found anywhere in the tree*, which is not yet proof
-that a gate read them — an item defined outside its configured document is
-counted here and examined by nothing. Treat a surprising count as a prompt to
-check where those items are defined.
+A misspelled or misplaced config key no longer belongs on that list: the
+config is validated, and the shapes below are exit 2. Three things it still
+does not catch, worth knowing rather than trusting blindly:
 
-*A missing or misspelled config key reads as "this project does not use
-that"*, and no gate complains. `doc_rmff:` disables every hazard gate;
-`test_path:` disables `MISSING-TEST`; `strict_path:` drops half of
-`DANGLING-REF`; a config carrying none of these keys runs every gate off and
-still exits 0. **This is what `sources:` is for** — a zero there for a
-document or path list the project does have is the symptom, and it is the
-reason to read that line rather than only the exit status.
+- a **duplicate** key or list block is accepted and the later one ignored;
+- `strict_paths` and `doc_soup` are required by no prefix, so omitting either
+  quietly narrows what `DANGLING-REF` scans — `sources:` is the tell;
+- dropping a prefix from `id_prefixes` does **not** switch its gates off —
+  `MISSING-TEST` is keyed on `test_paths` and the rest on the document lists,
+  so all of them keep firing. What it removes is that prefix from `checked:`
+  and from `DANGLING-REF`'s scope, so references to it stop being checked
+  while its other gates carry on.
+
+`sources:` remains worth reading: a zero there for a document the project does
+have means the key is absent, since a configured-but-empty ledger directory is
+itself exit 2.
 
 **Exit 2 is an environment error and always fatal**, because each of these
 would otherwise let a gate pass without running:
@@ -57,6 +65,12 @@ would otherwise let a gate pass without running:
 | `doc_rmf is configured as 'docs/risk', which does not exist` | A configured path that is absent. |
 | `doc_rmf is configured as directory 'docs/risk', which contains no *.md files` | A ledger directory with nothing in it — including the case where the `*.md` files sit in a **subdirectory**, since `doc_*` directories are read one level deep only. |
 | `id_prefixes entry is not a bare identifier: PR[` | A prefix is interpolated into every scan pattern; a metacharacter makes the pattern invalid, and a scan that errors finds nothing — indistinguishable from a clean tree. |
+| `unknown config key(s): doc_rmff` | A typo'd key. Nothing reads it, so the gate it was meant to configure silently never runs. |
+| `config line(s) that are neither a comment, a top-level key, nor a '  - item' belonging to one` | A key that is not `identifier:` at column one (`strict-paths:`, ` strict_paths:`, `strict_paths :`); a list item at column zero; or a list item **orphaned** from its key by a column-one comment or a `---` separator above it. An orphan is ambiguous — it either vanishes with its list or is adopted by the block above — so it is rejected rather than guessed at. Commenting a list key out means commenting its items out too. |
+| `config begins with a UTF-8 BOM` | The BOM makes the first key unreadable, i.e. silently absent. |
+| `id_prefixes names no prefix with a traceability gate` | At least one of REQ, HAZ, RC, SDD, LLR, PR must appear. Extra prefixes alongside them are fine — `DANGLING-REF`, `DUPLICATE-ID` and ID finalization are keyed on the whole prefix list, so they are checked, just not by a gate of their own. Without any of the six the only checks left are those, and a config that also omits the document keys runs nothing at all. |
+| `id_prefixes declares RC but doc_srs is not configured` | A declared prefix needs the documents its gates READ, which is not always where it is defined: `UNIMPLEMENTED-CONTROL` looks for a REQ that implements each RC, so RC needs `doc_srs` and not `doc_rmf`. |
+| `id_prefixes declares REQ/LLR but test_paths is empty` | Nothing would be searched for `verifies:`. |
 | `strict_paths entry matches no file present in the working tree: src/*.rs` | A `strict_paths`/`test_paths` entry matching nothing. These are **git pathspecs** — a plain path, or a pattern like `*_test.sh` that git matches recursively. An entry matching nothing scans nothing, and an empty directory matches no file. |
 
 Fix the config; never work around it by removing the prefix.

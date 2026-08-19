@@ -122,3 +122,95 @@ gr_prefixes | tr "\n" " "'
     [[ "$output" == "REQ HAZ RC SDD LLR PR "* ]]
 }
 
+
+@test "gr_check_config accepts the shipped config shape" {
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "gr_check_config rejects a declared prefix whose document is unconfigured" {
+    sed -i.bak '/^doc_sad:/d' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"doc_sad"* ]]
+}
+
+@test "gr_check_config rejects a list item that belongs to no key" {
+    # Ambiguous by construction, and dangerous either way it is resolved: if a
+    # column-one comment ends the block, the items below it vanish silently; if
+    # it does not, they are absorbed by the block above — so `- src` under a
+    # commented-out `strict_paths:` would quietly become a test path. Neither
+    # guess is safe, so the shape is an error.
+    cat > .guardrails/config.yaml <<'EOF'
+id_prefixes: REQ
+doc_srs: docs/requirements
+test_paths:
+  - tests
+# strict_paths:
+  - src
+EOF
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"- src"* ]]
+}
+
+@test "gr_check_config accepts an indented comment inside a list block" {
+    # Indented, so it is plainly part of the block and nothing is ambiguous.
+    cat > .guardrails/config.yaml <<'EOF'
+id_prefixes: REQ
+doc_srs: docs/requirements
+test_paths:
+  - tests
+  # the rest are being retrofitted
+  - src
+EOF
+    run sh -c '. .guardrails/scripts/lib.sh && cfg_list test_paths | tr "\n" " "'
+    [ "$status" -eq 0 ]
+    [ "$output" = "tests src " ]
+}
+
+
+@test "cfg_get keeps a # that is not a comment" {
+    # The strip requires whitespace before the #. Both halves are behaviour:
+    # tightening the pattern to /#.*$/ would truncate every command containing
+    # one, and nothing would notice.
+    cat > .guardrails/config.yaml <<'EOF'
+id_prefixes: REQ
+doc_srs: docs/requirements#anchor
+coverage_command:
+  - sh -c 'echo "#done"'
+EOF
+    run sh -c '. .guardrails/scripts/lib.sh && cfg_get doc_srs'
+    [ "$output" = "docs/requirements#anchor" ]
+    run sh -c '. .guardrails/scripts/lib.sh && cfg_list coverage_command'
+    [ "$output" = "sh -c 'echo \"#done\"'" ]
+}
+
+@test "gr_check_config rejects a list item orphaned by a document separator" {
+    # `---` and `...` end a block in cfg_list, so an item after one belongs to
+    # no key and is silently dropped — the same shape as the comment orphan.
+    cat > .guardrails/config.yaml <<'EOF'
+id_prefixes: REQ
+doc_srs: docs/requirements
+strict_paths:
+  - src
+---
+  - lib
+EOF
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"- lib"* ]]
+}
+
+@test "gr_check_config accepts a document end marker" {
+    cat > .guardrails/config.yaml <<'EOF'
+id_prefixes: REQ
+doc_srs: docs/requirements
+test_paths:
+  - tests
+...
+EOF
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 0 ]
+}

@@ -120,24 +120,24 @@ directory whose `*.md` files sit directly in it.
 Every one of those would otherwise turn a whole gate family into a no-op that
 still reports success.
 
-**What this does not yet cover.** Two gaps are known, reproduced, and left to
-follow-up changes rather than hidden:
+**The config itself is validated.** A key that is misspelled, not
+`identifier:` at column one, or hidden behind a UTF-8 BOM is invisible to the
+config reader — so the gate it was meant to configure would never run, and the
+run would still exit 0. Every such shape is exit 2, as is an `id_prefixes` list
+naming none of the six prefixes that have a traceability gate, or a declared
+prefix whose gate inputs are unconfigured. An **extra** prefix alongside the
+six is fine and is still checked — `DANGLING-REF`, `DUPLICATE-ID` and ID
+finalization are keyed on the whole prefix list.
+There is no compatibility flag, deliberately: almost all of these were a gate
+that did not run. The exception is an unrecognised key, which may be a
+project-local annotation rather than a typo — the two are indistinguishable
+from here, and guessing wrong on a typo is the failure this exists to stop.
 
-1. **A missing or misspelled config KEY** still reads as "this project does
-   not use that". It is not only about documents: `doc_rmff:` disables every
-   hazard gate, `test_path:` disables `MISSING-TEST` entirely, and
-   `strict_path:` drops half of `DANGLING-REF` — each exiting 0. A config with
-   no `doc_*` keys and no path lists at all runs every gate off and still
-   exits 0. The `sources:` line is the tell: zeros there mean nothing was
-   read. `finalize-ids.sh` has the same blind spot — a misspelled `doc_*` key
-   leaves that ledger's `DRAFT-` file un-renamed and exits 0, though
-   `check-ids.sh` catches it at the next merge step.
-2. **`checked:` counts items found, not items examined.** An item defined
-   outside its configured document — `**SDD-001**:` in `docs/design.md` — is
-   counted here and read by no gate.
-
-Both are recorded, with reproductions, in
-`docs/plans/2026-08-12-false-green-fixes.md`.
+**What this does not yet cover.** One gap is known, reproduced, and left to a
+follow-up change rather than hidden: **`checked:` counts items found, not items
+examined.** An item defined outside its configured document — `**SDD-001**:` in
+`docs/design.md` — is counted there and read by no gate. It is recorded, with a
+reproduction, in `docs/plans/2026-08-12-false-green-fixes.md`.
 
 Safety-class awareness (IEC 62304 A/B/C) lives in `.guardrails/config.yaml`;
 skills scale required documentation and verification to the class.

@@ -12,6 +12,35 @@
 
 GR_CONFIG="${GR_CONFIG:-.guardrails/config.yaml}"
 
+# Every top-level key guardrails understands. A key outside this set is a typo,
+# and a typo'd key is invisible: cfg_get returns nothing, the gate that reads it
+# is skipped, and the run exits 0 having proved nothing.
+# The ID prefixes with a traceability gate of their own. Others are allowed:
+# DANGLING-REF, DUPLICATE-ID and draft finalization are all keyed on the
+# configured prefix list, so an extra prefix (ADR, say) is genuinely checked,
+# just not by a gate specific to it. What is rejected is a config where NONE
+# of these appears — every traceability gate is then off and the run still
+# exits 0.
+GR_GATED_PREFIXES='REQ
+HAZ
+RC
+SDD
+LLR
+PR'
+
+GR_KNOWN_KEYS='guardrails_version
+safety_class
+id_prefixes
+doc_srs
+doc_rmf
+doc_sad
+doc_soup
+doc_problems
+strict_paths
+test_paths
+verify_commands
+coverage_command'
+
 # The annotation-list rule as an awk function, defined ONCE and prepended to
 # every awk program that needs it. gr_id_run(line, kw) returns the space-
 # separated IDs of the list immediately following the FIRST occurrence of kw on
@@ -57,21 +86,44 @@ $2
     return 1
 }
 
+# Value cleanup shared by cfg_get and cfg_list: drop a trailing CR (a config
+# saved with CRLF endings otherwise puts an invisible \r inside every value,
+# and the resulting error message accuses a path or prefix that looks perfectly
+# valid), drop a trailing ` # comment`, then drop trailing blanks.
+#
+# The comment strip requires whitespace before the `#`, so `path#anchor` and
+# `sh -c 'echo "#done"'` survive. It cannot be escaped: a value whose own
+# whitespace-delimited token starts with `#` is truncated silently. That is
+# recorded in templates/config.yaml rather than worked around.
+GR_AWK_CLEAN_VALUE='
+function gr_clean(v) {
+    sub(/\r$/, "", v)
+    sub(/[ \t]+#.*$/, "", v)
+    sub(/[ \t]+$/, "", v)
+    return v
+}
+'
+
 # cfg_get KEY — print the scalar value of a top-level `key: value` entry.
 cfg_get() {
     [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
-    awk -v k="$1" '
-        index($0, k ":") == 1 { sub(/^[^:]*:[ \t]*/, ""); print; exit }
+    awk -v k="$1" "$GR_AWK_CLEAN_VALUE"'
+        index($0, k ":") == 1 { sub(/^[^:]*:[ \t]*/, ""); print gr_clean($0); exit }
     ' "$GR_CONFIG"
 }
 
 # cfg_list KEY — print items of a top-level `key:` block of `  - item` lines.
 cfg_list() {
     [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
-    awk -v k="$1" '
+    awk -v k="$1" "$GR_AWK_CLEAN_VALUE"'
         !inlist && index($0, k ":") == 1 { inlist = 1; next }
+        # A column-one line ends the block, comments included. Skipping them
+        # instead would silently ADOPT any items below into this list — an
+        # item under a commented-out key would become a member of whatever
+        # block was open above it. gr_check_config rejects that shape outright
+        # rather than either reader guessing at it.
         inlist && /^[^ \t]/ { exit }
-        inlist && /^[ \t]*-[ \t]/ { sub(/^[ \t]*-[ \t]*/, ""); print }
+        inlist && /^[ \t]*-[ \t]/ { sub(/^[ \t]*-[ \t]*/, ""); print gr_clean($0) }
     ' "$GR_CONFIG"
 }
 
@@ -146,6 +198,112 @@ gr_doc_files() {
         gr_die "$1 is configured as '$_v', which does not exist"
     fi
     return 0
+}
+
+# gr_check_config — refuse a config that would silently disable a gate. Every
+# rejection here is a shape the config READER cannot see, which is why none of
+# them could ever be reported by the gate that was meant to use the value.
+gr_check_config() {
+    [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
+
+    # A UTF-8 BOM makes the first key unreadable by every awk matcher here, so
+    # it must be rejected explicitly — the alternative is a first key that
+    # silently reads as absent. Detected in awk (octal escapes are POSIX)
+    # rather than with `head -c`, which is not in POSIX head. LC_ALL=C so
+    # substr counts bytes: in a UTF-8 locale awk counts characters and the
+    # three BOM bytes are one of them.
+    if [ -n "$(LC_ALL=C awk 'NR == 1 { if (substr($0, 1, 3) == "\357\273\277") print "bom"; exit }' "$GR_CONFIG" 2>/dev/null)" ]; then
+        gr_die "config begins with a UTF-8 BOM: $GR_CONFIG — save it as plain UTF-8"
+    fi
+
+    # Every line must be blank, a comment, a `  - item` list entry, a `---`
+    # document separator, or exactly `<key>:` at column one. Matching only
+    # /^[A-Za-z_]+:/ is not enough: that is the same shape cfg_get matches, so
+    # a key invisible to the reader would be equally invisible to the check.
+    #
+    # `owner` tracks what the most recent column-one line was. An indented
+    # `  - item` only belongs to a key; under a comment it is an orphan, and
+    # an orphan is ambiguous in a way no reader can resolve safely — it either
+    # vanishes with the rest of its list or is adopted by the block above,
+    # which is how `- src` under a commented-out `strict_paths:` could become
+    # a test path. Reject it rather than pick a side.
+    _malformed=$(awk '
+        { line = $0; sub(/\r$/, "", line) }
+        # A separator ends a block in cfg_list too, so it must break the
+        # ownership chain — otherwise an item after one is silently dropped.
+        line ~ /^---[ \t]*$/ || line ~ /^\.\.\.[ \t]*$/ { owner = "separator"; next }
+        line ~ /^[ \t]*$/ { next }
+        line ~ /^[ \t]*#/ { if (line ~ /^#/) owner = "comment"; next }
+        line ~ /^[ \t]+-[ \t]/ { if (owner != "key") print NR; next }
+        line !~ /^[A-Za-z_][A-Za-z0-9_]*:/ { print NR; next }
+        { owner = "key" }
+    ' "$GR_CONFIG")
+    if [ -n "$_malformed" ]; then
+        _msg=""
+        for _n in $_malformed; do
+            _msg="${_msg}
+  line ${_n}: $(sed -n "${_n}p" "$GR_CONFIG")"
+        done
+        gr_die "config line(s) that are neither a comment, a top-level key, nor a '  - item' belonging to one:${_msg}"
+    fi
+
+    _unknown=""
+    for _k in $(awk '/^[A-Za-z_][A-Za-z0-9_]*:/ { sub(/:.*/, ""); print }' "$GR_CONFIG"); do
+        gr_contains "$GR_KNOWN_KEYS" "$_k" || _unknown="${_unknown} $_k"
+    done
+    [ -z "$_unknown" ] || gr_die "unknown config key(s):${_unknown}"
+
+    # gr_prefixes dies in a subshell here, so the status must be propagated or
+    # the loops below would iterate over nothing.
+    _pfx=$(gr_prefixes) || exit 2
+
+    _gated=""
+    for _p in $_pfx; do
+        gr_contains "$GR_GATED_PREFIXES" "$_p" && _gated=1
+    done
+    [ -n "$_gated" ] || gr_die \
+"id_prefixes names no prefix with a traceability gate: $(printf '%s' "$_pfx" | tr '\n' ' ')
+  At least one of REQ HAZ RC SDD LLR PR must appear. Others may be declared
+  alongside them — they are covered by DANGLING-REF and DUPLICATE-ID, just not
+  by a gate of their own. Without any of the six, the only checks left are
+  those two, and a config that also omits the document keys would run nothing
+  at all and still exit 0."
+
+    # Each prefix needs the documents whose absence would SILENTLY SKIP one of
+    # its gates — which is not always the document the prefix is defined in:
+    # UNIMPLEMENTED-CONTROL looks for a REQ that implements each RC, so RC
+    # needs doc_srs and NOT doc_rmf. Requiring the definition document as well
+    # would reject a retrofit that has controls but no risk management file
+    # yet, while telling it a gate could never run that demonstrably does.
+    #
+    # This is deliberately NOT the full set of documents every gate reads.
+    # UNANALYZED-DERIVED also reads doc_rmf, and the transitive half of
+    # MISSING-TEST also reads doc_sad, but both FAIL RED without their input
+    # rather than passing vacuously — so requiring those keys would forbid
+    # legitimate shapes, such as a class A project with no architecture
+    # document. The rule is "no gate is ever silently skipped", not "every gate
+    # has every input", and this comment must keep saying so: an earlier draft
+    # claimed the map was complete and a reviewer proved it was not.
+    for _p in $_pfx; do
+        case "$_p" in
+            REQ) _need="doc_srs" ;;
+            HAZ) _need="doc_rmf" ;;
+            RC)  _need="doc_srs" ;;
+            SDD) _need="doc_sad" ;;
+            LLR) _need="doc_sad" ;;
+            PR)  _need="doc_problems" ;;
+            *)   continue ;;
+        esac
+        for _k in $_need; do
+            [ -n "$(cfg_get "$_k")" ] || \
+                gr_die "id_prefixes declares $_p but $_k is not configured — a gate for $_p reads it, so that gate could never run"
+        done
+    done
+
+    if gr_contains "$_pfx" REQ || gr_contains "$_pfx" LLR; then
+        [ -n "$(cfg_list test_paths)" ] || \
+            gr_die "id_prefixes declares REQ/LLR but test_paths is empty — nothing would be searched for 'verifies:'"
+    fi
 }
 
 # gr_id_run KEYWORD — filter: for each stdin line, print the IDs of the list
