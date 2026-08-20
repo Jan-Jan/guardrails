@@ -307,3 +307,53 @@ EOF
     [[ "$output" == *"doc_problemss"* ]]
     [ -f docs/problems/DRAFT-feature-notes.md ]
 }
+
+@test "a definition-form token off column one does not raise the mint ceiling" {
+    # The defect: max_final matched the definition form UNANCHORED, so this line
+    # of prose set the next problem report to PR-901 while check-ids.sh, which
+    # anchors, reported nothing at all.
+    printf '**PR-005**: the highest real problem report.\nstatus: open\n' \
+        > docs/problems/real.md
+    commit_all base
+    printf 'The report noted `**PR-900**:` as the shape to avoid.\n' \
+        > docs/problems/prose.md
+    printf '**PR-DRAFT-feat-1**: a new problem awaiting a number.\nstatus: open\n' \
+        > docs/problems/DRAFT-feat-new.md
+    commit_all prose
+
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PR-DRAFT-feat-1 -> PR-006"* ]] || {
+        echo "expected PR-006, got: $output"; false; }
+}
+
+@test "an indented definition does not raise the mint ceiling either" {
+    printf '  **PR-800**: indented, and therefore not an item.\n' > docs/problems/indented.md
+    printf '**PR-DRAFT-feat-1**: a new problem awaiting a number.\nstatus: open\n' \
+        > docs/problems/DRAFT-feat-new.md
+    commit_all indented
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PR-DRAFT-feat-1 -> PR-001"* ]] || {
+        echo "expected PR-001, got: $output"; false; }
+}
+
+@test "a digit-bearing prefix does not have its own digits read as the number" {
+    # Independent review, finding 11: max_final piped the matched token through
+    # `grep -oE '[0-9]+'`, which harvests every digit run — including the 9 in
+    # a prefix like R9. R9-005 was read as 9, and the next ID minted as R9-010.
+    # check-ids.sh's new ceiling scan takes the digits after the last hyphen and
+    # got it right, so the two disagreed about the same ID's number.
+    sed -i.bak 's/^id_prefixes:.*/id_prefixes: REQ HAZ RC SDD LLR PR R9/' .guardrails/config.yaml
+    rm -f .guardrails/config.yaml.bak
+    printf '**R9-005**: an item of a prefix that carries a digit.\n' \
+        > docs/problems/r9.md
+    printf '**R9-DRAFT-feat-1**: awaiting a number.\n' \
+        > docs/problems/DRAFT-feat-r9.md
+    commit_all digit-prefix
+
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"R9-DRAFT-feat-1 -> R9-006"* ]] || {
+        echo "expected R9-006, got: $output"; false; }
+}

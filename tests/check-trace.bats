@@ -854,3 +854,113 @@ EOF
     [[ "$output" == *"MISPLACED-ITEM REQ-002"* ]]
     [[ "$output" == *"MISPLACED-ITEM REQ-003"* ]]
 }
+
+@test "check-trace: an indented definition defines nothing" {
+    # AC4: the three shell gates must agree, in both directions. The plan
+    # predicted exit 0 here; the gate is sharper than that. The indented token
+    # is not a definition, so REQ stays at 1 — and REQ-002 is then a reference
+    # to something nothing defines, which is DANGLING-REF. Being *reported as a
+    # mention* is stronger evidence than silence that it was not read as a
+    # definition.
+    printf '\n  **REQ-002**: An indented line that is not a definition.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all indented
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-002"* ]]
+    [[ "$output" == *"checked: REQ 1,"* ]] || { echo "indented line was counted: $output"; false; }
+}
+
+@test "check-trace: a mid-line definition form defines nothing" {
+    printf '\nProse that mentions `**REQ-002**:` without defining it.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all midline
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-002"* ]]
+    [[ "$output" == *"checked: REQ 1,"* ]] || { echo "mid-line form was counted: $output"; false; }
+}
+
+@test "check-trace: the awk block parsers agree with gr_def_re on indentation" {
+    # AC6: the block parsers are awk EREs and cannot share gr_def_re's source
+    # (awk has no portable {3,}), so they are pinned by test. An indented header
+    # must not open a block. All FOUR are covered: an earlier version of this
+    # test exercised only LLR and SDD, and unanchoring the REQ or PR parser
+    # reddened nothing at all (independent review, round 2, finding 3).
+    #
+    # Each id is chosen so that parsing the block would produce a visible
+    # verdict: the LLR would be UNSATISFIED, the SDD UNTRACED, the REQ would be
+    # a derived requirement absent from the RMF (UNANALYZED-DERIVED), and the PR
+    # would be an open problem report (UNRESOLVED-PR). None may appear.
+    printf '\n  **LLR-002**: An indented low-level requirement.\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '\n  **SDD-002**: An indented design item.\n' \
+        >> docs/architecture/0001-01-01-base.md
+    # Its own file, with a heading first: appended to the base SRS it would land
+    # inside REQ-001's still-open block, and `satisfies: derived` would be
+    # credited to REQ-001 — which is correct block behaviour, and would have
+    # made this assertion pass for a reason that has nothing to do with
+    # anchoring.
+    printf '# More requirements\n\n  **REQ-002**: An indented requirement.\nsatisfies: derived\n' \
+        > docs/requirements/0001-01-02-indented.md
+    printf '\n  **PR-002**: An indented problem report.\nstatus: open\n' \
+        >> docs/problems/README.md
+    commit_all indented-blocks
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" != *"UNSATISFIED-LLR"* ]] || { echo "awk parsed an indented LLR: $output"; false; }
+    [[ "$output" != *"UNTRACED-DESIGN"* ]] || { echo "awk parsed an indented SDD: $output"; false; }
+    [[ "$output" != *"UNANALYZED-DERIVED"* ]] || { echo "awk parsed an indented REQ: $output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "awk parsed an indented PR: $output"; false; }
+    [[ "$output" == *"DANGLING-REF LLR-002"* ]]
+    [[ "$output" == *"DANGLING-REF SDD-002"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-002"* ]]
+    [[ "$output" == *"DANGLING-REF PR-002"* ]]
+    # The whole count line: "SDD 1" also matches "SDD 12".
+    [[ "$output" == *"checked: REQ 1, HAZ 1, RC 1, SDD 1, LLR 1, PR 0"* ]] \
+        || { echo "counts moved: $output"; false; }
+}
+
+@test "check-trace: an indented bold line does not close a block either" {
+    # Round 3, note 3: the four parsers are spelled by eight patterns — an
+    # opener and a closer each — and only the openers were pinned. Unanchoring a
+    # closer reddened nothing. A closer that fires on an indented bold line ends
+    # the block early, and the annotation after it is lost: here LLR-001 would
+    # stop satisfying anything and be reported UNSATISFIED-LLR.
+    cat > docs/architecture/0001-01-01-base.md <<'MD'
+# Software Architecture
+
+**SDD-001**: Dose limiter module.
+  **note**: an indented bold line inside the block.
+traces: REQ-001
+
+**LLR-001**: Clamp requested dose to the configured maximum.
+  **note**: an indented bold line inside the block, which is not a definition.
+satisfies: REQ-001
+MD
+    # The same shape for the other three parsers, so all eight patterns — four
+    # openers and four closers — are pinned rather than four of them.
+    cat > docs/requirements/0001-01-02-derived.md <<'MD'
+# More requirements
+
+**REQ-002**: A derived requirement.
+  **note**: an indented bold line inside the block.
+satisfies: derived
+MD
+    cat > docs/problems/0001-01-01-open.md <<'MD'
+# Problems
+
+**PR-001**: An open problem.
+  **note**: an indented bold line inside the block.
+status: open
+MD
+    commit_all indented-inside-block
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" != *"UNSATISFIED-LLR"* ]] || { echo "an indented line closed the LLR block: $output"; false; }
+    [[ "$output" != *"UNTRACED-DESIGN"* ]] || { echo "an indented line closed the SDD block: $output"; false; }
+    # These two must still be REPORTED: the annotation after the indented line
+    # belongs to the block, so losing it would silently drop the finding.
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "REQ block truncated: $output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "PR block truncated: $output"; false; }
+}

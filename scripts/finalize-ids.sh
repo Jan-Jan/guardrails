@@ -79,16 +79,34 @@ IFS='
 '
 
 # max_final PREFIX [REF] — highest existing final number for PREFIX (0 if none)
+#
+# gr_def_re, so this scan and the draft scan above obey one rule. They did not:
+# the draft scan has always anchored at line start, while this one matched the
+# definition form anywhere on a line. A backticked `**PR-900**:` in prose
+# therefore minted the next problem report as PR-901, and no gate reported it —
+# check-ids.sh and check-trace.sh both anchor, so to them that token defines
+# nothing. check-ids.sh reports UNANCHORED-DEF for exactly this shape now,
+# because narrowing what counts here can only lower the ceiling.
 max_final() {
     _p="$1"
     _ref="${2:-}"
     if [ -n "$_ref" ]; then
-        git grep -h -oE "\\*\\*${_p}-[0-9]{3,}\\*\\*:" "$_ref" \
+        git grep -h -oE "$(gr_def_re "$_p")" "$_ref" \
             -- . ":(exclude).guardrails" 2>/dev/null
     else
-        git grep -h --untracked -oE "\\*\\*${_p}-[0-9]{3,}\\*\\*:" \
+        git grep -h --untracked -oE "$(gr_def_re "$_p")" \
             -- . ":(exclude).guardrails" 2>/dev/null
-    fi | grep -oE '[0-9]+' | awk 'BEGIN { m = 0 } $1 + 0 > m { m = $1 + 0 } END { print m }'
+    fi | awk 'BEGIN { m = 0 }
+              NF { id = $0; sub(/^\*\*/, "", id); sub(/\*\*:$/, "", id)
+                   # The digits after the LAST hyphen. A bare [0-9]+ harvest
+                   # took every digit run on the token, so a prefix carrying a
+                   # digit — R9-005 — was read as 9 and the next ID minted as
+                   # R9-010, while the ceiling scan in check-ids.sh read it
+                   # correctly. Two numbers for one ID is exactly the kind of
+                   # disagreement this change exists to end.
+                   n = id; sub(/^.*-/, "", n)
+                   if (n + 0 > m) m = n + 0 }
+              END { print m }'
 }
 
 mapping=""

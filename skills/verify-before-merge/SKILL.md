@@ -19,7 +19,10 @@ Run, in the worktree, and show actual output for each:
    test suite, type checks, linters. Zero failures, pristine output.
 2. `.guardrails/scripts/check-trace.sh` — clean.
 3. `.guardrails/scripts/check-ids.sh --allow-drafts` — no duplicates
-   (drafts are allowed here; `merge-change` finalizes them).
+   (drafts are allowed here; `merge-change` finalizes them). An
+   `UNANCHORED-DEF` line is a report, not a violation, and does not count
+   against "pristine output" above — see `check-traceability` for what it
+   means. The same goes for `UNANCHORED-DEF-UNREADABLE`.
 4. The change's own claims: every ID the plan says it **Implements** has a
    `verifies:` test that you watched fail before it passed
    (`develop-change`).

@@ -44,7 +44,12 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
    (also checks against the auto-detected base branch). If it prints
    `SKIPPED-DUPLICATE-BASE`, the duplicate-vs-base half did not run — pass
    `--base "$BASE"` and rerun, because that is the half that catches an ID the
-   base branch already defines.
+   base branch already defines. `UNANCHORED-DEF` is **not** a violation and
+   does not block the merge: it names a `**ID**:` written somewhere other than
+   the start of its line, numbered above the highest ID actually defined, which
+   used to reserve that number and no longer does. Read it, then proceed.
+   `UNANCHORED-DEF-UNREADABLE` says that scan could not run because a filename
+   contains a newline — also not a violation, and also not a blocker.
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.
 6. **Re-run the verification suite** — the ID rewrite touched code and tests;
    prove it broke nothing.

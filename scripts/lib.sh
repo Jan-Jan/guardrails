@@ -161,6 +161,27 @@ gr_prefix_re() {
     printf '%s' "$_p" | tr '\n' '|' | sed 's/|$//'
 }
 
+# gr_def_re ALTERNATION [POSITION] — ERE matching an item definition
+# line: a bold ID followed immediately by a colon, at line start.
+#
+# One constructor because three scripts must agree about the same string:
+# check-ids.sh decides what is a duplicate, finalize-ids.sh decides what
+# number comes next, and check-trace.sh decides what exists at all. While
+# they disagreed, finalize-ids.sh alone matched the form UNANCHORED, so a
+# token in prose raised the mint ceiling that neither gate could see.
+#
+# POSITION is spliced in front and defaults to `^`. Pass '^\+' or '^-' to scan
+# `git diff` output, where a definition sits at line start behind a + or -, and
+# the empty string to match the token anywhere on a line. Do NOT express that
+# last case as '^.+': git's matcher backtracks on a leading .+ and costs tens
+# of seconds per prefix on a few hundred documents, against tenths of a second
+# for the unanchored form. The verification record carries the measurement and
+# the corpus commit it was taken on; a bare number here could not be re-derived
+# and drifted into three different values.
+gr_def_re() {
+    printf '%s' "${2-^}\\*\\*(${1})-[0-9]{3,}\\*\\*:"
+}
+
 # gr_base_branch — the branch checked out in the primary (non-worktree)
 # checkout, which is what a change merges into. Prints nothing if the
 # primary checkout is detached; never falls back to a linked worktree's

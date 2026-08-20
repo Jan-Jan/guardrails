@@ -214,3 +214,24 @@ EOF
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
     [ "$status" -eq 0 ]
 }
+
+@test "gr_def_re anchors the definition form at line start" {
+    run sh -c '. .guardrails/scripts/lib.sh && gr_def_re "REQ|PR"'
+    [ "$status" -eq 0 ]
+    [ "$output" = '^\*\*(REQ|PR)-[0-9]{3,}\*\*:' ]
+}
+
+@test "gr_def_re takes a POSITION, used here to scan diff output" {
+    run sh -c '. .guardrails/scripts/lib.sh && gr_def_re "PR" "^\\+"'
+    [ "$status" -eq 0 ]
+    [ "$output" = '^\+\*\*(PR)-[0-9]{3,}\*\*:' ]
+}
+
+@test "gr_def_re with an empty POSITION matches the form anywhere on a line" {
+    # ${2-^}, not ${2:-^}: an empty POSITION is a caller asking for "anywhere",
+    # and the colon form would silently re-anchor it. Nothing but this test
+    # pins that distinction at the constructor.
+    run sh -c '. .guardrails/scripts/lib.sh && gr_def_re "PR" ""'
+    [ "$status" -eq 0 ]
+    [ "$output" = '\*\*(PR)-[0-9]{3,}\*\*:' ]
+}

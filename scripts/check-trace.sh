@@ -143,7 +143,7 @@ fail=0
 
 # ids_defined PREFIX — all finalized IDs with a `**ID**:` definition site
 ids_defined() {
-    git grep -h --untracked -oE "^\\*\\*${1}-[0-9]{3,}\\*\\*:" -- . \
+    git grep -h --untracked -oE "$(gr_def_re "$1")" -- . \
         ":(exclude).guardrails" 2>/dev/null | sed 's/[*:]//g' | sort -u
 }
 
@@ -158,7 +158,7 @@ ids_defined_in() {
     _p="$1"
     shift
     [ $# -gt 0 ] || return 0
-    git grep -h --untracked -oE "^\\*\\*${_p}-[0-9]{3,}\\*\\*:" -- "$@" 2>/dev/null \
+    git grep -h --untracked -oE "$(gr_def_re "$_p")" -- "$@" 2>/dev/null \
         | sed 's/[*:]//g' | sort -u
 }
 

@@ -98,7 +98,7 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 
 | Script | Purpose |
 |---|---|
-| `check-ids.sh [--allow-drafts] [--base REF]` | no leftover draft IDs or draft-named files, no duplicate IDs. Prints `SKIPPED-DUPLICATE-BASE` and leaves the duplicate-vs-base gate unrun when there is no usable base branch (a detached HEAD, or one with no commits yet); a `--base` you name yourself must resolve |
+| `check-ids.sh [--allow-drafts] [--base REF]` | no leftover draft IDs or draft-named files, no duplicate IDs. Prints `SKIPPED-DUPLICATE-BASE` and leaves the duplicate-vs-base gate unrun when there is no usable base branch (a detached HEAD, or one with no commits yet); a `--base` you name yourself must resolve. Also prints `UNANCHORED-DEF` — a report, not a violation, and never a failure — for a definition-form token off column one whose number is above the highest ID actually defined, and `UNANCHORED-DEF-UNREADABLE` when a newline in a filename stops that scan running at all |
 | `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; open PRs listed as warnings. Ends with `checked:` (items found) and `sources:` (document files read, then the number of configured path entries) |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified |
 | `finalize-ids.sh [--dry-run] [--base REF]` | mint final IDs, rewrite references, rename draft ledger files to merge date; exits 1 without touching anything if a draft ID could never be minted — no bold item header, or a prefix missing from `id_prefixes` (`--dry-run` reports this too) |
@@ -157,6 +157,34 @@ The remedy is to move the definition into the configured document. For an ID
 that appears at column one in illustrative text — a plan, a changelog, a
 README example — the remedy is the opposite: stop using a real three-digit ID
 there and write `**REQ-NNN**:`, which no scan matches.
+
+**One definition form, and every gate reads it the same way.** A definition is
+a bold ID followed immediately by a colon **at line start** — nothing else is
+one. `check-ids.sh` decides what is a duplicate, `finalize-ids.sh` decides what
+number comes next, and `check-trace.sh` decides what exists at all; all three
+build their **shell** patterns from a single constructor (`gr_def_re`), with one
+exception: the scan that asks whether the base branch already defines a
+particular ID carries that ID literally, so it anchors by hand and is held in
+step by a test instead. `check-trace.sh`'s four block parsers — spelled by eight patterns, an opener
+and a closer each — and the scan in `check-ids.sh` are awk, which has no
+portable `{3,}`, so they spell the form out a second time and are held in step
+by tests instead: weaker than shared source, and named here rather than glossed
+over. They did drift: `finalize-ids.sh` alone matched the form *anywhere on a
+line*, so a backticked `` `**PR-900**:` `` in prose silently minted the next
+problem report as `PR-901` while both gates that anchor saw nothing to report.
+A token in that position defines nothing now. Where it used to hold a number
+reserved, `check-ids.sh` prints `UNANCHORED-DEF` for it — but only where the
+number is **above the highest ID actually defined**, since those are the only
+ones whose reservation this change drops. On a real 300-item project, reporting
+every off-column token gave nine lines of ordinary prose (`Resolves **PR-006**:
+…`) and not one that reserved anything; with the rule as shipped it gives none.
+The line reports without failing: in every case seen the token was prose about
+an item rather than a claim to be one.
+
+Relatedly, a definition **moved** between files in one change is not a
+duplicate — which is what this has always said, but it held only while exactly
+one definition moved. Two at once were reported as duplicates of themselves,
+blocking the merge with no legal way forward.
 
 **What this does not yet cover.** Placement covers the six gated prefixes only.
 An extra prefix declared alongside them has no configured document, so its
