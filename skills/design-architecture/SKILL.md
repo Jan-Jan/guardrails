@@ -25,8 +25,9 @@ inventory file.
 
    `**SDD-…**: <software item and its responsibility>. traces: REQ-…[, REQ-…]`
 
-   New items use **draft IDs**; every item must trace to ≥1 requirement — a
-   design item no requirement needs is YAGNI, delete it.
+   A new item gets its ID from `.guardrails/scripts/new-id.sh SDD` (or `LLR`)
+   as you write it. Every item must trace to ≥1 requirement — a design item
+   no requirement needs is YAGNI, delete it.
 3. **Propose 2–3 architectures** for anything non-trivial, with trade-offs;
    lead with your recommendation. Present in sections and validate with the
    user before writing the final SAD.

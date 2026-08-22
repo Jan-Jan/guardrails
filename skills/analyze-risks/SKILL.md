@@ -32,7 +32,8 @@ under analysis, walk the ISO 14971 chain explicitly:
    controls are mandatory, in ISO 14971 priority order: inherent safety by
    design first, then protective measures (alarms, interlocks), then
    information for safety (labeling) last.
-5. **Risk controls** — mint RC items. Each control can introduce new hazards:
+5. **Risk controls** — mint RC items with `new-id.sh RC`. Each control can
+   introduce new hazards:
    ask "what does this control break?" before moving on.
 6. **Residual risk** — after controls, re-estimate and record whether the
    residual risk is acceptable.
@@ -41,8 +42,8 @@ under analysis, walk the ISO 14971 chain explicitly:
 
 - `**HAZ-…**: <hazard>, <hazardous situation>, <harm>. Severity: S_. Probability: P_.`
 - `**RC-…**: <control measure>. mitigates: HAZ-…`
-- New items use **draft IDs** (`HAZ-DRAFT-<branch>-<n>`); finals are minted at
-  merge time.
+- A new item gets its ID from `.guardrails/scripts/new-id.sh HAZ` (or `RC`)
+  as you write it. Never invent one by hand.
 - Every HAZ needs ≥1 RC mitigating it. Every RC needs ≥1 requirement
   `(implements: RC-…)` in the SRS — hand each software control to
   `grill-requirements` to become a testable requirement. Controls outside

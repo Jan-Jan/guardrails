@@ -218,13 +218,15 @@ EOF
 @test "gr_def_re anchors the definition form at line start" {
     run sh -c '. .guardrails/scripts/lib.sh && gr_def_re "REQ|PR"'
     [ "$status" -eq 0 ]
-    [ "$output" = '^\*\*(REQ|PR)-[0-9]{3,}\*\*:' ]
+    exp=$(sh -c '. .guardrails/scripts/lib.sh && printf "%s" "^\\*\\*(REQ|PR)-${GR_ID_BODY}\\*\\*:"')
+    [ "$output" = "$exp" ]
 }
 
 @test "gr_def_re takes a POSITION, used here to scan diff output" {
     run sh -c '. .guardrails/scripts/lib.sh && gr_def_re "PR" "^\\+"'
     [ "$status" -eq 0 ]
-    [ "$output" = '^\+\*\*(PR)-[0-9]{3,}\*\*:' ]
+    exp=$(sh -c '. .guardrails/scripts/lib.sh && printf "%s" "^\\+\\*\\*(PR)-${GR_ID_BODY}\\*\\*:"')
+    [ "$output" = "$exp" ]
 }
 
 @test "gr_def_re with an empty POSITION matches the form anywhere on a line" {
@@ -233,6 +235,115 @@ EOF
     # pins that distinction at the constructor.
     run sh -c '. .guardrails/scripts/lib.sh && gr_def_re "PR" ""'
     [ "$status" -eq 0 ]
-    [ "$output" = '\*\*(PR)-[0-9]{3,}\*\*:' ]
+    exp=$(sh -c '. .guardrails/scripts/lib.sh && printf "%s" "\\*\\*(PR)-${GR_ID_BODY}\\*\\*:"')
+    [ "$output" = "$exp" ]
 }
 
+
+# --- the ID vocabulary: token form, legacy form, and the digit rule ---------
+
+@test "gr_def_re matches a minted token definition" {
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "**REQ-a3k9z2**: a thing" | grep -qE "$(gr_def_re REQ)"'
+    [ "$status" -eq 0 ]
+}
+
+@test "gr_def_re still matches a legacy sequential definition" {
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "**REQ-014**: a thing" | grep -qE "$(gr_def_re REQ)"'
+    [ "$status" -eq 0 ]
+}
+
+@test "gr_def_re rejects an all-letter body — REQ-argued is prose, not an ID" {
+    # The whole reason a token must carry a digit: six letters of the
+    # unambiguous alphabet is also an ordinary English word.
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "**REQ-argued**: a thing" | grep -qE "$(gr_def_re REQ)"'
+    [ "$status" -eq 1 ]
+}
+
+@test "gr_def_re rejects the ambiguous characters 0 o 1 l i" {
+    for body in a3k9zo a3k9zl a3k9zi a3k9z0 a3k9z1 a3k9zO a3k9zI; do
+        run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "**REQ-'"$body"'**: x" | grep -qE "$(gr_def_re REQ)"'
+        [ "$status" -eq 1 ]
+    done
+}
+
+@test "gr_def_re rejects a token body of the wrong length" {
+    for body in a3k9z a3k9z2x; do
+        run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "**REQ-'"$body"'**: x" | grep -qE "$(gr_def_re REQ)"'
+        [ "$status" -eq 1 ]
+    done
+}
+
+@test "gr_def_re accepts a digit in every one of the six positions" {
+    # The token pattern is a union over the position of the first digit. A
+    # branch dropped from that union would make one sixth of the token space
+    # unmatchable, and the IDs it produced would be invisible to every gate.
+    for body in 2bcdef a2cdef ab2def abc2ef abcd2f abcde2; do
+        run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "**REQ-'"$body"'**: x" | grep -qE "$(gr_def_re REQ)"'
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "gr_id_run harvests both ID forms from an annotation list" {
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2, REQ-014" | gr_id_run "verifies:"'
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "REQ-a3k9z2" ]
+    [ "${lines[1]}" = "REQ-014" ]
+}
+
+@test "gr_id_run does not harvest a hyphenated English word after an ID" {
+    # update-server has a six-character all-letter tail. Without the digit
+    # rule the annotation run would swallow it and report it dangling.
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2 update-server" | gr_id_run "verifies:"'
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 1 ]
+    [ "${lines[0]}" = "REQ-a3k9z2" ]
+}
+
+@test "gr_id_run does not credit a reference one character too long" {
+    # A token is exactly six characters, so REQ-a3k9z2x is not an ID at all.
+    # Harvested without a boundary, the run matched its first six characters
+    # and reported REQ-a3k9z2 — crediting a real item for a reference nobody
+    # wrote. Sequential IDs never had this: [0-9]{3,} is greedy, so REQ-0012
+    # harvested whole and showed up as the dangling reference it was.
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2x" | gr_id_run "verifies:"'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ] || { echo "harvested: $output"; false; }
+}
+
+@test "gr_id_run still harvests an ID followed by punctuation" {
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2." | gr_id_run "verifies:"'
+    [ "$output" = "REQ-a3k9z2" ]
+}
+
+@test "gr_id_run does not credit a legacy reference one digit too long" {
+    # The greedy legacy branch already handled this; the test is here so that
+    # tightening the token boundary cannot quietly loosen the other form.
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-0012" | gr_id_run "verifies:"'
+    [ "$output" = "REQ-0012" ]
+}
+
+@test "gr_id_run does not credit a reference followed by an excluded letter" {
+    # The boundary is every alphanumeric, not just the body alphabet. `i` can
+    # never appear inside a token, but REQ-a3k9z2i is still a typo rather than
+    # REQ-a3k9z2 followed by a separator, and reading it as the latter credits
+    # a real item for a reference nobody wrote.
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2i" | gr_id_run "verifies:"'
+    [ -z "$output" ] || { echo "harvested: $output"; false; }
+}
+
+@test "gr_id_run keeps reading the list after a mistyped ID" {
+    # Independent review, S3. The skip left the stray characters in place, so
+    # the next ^-anchored match failed and one bad ID discarded every ID after
+    # it. The direction was safe — lost coverage reddens — but MISSING-TEST
+    # then also named the correctly spelled item, pointing at the wrong line.
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2x, REQ-b4m8p3" | gr_id_run "verifies:"'
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 1 ] || { echo "harvested: $output"; false; }
+    [ "${lines[0]}" = "REQ-b4m8p3" ] || { echo "harvested: $output"; false; }
+}
+
+@test "gr_id_run keeps reading after a mistyped ID with an excluded letter too" {
+    run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2i, REQ-b4m8p3" | gr_id_run "verifies:"'
+    [ "${#lines[@]}" -eq 1 ]
+    [ "${lines[0]}" = "REQ-b4m8p3" ]
+}

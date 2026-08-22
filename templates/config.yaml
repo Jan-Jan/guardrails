@@ -33,11 +33,12 @@
 # NOT VALIDATED, and listed apart from the rules above for that reason: a
 # `doc_*` value pointing inside `.guardrails/scripts/`, inside `.git/`, at a
 # gitignored path, or through a symlink leaving the repository is ACCEPTED.
-# `checked:` counts its items as zero and finalization renames a draft ledger
-# there without minting anything. Whether anything warns you first depends on
-# the location, on whether git tracks or ignores the file, and on whether
-# finalization has already run: some combinations are silent throughout,
-# others raise a complaint that names no cause and that finalization removes.
+# `checked:` counts its items as zero and finalize-docs.sh renames a draft
+# ledger there just as it would anywhere else. Whether anything warns you first
+# depends on the location, on whether git tracks or ignores the file, and on
+# whether the ledger still carries its DRAFT- name: some combinations are
+# silent throughout, others raise a complaint that names no cause and that the
+# rename removes.
 # Do not do it. (A symlink to a directory INSIDE the repository is scanned
 # normally, under the target real path.)
 #
@@ -48,7 +49,7 @@
 #
 # A duplicate key, or a second list block for the same key, is accepted and the
 # later one ignored. Do not rely on overriding a key by repeating it.
-guardrails_version: 0.1.0
+guardrails_version: 0.2.0
 
 # IEC 62304 software safety class: A, B, or C. Set by /ratchet.
 # Per-item overrides: document them in the SAD next to the SDD item.

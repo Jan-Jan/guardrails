@@ -16,13 +16,16 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
    Intermediate worktree commits may be unsigned; the squash commit must be
    signed and is verified with `check-signing.sh` before the worktree is
    cleaned up. There is no unsigned fallback.
-3. **Traceability is mechanical.** New requirement/hazard/control/design/
-   problem items are minted as draft IDs (`<PREFIX>-DRAFT-<branch>-<n>`)
-   inside the worktree and finalized to sequential IDs only at merge time by
-   `finalize-ids.sh`. On ledger-layout projects the same applies to document
-   files: new items go into `docs/<area>/DRAFT-<branch>-<slug>.md`, renamed
-   to `<merge-date>-<slug>.md` at merge; existing items are edited in the
-   dated file that defines them. Every new test declares what it verifies
+3. **Traceability is mechanical.** A new requirement/hazard/control/design/
+   problem item gets its ID the moment it is written: run
+   `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The ID
+   is a random six-character token — `a3k9z2`, say — allocated against nothing,
+   so two worktrees and two GitHub PRs never contend for one and nothing is
+   renumbered at merge. Never invent an ID by hand. Document FILES are still
+   finalized at merge: new items go into `docs/<area>/DRAFT-<branch>-<slug>.md`,
+   renamed to `<merge-date>-<slug>.md` by `finalize-docs.sh`; existing items
+   are edited in the dated file that defines them. Every new test declares
+   what it verifies
    (`verifies: <IDs>` — annotate the lowest level present: LLR where one
    exists, else REQ/RC; the parent REQ is covered transitively).
    `check-trace.sh` and `check-ids.sh` must pass before any merge.
@@ -62,10 +65,12 @@ notes.
 
 ## Check scripts (run from repo root)
 
-- `.guardrails/scripts/check-ids.sh [--allow-drafts] [--base REF]` — draft/duplicate IDs
+- `.guardrails/scripts/new-id.sh PREFIX [COUNT]` — mint item IDs
+- `.guardrails/scripts/check-ids.sh [--allow-draft-files]` — draft, duplicate and
+  malformed IDs
 - `.guardrails/scripts/check-trace.sh` — traceability gates
 - `.guardrails/scripts/check-signing.sh [--strict] [RANGE]` — signature verification
-- `.guardrails/scripts/finalize-ids.sh [--dry-run] [--base REF]` — mint final IDs
+- `.guardrails/scripts/finalize-docs.sh [--dry-run]` — rename draft ledger files
 
 Exit code 0 = pass, 1 = violations (fix them, never bypass), 2 = setup error.
 

@@ -983,3 +983,277 @@ MD
     [[ "$output" == *"checked: REQ 1,"* ]] \
         || { echo "REQ not counted: $output"; false; }
 }
+
+# --- the same gates, with minted token IDs ---------------------------------
+# Every test above uses sequential IDs, and they all stay: a project that
+# predates tokens keeps its numbers, and these two blocks together are what
+# proves both forms are live at once.
+
+token_fixture() {
+    cat > docs/requirements/0001-01-01-base.md <<'EOF'
+# SRS
+
+**REQ-a3k9z2**: The system shall limit the dose. (implements: RC-c5t8bd)
+EOF
+    cat > docs/risk/0001-01-01-base.md <<'EOF'
+# Risk Management File
+
+**HAZ-h7z4mn**: Overdose delivered to patient.
+
+**RC-c5t8bd**: Software limits dose to configured maximum. mitigates: HAZ-h7z4mn
+EOF
+    cat > docs/architecture/0001-01-01-base.md <<'EOF'
+# Software Architecture
+
+**SDD-d2s6fk**: Dose limiter module. traces: REQ-a3k9z2
+
+**LLR-b4r7pq**: Clamp requested dose to the maximum. satisfies: REQ-a3k9z2
+EOF
+    printf '# verifies: LLR-b4r7pq\ntrue\n' > tests/test_a.sh
+    commit_all tokens
+}
+
+@test "check-trace: a fully traced token fixture passes" {
+    token_fixture
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == "checked: REQ 1, HAZ 1, RC 1, SDD 1, LLR 1, PR 0"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a token REQ without a verifying test fails" {
+    token_fixture
+    printf 'true\n' > tests/test_a.sh
+    commit_all no-verifies
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISSING-TEST REQ-a3k9z2"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a token hazard without a risk control fails" {
+    token_fixture
+    printf '\n**HAZ-m6n3vt**: Underdose.\n' >> docs/risk/0001-01-01-base.md
+    commit_all haz2
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-m6n3vt"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a token control without an implementing requirement fails" {
+    token_fixture
+    printf '\n**RC-w8x2ky**: Alarm on underdose. mitigates: HAZ-h7z4mn\n' \
+        >> docs/risk/0001-01-01-base.md
+    commit_all rc2
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-w8x2ky"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a token design item without traces fails" {
+    token_fixture
+    printf '\n**SDD-g5h2jq**: Logging module.\n' >> docs/architecture/0001-01-01-base.md
+    commit_all sdd2
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-g5h2jq"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a token LLR that satisfies nothing fails" {
+    token_fixture
+    printf '\n**LLR-t3v8sz**: A helper with no parent.\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-t3v8sz\ntrue\n' > tests/test_b.sh
+    commit_all llr2
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-t3v8sz"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a token derived LLR absent from the RMF fails" {
+    token_fixture
+    printf '\n**LLR-q7w4zb**: A derived helper. satisfies: derived\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-q7w4zb\ntrue\n' > tests/test_b.sh
+    commit_all derived
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNANALYZED-DERIVED LLR-q7w4zb"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a derived token analysed in the RMF is accepted" {
+    token_fixture
+    printf '\n**LLR-q7w4zb**: A derived helper. satisfies: derived\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '\nLLR-q7w4zb assessed: no new hazard.\n' >> docs/risk/0001-01-01-base.md
+    printf '# verifies: LLR-q7w4zb\ntrue\n' > tests/test_b.sh
+    commit_all derived-ok
+    run sh .guardrails/scripts/check-trace.sh
+    # The status assertion is not decoration: without it this test passed
+    # against a check-trace.sh that exited 2 before running a single gate —
+    # the absence it asserts is also what a script that did nothing produces.
+    # Independent review, S6.
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"UNANALYZED-DERIVED"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a derived token is not satisfied by a longer ID that starts with it" {
+    # The boundary that used to be spelled [^0-9]: with tokens, a mention of
+    # LLR-q7w4zbq would otherwise be read as covering LLR-q7w4zb. Nothing else
+    # in the suite distinguishes those two spellings.
+    token_fixture
+    printf '\n**LLR-q7w4zb**: A derived helper. satisfies: derived\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '\nLLR-q7w4zbq assessed: a different item entirely.\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '# verifies: LLR-q7w4zb\ntrue\n' > tests/test_b.sh
+    commit_all derived-prefix
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNANALYZED-DERIVED LLR-q7w4zb"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an undefined token reference is DANGLING-REF" {
+    token_fixture
+    printf '# verifies: LLR-b4r7pq REQ-n9p3ch\ntrue\n' > tests/test_a.sh
+    commit_all dangling
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-n9p3ch"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a hyphenated English word is not read as a reference" {
+    # REQ-update, PR-banner: six letters of the token alphabet and no digit.
+    # Without the digit rule each becomes a DANGLING-REF against an item nobody
+    # ever wrote, in ordinary source and prose. Both words are checked against
+    # the alphabet on purpose — the first draft used PR-review, whose `i` the
+    # alphabet excludes, so half the fixture could not have matched under any
+    # relaxation of the rule and the comment claiming otherwise was wrong.
+    # Independent review, S8.
+    token_fixture
+    printf 'a REQ-update path and a PR-banner note\n' > src/notes.txt
+    commit_all english
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-REF"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a token item filed in the wrong document is MISPLACED-ITEM" {
+    token_fixture
+    printf '\n**HAZ-m6n3vt**: A hazard filed in the SRS.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all misplaced
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISPLACED-ITEM HAZ-m6n3vt"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an open token problem report is listed, without failing" {
+    token_fixture
+    printf '**PR-p9r5wx**: Something went wrong.\nstatus: open\n' \
+        > docs/problems/2026-01-01-x.md
+    commit_all pr
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-p9r5wx"* ]] || { echo "$output"; false; }
+}
+
+@test "widening GR_ID_BODY changes every gate's verdict" {
+    # The vocabulary's behavioural pin, and the companion to "poisoning
+    # gr_def_re". A textual count of call sites is defeated by a differently
+    # spelled copy, so widen the definition instead and require every scan to
+    # follow: each fixture below is invisible while a body must carry a digit
+    # and visible once any alphanumeric body will do. A gate still holding its
+    # own [0-9]{3,} stays quiet at both ends.
+    printf '\n**REQ-abcdef**: a body with no digit.\n' >> docs/requirements/0001-01-01-base.md
+    printf '\n**SDD-abcdef**: a design item with no traces.\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '\n**LLR-abcdef**: a low-level item satisfying nothing.\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '**PR-abcdef**: an open problem.\nstatus: open\n' \
+        > docs/problems/2026-01-01-x.md
+    printf 'a mention of RC-wxyzab, defined nowhere\n' > src/notes.txt
+    commit_all widen-fixture
+
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "baseline wrong: $output"; false; }
+    [[ "$output" == *"checked: REQ 1, HAZ 1, RC 1, SDD 1, LLR 1, PR 0"* ]] \
+        || { echo "baseline wrong: $output"; false; }
+
+    printf "\nGR_ID_BODY='[A-Za-z0-9]+'\n" >> .guardrails/scripts/lib.sh
+
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"checked: REQ 2, HAZ 1, RC 1, SDD 2, LLR 2, PR 1"* ]] \
+        || { echo "ids_defined kept its own body: $output"; false; }
+    [[ "$output" == *"UNTRACED-DESIGN SDD-abcdef"* ]] \
+        || { echo "the SDD block parser kept its own body: $output"; false; }
+    [[ "$output" == *"UNSATISFIED-LLR LLR-abcdef"* ]] \
+        || { echo "the LLR block parser kept its own body: $output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-abcdef"* ]] \
+        || { echo "the problem-report parser kept its own body: $output"; false; }
+    [[ "$output" == *"DANGLING-REF RC-wxyzab"* ]] \
+        || { echo "the reference harvest kept its own body: $output"; false; }
+}
+
+@test "check-trace: a verifies: reference one character too long is not coverage" {
+    # The false green the token length introduces. REQ-a3k9z2x is not an ID;
+    # read as one it truncates to REQ-a3k9z2, and the requirement it names goes
+    # green on a test that verifies nothing.
+    token_fixture
+    printf '# verifies: LLR-b4r7pqx\ntrue\n' > tests/test_a.sh
+    commit_all truncated-ref
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISSING-TEST LLR-b4r7pq"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a reference one character too long is not a dangling ref either" {
+    # The truncation must not be reported under a name nobody wrote. The
+    # shorter ID here is deliberately UNDEFINED: with REQ-a3k9z2x, whose first
+    # six characters name a defined item, the harvest resolves it silently and
+    # this test could not fail either way — mutation M46 dropped the boundary
+    # and reddened nothing.
+    token_fixture
+    printf 'a mention of REQ-n9p3chx in source\n' > src/notes.txt
+    commit_all truncated-mention
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"DANGLING-REF REQ-n9p3ch"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a reference scan that ERRORS is not a tree without dangling refs" {
+    # Independent review, blocking finding 1, second site. The harvest that
+    # feeds DANGLING-REF suppressed stderr and checked no status, so a scan
+    # that errored found nothing — which is exactly what a tree with no bad
+    # references looks like.
+    #
+    # The fault keys on the boundary class, which in this script only the
+    # reference harvest passes to a -oE scan.
+    real_git=$(command -v git)
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    cat > "$BATS_TEST_TMPDIR/bin/git" <<EOF
+#!/bin/sh
+if [ "\$1" = grep ]; then
+    _oe=; _tail=
+    for a in "\$@"; do
+        [ "\$a" = -oE ] && _oe=1
+        case "\$a" in *'[^0-9A-Za-z]'*) _tail=1 ;; esac
+    done
+    [ -n "\$_oe" ] && [ -n "\$_tail" ] && exit 129
+fi
+exec $real_git "\$@"
+EOF
+    chmod 755 "$BATS_TEST_TMPDIR/bin/git"
+
+    token_fixture
+    printf 'a mention of REQ-zzz999 in source\n' > src/notes.txt
+    commit_all dangling
+
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-zzz999"* ]] || { echo "$output"; false; }
+
+    PATH="$BATS_TEST_TMPDIR/bin:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "errored scan read as clean: $status $output"; false; }
+    [[ "$output" == *"reference scan failed"* ]] || { echo "$output"; false; }
+}

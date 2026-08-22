@@ -1,6 +1,6 @@
 ---
 name: worktree-discipline
-description: Mandatory isolation for every change in a guardrails project - create a git worktree before touching docs or code, mint draft IDs inside it. Use at the start of ANY change, documentation or code alike.
+description: Mandatory isolation for every change in a guardrails project - create a git worktree before touching docs or code, mint item IDs as you write them. Use at the start of ANY change, documentation or code alike.
 ---
 
 # Worktree Discipline
@@ -35,20 +35,29 @@ signed squash merges (`merge-change`).
 
 ## Inside the worktree
 
-- **Draft IDs only.** New requirement/risk/design/problem items are minted
-  as `<PREFIX>-DRAFT-<branch>-<n>` where `<branch>` is the branch name and
-  `<n>` counts up from 1 within this change. Never hand-pick a final
-  number — finals are assigned by `finalize-ids.sh` during `merge-change`,
-  which makes parallel worktrees collision-free.
+- **Mint the ID now.** A new requirement/risk/design/problem item gets its
+  real ID the moment it is written:
+
+  ```sh
+  .guardrails/scripts/new-id.sh REQ        # -> REQ-a3k9z2
+  .guardrails/scripts/new-id.sh HAZ 3      # three at once
+  ```
+
+  The token is random, minted once, and allocated against nothing, so two
+  worktrees — or two GitHub PRs — never contend for it and nothing is
+  renumbered at merge. Never invent one by hand: the alphabet drops the
+  characters that are read wrong (`0`/`o`, `1`/`l`/`i`) and every token
+  carries a digit, which is what stops `REQ-argued` in prose from reading as
+  an ID. `check-ids.sh` reports a hand-typed one as `MALFORMED-ID`.
 - **Draft doc files.** On ledger-layout projects (doc config keys point at
   directories), new items go into this change's own file:
   `docs/<area>/DRAFT-<branch>-<slug>.md`. merge-change renames it to
-  `YYYY-MM-DD-<slug>.md` (merge date) — the same finalize-at-merge idea as
-  draft IDs, so parallel worktrees never touch the same file. Amendments to
-  existing items are edited in the dated file that defines them; never move
-  a definition between files.
-- Reference draft IDs freely in code, tests (`verifies:`), and the plan —
-  finalization rewrites every occurrence.
+  `YYYY-MM-DD-<slug>.md` (merge date), so parallel worktrees never touch the
+  same file and the ledger reads chronologically. Amendments to existing
+  items are edited in the dated file that defines them; never move a
+  definition between files.
+- Reference the minted IDs freely in code, tests (`verifies:`), and the plan.
+  They are final from the first keystroke; nothing rewrites them later.
 - Commit early and often. Worktree commits may be unsigned
   (`git -c commit.gpgsign=false commit`) — they are squashed away; only the
   merge commit on the base branch must be signed.
@@ -65,5 +74,5 @@ explicit say-so.
 | Thought | Reality |
 |---|---|
 | "It's just a doc tweak, no worktree" | Docs are regulated artifacts. Worktree. |
-| "I'll pick REQ-014, it's free" | Another worktree thinks so too. Draft IDs only. |
+| "I'll pick REQ-014, it's free" | Another worktree thinks so too. Run `new-id.sh`. |
 | "Quick fix directly on the base branch" | The base branch moves only by signed squash merge. |

@@ -171,14 +171,22 @@ ids_matching() {
     [ $# -gt 0 ] || return 0
     git grep -hI --untracked -F "$_kw" -- "$@" 2>/dev/null \
         | gr_id_run "$_kw" \
-        | grep -xE "${_pfx}-[0-9]{3,}" | sort -u
+        | grep -xE "${_pfx}-${GR_ID_BODY}" | sort -u
 }
 
 # --- LLR block parse: "<id> <REQ,REQ|derived|->" per LLR in the SAD files ---
 # Blocks end at any other definition line or markdown heading, so prose can
 # never satisfy an LLR. Parsed per file; blocks cannot span files.
 parse_llr_file() {
-    awk "$GR_AWK_ID_RUN"'
+    awk -v body="$GR_ID_BODY" "$GR_AWK_ID_RUN"'
+        # The definition form is assembled here from the library body rather
+        # than written out. It is built inside awk, not passed ready-made with
+        # -v: awk runs escape processing over a -v value, so a pattern carrying
+        # \* arrives as a bare * and matches nothing at all — a gate that counts
+        # zero items and exits 0. Measured on gawk 5.3.2: it warns that the
+        # escape sequence is treated as a plain asterisk, and the pattern
+        # becomes ^**LLR-... which matches no line.
+        BEGIN { defre = "^\\*\\*LLR-" body "\\*\\*:" }
         function flush() {
             if (cur != "") {
                 if (der) print cur " derived"
@@ -186,12 +194,12 @@ parse_llr_file() {
                 else print cur " -"
             }
         }
-        /^\*\*LLR-[0-9][0-9][0-9]+\*\*:/ {
+        $0 ~ defre {
             flush()
             cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
             sat = ""; der = 0; inblock = 1
         }
-        /^\*\*/ && $0 !~ /^\*\*LLR-[0-9][0-9][0-9]+\*\*:/ {
+        /^\*\*/ && $0 !~ defre {
             if (cur != "") { flush(); cur = ""; inblock = 0 }
         }
         /^#/ { if (cur != "") { flush(); cur = ""; inblock = 0 } }
@@ -327,8 +335,9 @@ fi
 
 # --- UNTRACED-DESIGN: every SDD block needs `traces:` naming a REQ ----------
 for f in $sad_files; do
-    untraced=$(awk "$GR_AWK_ID_RUN"'
-        /^\*\*SDD-[0-9][0-9][0-9]+\*\*:/ {
+    untraced=$(awk -v body="$GR_ID_BODY" "$GR_AWK_ID_RUN"'
+        BEGIN { defre = "^\\*\\*SDD-" body "\\*\\*:" }
+        $0 ~ defre {
             if (cur != "" && !ok) print cur
             cur = $0
             sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
@@ -339,7 +348,7 @@ for f in $sad_files; do
         # The block ends at any other definition line or markdown heading, the
         # same rule parse_llr_file uses. Without it an unrelated `traces:` far
         # below credited an SDD that carries none of its own.
-        /^\*\*/ && $0 !~ /^\*\*SDD-[0-9][0-9][0-9]+\*\*:/ {
+        /^\*\*/ && $0 !~ defre {
             if (cur != "" && !ok) print cur
             cur = ""; ok = 0
         }
@@ -370,11 +379,12 @@ done
 derived_ids=$(printf '%s\n' "$llr_info" | awk '$2 == "derived" { print $1 }')
 for f in $srs_files; do
     derived_ids="$derived_ids
-$(awk '
-        /^\*\*REQ-[0-9][0-9][0-9]+\*\*:/ {
+$(awk -v body="$GR_ID_BODY" '
+        BEGIN { defre = "^\\*\\*REQ-" body "\\*\\*:" }
+        $0 ~ defre {
             cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
         }
-        /^\*\*/ && $0 !~ /^\*\*REQ-[0-9][0-9][0-9]+\*\*:/ { cur = "" }
+        /^\*\*/ && $0 !~ defre { cur = "" }
         /^#/ { cur = "" }
         cur != "" && /satisfies:[ \t]*derived/ { print cur; cur = "" }
     ' "$f")"
@@ -382,7 +392,7 @@ done
 for id in $derived_ids; do
     # word-ish match: the ID must not be a prefix of a longer ID in the RMF
     # shellcheck disable=SC2086
-    if [ -n "$rmf_files" ] && git grep -qE --untracked -- "${id}([^0-9]|\$)" $rmf_files 2>/dev/null; then
+    if [ -n "$rmf_files" ] && git grep -qE --untracked -- "${id}(${GR_ID_TAIL}|\$)" $rmf_files 2>/dev/null; then
         :
     else
         echo "UNANALYZED-DERIVED $id (derived item not assessed in the RMF)"
@@ -400,8 +410,19 @@ for f in $srs_files $rmf_files $sad_files $soup_files $problems_files \
 }$f"
 done
 if [ -n "$scope" ]; then
+    # The trailing boundary is matched and then stripped: without it a mention
+    # of REQ-a3k9z2x harvests its first six characters and is reported against
+    # REQ-a3k9z2 — which, being defined, is not reported at all. A token can
+    # never end in a non-alphanumeric, so the strip cannot damage a real ID.
+    #
+    # Status checked and stderr not suppressed: this scan is the whole input to
+    # DANGLING-REF, and an errored scan finds nothing, which is exactly what a
+    # tree with no bad references looks like. Not a pipeline, so $? is git's.
     # shellcheck disable=SC2086
-    referenced=$(git grep -h --untracked -oE "(${P})-[0-9]{3,}" -- $scope 2>/dev/null | sort -u)
+    _refs=$(git grep -h --untracked -oE "(${P})-${GR_ID_BODY}(${GR_ID_TAIL}|\$)" -- $scope)
+    _st=$?
+    [ "$_st" -le 1 ] || gr_die "reference scan failed (git grep exit $_st)"
+    referenced=$(printf '%s\n' "$_refs" | sed "s/${GR_ID_TAIL}\$//" | sort -u)
     defined=""
     for pfx in $prefixes; do
         defined="$defined
@@ -415,14 +436,15 @@ fi
 # --- UNRESOLVED-PR: open problem reports are listed for review, but this ----
 # --- is a WARNING — it never sets fail (DO-178C-style known-problem review) --
 for f in $problems_files; do
-    awk '
+    awk -v body="$GR_ID_BODY" '
+        BEGIN { defre = "^\\*\\*PR-" body "\\*\\*:" }
         function flush() { if (cur != "" && open) print cur }
-        /^\*\*PR-[0-9][0-9][0-9]+\*\*:/ {
+        $0 ~ defre {
             flush()
             cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
             open = 0
         }
-        /^\*\*/ && $0 !~ /^\*\*PR-[0-9][0-9][0-9]+\*\*:/ { flush(); cur = "" }
+        /^\*\*/ && $0 !~ defre { flush(); cur = "" }
         /^#/ { flush(); cur = "" }
         cur != "" && /status:[ \t]*open/ { open = 1 }
         END { flush() }

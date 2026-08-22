@@ -41,6 +41,62 @@ test_paths
 verify_commands
 coverage_command'
 
+# The ID body vocabulary. An item ID is <PREFIX>-<body>, and a body is either
+# a minted token or a legacy sequential number.
+#
+# A token is six characters of an alphabet that drops the pairs a reader
+# confuses — 0/o and 1/l/i — with AT LEAST ONE DIGIT. The digit is not
+# decoration: without it `REQ-<six letters>` matches ordinary hyphenated
+# English, and a `PR-update` in a code comment becomes a DANGLING-REF against
+# an item nobody ever wrote.
+#
+# The classes are ENUMERATED, not ranged. A range expression inside a bracket
+# expression is undefined outside the POSIX locale, and these patterns run
+# under whatever locale the caller has; enumeration also states which letters
+# are missing instead of leaving `[a-hjkmnp-z]` to be worked out.
+#
+# Variables, not functions: they take no arguments and are pasted into
+# patterns at a dozen sites. Assigned unconditionally, never `${X:-...}` — a
+# value inherited from the environment could widen or narrow every ID scan in
+# the toolkit while each one still exited 0, the same reasoning as
+# GR_SCAN_EXCLUDE below.
+GR_ID_LETTER='[abcdefghjkmnpqrstuvwxyz]'
+GR_ID_DIGIT='[23456789]'
+GR_ID_ANY='[abcdefghjkmnpqrstuvwxyz23456789]'
+
+# "Exactly six, at least one digit" has no direct ERE spelling, so it is the
+# union over the position of the FIRST digit: six branches, mutually exclusive
+# by construction, nothing for a matcher to backtrack over. Written out rather
+# than with {n} intervals — mawk shipped without interval expressions for most
+# of its life, and this pattern is handed to awk as well as to git grep.
+GR_ID_TOKEN="\
+${GR_ID_DIGIT}${GR_ID_ANY}${GR_ID_ANY}${GR_ID_ANY}${GR_ID_ANY}${GR_ID_ANY}|\
+${GR_ID_LETTER}${GR_ID_DIGIT}${GR_ID_ANY}${GR_ID_ANY}${GR_ID_ANY}${GR_ID_ANY}|\
+${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_DIGIT}${GR_ID_ANY}${GR_ID_ANY}${GR_ID_ANY}|\
+${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_DIGIT}${GR_ID_ANY}${GR_ID_ANY}|\
+${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_DIGIT}${GR_ID_ANY}|\
+${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_DIGIT}"
+
+# Both forms, permanently. A project that predates tokens keeps its numbers —
+# only new items are minted — so there is no flag day and no rewrite of an
+# existing SRS. The two forms overlap (`234567` satisfies both) and nothing
+# cares: nothing mints sequential IDs any more, so no reader has to decide
+# which form a body is.
+GR_ID_BODY="(${GR_ID_TOKEN}|[0-9][0-9][0-9]+)"
+
+# What may NOT follow an ID: any alphanumeric. A token is exactly six
+# characters, so REQ-a3k9z2x is not a longer ID — it is not an ID at all — and
+# a scan without this boundary reads its first six characters and credits
+# REQ-a3k9z2 for a reference nobody wrote. Sequential IDs never had that
+# problem: [0-9]{3,} is greedy, so REQ-0012 harvested whole and showed up as
+# the dangling reference it was.
+#
+# Deliberately wider than the body alphabet — `i`, `l`, `o` and the uppercase
+# letters cannot appear in a token, but a reference carrying one is still a
+# typo rather than a boundary, and reading it as a boundary would credit the
+# item it truncates to.
+GR_ID_TAIL='[^0-9A-Za-z]'
+
 # The annotation-list rule as an awk function, defined ONCE and prepended to
 # every awk program that needs it. gr_id_run(line, kw) returns the space-
 # separated IDs of the list immediately following the FIRST occurrence of kw on
@@ -51,17 +107,38 @@ coverage_command'
 # One definition is the point. Three near-copies of this rule is how `traces:`
 # came to demand a REQ at the head of its run while `satisfies:` scanned from
 # the LAST occurrence on the line and credited a REQ mentioned in prose.
+#
+# GR_ID_BODY is interpolated once, here, when the library is sourced — this
+# constant carries a copy of the body from then on rather than reading the
+# variable at match time. That is only worth knowing when poisoning the
+# variable from outside to test a call site: this one does not follow.
 GR_AWK_ID_RUN='
-function gr_id_run(line, kw,   p, rest, out, tok) {
+function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
     p = index(line, kw)
     if (p == 0) return ""
     rest = substr(line, p + length(kw))
     out = ""
-    while (match(rest, /^[ \t,]*[A-Za-z]+-[0-9][0-9][0-9]+/)) {
+    while (match(rest, /^[ \t,]*[A-Za-z]+-'"${GR_ID_BODY}"'/)) {
         tok = substr(rest, RSTART, RLENGTH)
+        nxt = substr(rest, RSTART + RLENGTH, 1)
+        rest = substr(rest, RSTART + RLENGTH)
+        # An alphanumeric here means the body was cut short by the matcher, so
+        # this is not the ID it appears to be. Skipping it — rather than
+        # emitting the truncation — is what stops a mistyped `verifies:` from
+        # crediting the item it happens to be a prefix of.
+        #
+        # The rest of the bad token is consumed with it. Leaving the stray
+        # characters made the next `^`-anchored match fail, so ONE mistyped ID
+        # discarded every ID after it in the list: `verifies: REQ-a3k9z2x,
+        # REQ-b4m8p3` credited neither, and MISSING-TEST then named the
+        # correctly spelled item too, pointing the reader at the wrong line.
+        # `rest` advances either way, so the loop still terminates.
+        if (nxt != "" && nxt !~ /'"${GR_ID_TAIL}"'/) {
+            sub(/^[0-9A-Za-z]+/, "", rest)
+            continue
+        }
         sub(/^[ \t,]*/, "", tok)
         out = out (out == "" ? "" : " ") tok
-        rest = substr(rest, RSTART + RLENGTH)
     }
     return out
 }
@@ -164,31 +241,30 @@ gr_prefix_re() {
 # GR_SCAN_EXCLUDE — the one pathspec every tree-wide scan excludes.
 #
 # Used as `git grep … -- . "$GR_SCAN_EXCLUDE"` at every site in check-ids.sh,
-# check-trace.sh and finalize-ids.sh. One definition because those scans must
-# agree about which files exist: while finalize-ids.sh's mint scan and its own
-# pre-flight disagreed with nothing, they agreed with each other only by having
-# been typed the same way fifteen times.
+# check-trace.sh and new-id.sh. One definition because those scans must agree
+# about which files exist: the mint scan and pre-flight of the old
+# finalize-ids.sh disagreed with nothing, but they agreed with each other only
+# by having been typed the same way fifteen times.
 #
 # It names `.guardrails/scripts`, NOT `.guardrails`. The exclusion exists so the
 # installed scripts do not report themselves — their comments carry a literal
 # `REQ-DRAFT-b-1` and definition-form examples — and the scripts are the only
 # thing under `.guardrails/` that matches any gate's pattern; config.yaml
 # matches none. Excluding the whole directory also hid the project's own files:
-# with `doc_srs: .guardrails/docs/requirements`, finalize-ids.sh renamed the
+# with `doc_srs: .guardrails/docs/requirements`, the finalize step renamed the
 # draft ledger to its merge-date name, minted nothing, and exited 0, and both
 # check scripts then passed a tree with a live `REQ-DRAFT-x-1` in it.
 # Narrowing cannot reach one case: a doc_* configured INSIDE this directory is
 # still accepted, and checked: counts its items as zero. Whether any gate
 # complains first depends on whether git tracks or ignores the ledger, and on
-# whether finalization has run — the same is true of .git/, gitignored paths
-# and symlinks leaving the repository. The measured matrix is in
-# docs/verification/2026-08-20-scan-pathspec.md. A check that refused the shape
+# whether the ledger has been renamed out of its DRAFT- name — the same is true
+# of .git/, gitignored paths and symlinks leaving the repository. The measured
+# matrix is in docs/verification/2026-08-20-scan-pathspec.md. A check that refused the shape
 # outright was attempted and cut; see the same record.
 #
 # A variable, not a function like gr_def_re: this is a separate `git grep`
 # argument, and a function's output would have to be word-split — which
-# finalize-ids.sh and check-trace.sh cannot do, both setting IFS to newline at
-# top level. Assigned unconditionally, never `${GR_SCAN_EXCLUDE:-…}`: a value
+# check-trace.sh cannot do, setting IFS to newline at top level. Assigned unconditionally, never `${GR_SCAN_EXCLUDE:-…}`: a value
 # inherited from the environment could widen it to `:(exclude).` and blind
 # every gate in the toolkit while each one still exited 0.
 GR_SCAN_EXCLUDE=':(exclude).guardrails/scripts'
@@ -196,11 +272,14 @@ GR_SCAN_EXCLUDE=':(exclude).guardrails/scripts'
 # gr_def_re ALTERNATION [POSITION] — ERE matching an item definition
 # line: a bold ID followed immediately by a colon, at line start.
 #
-# One constructor because three scripts must agree about the same string:
-# check-ids.sh decides what is a duplicate, finalize-ids.sh decides what
-# number comes next, and check-trace.sh decides what exists at all. While
-# they disagreed, finalize-ids.sh alone matched the form UNANCHORED, so a
-# token in prose raised the mint ceiling that neither gate could see.
+# One constructor because two scripts must agree about the same string:
+# check-ids.sh decides what is a duplicate and what is malformed, and
+# check-trace.sh decides what exists at all. There was a third — the old
+# finalize-ids.sh decided what number came next — and while the three
+# disagreed, that one alone matched the form UNANCHORED, so a token in prose
+# raised a mint ceiling neither gate could see. The ceiling is gone with
+# sequential numbering; the constructor stays, because two readers of one
+# string is exactly how that drift started.
 #
 # POSITION is spliced in front and defaults to `^`. Pass '^\+' or '^-' to scan
 # `git diff` output, where a definition sits at line start behind a + or -, and
@@ -211,7 +290,7 @@ GR_SCAN_EXCLUDE=':(exclude).guardrails/scripts'
 # the corpus commit it was taken on; a bare number here could not be re-derived
 # and drifted into three different values.
 gr_def_re() {
-    printf '%s' "${2-^}\\*\\*(${1})-[0-9]{3,}\\*\\*:"
+    printf '%s' "${2-^}\\*\\*(${1})-${GR_ID_BODY}\\*\\*:"
 }
 
 # gr_base_branch — the branch checked out in the primary (non-worktree)

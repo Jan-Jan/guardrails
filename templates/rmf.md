@@ -10,19 +10,30 @@ assessments, and residual-risk statements.
 <!--
 Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 
-  **HAZ-NNN**: <hazard — potential source of harm>, <hazardous situation>,
-  <harm>. Severity: <S1..S3>. Probability: <P1..P3>.
+  **HAZ-NNNNNN**: <hazard — potential source of harm>, <hazardous
+  situation>, <harm>. Severity: <S1..S3>. Probability: <P1..P3>.
 
-  **RC-NNN**: <risk control measure>. mitigates: HAZ-NNN
+  **RC-NNNNNN**: <risk control measure>. mitigates: HAZ-NNNNNN
 
 - Every hazard must have at least one risk control that `mitigates:` it.
 - Every risk control must be implemented by at least one requirement carrying
-  `(implements: RC-NNN)` in the requirements ledger.
+  `(implements: RC-...)` in the requirements ledger.
 - Derived REQ/LLR assessments live here too: name the ID and its hazard
   impact ("no hazard impact because <reason>" is valid; silence fails
   check-trace as UNANALYZED-DERIVED).
-- Mint new items as drafts in worktrees; record residual risk and its
-  acceptability after controls are in place.
+- Mint the ID when you write the item: run
+  `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. Never
+  invent one by hand.
+- Record residual risk and its acceptability after controls are in place.
+- IDs in the examples above use `NNNNNN` as a placeholder, and the examples
+  are indented. Both matter. A real ID here would be a reference to an item
+  that does not exist, reported as `DANGLING-REF` on every run; and a
+  definition form at COLUMN ONE is judged whatever its body, so an example
+  written flush left is reported as `MALFORMED-ID` — inside a fenced code
+  block too, because no gate in the toolkit parses fences. Indent illustrative
+  forms, or keep them inline in backticks. A real ID is six characters of
+  `23456789abcdefghjkmnpqrstuvwxyz` with at least one digit; `new-id.sh` draws
+  it for you.
 -->
 
 ## Risk acceptability matrix

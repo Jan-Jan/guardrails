@@ -17,11 +17,20 @@ In a worktree (`worktree-discipline`), add the problem to this change's
 draft file in the problems ledger, `docs/problems/DRAFT-<branch>-<slug>.md`
 (directory from `doc_problems` in `.guardrails/config.yaml`):
 
+Mint the ID first — `.guardrails/scripts/new-id.sh PR` — and write the item
+with the ID it printed:
+
 ```
-**PR-DRAFT-<branch>-<n>**: <observable symptom, one sentence>.
-affects: <REQ/RC/SDD/LLR IDs implicated — best current guess>.
-status: open
+  **PR-NNNNNN**: <observable symptom, one sentence>.
+  affects: <REQ/RC/SDD/LLR IDs implicated — best current guess>.
+  status: open
 ```
+
+(Indented, and `NNNNNN` rather than a real token, for the same two reasons the
+ledger READMEs give: a real ID here is a reference to an item that does not
+exist, and a definition form at column one is judged wherever it sits — in a
+fenced block too. Write the item flush left in the ledger, with the ID
+`new-id.sh` printed.)
 
 Recording first is the discipline: if investigation dead-ends, the open PR
 survives and shows up at every merge (`check-trace.sh` prints

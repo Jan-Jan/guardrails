@@ -39,8 +39,8 @@ file that defines them** — definitions never move. On single-file projects
   written from outside the software. The "how", per software item, belongs
   to low-level requirements (LLRs) in the SAD (`design-architecture`).
 - Item form: `**<ID>**: The software shall <single, testable behavior>.`
-- New items get **draft IDs**: `REQ-DRAFT-<branch>-<n>` (see
-  `worktree-discipline`). Never hand-pick final numbers.
+- A new item gets its ID from `.guardrails/scripts/new-id.sh REQ` as you
+  write it (see `worktree-discipline`). Never invent one by hand.
 - **Derived requirements:** when a requirement exists only because of how
   the design turned out (no parent in system/user needs), do not invent a
   fake parent — mark it `satisfies: derived` and hand it to `analyze-risks`

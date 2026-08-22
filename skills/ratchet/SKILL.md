@@ -105,11 +105,11 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > | A list item at column zero (`- src` unindented) | `cfg_list` never read those entries either |
 > | A list item orphaned from its key by a column-one comment or a `---` above it | Ambiguous: it either vanished with its list or was adopted by the block above, so `- src` under a commented-out `strict_paths:` could become a test path. **Commenting a list key out means commenting its items out too.** |
 > | A config saved with a UTF-8 BOM | The BOM made the first key unreadable, i.e. silently absent |
-> | `id_prefixes` naming none of REQ/HAZ/RC/SDD/LLR/PR | No traceability gate of its own would run for any prefix. Extra prefixes alongside the six stay valid and stay covered by DANGLING-REF, DUPLICATE-ID and ID finalization — do **not** remove them |
+> | `id_prefixes` naming none of REQ/HAZ/RC/SDD/LLR/PR | No traceability gate of its own would run for any prefix. Extra prefixes alongside the six stay valid and stay covered by DANGLING-REF, DUPLICATE-ID and MALFORMED-ID — do **not** remove them |
 > | A declared `id_prefixes` entry whose document is unconfigured — `REQ`/`RC` without `doc_srs`, `HAZ`/`RC` without `doc_rmf`, `SDD`/`LLR` without `doc_sad`, `PR` without `doc_problems`, or `REQ`/`LLR` with an empty `test_paths` | Without it the gate for that prefix was skipped and the run still passed. `RC` needs both: `UNIMPLEMENTED-CONTROL` reads `doc_srs`, where the *requirements* live, and `MISPLACED-ITEM` reads `doc_rmf`, the only document a control may be defined in |
 > | An `id_prefixes` entry that is not a bare identifier | It is interpolated into every scan pattern; an invalid pattern matches nothing, which looks like a clean tree |
 >
-> Four changes are **exit 1**, not exit 2, and so are easy to miss.
+> Some changes are **exit 1**, not exit 2, and so are easy to miss.
 >
 > An item defined outside the document configured for its prefix now reports
 > `MISPLACED-ITEM`. It used to be counted in `checked:` while the gate that
@@ -125,9 +125,11 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > and so does a `.txt` sitting directly in it; a `doc_*` configured as a
 > single file resolves to that file whatever its extension. Where the ID is
 > illustrative text rather than a real item — an example in a plan, changelog
-> or README at column one — the remedy is the reverse: write `**REQ-NNN**:`,
-> which no scan matches. Measured on a project already keeping its items in
-> the configured ledgers, this gate reports nothing at all.
+> or README at column one — the remedy is the reverse: indent it, or keep it
+> inline. Do not leave it at the start of a line, whatever body you give it:
+> `MALFORMED-ID` reports a definition form there whose ID is not valid.
+> Measured on a project already keeping its items in the configured ledgers,
+> this gate reports nothing at all.
 >
 > `strict_paths` and `test_paths` entries are now handed to `git grep` as
 > pathspecs instead of being expanded by the shell first. Git's `*` crosses
@@ -149,6 +151,36 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > scripts credited both. A project using prose-joined ID lists will see new
 > `MISSING-TEST` / `UNMITIGATED-HAZARD` failures. Rewrite them as
 > `verifies: LLR-001, REQ-002`.
+>
+> **Item IDs are now random tokens.** From this version on an item gets its
+> ID when it is written — `.guardrails/scripts/new-id.sh REQ` prints
+> `REQ-a3k9z2` — instead of a sequential number assigned at merge. Existing
+> sequential IDs keep working, permanently and without conversion: every
+> pattern in the toolkit accepts both forms, and nothing renumbers an SRS.
+> Four things change at the upgrade:
+>
+> * **Delete `.guardrails/scripts/finalize-ids.sh`.** It is replaced by
+>   `finalize-docs.sh`, which renames the change's draft ledger FILE and does
+>   nothing to IDs. Copying in the new `scripts/` leaves the old file behind;
+>   remove it, or `merge-change` step 3 will find a script that still tries to
+>   mint. Update any CI line that calls it.
+> * **Finish or discard drafts in flight before upgrading.** A
+>   `REQ-DRAFT-<branch>-<n>` token is now a hard failure in `check-ids.sh`
+>   under every flag, because nothing will ever turn it into a real ID. Run
+>   the old `finalize-ids.sh` one last time, or replace each token by hand
+>   with an ID from `new-id.sh`.
+> * **`check-ids.sh --allow-drafts` and `--base` are refused, not ignored.**
+>   The first is now `--allow-draft-files`, and it covers draft-named ledger
+>   files only. The second named a gate that no longer exists: IDs are
+>   allocated against nothing, so two branches cannot mint the same one, and
+>   the in-tree duplicate scan sees everything once `merge-change` step 1 has
+>   merged the base branch in. `UNANCHORED-DEF` and `SKIPPED-DUPLICATE-BASE`
+>   are gone with it.
+> * **`MALFORMED-ID` is new, and is exit 1.** It reports a line opening with a
+>   definition form whose body is not a valid ID — including a legacy
+>   `**REQ-01**:`, too short to have ever matched `[0-9]{3,}`. Such an item
+>   was invisible to every gate under the old scripts too; this is the first
+>   version that says so. Give it a real ID.
 >
 > Every one of these is a pre-existing gap the older scripts passed over, not
 > a new requirement invented by the upgrade. Fix the config or the layout;

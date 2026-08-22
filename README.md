@@ -68,18 +68,24 @@ Three rules carry the whole system:
 
 | Item | Defined in | Grammar |
 |---|---|---|
-| Requirement | `docs/requirements/srs.md` | `**REQ-NNN**: The software shall … (implements: RC-NNN)` |
-| Hazard | `docs/risk/rmf.md` | `**HAZ-NNN**: hazard, situation, harm. Severity: S_. Probability: P_.` |
-| Risk control | `docs/risk/rmf.md` | `**RC-NNN**: control. mitigates: HAZ-NNN` |
-| Design item | `docs/architecture/sad.md` | `**SDD-NNN**: item. traces: REQ-NNN` |
-| Low-level req | `docs/architecture/sad.md` | `**LLR-NNN**: behavior. satisfies: REQ-NNN` (or `satisfies: derived` — must then be assessed in the RMF) |
-| Problem report | `docs/problems/log.md` | `**PR-NNN**: symptom. affects: <IDs>. status: open\|resolved` |
+| Requirement | `docs/requirements/srs.md` | `**REQ-a3k9z2**: The software shall … (implements: RC-c5t8bd)` |
+| Hazard | `docs/risk/rmf.md` | `**HAZ-h7z4mn**: hazard, situation, harm. Severity: S_. Probability: P_.` |
+| Risk control | `docs/risk/rmf.md` | `**RC-c5t8bd**: control. mitigates: HAZ-h7z4mn` |
+| Design item | `docs/architecture/sad.md` | `**SDD-d2s6fk**: item. traces: REQ-a3k9z2` |
+| Low-level req | `docs/architecture/sad.md` | `**LLR-b4r7pq**: behavior. satisfies: REQ-a3k9z2` (or `satisfies: derived` — must then be assessed in the RMF) |
+| Problem report | `docs/problems/log.md` | `**PR-p9r5wx**: symptom. affects: <IDs>. status: open\|resolved` |
 | Test link | test files | comment/name containing `verifies: <IDs>` — lowest level present; REQs covered transitively via tested LLRs |
 
-New items minted inside a worktree use **draft IDs**
-(`<PREFIX>-DRAFT-<branch>-<n>`); `finalize-ids.sh` assigns the next
-sequential numbers at merge time and rewrites every reference — parallel
-worktrees can never collide on an ID.
+**IDs are random tokens, minted once.** An item gets its ID the moment it is
+written — `new-id.sh REQ` prints `REQ-a3k9z2` — and that ID is allocated
+against nothing, so two worktrees, or two GitHub PRs, can never contend for
+one and nothing is renumbered at merge. The token is six characters of an
+alphabet that drops the pairs a reader confuses (`0`/`o`, `1`/`l`/`i`) and
+always carries at least one digit, which is what keeps `REQ-argued` in prose
+from reading as an ID. It is deliberately **not** a content hash: a hash
+changes when the item text is edited, and every reference to it breaks.
+Sequential IDs from before this scheme keep working permanently — every
+pattern accepts both forms, and nothing converts an existing SRS.
 
 **Document ledgers:** each doc area is a directory of per-change files, not
 a monolith — so parallel worktrees never conflict on documents either. In a
@@ -98,10 +104,11 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 
 | Script | Purpose |
 |---|---|
-| `check-ids.sh [--allow-drafts] [--base REF]` | no leftover draft IDs or draft-named files, no duplicate IDs. Prints `SKIPPED-DUPLICATE-BASE` and leaves the duplicate-vs-base gate unrun when there is no usable base branch (a detached HEAD, or one with no commits yet); a `--base` you name yourself must resolve. Also prints `UNANCHORED-DEF` — a report, not a violation, and never a failure — for a definition-form token off column one whose number is above the highest ID actually defined, and `UNANCHORED-DEF-UNREADABLE` when a newline in a filename stops that scan running at all |
+| `new-id.sh PREFIX [COUNT]` | mint item IDs. Redraws a candidate that already occurs anywhere in the tree, tracked or untracked; refuses a prefix that is not declared in `id_prefixes`, and refuses to invent one at all when there is no entropy source rather than falling back to the pid and the clock |
+| `check-ids.sh [--allow-draft-files]` | no draft ID tokens (always fatal — nothing mints one any more), no draft-named ledger files unless the flag is given, no duplicate IDs, and no `MALFORMED-ID`: a line opening with a definition form whose body is not a valid ID, which no other gate can see |
 | `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; open PRs listed as warnings. Ends with `checked:` (items found) and `sources:` (document files read, then the number of configured path entries) |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified |
-| `finalize-ids.sh [--dry-run] [--base REF]` | mint final IDs, rewrite references, rename draft ledger files to merge date; exits 1 without touching anything if a draft ID could never be minted — no bold item header, or a prefix missing from `id_prefixes` (`--dry-run` reports this too) |
+| `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their merge-dated names. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme landed |
 
 Annotations are read as lists: only the IDs immediately following the first
 occurrence of `verifies:`/`mitigates:`/`implements:`/`satisfies:`/`traces:`
@@ -140,7 +147,7 @@ at all.
 scripts carry a draft token and definition-form examples in their own comments,
 so the gates they implement must not read them. That exclusion used to cover
 the whole `.guardrails/` tree, which also hid anything a project kept there:
-with `doc_srs: .guardrails/docs/requirements`, `finalize-ids.sh` renamed the
+with `doc_srs: .guardrails/docs/requirements`, the finalize step renamed the
 draft ledger to its merge-date name, minted no ID, and exited 0, and both check
 scripts then passed a tree holding a live `REQ-DRAFT-x-1`. Ledgers under
 `.guardrails/` are read normally now.
@@ -148,19 +155,22 @@ scripts then passed a tree holding a live `REQ-DRAFT-x-1`. Ledgers under
 `.guardrails/scripts/` stays invisible to the scans, and so do `.git/`,
 gitignored paths, and symlinks pointing outside the repository. A `doc_*` aimed
 at one of those is **accepted**: `checked:` counts its items as zero, and
-`finalize-ids.sh` renames a draft ledger there without minting anything.
+`finalize-docs.sh` renames a draft ledger there just as it would anywhere else.
 
 Whether anything warns you first depends on the location, on whether git tracks
-or ignores the file, and on whether finalization has already run. Some
-combinations are silent throughout; others raise a complaint that names no
-cause, which finalization then removes. The measured matrix is in
+or ignores the file, and on whether the ledger still carries its `DRAFT-` name.
+Some combinations are silent throughout; others raise a complaint that names no
+cause, which the rename then removes. The measured matrix is in
 `docs/verification/2026-08-20-scan-pathspec.md`; it is too conditional to
 summarise safely, and three attempts to summarise it here were each wrong in a
-new way. Do not configure a ledger in any of those locations.
+new way. It was measured before IDs became tokens, so its rows about minting
+describe a step that no longer exists — the rows about what the scans can see
+are unchanged, because the pathspec is. Do not configure a ledger in any of
+those locations.
 
 A symlink to a directory *inside* the repository is different: it is scanned
-normally under the target's real path, so its items are counted, its placement
-is checked, and its drafts are minted.
+normally under the target's real path, so its items are counted and its
+placement is checked.
 
 **Items must live where their gates look.** `MISPLACED-ITEM` closes what was a
 recorded gap: `checked:` used to count items found, not items examined, so
@@ -184,36 +194,47 @@ greps the RMF as free text.
 
 The remedy is to move the definition into the configured document. For an ID
 that appears at column one in illustrative text — a plan, a changelog, a
-README example — the remedy is the opposite: stop using a real three-digit ID
-there and write `**REQ-NNN**:`, which no scan matches.
+README example — the remedy is the opposite: indent it, or keep it inline.
+A definition form at the start of a line is now judged whatever its body:
+`check-ids.sh` reports `MALFORMED-ID` for one whose ID is not valid, which is
+the right answer for a line that looks exactly like a real item.
 
 **One definition form, and every gate reads it the same way.** A definition is
 a bold ID followed immediately by a colon **at line start** — nothing else is
-one. `check-ids.sh` decides what is a duplicate, `finalize-ids.sh` decides what
-number comes next, and `check-trace.sh` decides what exists at all; all three
-build their **shell** patterns from a single constructor (`gr_def_re`), with one
-exception: the scan that asks whether the base branch already defines a
-particular ID carries that ID literally, so it anchors by hand and is held in
-step by a test instead. `check-trace.sh`'s four block parsers — spelled by eight patterns, an opener
-and a closer each — and the scan in `check-ids.sh` are awk, which has no
-portable `{3,}`, so they spell the form out a second time and are held in step
-by tests instead: weaker than shared source, and named here rather than glossed
-over. They did drift: `finalize-ids.sh` alone matched the form *anywhere on a
-line*, so a backticked `` `**PR-900**:` `` in prose silently minted the next
-problem report as `PR-901` while both gates that anchor saw nothing to report.
-A token in that position defines nothing now. Where it used to hold a number
-reserved, `check-ids.sh` prints `UNANCHORED-DEF` for it — but only where the
-number is **above the highest ID actually defined**, since those are the only
-ones whose reservation this change drops. On a real 300-item project, reporting
-every off-column token gave nine lines of ordinary prose (`Resolves **PR-006**:
-…`) and not one that reserved anything; with the rule as shipped it gives none.
-The line reports without failing: in every case seen the token was prose about
-an item rather than a claim to be one.
+one. `check-ids.sh` decides what is a duplicate and what is malformed, and
+`check-trace.sh` decides what exists at all; both build their patterns from a
+single constructor, `gr_def_re`, over a single ID body, `GR_ID_BODY`.
+`check-trace.sh`'s four block parsers are awk, and they now assemble the form
+from `GR_ID_BODY` inside the awk program rather than spelling it out — the
+eight hand-written copies that used to live there are gone.
 
-Relatedly, a definition **moved** between files in one change is not a
-duplicate — which is what this has always said, but it held only while exactly
-one definition moved. Two at once were reported as duplicates of themselves,
-blocking the merge with no legal way forward.
+Two patterns are still written by hand, and both are named here rather than
+glossed over. `check-ids.sh`'s `MALFORMED-ID` candidate scan matches a
+definition-*shaped* line with any body at all, which is the point of it; what
+holds it in step with `gr_def_re` is the pair of tests asserting that a valid
+token and a valid legacy ID are not reported malformed. And `check-trace.sh`'s
+derived-item search carries a literal ID with a trailing boundary class, so
+that `LLR-q7w4zbq` does not satisfy a search for `LLR-q7w4zb`.
+
+Two behavioural tests keep the whole vocabulary honest, because three rounds
+of review defeated every textual guard tried before them: one redefines
+`gr_def_re` at the end of the library and requires every gate's verdict to
+change, and one **widens** `GR_ID_BODY` and requires every gate to start
+seeing items it could not see before. A scan holding its own copy fails both.
+
+There used to be a third reader. The old `finalize-ids.sh` decided what number
+came next, and it alone matched the form *anywhere on a line*, so a backticked
+`` `**PR-900**:` `` in prose silently minted the next problem report as
+`PR-901` while both gates that anchor saw nothing to report. Sequential
+numbering is gone, and with it the mint ceiling and the `UNANCHORED-DEF`
+report that guarded it: a definition form in prose now reserves nothing at
+all.
+
+Relatedly, a definition **moved** between files in one change was never a
+duplicate — but with sequential IDs that had to be worked out from the diff
+against the base branch, and moving two definitions at once reported both as
+duplicates of themselves. A minted token is the same token wherever it is
+written, so the question no longer arises.
 
 **What this does not yet cover.** Placement covers the six gated prefixes only.
 An extra prefix declared alongside them has no configured document, so its

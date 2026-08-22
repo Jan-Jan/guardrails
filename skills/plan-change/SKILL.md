@@ -24,7 +24,7 @@ Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
 # <Change> Implementation Plan
 
 **Goal:** <one sentence>
-**Implements:** <REQ/RC/SDD IDs this change delivers — draft or final>
+**Implements:** <REQ/RC/SDD IDs this change delivers>
 **Safety class:** <from .guardrails/config.yaml, plus per-item overrides>
 **Verification:** <the verify_commands that must pass>
 ```
@@ -37,8 +37,9 @@ Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
   `verifies: <IDs>` annotations — put the exact annotation text in the plan.
 - Test deliverables are explicit steps with actual test code, never "add
   tests later".
-- Steps that change documentation items (SRS/RMF/SAD) mint draft IDs and say
-  so in the step.
+- Steps that change documentation items (SRS/RMF/SAD) mint their IDs with
+  `.guardrails/scripts/new-id.sh <PREFIX>` and say so in the step. The IDs are
+  final from the moment they are minted, so the plan can name them.
 - No placeholders: "TBD", "handle edge cases", "similar to task N" are plan
   failures.
 

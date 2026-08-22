@@ -18,11 +18,11 @@ Run, in the worktree, and show actual output for each:
 1. Every command in `verify_commands` (`.guardrails/config.yaml`) — full
    test suite, type checks, linters. Zero failures, pristine output.
 2. `.guardrails/scripts/check-trace.sh` — clean.
-3. `.guardrails/scripts/check-ids.sh --allow-drafts` — no duplicates
-   (drafts are allowed here; `merge-change` finalizes them). An
-   `UNANCHORED-DEF` line is a report, not a violation, and does not count
-   against "pristine output" above — see `check-traceability` for what it
-   means. The same goes for `UNANCHORED-DEF-UNREADABLE`.
+3. `.guardrails/scripts/check-ids.sh --allow-draft-files` — no duplicate and
+   no malformed IDs. The flag covers the change's own
+   `DRAFT-<branch>-<slug>.md` ledger file, which is legitimate here and is
+   renamed by `merge-change`; it does not relax anything about IDs. A draft ID
+   token is a failure at this gate and at every other one.
 4. The change's own claims: every ID the plan says it **Implements** has a
    `verifies:` test that you watched fail before it passed
    (`develop-change`).
@@ -42,7 +42,7 @@ Run, in the worktree, and show actual output for each:
 - Any failure: stop, fix in the worktree, re-run the whole gate. Partial
   passes don't carry over.
 - Never weaken a check to get through it (skipping tests, loosening the
-  config, `--allow-drafts` beyond step 3, editing expected outputs).
+  config, `--allow-draft-files` beyond step 3, editing expected outputs).
 - Report failures faithfully if you must stop: what failed, actual output,
   what you tried.
 

@@ -22,7 +22,7 @@ the same violation.
    what it verifies, in a comment or test name:
 
    ```
-   # verifies: <IDs — draft IDs fine>
+   # verifies: <IDs>
    ```
 
    Annotate the **lowest requirement level that exists**: where an item has

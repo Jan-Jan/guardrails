@@ -21,38 +21,57 @@ BASE=$(. .guardrails/scripts/lib.sh && gr_base_branch)
 
 Halt on any failure, fix in the worktree, and rerun from step 1.
 
-1. **Merge the latest base branch into the worktree branch:**
-   `git merge "$BASE"` (resolve conflicts here, never on the base branch).
+1. **Merge the latest base branch into the worktree branch.** *Latest* means
+   latest on the remote, not latest in this clone — on a shared repository a
+   stale local base is the whole hazard this step exists to remove:
+
+   ```sh
+   if [ -n "$(git remote)" ]; then
+       # A FAILED fetch is not "no remote". Swallowing it merges against a
+       # stale remote-tracking ref and reports success — the same shape as a
+       # gate that exits 0 having proved nothing. Stop and fix the access.
+       git fetch origin || { echo "fetch failed — fix it before merging" >&2; exit 1; }
+       git merge "origin/$BASE"
+   else
+       git merge "$BASE"          # genuinely local-only: nothing to fetch
+   fi
+   ```
+
+   If the fetch cannot succeed here — no credentials in this environment, a
+   hardware key that is not present — that is a **stop**, not a warning to
+   scroll past. Either fetch from a session that can, or record in the
+   verification record that the base was merged from a local ref and name the
+   commit, so the next reader knows what the duplicate scan in step 4 was
+   actually compared against.
+
+   Resolve conflicts here, never on the base branch. This step is load-bearing
+   for step 4: `check-ids.sh` has no gate against the base branch, because
+   after this merge every ID the base defines is in the tree its in-tree
+   duplicate scan already reads. Skip the fetch and that stops being true.
 2. **Run the full verification suite** — every `verify_commands` entry.
    Conflict fallout and integration breakage stop the merge right here.
-3. **Finalize IDs and draft doc files:**
-   `.guardrails/scripts/finalize-ids.sh` (preview with `--dry-run` first;
-   the base branch is auto-detected, `--base REF` overrides). This mints
-   final sequential IDs AND renames any
-   `DRAFT-<branch>-<slug>.md` ledger files to `<merge-date>-<slug>.md`.
-   Commit the rewrite (renames included):
-   `git add -A && git -c commit.gpgsign=false commit -m "chore: finalize trace IDs"`.
+3. **Finalize the draft doc files:**
+   `.guardrails/scripts/finalize-docs.sh` (preview with `--dry-run` first).
+   This renames any `DRAFT-<branch>-<slug>.md` ledger file to
+   `<merge-date>-<slug>.md`. Commit the renames:
+   `git add -A && git -c commit.gpgsign=false commit -m "chore: finalize ledger files"`.
 
-   **Exit 1 with `UNMINTED-DRAFT` lines** means a draft ID was never a
-   candidate to mint. Two causes, and the output names the file and line of
-   each: the item has no bold header (`**PREFIX-DRAFT-slug-n**:`, at line
-   start, colon immediately after), or its prefix is missing from
-   `id_prefixes` so nothing ever looked for it. Fix the header, or add the
-   prefix. Nothing was rewritten or renamed. Never hand-edit the draft IDs to
-   finals instead.
-4. **`.guardrails/scripts/check-ids.sh`** — zero drafts, zero duplicates
-   (also checks against the auto-detected base branch). If it prints
-   `SKIPPED-DUPLICATE-BASE`, the duplicate-vs-base half did not run — pass
-   `--base "$BASE"` and rerun, because that is the half that catches an ID the
-   base branch already defines. `UNANCHORED-DEF` is **not** a violation and
-   does not block the merge: it names a `**ID**:` written somewhere other than
-   the start of its line, numbered above the highest ID actually defined, which
-   used to reserve that number and no longer does. Read it, then proceed.
-   `UNANCHORED-DEF-UNREADABLE` says that scan could not run because a filename
-   contains a newline — also not a violation, and also not a blocker.
+   There are no IDs to finalize. Every item was given its ID by `new-id.sh`
+   when it was written, and that ID is allocated against nothing — which is
+   why step 1 above is enough to make two parallel changes safe to merge in
+   either order.
+4. **`.guardrails/scripts/check-ids.sh`** — zero draft tokens, zero
+   draft-named ledger files, zero duplicates, zero malformed IDs. Step 1 has
+   already merged the base branch in, so the duplicate scan sees every ID the
+   base defines; there is no separate base gate and no `--base`.
+
+   **`MALFORMED-ID`** means a line opens with a definition form whose ID is
+   not valid — a hand-typed token with no digit, or a legacy ID too short to
+   have ever matched. The item it announces is invisible to every other gate.
+   Give it an ID from `new-id.sh`; never widen a pattern to accept it.
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.
-6. **Re-run the verification suite** — the ID rewrite touched code and tests;
-   prove it broke nothing.
+6. **Re-run the verification suite** — the renames moved files the tests may
+   read; prove nothing broke.
 
 6a. **Independent review** (DO-178C independence: the verifier is not the
    author). Dispatch a fresh subagent — or hand off to a human reviewer,
@@ -109,7 +128,7 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
 
 | Thought | Reality |
 |---|---|
-| "Skip re-verification, finalize only touched IDs" | It rewrote code and tests. Re-run (step 6). |
+| "Skip re-verification, the rename touched no code" | It moved regulated documents. Re-run (step 6). |
 | "Sign later, merge now" | An unsigned base branch is a broken audit trail. Stop instead. |
 | "Merge the base branch in afterwards if something breaks" | Step 1 exists so breakage surfaces in the worktree. |
 | "Leave the worktree around just in case" | Merged work lives on the base branch. Clean up (step 8). |
