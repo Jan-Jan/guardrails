@@ -45,6 +45,15 @@ set -u
 . "$(dirname "$0")/lib.sh"
 cd "$(gr_root)" || exit 2
 
+# This gate validated nothing about the config until now — recorded as gap 3 in
+# docs/verification/2026-08-18-config-schema.md. It reads only id_prefixes, so
+# the omission looked harmless; it was not. Every shape gr_check_config exists
+# to refuse — a misspelled key, a key hidden behind a BOM, a declared prefix
+# whose gate inputs are unconfigured — was caught by the traceability and
+# finalize gates only, so a project running check-ids.sh alone got no config
+# validation at all.
+gr_check_config
+
 allow_drafts=0
 base_named=
 base=""
@@ -91,7 +100,7 @@ if [ "$allow_drafts" -eq 0 ]; then
     # failures but reports others (an unreadable file, for one) on stderr while
     # still exiting 1. This catches the loud cases; the quiet ones are recorded
     # as a known gap rather than claimed as covered.
-    drafts=$(git grep -In --untracked -E "$draft_re" -- . ":(exclude).guardrails")
+    drafts=$(git grep -In --untracked -E "$draft_re" -- . "$GR_SCAN_EXCLUDE")
     _st=$?
     [ "$_st" -le 1 ] || gr_die "scanning for draft IDs failed (git grep exit $_st)"
     if [ -n "$drafts" ]; then
@@ -109,7 +118,7 @@ if [ "$allow_drafts" -eq 0 ]; then
 fi
 
 # --- DUPLICATE-ID: a final ID defined at more than one site in the tree ---
-dups=$(git grep -h --untracked -oE "$def_re" -- . ":(exclude).guardrails" 2>/dev/null \
+dups=$(git grep -h --untracked -oE "$def_re" -- . "$GR_SCAN_EXCLUDE" 2>/dev/null \
     | sed 's/[*:]//g' | sort | uniq -d)
 for id in $dups; do
     echo "DUPLICATE-ID $id (defined more than once in tree)"
@@ -178,7 +187,7 @@ if [ -n "$base" ]; then
         # keeps them in step now is a test, not a comment: "an indented
         # definition on the base is not something to collide with".
         if git grep -qE "^\\*\\*${id}\\*\\*:" "$base" \
-                -- . ":(exclude).guardrails" 2>/dev/null; then
+                -- . "$GR_SCAN_EXCLUDE" 2>/dev/null; then
             echo "DUPLICATE-ID $id (already defined on $base)"
             fail=1
         fi
@@ -296,13 +305,13 @@ ceilings() {
 # the flag removed, nothing reddened.
 candidates() {
     git grep -nIz --untracked -E "$(gr_def_re "$P" '')" \
-        -- . ":(exclude).guardrails" 2>/dev/null | tr '\000' '\n'
+        -- . "$GR_SCAN_EXCLUDE" 2>/dev/null | tr '\000' '\n'
 }
 
 # Probed outside a pipeline so that a git failure is a failure rather than a
 # quiet "found nothing" — which is exactly what a clean tree looks like.
 git grep -qI --untracked -E "$(gr_def_re "$P" '')" \
-    -- . ":(exclude).guardrails" 2>/dev/null
+    -- . "$GR_SCAN_EXCLUDE" 2>/dev/null
 _st=$?
 [ "$_st" -le 1 ] || gr_die "UNANCHORED-DEF scan failed (git grep exit $_st)"
 
@@ -318,14 +327,14 @@ if [ "$_st" -eq 0 ]; then
     # git for those rather than for the whole tree: -lz lists them raw and
     # NUL-separated, and every newline in that stream came from inside a name.
     _nlpaths=$(git grep -lIz --untracked -E "$(gr_def_re "$P" '')" \
-        -- . ":(exclude).guardrails" 2>/dev/null | tr -dc '\n' | wc -c)
+        -- . "$GR_SCAN_EXCLUDE" 2>/dev/null | tr -dc '\n' | wc -c)
 fi
 
 if [ "$_st" -eq 0 ] && [ "${_nlpaths:-0}" -gt 0 ]; then
     echo "UNANCHORED-DEF-UNREADABLE (a path this scan must read contains a newline, which it cannot frame — no off-column definitions were judged)"
 elif [ "$_st" -eq 0 ]; then
     _tree=$(git grep -h --untracked -oE "$(gr_def_re "$P")" \
-        -- . ":(exclude).guardrails" 2>/dev/null)
+        -- . "$GR_SCAN_EXCLUDE" 2>/dev/null)
     _st=$?
     [ "$_st" -le 1 ] || gr_die "ceiling scan failed (git grep exit $_st)"
 
@@ -338,7 +347,7 @@ elif [ "$_st" -eq 0 ]; then
     # one cannot clear the combined one either: consult it only for survivors.
     if [ -n "$_hits" ] && [ -n "$base" ]; then
         _ref=$(git grep -h -oE "$(gr_def_re "$P")" "$base" \
-            -- . ":(exclude).guardrails" 2>/dev/null)
+            -- . "$GR_SCAN_EXCLUDE" 2>/dev/null)
         _st=$?
         [ "$_st" -le 1 ] || gr_die "ceiling scan of $base failed (git grep exit $_st)"
         _hits=$(candidates \

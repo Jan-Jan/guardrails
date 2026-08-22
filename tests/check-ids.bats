@@ -149,12 +149,16 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-@test "check-ids: an ID defined under .guardrails is not a duplicate of a minted one" {
-    # finalize-ids ignores .guardrails when picking the next number, so this
+@test "check-ids: an ID inside the excluded tooling dir is not a duplicate of a minted one" {
+    # finalize-ids ignores GR_SCAN_EXCLUDE when picking the next number, so this
     # gate must ignore it too. Otherwise finalize mints an ID that check-ids
     # rejects as already defined on the base, and the merge sequence deadlocks
     # with no permitted way forward.
-    printf '**REQ-002**: an item inside the guardrails dir.\n' > .guardrails/notes.md
+    #
+    # The fixture sits in .guardrails/scripts/ because that — not the whole
+    # .guardrails/ tree — is what the scans exclude. A project file one level
+    # up is scanned now, and the test below asserts that.
+    printf '**REQ-002**: an item inside the tooling dir.\n' > .guardrails/scripts/notes.md
     commit_all guardrails-id
     git checkout -qb feature
     printf '\n**REQ-DRAFT-b-1**: draft requirement.\n' >> docs/requirements/0001-01-01-base.md
@@ -186,7 +190,16 @@ EOF
     git config user.email test@example.com
     mkdir -p .guardrails/scripts
     cp "$BATS_TEST_DIRNAME"/../scripts/*.sh .guardrails/scripts/
+    # check-ids.sh calls gr_check_config now, so this fresh repo needs a config
+    # the other two gates would already have accepted — the bare id_prefixes
+    # line was only ever valid because this one gate validated nothing.
     printf 'id_prefixes: REQ HAZ RC SDD LLR PR
+doc_srs: docs/requirements
+doc_rmf: docs/risk
+doc_sad: docs/architecture
+doc_problems: docs/problems
+test_paths:
+  - tests
 ' > .guardrails/config.yaml
     printf '**REQ-DRAFT-b-1**: a draft.
 ' > notes.md
@@ -609,4 +622,169 @@ EOF
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 0 ]
     [[ "$output" == *"UNANCHORED-DEF-UNREADABLE"* ]]
+}
+
+@test "check-ids: a stock install does not report its own tooling" {
+    # AC9. The exclusion narrowed in this change exists only so the installed
+    # scripts — whose comments carry `REQ-DRAFT-b-1` and definition-form
+    # examples — do not trip the gates they implement. That is the criterion
+    # the narrowing trades against, so assert it rather than assume it.
+    #
+    # Green against main on arrival: it guards the narrowing, and cannot be
+    # presented as evidence that the narrowing works.
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 0 ] || { echo "tooling reports itself: $output"; false; }
+    [[ "$output" != *"DRAFT-ID"* ]] || { echo "own draft token: $output"; false; }
+    [[ "$output" != *"UNANCHORED-DEF"* ]] || { echo "own def form: $output"; false; }
+
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [ "$status" -eq 0 ]
+    [ -z "$output" ] || { echo "tooling looks mintable: $output"; false; }
+}
+
+@test "check-ids: a draft ID in a project file under .guardrails/ is reported" {
+    # AC3. The scan pathspec excluded the whole .guardrails/ tree, so anything
+    # a project kept there was invisible to every tree-wide gate. Only the
+    # tooling needs excluding.
+    mkdir -p .guardrails/docs/requirements
+    cat > .guardrails/docs/requirements/DRAFT-x-srs.md <<'EOF'
+# SRS
+
+**REQ-DRAFT-x-1**: The pump shall stop on occlusion.
+EOF
+    commit_all "ledger under .guardrails"
+
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ] || { echo "draft ID invisible: $output"; false; }
+    [[ "$output" == *"DRAFT-ID .guardrails/docs/requirements/DRAFT-x-srs.md"*"REQ-DRAFT-x-1"* ]] \
+        || { echo "no DRAFT-ID line for it: $output"; false; }
+}
+
+@test "check-ids: a misspelled config key is an error here too" {
+    # The general form of the same gap: any shape gr_check_config exists to
+    # refuse was refused by two of the three gates.
+    sed -i.bak 's/^strict_paths:/strict-paths:/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    commit_all misspelled-key
+
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "accepted a broken config: $output"; false; }
+}
+
+@test "poisoning GR_SCAN_EXCLUDE changes every gate's verdict" {
+    # AC8, and the lesson of change D: a lint that greps for the right spelling
+    # is defeated by a different spelling. Three earlier attempts at a textual
+    # guard were each bypassed — by a single-quoted copy, by a comment that
+    # preserved the count, by a shadowing definition. So prove the single source
+    # of truth behaviourally: move the exclusion onto src/, and require all
+    # three gates to follow it there. A call site still holding its own literal
+    # pathspec would not move, and would fail here.
+    printf '**REQ-001**: a second definition of the fixture item.\n**REQ-002**: an item outside its ledger.\n**REQ-DRAFT-x-1**: a draft.\nnote `**REQ-900**:` in prose\n' \
+        > src/notes.md
+    # check-trace.sh runs below, and this file's fixture leaves tests/ empty.
+    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
+    # An off-column token whose reporting turns on the CEILING rather than on
+    # which files are scanned: REQ-002 is at the ceiling while src/ is visible
+    # and above it once src/ is excluded. It flips the opposite way from
+    # REQ-900 above, so a ceiling scan left holding its own pathspec shows up.
+    printf 'note `**REQ-002**:` in prose\n' >> docs/requirements/0001-01-01-base.md
+    commit_all poison-fixture
+
+    # Unpoisoned: every gate sees src/.
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DRAFT-ID src/notes.md"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNANCHORED-DEF REQ-900"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"DUPLICATE-ID REQ-001"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNANCHORED-DEF REQ-002"* ]] \
+        || { echo "REQ-002 is at the ceiling, not above it: $output"; false; }
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"checked: REQ 2,"* ]] || { echo "$output"; false; }
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [[ "$output" == *"REQ-DRAFT-x-1 -> REQ-003"* ]] || { echo "$output"; false; }
+
+    printf "\nGR_SCAN_EXCLUDE=':(exclude)src'\n" >> .guardrails/scripts/lib.sh
+
+    # The poison REPLACES the exclusion rather than adding to it — it is one
+    # pathspec argument, not a list — so the move is visible from both ends:
+    # src/ becomes invisible and .guardrails/scripts/ becomes visible, and the
+    # tooling starts reporting the draft token in its own comments. A gate
+    # holding its own literal pathspec would move at neither end.
+    run sh .guardrails/scripts/check-ids.sh
+    [[ "$output" != *"DRAFT-ID src/notes.md"* ]] \
+        || { echo "check-ids still scans src: $output"; false; }
+    [[ "$output" == *"DRAFT-ID .guardrails/scripts/"* ]] \
+        || { echo "check-ids did not follow the exclusion: $output"; false; }
+    # the UNANCHORED-DEF machinery is five more call sites, and nothing else
+    # in the suite distinguishes them.
+    [[ "$output" != *"UNANCHORED-DEF REQ-900"* ]] \
+        || { echo "the unanchored-def scan kept its own pathspec: $output"; false; }
+    [[ "$output" != *"DUPLICATE-ID REQ-001"* ]] \
+        || { echo "the duplicate scan kept its own pathspec: $output"; false; }
+    [[ "$output" == *"UNANCHORED-DEF REQ-002"* ]] \
+        || { echo "the ceiling scan kept its own pathspec: $output"; false; }
+
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"checked: REQ 1,"* ]] \
+        || { echo "check-trace has its own pathspec: $output"; false; }
+
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [[ "$output" != *"REQ-DRAFT-x-1 -> "* ]] \
+        || { echo "finalize-ids still mints from src: $output"; false; }
+    [[ "$output" == *"UNMINTED-DRAFT"*"REQ-DRAFT-b-1"* ]] \
+        || { echo "finalize-ids did not follow the exclusion: $output"; false; }
+}
+
+@test "poisoning GR_SCAN_EXCLUDE moves the mint ceiling too" {
+    # The companion to the test above, which cannot reach max_final: under that
+    # poison the tooling stops being excluded, its own REQ-DRAFT-b-1 trips the
+    # pre-flight, and finalize-ids never gets as far as printing a mint line.
+    # Strip that token from the installed copies first, and the ceiling scans
+    # become observable — they are two more call sites, one reading the base ref
+    # and one the working tree.
+    sed -i.bak 's/REQ-DRAFT-b-1/REQ-REDACTED-b-1/g; s/REQ-DRAFT-b-12/REQ-REDACTED-b-12/g' \
+        .guardrails/scripts/lib.sh .guardrails/scripts/finalize-ids.sh
+    rm -f .guardrails/scripts/*.bak
+    printf '**REQ-002**: raises the ceiling.\n**REQ-DRAFT-y-1**: a draft outside the ledger.\n' \
+        > src/notes.md
+    printf '\n**REQ-DRAFT-x-1**: a draft.\n' >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-DRAFT-x-1\ntrue\n' > tests/test_a.sh
+    commit_all ceiling-fixture
+
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [[ "$output" == *"REQ-DRAFT-x-1 -> REQ-003"* ]] \
+        || { echo "ceiling not read from src: $output"; false; }
+    # the mint scan and the pre-flight are two further call sites
+    [[ "$output" == *"REQ-DRAFT-y-1 -> "* ]] \
+        || { echo "mint scan did not see src: $output"; false; }
+
+    printf "\nGR_SCAN_EXCLUDE=':(exclude)src'\n" >> .guardrails/scripts/lib.sh
+
+    run sh .guardrails/scripts/finalize-ids.sh --dry-run
+    [[ "$output" == *"REQ-DRAFT-x-1 -> REQ-002"* ]] \
+        || { echo "a ceiling scan kept its own pathspec: $output"; false; }
+    [[ "$output" != *"REQ-DRAFT-y-1"* ]] \
+        || { echo "the mint scan or pre-flight kept its own pathspec: $output"; false; }
+}
+
+@test "poisoning GR_SCAN_EXCLUDE moves the duplicate-vs-base scan too" {
+    # The one remaining check-ids call site the poisoning fixture above cannot
+    # reach: it scans the BASE REF for a definition of an ID this branch added,
+    # so it needs a branch and a definition that exists on both sides.
+    printf '**REQ-005**: defined on the base, outside its ledger.\n' > src/notes.md
+    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
+    commit_all base-has-req005
+    git checkout -qb feature
+    printf '**REQ-005**: minted again here.\nstatus: open\n' > docs/problems/dup.md
+    commit_all branch-redefines
+
+    run sh .guardrails/scripts/check-ids.sh --base main
+    [[ "$output" == *"DUPLICATE-ID REQ-005 (already defined on main)"* ]] \
+        || { echo "base scan did not see src: $output"; false; }
+
+    printf "\nGR_SCAN_EXCLUDE=':(exclude)src'\n" >> .guardrails/scripts/lib.sh
+
+    run sh .guardrails/scripts/check-ids.sh --base main
+    [[ "$output" != *"DUPLICATE-ID REQ-005"* ]] \
+        || { echo "the base scan kept its own pathspec: $output"; false; }
 }

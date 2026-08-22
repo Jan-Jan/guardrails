@@ -92,10 +92,10 @@ max_final() {
     _ref="${2:-}"
     if [ -n "$_ref" ]; then
         git grep -h -oE "$(gr_def_re "$_p")" "$_ref" \
-            -- . ":(exclude).guardrails" 2>/dev/null
+            -- . "$GR_SCAN_EXCLUDE" 2>/dev/null
     else
         git grep -h --untracked -oE "$(gr_def_re "$_p")" \
-            -- . ":(exclude).guardrails" 2>/dev/null
+            -- . "$GR_SCAN_EXCLUDE" 2>/dev/null
     fi | awk 'BEGIN { m = 0 }
               NF { id = $0; sub(/^\*\*/, "", id); sub(/\*\*:$/, "", id)
                    # The digits after the LAST hyphen. A bare [0-9]+ harvest
@@ -121,7 +121,7 @@ for p in $prefixes; do
     # number is burned, the draft token survives, and the run exits 0.
     drafts=$(git grep -h --untracked -oE \
         "^\\*\\*${p}-DRAFT-[A-Za-z0-9][A-Za-z0-9-]*-[0-9]+\\*\\*:" \
-        -- . ":(exclude).guardrails" 2>/dev/null \
+        -- . "$GR_SCAN_EXCLUDE" 2>/dev/null \
         | sed 's/[*:]//g')
     [ -n "$drafts" ] || continue
 
@@ -150,7 +150,7 @@ draft_re="[A-Za-z][A-Za-z0-9]*-DRAFT-[A-Za-z0-9][A-Za-z0-9-]*-[0-9]+"
 # exists to remove. git grep exits 1 for "no matches", >1 for a real failure.
 # NB: no pipeline here — `$?` after `x=$(a | b)` is b's status, not a's, which
 # would hide exactly the failure being checked for. Sort afterwards.
-tokens=$(git grep -hoI --untracked -E "$draft_re" -- . ":(exclude).guardrails")
+tokens=$(git grep -hoI --untracked -E "$draft_re" -- . "$GR_SCAN_EXCLUDE")
 scan_status=$?
 [ "$scan_status" -le 1 ] || gr_die "scanning for draft IDs failed (git grep exit $scan_status)"
 tokens=$(printf '%s\n' "$tokens" | sort -u)
@@ -166,7 +166,7 @@ done
 if [ -n "$unminted" ]; then
     for t in $unminted; do
         [ -n "$t" ] || continue
-        git grep -InI --untracked -F "$t" -- . ":(exclude).guardrails" 2>/dev/null \
+        git grep -InI --untracked -F "$t" -- . "$GR_SCAN_EXCLUDE" 2>/dev/null \
             | sed 's/^/UNMINTED-DRAFT /'
     done
     echo "guardrails: the draft IDs above were never minted. Either the item has" >&2
@@ -234,7 +234,7 @@ done
 printf '%s' "$mapping" | awk '{ print length($1), $0 }' | sort -rn | cut -d' ' -f2- \
 | while IFS=' ' read -r d final; do
     [ -n "$d" ] || continue
-    git grep -l --untracked -F "$d" -- . ":(exclude).guardrails" 2>/dev/null \
+    git grep -l --untracked -F "$d" -- . "$GR_SCAN_EXCLUDE" 2>/dev/null \
     | while IFS= read -r f; do
         sed -i.bak "s/${d}/${final}/g" "$f" && rm -f "${f}.bak"
     done

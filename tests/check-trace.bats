@@ -964,3 +964,22 @@ MD
     [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "REQ block truncated: $output"; false; }
     [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "PR block truncated: $output"; false; }
 }
+
+@test "check-trace: items in a ledger under .guardrails/ are counted, not silently zero" {
+    # AC5. ids_defined carried the tree-wide exclusion while gr_doc_files, which
+    # builds the file list from the config, did not. One script, two opinions
+    # about which files exist: the summary read `sources: srs 2` beside
+    # `checked: REQ 0`, and every REQ gate became a no-op that still exited 0.
+    mkdir -p .guardrails/docs/requirements
+    printf '# Requirements ledger\n' > .guardrails/docs/requirements/README.md
+    git mv docs/requirements/0001-01-01-base.md \
+        .guardrails/docs/requirements/0001-01-01-base.md
+    sed -i.bak 's|^doc_srs: docs/requirements$|doc_srs: .guardrails/docs/requirements|' \
+        .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    commit_all srs-under-guardrails
+
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"checked: REQ 1,"* ]] \
+        || { echo "REQ not counted: $output"; false; }
+}

@@ -144,7 +144,7 @@ fail=0
 # ids_defined PREFIX — all finalized IDs with a `**ID**:` definition site
 ids_defined() {
     git grep -h --untracked -oE "$(gr_def_re "$1")" -- . \
-        ":(exclude).guardrails" 2>/dev/null | sed 's/[*:]//g' | sort -u
+        "$GR_SCAN_EXCLUDE" 2>/dev/null | sed 's/[*:]//g' | sort -u
 }
 
 # ids_defined_in PREFIX FILES… — definitions of PREFIX inside the given files.

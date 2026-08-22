@@ -237,10 +237,13 @@ EOF
     grep -q 'REQ-DRAFT-b-1' 'docs/requirements/DRAFT-my notes.md'
 }
 
-@test "finalize: a draft inside .guardrails is not minted against a rewrite that skips it" {
-    # The mint scan must use the same pathspec as the rewrite. A wider mint
-    # scan burned an ID for a draft it then never rewrote, and exited 0.
-    printf '**REQ-DRAFT-b-1**: draft inside the guardrails dir.\n' > .guardrails/notes.md
+@test "finalize: a draft inside the excluded tooling dir is not minted against a rewrite that skips it" {
+    # The mint scan, the pre-flight and the rewrite must all use GR_SCAN_EXCLUDE.
+    # A wider mint scan burned an ID for a draft it then never rewrote, and
+    # exited 0. The fixture is under .guardrails/scripts/ because that is what
+    # those scans exclude — the finalize-ids.sh shipped there really does carry
+    # a literal REQ-DRAFT-b-1 in a comment.
+    printf '**REQ-DRAFT-b-1**: draft inside the tooling dir.\n' > .guardrails/scripts/notes.md
     printf '\n**REQ-DRAFT-b-2**: a real draft requirement.\n' >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-DRAFT-b-2\ntrue\n' > tests/test_x.sh
     commit_all guardrails-draft
@@ -248,7 +251,7 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"REQ-DRAFT-b-2 -> REQ-002"* ]]
     [[ "$output" != *"REQ-DRAFT-b-1"* ]]
-    grep -q 'REQ-DRAFT-b-1' .guardrails/notes.md
+    grep -q 'REQ-DRAFT-b-1' .guardrails/scripts/notes.md
 }
 
 @test "finalize: a doc key whose path is missing fails before anything is minted" {
@@ -268,10 +271,11 @@ EOF
     grep -q 'PR-DRAFT-b-1' docs/problems/DRAFT-feature-notes.md
 }
 
-@test "finalize: an ID defined under .guardrails does not shift the next number" {
+@test "finalize: an ID inside the excluded tooling dir does not shift the next number" {
     # max_final must scan the same paths as the mint and rewrite scans, or the
-    # sequence jumps with no visible cause.
-    printf '**REQ-050**: an item inside the guardrails dir.\n' > .guardrails/notes.md
+    # sequence jumps with no visible cause. .guardrails/scripts/ is what those
+    # scans exclude; a project file one level up counts, per the test below.
+    printf '**REQ-050**: an item inside the tooling dir.\n' > .guardrails/scripts/notes.md
     printf '\n**REQ-DRAFT-b-1**: draft requirement.\n' >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-DRAFT-b-1\ntrue\n' > tests/test_x.sh
     commit_all guardrails-final-id
@@ -356,4 +360,60 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"R9-DRAFT-feat-1 -> R9-006"* ]] || {
         echo "expected R9-006, got: $output"; false; }
+}
+
+# Points doc_srs at a ledger directory inside .guardrails/ — the shape that
+# produced the reproduction in docs/plans/2026-08-20-scan-pathspec.md. It is a
+# legal config: only .guardrails/scripts/ is excluded, so a ledger one level up
+# is scanned normally.
+srs_under_guardrails() {
+    mkdir -p .guardrails/docs/requirements
+    printf '# Requirements ledger\n' > .guardrails/docs/requirements/README.md
+    sed -i.bak 's|^doc_srs: docs/requirements$|doc_srs: .guardrails/docs/requirements|' \
+        .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+}
+
+@test "finalize: a draft in a ledger under .guardrails/ is minted, not just renamed" {
+    # AC4. The mint scan excluded the whole .guardrails/ tree, so this file was
+    # renamed to its merge-date name with no ID minted and the run exited 0 —
+    # the half-finalized tree the pre-flight exists to refuse, produced by the
+    # script that owns the pre-flight.
+    srs_under_guardrails
+    cat > .guardrails/docs/requirements/DRAFT-x-srs.md <<'EOF'
+# SRS
+
+**REQ-DRAFT-x-1**: The pump shall stop on occlusion.
+EOF
+    printf '# verifies: REQ-DRAFT-x-1\ntrue\n' > tests/test_x.sh
+    commit_all ledger-under-guardrails
+
+    run sh .guardrails/scripts/finalize-ids.sh --base main
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"REQ-DRAFT-x-1 -> REQ-002"* ]] \
+        || { echo "minted nothing: $output"; false; }
+    [ ! -f .guardrails/docs/requirements/DRAFT-x-srs.md ]
+    grep -q 'REQ-002' .guardrails/docs/requirements/*-x-srs.md
+    ! grep -rq 'REQ-DRAFT-x-1' .guardrails/docs/
+}
+
+@test "finalize: an unmintable draft under .guardrails/ blocks instead of being renamed away" {
+    # AC4, the half that matters most. The header is not bolded, so it can
+    # never be minted. The pre-flight must refuse before any rewrite or rename;
+    # while its token scan carried the wide exclusion it saw nothing, renamed
+    # the ledger, and reported success over a tree still holding the draft.
+    srs_under_guardrails
+    cat > .guardrails/docs/requirements/DRAFT-x-srs.md <<'EOF'
+# SRS
+
+REQ-DRAFT-x-1: The pump shall stop on occlusion.
+EOF
+    commit_all unmintable-under-guardrails
+
+    run sh .guardrails/scripts/finalize-ids.sh --base main
+    [ "$status" -eq 1 ] || { echo "did not block: $output"; false; }
+    [[ "$output" == *"UNMINTED-DRAFT"*"REQ-DRAFT-x-1"* ]] \
+        || { echo "no UNMINTED-DRAFT line: $output"; false; }
+    # nothing rewritten, nothing renamed
+    [ -f .guardrails/docs/requirements/DRAFT-x-srs.md ]
+    git diff --quiet
 }

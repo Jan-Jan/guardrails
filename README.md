@@ -132,6 +132,35 @@ There is no compatibility flag, deliberately: almost all of these were a gate
 that did not run. The exception is an unrecognised key, which may be a
 project-local annotation rather than a typo — the two are indistinguishable
 from here, and guessing wrong on a typo is the failure this exists to stop.
+Every gate that reads the config validates it, `check-ids.sh` included — it
+was the one exception, so a project running only that gate got no validation
+at all.
+
+**The scans exclude `.guardrails/scripts/`, and nothing else.** The installed
+scripts carry a draft token and definition-form examples in their own comments,
+so the gates they implement must not read them. That exclusion used to cover
+the whole `.guardrails/` tree, which also hid anything a project kept there:
+with `doc_srs: .guardrails/docs/requirements`, `finalize-ids.sh` renamed the
+draft ledger to its merge-date name, minted no ID, and exited 0, and both check
+scripts then passed a tree holding a live `REQ-DRAFT-x-1`. Ledgers under
+`.guardrails/` are read normally now.
+
+`.guardrails/scripts/` stays invisible to the scans, and so do `.git/`,
+gitignored paths, and symlinks pointing outside the repository. A `doc_*` aimed
+at one of those is **accepted**: `checked:` counts its items as zero, and
+`finalize-ids.sh` renames a draft ledger there without minting anything.
+
+Whether anything warns you first depends on the location, on whether git tracks
+or ignores the file, and on whether finalization has already run. Some
+combinations are silent throughout; others raise a complaint that names no
+cause, which finalization then removes. The measured matrix is in
+`docs/verification/2026-08-20-scan-pathspec.md`; it is too conditional to
+summarise safely, and three attempts to summarise it here were each wrong in a
+new way. Do not configure a ledger in any of those locations.
+
+A symlink to a directory *inside* the repository is different: it is scanned
+normally under the target's real path, so its items are counted, its placement
+is checked, and its drafts are minted.
 
 **Items must live where their gates look.** `MISPLACED-ITEM` closes what was a
 recorded gap: `checked:` used to count items found, not items examined, so

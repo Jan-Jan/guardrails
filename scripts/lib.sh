@@ -161,6 +161,38 @@ gr_prefix_re() {
     printf '%s' "$_p" | tr '\n' '|' | sed 's/|$//'
 }
 
+# GR_SCAN_EXCLUDE — the one pathspec every tree-wide scan excludes.
+#
+# Used as `git grep … -- . "$GR_SCAN_EXCLUDE"` at every site in check-ids.sh,
+# check-trace.sh and finalize-ids.sh. One definition because those scans must
+# agree about which files exist: while finalize-ids.sh's mint scan and its own
+# pre-flight disagreed with nothing, they agreed with each other only by having
+# been typed the same way fifteen times.
+#
+# It names `.guardrails/scripts`, NOT `.guardrails`. The exclusion exists so the
+# installed scripts do not report themselves — their comments carry a literal
+# `REQ-DRAFT-b-1` and definition-form examples — and the scripts are the only
+# thing under `.guardrails/` that matches any gate's pattern; config.yaml
+# matches none. Excluding the whole directory also hid the project's own files:
+# with `doc_srs: .guardrails/docs/requirements`, finalize-ids.sh renamed the
+# draft ledger to its merge-date name, minted nothing, and exited 0, and both
+# check scripts then passed a tree with a live `REQ-DRAFT-x-1` in it.
+# Narrowing cannot reach one case: a doc_* configured INSIDE this directory is
+# still accepted, and checked: counts its items as zero. Whether any gate
+# complains first depends on whether git tracks or ignores the ledger, and on
+# whether finalization has run — the same is true of .git/, gitignored paths
+# and symlinks leaving the repository. The measured matrix is in
+# docs/verification/2026-08-20-scan-pathspec.md. A check that refused the shape
+# outright was attempted and cut; see the same record.
+#
+# A variable, not a function like gr_def_re: this is a separate `git grep`
+# argument, and a function's output would have to be word-split — which
+# finalize-ids.sh and check-trace.sh cannot do, both setting IFS to newline at
+# top level. Assigned unconditionally, never `${GR_SCAN_EXCLUDE:-…}`: a value
+# inherited from the environment could widen it to `:(exclude).` and blind
+# every gate in the toolkit while each one still exited 0.
+GR_SCAN_EXCLUDE=':(exclude).guardrails/scripts'
+
 # gr_def_re ALTERNATION [POSITION] — ERE matching an item definition
 # line: a bold ID followed immediately by a colon, at line start.
 #
