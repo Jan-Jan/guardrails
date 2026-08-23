@@ -120,7 +120,7 @@ fi
 # opened with one. Measured on a real 1178-file project: one violation, ten
 # lines of report.
 malformed=$(git grep -nI --untracked -E \
-    -e "^\\*\\*(${P})-[^*]*\\*\\*:" --and --not -e "$def_re" \
+    -e "$(gr_def_re_loose "$P")" --and --not -e "$def_re" \
     -- . "$GR_SCAN_EXCLUDE")
 _st=$?
 [ "$_st" -le 1 ] || gr_die "MALFORMED-ID scan failed (git grep exit $_st)"

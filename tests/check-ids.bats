@@ -141,10 +141,29 @@ EOF
     # moves this count whichever way the replacement is spelled.
     body_check_ids=0
     body_check_signing=0
-    body_check_trace=6
+    body_check_trace=7
     body_finalize_docs=0
     body_lib=2
     body_new_id=0
+
+    # The two shared definitions added 2026-08-22, pinned for the same reason
+    # the three above are. gr_def_re_loose says which lines OPEN in definition
+    # shape whatever their body, and GR_AWK_ITEM_BLOCK says where an item block
+    # starts and ends. Five gates read the second one; a sixth opinion about
+    # where an item ends is precisely the defect that change fixed.
+    loose_check_ids=1
+    loose_check_signing=0
+    loose_check_trace=0
+    loose_finalize_docs=0
+    loose_lib=0
+    loose_new_id=0
+
+    block_check_ids=0
+    block_check_signing=0
+    block_check_trace=5
+    block_finalize_docs=0
+    block_lib=0
+    block_new_id=0
 
     forms() {
         # Fold the digit-class spellings together, then drop backslashes and
@@ -163,7 +182,10 @@ EOF
         eval "want_calls=\$calls_$key"
         eval "want_forms=\$forms_$key"
         eval "want_body=\$body_$key"
+        eval "want_loose=\$loose_$key"
+        eval "want_block=\$block_$key"
         [ -n "$want_calls" ] && [ -n "$want_forms" ] && [ -n "$want_body" ] \
+            && [ -n "$want_loose" ] && [ -n "$want_block" ] \
             || { echo "unpinned script (add it to this test): $f"; false; }
 
         got_calls=$(grep -c '\$(gr_def_re ' "$f" || true)
@@ -175,6 +197,18 @@ EOF
         got_body=$(grep -cE '\$\{?GR_ID_BODY\}?' "$f" || true)
         [ "$got_body" -eq "$want_body" ] || {
             echo "$f: $got_body GR_ID_BODY uses, pinned at $want_body"
+            false
+        }
+
+        got_loose=$(grep -c '\$(gr_def_re_loose ' "$f" || true)
+        [ "$got_loose" -eq "$want_loose" ] || {
+            echo "$f: $got_loose gr_def_re_loose call sites, pinned at $want_loose"
+            false
+        }
+
+        got_block=$(grep -c '\$GR_AWK_ITEM_BLOCK' "$f" || true)
+        [ "$got_block" -eq "$want_block" ] || {
+            echo "$f: $got_block GR_AWK_ITEM_BLOCK uses, pinned at $want_block"
             false
         }
 
@@ -192,6 +226,8 @@ EOF
     # defines.
     [ "$(grep -c '^gr_def_re() {' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c '^GR_ID_BODY=' scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c '^gr_def_re_loose() {' scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c "^GR_AWK_ITEM_BLOCK='" scripts/lib.sh)" -eq 1 ]
 }
 
 @test "every script parses as POSIX sh" {
@@ -594,4 +630,37 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"the lines above open with a definition form"*"new-id.sh"* ]] \
         || { echo "$output"; false; }
+}
+
+@test "poisoning gr_def_re_loose changes the MALFORMED-ID verdict" {
+    # Independent review, finding 5: narrowing gr_def_re_loose alone reddened
+    # nothing, so check-ids.sh could drift back to a hand-spelled loose form
+    # with the suite still green. The behavioural pin the constructor lacked.
+    printf '**REQ-abcdef**: hand-typed ID with no digit.\n' > docs/requirements/2026-01-01-x.md
+    commit_all malformed-item
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ] || { echo "baseline wrong: $output"; false; }
+    [[ "$output" == *"MALFORMED-ID"* ]] || { echo "baseline wrong: $output"; false; }
+
+    printf '\ngr_def_re_loose() { printf %%s "ZZ-NO-SUCH-PATTERN-ZZ"; }\n' \
+        >> .guardrails/scripts/lib.sh
+
+    run sh .guardrails/scripts/check-ids.sh
+    [[ "$output" != *"MALFORMED-ID"* ]] \
+        || { echo "check-ids kept its own loose form: $output"; false; }
+}
+
+@test "check-ids: an empty ID body in definition form is MALFORMED-ID" {
+    printf '**REQ-**: a definition form with no body at all.\n' > docs/requirements/2026-01-01-x.md
+    commit_all empty-body
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MALFORMED-ID"* ]]
+}
+
+@test "check-ids: a bold run containing asterisks is not a definition form" {
+    printf '**REQ-a**b**: emphasis inside what is not an item header.\n' > docs/requirements/2026-01-01-x.md
+    commit_all asterisk-in-body
+    run sh .guardrails/scripts/check-ids.sh
+    [[ "$output" != *"MALFORMED-ID"* ]]
 }

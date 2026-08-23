@@ -34,6 +34,44 @@ proved nothing — a config or layout problem, not a pass. `checked:` alone is
 not enough on its own: it counts items found anywhere in the tree, while
 `sources:` counts the files the gate for those items actually opened.
 
+**Where an item ends.** An item block **opens** at its definition form and
+**closes** at the next markdown heading or the next **bold line carrying a
+colon**. That is the whole rule. `**ADR-0007**:`, `**Decision 7**:`,
+`**LLR-overflow:**`, `**Rationale**:` and `**Note **bold** here**:` all close a
+block, whether or not they are valid items and whatever their prefix.
+`**21 of 35 inverted, 14 not.**` carries no colon and closes nothing.
+
+The practical rule when writing an item body: a bold label with a colon starts
+a new block, so put your annotations *above* it. The one limit: a bold line
+carrying no **ASCII colon** never closes, because nothing distinguishes it from
+the emphasised sentence that caused the original defect. (A full-width colon,
+U+FF1A, is not an ASCII colon.) The close is byte-wise, so it behaves the same
+under every awk and every locale.
+
+Closing is deliberately broader than opening, and getting there took three
+review rounds. Until 2026-08-22 any line starting `**` closed the block, which
+made two gates reject correct documents (`UNTRACED-DESIGN` and
+`UNSATISFIED-LLR` fire when they do *not* find their annotation) and two pass
+over real violations in silence (`UNANALYZED-DERIVED` and `UNRESOLVED-PR` fire
+when they *do*). Narrowing the close to valid item IDs fixed that and broke
+something worse: a line a reader takes for a header became body text, so the
+annotations under it were credited to the item *above* — a wrong answer where
+the old rule merely dropped them. Narrowing it to *header-shaped* lines was the
+same mistake in smaller print. The rule that holds is the one stated as a
+subtraction: everything the old rule closed, minus the colon-free shape that
+caused the defect. `check-ids.sh` separately reports `**REQ-abcdef**:` as
+`MALFORMED-ID`.
+
+`ORPHAN-ANNOTATION` covers what falls outside every block. It fires three ways:
+before the first item in a file, under a heading with no item since, and —
+the one most likely to reach a real ledger — **inside a block opened by a
+prefix whose gate does not read that keyword**, such as a `traces:` line inside
+an `**LLR-…**` block. Its known limit: it matches a keyword only at column one,
+while the gates match one anywhere on the line, so `- status: open` counts
+inside a block but is not backstopped outside one. On a bullet-style ledger
+that means exit 0 with an open problem report absent from the known-problem
+list.
+
 **`MISPLACED-ITEM` is what ties the two together.** Each of the six gated
 prefixes is checked against the one document it may be defined in
 (`REQ`→`doc_srs`, `HAZ`/`RC`→`doc_rmf`, `SDD`/`LLR`→`doc_sad`,
@@ -90,6 +128,7 @@ Fix the config; never work around it by removing the prefix.
 | `UNTRACED-DESIGN SDD-…` | Design item has no `traces:` to a REQ | Add the trace if the requirement exists; if none does, the item is speculative — delete it or grill the requirement into existence first. |
 | `DANGLING-REF <ID>` | ID referenced but defined nowhere | Typo → fix the reference. Deleted item → remove or update every reference (deleting a defined item is a change requiring its own review). |
 | `MISPLACED-ITEM <ID>` | Item defined outside the document configured for its prefix. It is still *enumerated* — `MISSING-TEST` and the rest fire on it exactly as on a placed item — but the gate that would convict it on its own annotations parses only the configured document, so a misplaced `SDD` carries no `traces:` obligation and a misplaced `PR` can never be reported open. Two caveats worth knowing: `DANGLING-REF` scans every `doc_*` file plus `strict_paths` and `test_paths`, so an item misfiled into *another* ledger still has its reference IDs read — by that gate, not by its own; and a `HAZ` block carries no annotation of its own that a gate parses, yet moving it out of the RMF still blinds `UNANALYZED-DERIVED`, which greps the RMF as free text — a derived item assessed inside a hazard's block stops being assessed when that block leaves (it fails red, so nothing passes silently) | Move the definition into that document — `REQ`→`doc_srs`, `HAZ`/`RC`→`doc_rmf`, `SDD`/`LLR`→`doc_sad`, `PR`→`doc_problems`. Adding the stray file to `strict_paths` does **not** fix it: that widens reference scanning, not the document a gate opens. A `doc_*` directory resolves to its `*.md` files **one level deep**, so a `.md` in a subdirectory of it reports — and so does a `.txt` sitting directly in it. A `doc_*` configured as a single *file* resolves to that file whatever its extension. If the ID is illustrative text rather than a real item, indent it or keep it inline — no definition scan matches a form off column one. Do **not** leave `**REQ-NNN**:` at the start of a line: no gate reads it as a definition, but `MALFORMED-ID` reads it as one that failed, which is the correct answer to a line that looks exactly like a real item. |
+| `ORPHAN-ANNOTATION <file>:<line>` | A `status:`, `traces:` or `satisfies:` line at column one that belongs to no item. Three ways: before the first item in the file; under a heading with no item since; or **inside a block opened by a prefix whose gate does not read that keyword** — a `traces:` line inside an `**LLR-…**` block, say — which is the one most likely to reach a real ledger. Nothing reads it in any of the three: the gate keyed on that keyword parses item blocks of its own prefix, and this line is in none, so `status: open` left an item open in the ledger while the run exited 0. Reported only where the keyword is block-parsed (`status:`→`doc_problems`, `traces:`→`doc_sad`, `satisfies:`→`doc_sad`/`doc_srs`); `mitigates:`, `implements:` and `verifies:` are read line-wise and cannot be orphaned | Move the line inside the item it describes — for the third case that usually means it is under the wrong item, so check which item you meant. If a heading separates them, put the heading before the item or drop it. If the line is illustrative rather than real, indent it: column-one anchoring is what keeps the grammar comments in the ledger templates inert. |
 | `UNRESOLVED-PR PR-…` | Open problem report (**warning — never fails**) | Review it: still valid? Fix via `resolve-problem`, or leave open knowingly — the point is that every merge sees the list. |
 | `DRAFT-ID …` (check-ids) | A draft ID token (`REQ-DRAFT-<branch>-<n>`) left in the tree. **Always a failure**, under every flag: nothing mints one any more, so nothing would ever turn it into a real ID | Run `.guardrails/scripts/new-id.sh <PREFIX>` and replace the token with what it prints. |
 | `DRAFT-FILE …` (check-ids) | A `DRAFT-<branch>-<slug>.md` ledger file. Legitimate while the change is in flight — `--allow-draft-files` suppresses it — and renamed by `finalize-docs.sh` at merge | Nothing mid-change. At merge, run `merge-change` step 3. |

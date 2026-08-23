@@ -144,6 +144,108 @@ function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
 }
 '
 
+# The item-block rule as an awk fragment, defined ONCE and prepended to every
+# program that needs it.
+#
+# An item block OPENS at a well-formed definition for the prefix the gate
+# collects, and CLOSES at a markdown heading or at ANY BOLD LINE CARRYING A
+# COLON. That is the whole closing rule.
+#
+# It is stated as a SUBTRACTION, and that framing is the point. Until
+# 2026-08-22 the rule closed on every line starting `**`. An emphasised
+# sentence inside an item body (`**21 of 35 inverted, 14 not.**`) therefore
+# ended the item there, and everything after it — annotations included —
+# belonged to no item: UNTRACED-DESIGN and UNSATISFIED-LLR then rejected
+# correct documents, while UNANALYZED-DERIVED and UNRESOLVED-PR passed over
+# real violations in silence. One rule, four gates, both failure directions.
+#
+# The close set must therefore be everything that rule closed, MINUS the shape
+# that caused the defect, and nothing else. The defect line carries no colon;
+# so the colon is the subtraction, and there is no other. Three review rounds
+# were spent narrowing instead — to definition forms, then to header shapes,
+# then to a colon adjoining the closing asterisks — and each narrowing lost
+# lines the old rule closed, which is a regression however small the loss. A
+# line a reader takes for a header but the rule does not becomes body text, and
+# its annotations are credited to the item ABOVE it: a resolved PR inherits the
+# next one`s `status: open`. That is a wrong answer, where the original defect
+# gave a missing one.
+#
+# BYTE-WISE, not a regex, and this is not stylistic. `.` in an ERE does not
+# match an invalid byte sequence under gawk in a multibyte locale, so
+# `^\*\*.*:` silently stopped closing on a ledger saved in latin-1 — a header
+# like `**Détail**:` — while mawk, busybox awk and gawk under LC_ALL=C all
+# closed it. The same tree, the same script, two verdicts, decided by the
+# operator`s locale. substr and index count bytes in every awk and every
+# locale, and they say what the sentence above says.
+#
+# The residual limit, stated exactly: a bold line carrying no ASCII colon does
+# not close. `**Decision 7**` does not; `**Decision 7**:` does. A full-width
+# colon (U+FF1A) is not an ASCII colon and does not close. Nothing
+# distinguishes a colon-free bold line from the sentence in the original
+# report, so that one is irreducible.
+#
+# One definition, for the same reason GR_AWK_ID_RUN and gr_def_re have one, and
+# with one addition: ORPHAN-ANNOTATION is a fifth reader of this rule, and a
+# backstop that disagrees with the gates it backs is not a backstop.
+#
+# gr_block_init takes the OPENING prefix alternation (the prefixes this gate
+# collects) and GR_ID_BODY. There is no closing alternation: the close is keyed
+# on no vocabulary at all, which is what makes it total. The opening pattern is
+# assembled HERE, inside awk, and never handed in ready-made with -v: awk runs
+# escape processing over a -v value, so a pattern carrying \* arrives as a bare
+# * and matches nothing at all — a gate that counts zero items and still exits
+# 0. Measured on gawk 5.3.2. Both arguments carry no backslashes of their own,
+# which is what lets them cross the -v boundary safely.
+GR_AWK_ITEM_BLOCK='
+function gr_block_init(pfx_open, body) {
+    GR_BLOCK_OPEN_RE = "^\\*\\*(" pfx_open ")-" body "\\*\\*:"
+}
+# Does this line START a block this gate collects? The STRICT form: an item
+# whose ID cannot be read is not an item, and nothing may be collected under it.
+function gr_block_opens(line) { return (line ~ GR_BLOCK_OPEN_RE) }
+# Does this line END whatever block is open? Any bold line carrying a colon,
+# and any markdown heading. See the block comment above for why this is
+# substr/index rather than a regex, and why the colon is the only subtraction
+# from the pre-2026-08-22 rule.
+function gr_block_closes(line) {
+    if (substr(line, 1, 1) == "#") return 1
+    return (substr(line, 1, 2) == "**" && index(line, ":") > 0)
+}
+# Is KW the annotation this line carries? Column one, and only column one.
+#
+# A KNOWN ASYMMETRY, recorded rather than fixed, and the consequence stated
+# plainly because it is the one this change exists to remove: the block gates
+# match their keyword ANYWHERE on the line, so `- status: open` counts inside a
+# block, while the same line OUTSIDE every block is not reported here at all.
+# On a bullet-style ledger that means exit 0 with an open problem report absent
+# from the known-problem list and a derived item never checked against the RMF.
+# The block rule above makes that case rare; it does not make it impossible.
+#
+# Extending this to list markers was tried and reverted: it fired on
+# `- status: resolved only in the same change that merges the fix.` in the
+# shipped templates/problems.md, which is prose in a README. Rewording a correct
+# document to satisfy a scan is the failure mode this whole change exists to
+# remove, so the narrower rule stays and the gap is stated. Unanchored is worse
+# again — it fires on any sentence containing the word. Column one is also what
+# keeps the indented grammar comments in the ledger templates inert.
+#
+# The route out, if this is revisited: the templates already tell authors to
+# keep illustrative forms inline in backticks, and applying that convention to
+# the one offending line would close the hole. That is a change to the
+# templates and to every ledger already written against them, which is why it
+# is not folded in here.
+function gr_kw_here(line, kw) {
+    return (index(line, kw) == 1)
+}
+# The bare ID of a definition line. Meaningful only where gr_block_opens holds.
+function gr_block_id(line,   id) {
+    id = line
+    sub(/^\*\*/, "", id)
+    sub(/\*\*:.*/, "", id)
+    return id
+}
+'
+
 gr_die() {
     echo "guardrails: $*" >&2
     exit 2
@@ -291,6 +393,32 @@ GR_SCAN_EXCLUDE=':(exclude).guardrails/scripts'
 # and drifted into three different values.
 gr_def_re() {
     printf '%s' "${2-^}\\*\\*(${1})-${GR_ID_BODY}\\*\\*:"
+}
+
+# gr_def_re_loose ALTERNATION [POSITION] — ERE matching a line that OPENS in
+# definition form for one of the given prefixes, whatever its body: the shape
+# `**PREFIX-<anything but an asterisk>**:` at line start.
+#
+# The complement of gr_def_re over the same anchor. A line this matches and
+# gr_def_re does not is a definition form whose ID cannot be read, and there is
+# no third possibility — which is what makes "loose minus strict" a total
+# classification of DEFINITION-SHAPED lines. It is not a classification of
+# header-shaped ones, and that distinction is the whole of the 2026-08-23
+# amendment: `**ADR-0007**:` is a header this pattern does not match.
+#
+# ONE consumer: the MALFORMED-ID scan in check-ids.sh, which spelled the
+# pattern out by hand until 2026-08-23. There such a line is a document defect
+# — the item it announces is invisible to every gate — and it is reported at
+# exit 1.
+#
+# check-trace.sh does NOT use it, though two earlier designs did. A pre-flight
+# refusing such trees outright was written and cut, and the block rule closes
+# on a header SHAPE, which is broader and keyed on no vocabulary. Kept as a
+# constructor rather than folded back inline because MALFORMED-ID is the
+# complement of gr_def_re over one anchor, and the two belong next to each
+# other where that is visible.
+gr_def_re_loose() {
+    printf '%s' "${2-^}\\*\\*(${1})-[^*]*\\*\\*:"
 }
 
 # gr_base_branch — the branch checked out in the primary (non-worktree)

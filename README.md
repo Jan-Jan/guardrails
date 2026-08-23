@@ -106,7 +106,7 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 |---|---|
 | `new-id.sh PREFIX [COUNT]` | mint item IDs. Redraws a candidate that already occurs anywhere in the tree, tracked or untracked; refuses a prefix that is not declared in `id_prefixes`, and refuses to invent one at all when there is no entropy source rather than falling back to the pid and the clock |
 | `check-ids.sh [--allow-draft-files]` | no draft ID tokens (always fatal — nothing mints one any more), no draft-named ledger files unless the flag is given, no duplicate IDs, and no `MALFORMED-ID`: a line opening with a definition form whose body is not a valid ID, which no other gate can see |
-| `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; open PRs listed as warnings. Ends with `checked:` (items found) and `sources:` (document files read, then the number of configured path entries) |
+| `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; no `ORPHAN-ANNOTATION` (an annotation belonging to no item); open PRs listed as warnings. Ends with `checked:` (items found) and `sources:` (document files read, then the number of configured path entries) |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified |
 | `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their merge-dated names. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme landed |
 
@@ -114,6 +114,27 @@ Annotations are read as lists: only the IDs immediately following the first
 occurrence of `verifies:`/`mitigates:`/`implements:`/`satisfies:`/`traces:`
 count, so `verifies: REQ-001 (was REQ-042)` credits REQ-001 alone. The rule
 has one definition, shared by every keyword.
+
+Annotations are read *within an item*. An item **opens** at its definition
+form and **closes** at the next markdown heading or the next **bold line
+carrying a colon** — `**PR-a3k9z2**:`, `**ADR-0007**:`, `**Decision 7**:`,
+`**LLR-overflow:**` and an ordinary label like `**Rationale**:` all end an
+item, whatever their prefix and whether or not they are items themselves.
+`**21 of 35 inverted, 14 not.**` carries no colon, so it ends nothing — and
+that is the rule's one limit: a bold line carrying **no ASCII colon** does not
+close, because nothing distinguishes it from that sentence. The close is
+byte-wise, so it does not shift with the reader's awk or locale. Give a colon to
+any header you want honoured, and put annotations *above* a bold label rather
+than below it.
+
+Closing is deliberately broader than opening, and asymmetric on purpose: a line
+a reader takes for a header must never hand its annotations to the item above
+it, while only a well-formed ID may start one. `check-ids.sh` separately
+reports `**REQ-abcdef**:` as `MALFORMED-ID`. An annotation that falls outside
+every block is reported as `ORPHAN-ANNOTATION` rather than dropped —
+`status:`, `traces:` and `satisfies:` only, in the documents where each is
+block-parsed, at column one, and scoped to the prefix whose gate reads it. This
+rule too has one definition, shared by all five gates that need it.
 
 **A configured entry that matches nothing is an error, not an empty result.**
 Exit 2 — never a quiet exit 0 — for a `doc_*`, `strict_paths` or `test_paths`

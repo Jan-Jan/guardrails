@@ -17,6 +17,8 @@
 #                              defined nowhere
 #   MISPLACED-ITEM ID        — item defined outside the document configured
 #                              for its prefix
+#   ORPHAN-ANNOTATION FILE:LINE — a status:/traces:/satisfies: line at column
+#                              one that belongs to no item block
 #   UNRESOLVED-PR ID         — problem report with status: open. WARNING
 #                              only: listed for review, never fails the check
 #
@@ -175,18 +177,11 @@ ids_matching() {
 }
 
 # --- LLR block parse: "<id> <REQ,REQ|derived|->" per LLR in the SAD files ---
-# Blocks end at any other definition line or markdown heading, so prose can
-# never satisfy an LLR. Parsed per file; blocks cannot span files.
+# Blocks end at the next header-shaped line or markdown heading (see
+# GR_AWK_ITEM_BLOCK in lib.sh), so prose can never satisfy an LLR. Parsed per file; blocks cannot span files.
 parse_llr_file() {
-    awk -v body="$GR_ID_BODY" "$GR_AWK_ID_RUN"'
-        # The definition form is assembled here from the library body rather
-        # than written out. It is built inside awk, not passed ready-made with
-        # -v: awk runs escape processing over a -v value, so a pattern carrying
-        # \* arrives as a bare * and matches nothing at all — a gate that counts
-        # zero items and exits 0. Measured on gawk 5.3.2: it warns that the
-        # escape sequence is treated as a plain asterisk, and the pattern
-        # becomes ^**LLR-... which matches no line.
-        BEGIN { defre = "^\\*\\*LLR-" body "\\*\\*:" }
+    LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ID_RUN$GR_AWK_ITEM_BLOCK"'
+        BEGIN { gr_block_init("LLR", body) }
         function flush() {
             if (cur != "") {
                 if (der) print cur " derived"
@@ -194,16 +189,19 @@ parse_llr_file() {
                 else print cur " -"
             }
         }
-        $0 ~ defre {
+        # ONE rule for both boundaries. Every definition form closes the open
+        # block, and one of this gate own prefix opens a new one in the same
+        # breath — which is why the ternary rather than two rules that would
+        # have to agree about their order.
+        #
+        # Deliberately no `next`: an LLR header usually carries its own
+        # `satisfies:` annotation, so the line must still reach the collector.
+        gr_block_closes($0) {
             flush()
-            cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
-            sat = ""; der = 0; inblock = 1
+            cur = gr_block_opens($0) ? gr_block_id($0) : ""
+            sat = ""; der = 0
         }
-        /^\*\*/ && $0 !~ defre {
-            if (cur != "") { flush(); cur = ""; inblock = 0 }
-        }
-        /^#/ { if (cur != "") { flush(); cur = ""; inblock = 0 } }
-        inblock {
+        cur != "" {
             if ($0 ~ /satisfies:[ \t]*derived/) der = 1
             else {
                 run = gr_id_run($0, "satisfies:")
@@ -335,33 +333,22 @@ fi
 
 # --- UNTRACED-DESIGN: every SDD block needs `traces:` naming a REQ ----------
 for f in $sad_files; do
-    untraced=$(awk -v body="$GR_ID_BODY" "$GR_AWK_ID_RUN"'
-        BEGIN { defre = "^\\*\\*SDD-" body "\\*\\*:" }
-        $0 ~ defre {
-            if (cur != "" && !ok) print cur
-            cur = $0
-            sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
+    untraced=$(LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ID_RUN$GR_AWK_ITEM_BLOCK"'
+        BEGIN { gr_block_init("SDD", body) }
+        function flush() { if (cur != "" && !ok) print cur }
+        # Deliberately no `next`: the header line itself usually carries the
+        # `traces:` annotation, so it must reach the scan below.
+        gr_block_closes($0) {
+            flush()
+            cur = gr_block_opens($0) ? gr_block_id($0) : ""
             ok = 0
-            # deliberately no `next`: the header line itself usually carries
-            # the `traces:` annotation, so it must reach the scan below
-        }
-        # The block ends at any other definition line or markdown heading, the
-        # same rule parse_llr_file uses. Without it an unrelated `traces:` far
-        # below credited an SDD that carries none of its own.
-        /^\*\*/ && $0 !~ defre {
-            if (cur != "" && !ok) print cur
-            cur = ""; ok = 0
-        }
-        /^#/ {
-            if (cur != "" && !ok) print cur
-            cur = ""; ok = 0
         }
         cur != "" {
             run = gr_id_run($0, "traces:")
             n = split(run, a, " ")
             for (i = 1; i <= n; i++) if (a[i] ~ /^REQ-/) ok = 1
         }
-        END { if (cur != "" && !ok) print cur }
+        END { flush() }
     ' "$f")
     for id in $untraced; do
         echo "UNTRACED-DESIGN $id (no 'traces:' to a requirement)"
@@ -379,13 +366,9 @@ done
 derived_ids=$(printf '%s\n' "$llr_info" | awk '$2 == "derived" { print $1 }')
 for f in $srs_files; do
     derived_ids="$derived_ids
-$(awk -v body="$GR_ID_BODY" '
-        BEGIN { defre = "^\\*\\*REQ-" body "\\*\\*:" }
-        $0 ~ defre {
-            cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
-        }
-        /^\*\*/ && $0 !~ defre { cur = "" }
-        /^#/ { cur = "" }
+$(LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ITEM_BLOCK"'
+        BEGIN { gr_block_init("REQ", body) }
+        gr_block_closes($0) { cur = gr_block_opens($0) ? gr_block_id($0) : "" }
         cur != "" && /satisfies:[ \t]*derived/ { print cur; cur = "" }
     ' "$f")"
 done
@@ -436,22 +419,112 @@ fi
 # --- UNRESOLVED-PR: open problem reports are listed for review, but this ----
 # --- is a WARNING — it never sets fail (DO-178C-style known-problem review) --
 for f in $problems_files; do
-    awk -v body="$GR_ID_BODY" '
-        BEGIN { defre = "^\\*\\*PR-" body "\\*\\*:" }
+    LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ITEM_BLOCK"'
+        BEGIN { gr_block_init("PR", body) }
         function flush() { if (cur != "" && open) print cur }
-        $0 ~ defre {
+        gr_block_closes($0) {
             flush()
-            cur = $0; sub(/^\*\*/, "", cur); sub(/\*\*:.*/, "", cur)
+            cur = gr_block_opens($0) ? gr_block_id($0) : ""
             open = 0
         }
-        /^\*\*/ && $0 !~ defre { flush(); cur = "" }
-        /^#/ { flush(); cur = "" }
         cur != "" && /status:[ \t]*open/ { open = 1 }
         END { flush() }
     ' "$f" | while IFS= read -r id; do
         [ -n "$id" ] && echo "UNRESOLVED-PR $id (open problem report — review before release)"
     done
 done
+
+# --- ORPHAN-ANNOTATION: an annotation that belongs to no item --------------
+# The backstop to the block rule, and the reason that rule can be relaxed
+# safely. Blocks now end at a header shape rather than at any bold line,
+# which fixes the case that was reported — but every termination rule has an
+# outside, and the outside is where this defect lived. An annotation before the
+# first item in a file, or under a heading with no item since, belongs to
+# nothing under ANY rule. Until this gate it was read, matched, and dropped in
+# silence: `status: open` on such a line left the item open in the ledger and
+# absent from the known-problem review, with the run still exiting 0.
+#
+# Scope is per keyword, and only where that keyword is BLOCK-parsed:
+# `mitigates:`, `implements:` and `verifies:` are read line-wise by
+# ids_matching, never against a block, so they cannot be orphaned. Reporting
+# them anyway — or reporting `status:` from the SRS, where nothing reads it —
+# would be noise, and noise is what teaches people to read past the output.
+#
+# Column one, like every definition form here. That is what keeps the grammar
+# comment shipped in templates/problems.md inert, and it is what makes this
+# gate adoptable without editing every ledger that already exists.
+check_orphans() {
+    _kw="$1"
+    _open="$2"
+    shift 2
+    for _f in "$@"; do
+        [ -n "$_f" ] || continue
+        # LC_ALL=C: defence in depth, and honestly weak — the close and the
+        # keyword test are substr/index, which count bytes in every locale, and
+        # the only locale-sensitive construct left is the octal-escape BOM
+        # strip below. No test distinguishes this setting on gawk 5.3.2, mawk
+        # or busybox awk; it is kept because the escapes are byte values and
+        # some awk in some locale will read them as characters.
+        LC_ALL=C awk -v body="$GR_ID_BODY" -v popen="$_open" -v kw="$_kw" -v fname="$_f" \
+            "$GR_AWK_ITEM_BLOCK"'
+            # The opening prefix is the reader of THIS keyword, never every
+            # declared prefix. Opening on all of them left a third state the
+            # gates do not have: inside another prefix block, where the reader
+            # sees nothing (it opens only on its own prefix) while the backstop
+            # sees a block open. An extra prefix is a supported config and is
+            # not placement-checked, so an ADR header in the SRS swallowed a
+            # `satisfies: derived` with both gates silent and the run at exit 0.
+            BEGIN { gr_block_init(popen, body) }
+            # A leading YAML front-matter block is document metadata, not ledger
+            # prose: `status: draft` there is a title-page field, and reporting
+            # it would fail a correct ledger.
+            # A BOM sits in front of column one and hides it from every
+            # match below, front-matter delimiter included. Stripped in both
+            # passes; LC_ALL=C on the invocation is what makes the octal
+            # escapes byte-exact, the same reasoning gr_check_config uses.
+            FNR == 1 { sub(/^\357\273\277/, "") }
+            # Pass one finds where front matter ENDS; pass two skips it.
+            # A single pass with a running flag had no bound, so a leading
+            # `---` that is a thematic break, or front matter someone half
+            # deleted, switched the backstop off for the whole file — the same
+            # read-matched-and-dropped-in-silence this gate exists to remove.
+            # With no terminator, fmend stays 0 and nothing is skipped.
+            FNR == NR {
+                if (FNR == 1 && /^---[ \t\r]*$/) inhead = 1
+                else if (inhead && /^(---|\.\.\.)[ \t\r]*$/) { fmend = FNR; inhead = 0 }
+                next
+            }
+            FNR <= fmend { next }
+            gr_block_closes($0) { inblock = gr_block_opens($0) }
+            !inblock && gr_kw_here($0, kw) {
+                # FNR, never NR: the file is read TWICE (see the
+                # front-matter pass above), so NR is offset by the whole first
+                # pass and every reported line number would be wrong.
+                printf "ORPHAN-ANNOTATION %s:%d (%s belongs to no item)\n", \
+                    fname, FNR, kw
+            }
+        ' "$_f" "$_f" || gr_die "orphan scan failed on $_f"
+    done
+}
+# shellcheck disable=SC2086
+_sat_files=$(printf '%s\n' $sad_files $srs_files | sort -u)
+# shellcheck disable=SC2086
+_orphans=$(
+    check_orphans 'status:' PR $problems_files
+    check_orphans 'traces:' SDD $sad_files
+    # ONE scan over the union, opening on BOTH prefixes that read `satisfies:`.
+    # Two scans over two lists reported a false positive when doc_srs and
+    # doc_sad resolve to the same directory: the LLR gate read the annotation
+    # correctly, while the REQ-opening scan saw the LLR header close a block
+    # without opening one and called the line an orphan. Opening on a prefix
+    # that is misplaced in that document costs nothing — MISPLACED-ITEM is
+    # already red for it.
+    check_orphans 'satisfies:' 'LLR|REQ' $_sat_files
+) || exit 2
+if [ -n "$_orphans" ]; then
+    printf '%s\n' "$_orphans"
+    fail=1
+fi
 
 # --- Summary: report the denominator ----------------------------------------
 # Two numbers, because one is not enough. `checked:` counts the items found;

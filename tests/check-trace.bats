@@ -1175,7 +1175,12 @@ EOF
     commit_all widen-fixture
 
     run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "baseline wrong: $output"; false; }
+    # `**PR-abcdef**` is not an item at this end, so its `status: open` belongs
+    # to nothing and ORPHAN-ANNOTATION says so. That is the gate working, and
+    # it is why the baseline is 1 rather than 0.
+    [ "$status" -eq 1 ] || { echo "baseline wrong: $output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] \
+        || { echo "baseline wrong: $output"; false; }
     [[ "$output" == *"checked: REQ 1, HAZ 1, RC 1, SDD 1, LLR 1, PR 0"* ]] \
         || { echo "baseline wrong: $output"; false; }
 
@@ -1193,6 +1198,11 @@ EOF
         || { echo "the problem-report parser kept its own body: $output"; false; }
     [[ "$output" == *"DANGLING-REF RC-wxyzab"* ]] \
         || { echo "the reference harvest kept its own body: $output"; false; }
+    # And the other direction: once PR-abcdef IS an item, its status line is
+    # attributed and the orphan disappears. A block rule holding its own body
+    # would leave it orphaned at both ends.
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] \
+        || { echo "the block rule kept its own body: $output"; false; }
 }
 
 @test "check-trace: a verifies: reference one character too long is not coverage" {
@@ -1256,4 +1266,634 @@ EOF
     PATH="$BATS_TEST_TMPDIR/bin:$PATH" run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ] || { echo "errored scan read as clean: $status $output"; false; }
     [[ "$output" == *"reference scan failed"* ]] || { echo "$output"; false; }
+}
+
+# --- item blocks end at the next ITEM, not at any bold line ----------------
+# docs/plans/2026-08-22-item-blocks.md. One rule, written out four times, made
+# two gates reject correct documents and two gates pass silently over real
+# violations. The four tests below are one per gate, split by direction.
+
+@test "check-trace: an emphasised line in a PR body does not detach status:" {
+    cat > docs/problems/0001-01-01-base.md <<'LEDGER'
+**PR-001**: Crash on empty dose input. affects: REQ-001.
+**21 of 35 inverted, 14 not.**
+status: open
+LEDGER
+    commit_all pr-bold-body
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+}
+
+@test "check-trace: an emphasised line in a REQ body does not detach derived" {
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\n**Note.** Emphasised body sentence.\nsatisfies: derived\n' >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_c.sh
+    commit_all derived-req-bold
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]]
+}
+
+@test "check-trace: an emphasised line in an SDD body does not detach traces:" {
+    printf '\n**SDD-002**: Logging module.\n**Note.** Emphasised body sentence.\ntraces: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    commit_all sdd-bold
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]]
+}
+
+@test "check-trace: an emphasised line in an LLR body does not detach satisfies:" {
+    printf '\n**LLR-002**: Debounce sensor input.\n**Note.** Emphasised body sentence.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all llr-bold
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+# The two boundaries the rule must KEEP. Both pass before this change and must
+# still pass after it: widening "any bold line" to "any definition form" must
+# not widen it to "nothing at all".
+
+@test "check-trace: another prefix's definition closes an item block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n**SDD-002**: Logging module. traces: REQ-001\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all cross-prefix
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+@test "check-trace: a markdown heading closes an item block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n## Notes\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all heading-closes
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+# --- a definition form it cannot read still closes the block above it ------
+# Blocks end at a definition FORM now, not at any bold line. Were that form the
+# strict one on both sides, a malformed definition (`**PR-abcdef**:`) would be
+# ordinary body text: it would not close the item above it, and the annotations
+# below it would be credited to THAT item. The old rule merely dropped them.
+# So the closing side matches the loose form and the opening side the strict
+# one — an unreadable header ends an item without starting one.
+
+@test "check-trace: an unreadable definition form still closes the block above" {
+    printf '**PR-001**: Crash on empty input. affects: REQ-001. status: resolved\n**PR-abcdef**: Hand-typed ID with no digit.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all malformed-closes
+    run sh .guardrails/scripts/check-trace.sh
+    # Both halves of the pair, on one fixture. The block rule stops the
+    # `status: open` reaching PR-001, and ORPHAN-ANNOTATION stops it being
+    # dropped in silence once it belongs to nothing. Either alone is a defect.
+    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: an unreadable definition form opens no block of its own" {
+    printf '**PR-abcdef**: Hand-typed ID with no digit.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all malformed-opens-nothing
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"UNRESOLVED-PR"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: an indented definition form is prose, and closes nothing" {
+    printf '**PR-001**: Crash on empty input. affects: REQ-001.\n  **PR-abcdef**: Grammar example in a ledger README.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all indented-malformed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+}
+
+# --- ORPHAN-ANNOTATION: an annotation belonging to no item ----------------
+# Every termination rule has an outside. An annotation before the first item in
+# a file, or under a heading with no item since, belongs to nothing under any
+# rule — and until this gate it was discarded without a word, which is the same
+# silent shape the block rule above exists to remove.
+
+@test "check-trace: a status: line before the first item is an orphan" {
+    printf 'status: open\n\n**PR-001**: Crash on empty input. affects: REQ-001. status: resolved\n' > docs/problems/0001-01-01-base.md
+    commit_all orphan-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"docs/problems/0001-01-01-base.md:1"* ]]
+}
+
+@test "check-trace: a traces: line under a heading is an orphan" {
+    printf '\n**SDD-002**: Logging module. traces: REQ-001\n\n## Notes\ntraces: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    commit_all orphan-traces
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"traces:"* ]]
+}
+
+@test "check-trace: a satisfies: line before the first REQ is an orphan" {
+    printf 'satisfies: derived\n\n**REQ-002**: The software shall log all doses.\n' > docs/requirements/2026-01-01-x.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_c.sh
+    commit_all orphan-satisfies
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: an annotation inside its own item is not an orphan" {
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-001.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all attributed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+}
+
+@test "check-trace: an indented annotation in a grammar comment is not an orphan" {
+    # The shape templates/problems.md ships: the item grammar inside an HTML
+    # comment, indented. Column-one anchoring is what keeps it inert, and is
+    # what makes this gate cheap enough to adopt without editing every ledger.
+    printf '<!--\n  **PR-NNNNNN**: <symptom>.\n  status: open|resolved\n-->\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    commit_all grammar-comment
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: a status: line in the requirements ledger is out of scope" {
+    # Per-keyword scope: status: is block-parsed only in doc_problems. Reporting
+    # it from a document no gate reads it in would be noise, and noise is what
+    # trains people to read past the output.
+    printf '\nstatus: open\n' >> docs/requirements/0001-01-01-base.md
+    commit_all out-of-scope
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "poisoning GR_AWK_ITEM_BLOCK changes every block gate's verdict" {
+    # The behavioural pin for the shared block rule, and the companion to
+    # "poisoning gr_def_re" and "widening GR_ID_BODY". A textual count of
+    # interpolation sites is defeated by a copy spelled differently — that
+    # happened three rounds running to the gr_def_re pin — so make the shared
+    # definition inert instead and require all five consumers to go quiet.
+    #
+    # Reassigning at the END of lib.sh wins by shell rules, so every consumer
+    # that really reads the library's fragment is poisoned. One that carries its
+    # own copy of "where does an item end" keeps working, which is the failure
+    # this catches. The orphan gate moves the OTHER way — with no block ever
+    # open, every annotation belongs to nothing — so a fifth copy is caught by
+    # its silence where the first four are caught by their noise.
+    printf '**PR-001**: Crash on empty input.\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    printf '\n**SDD-002**: Logging module.\n' >> docs/architecture/0001-01-01-base.md
+    printf '\n**LLR-002**: Debounce sensor input.\n' >> docs/architecture/0001-01-01-base.md
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: LLR-002 REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all block-poison-fixture
+
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "baseline wrong: $output"; false; }
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]] \
+        || { echo "baseline wrong: $output"; false; }
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] \
+        || { echo "baseline wrong: $output"; false; }
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] \
+        || { echo "baseline wrong: $output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] \
+        || { echo "baseline wrong: $output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] \
+        || { echo "baseline wrong: $output"; false; }
+
+    cat >> .guardrails/scripts/lib.sh <<'POISON'
+
+GR_AWK_ITEM_BLOCK='
+function gr_block_init(pfx_open, body) { }
+function gr_block_opens(line) { return 0 }
+function gr_block_closes(line) { return 0 }
+function gr_block_id(line) { return "ZZ-NO-SUCH-ITEM-ZZ" }
+function gr_kw_here(line, kw) { return 1 }
+'
+POISON
+
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"UNTRACED-DESIGN"* ]] \
+        || { echo "the SDD parser kept its own block rule: $output"; false; }
+    [[ "$output" != *"UNSATISFIED-LLR"* ]] \
+        || { echo "the LLR parser kept its own block rule: $output"; false; }
+    [[ "$output" != *"UNANALYZED-DERIVED"* ]] \
+        || { echo "the derived scan kept its own block rule: $output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR"* ]] \
+        || { echo "the problem parser kept its own block rule: $output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] \
+        || { echo "the orphan gate kept its own block rule: $output"; false; }
+    # gr_kw_here is poisoned to fire on EVERY line, so a gate reading the
+    # library reports lines carrying no keyword at all. A faithful stub would
+    # let check-trace.sh keep a private `index($0, kw) == 1` with the suite
+    # green, which is the drift the whole fragment exists to prevent.
+    [[ "$output" == *"(status: belongs to no item)"* ]] \
+        || { echo "the orphan gate kept its own keyword rule: $output"; false; }
+    [[ "$output" == *"0001-01-01-base.md:1"* ]] \
+        || { echo "the orphan gate kept its own keyword rule: $output"; false; }
+}
+
+# --- what closes a block: header SHAPE, not the loose definition form ------
+# Independent review, 2026-08-23, BLOCKING 2. Closing on the loose definition
+# form (`**<declared prefix>-<anything>**:`) is not enough. Three shapes that a
+# reader sees as an item header do not match it, so under that rule they became
+# body text and handed their annotations to the item ABOVE — a wrong answer, and
+# on the first of them a red-to-green regression against the pre-change rule,
+# which closed on any bold line.
+
+@test "check-trace: a header with an undeclared prefix closes the block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**ADR-0007**: We debounce in the driver.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all undeclared-prefix-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: a header with the colon inside the bold closes the block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**LLR-overflow:** Not a real ID.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all colon-inside-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: a header with a non-ASCII hyphen closes the block" {
+    # U+2011 NON-BREAKING HYPHEN. A copy-paste from a word processor, and
+    # invisible in review.
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**LLR\xe2\x80\x91j3u4w2**: Underflow rule.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all nbhyphen-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: an emphasised sentence with spaces still closes nothing" {
+    # The regression guard for the fix above: whitespace inside the bold is what
+    # separates emphasis from a header. This is the line from the original bug.
+    printf '**PR-001**: Crash on empty dose input.\n**21 of 35 inverted, 14 not.**\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all emphasis-with-spaces
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+}
+
+# --- the backstop must agree with the gates it backs -----------------------
+# Independent review, BLOCKING 1. Each gate opens a block on ITS OWN prefix;
+# the orphan gate opened on any declared prefix. That leaves three states, not
+# two — inside my block, outside every block, and inside SOMEONE ELSE'S block —
+# and the third was read by no gate and reported by none.
+
+@test "check-trace: an annotation inside another prefix's block is an orphan" {
+    cat > .guardrails/config.yaml <<'CFG'
+guardrails_version: 0.2.0
+safety_class: B
+id_prefixes: REQ HAZ RC SDD LLR PR ADR
+doc_srs: docs/requirements
+doc_rmf: docs/risk
+doc_sad: docs/architecture
+doc_soup: docs/architecture/soup.md
+doc_problems: docs/problems
+strict_paths:
+  - src
+test_paths:
+  - tests
+verify_commands:
+  - make test
+CFG
+    printf '\n**ADR-d6p8r5**: Rounding happens in the writer.\n\nsatisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all cross-prefix-orphan
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: YAML front matter is not an orphan" {
+    printf -- '---\nstatus: draft\ntitle: Problem reports\n---\n\n**PR-001**: Crash. status: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all front-matter
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+
+# --- the close must be everything main closed that carries a colon ---------
+# Review round 2. The close set was a strict SUBSET of the pre-change rule for
+# every non-definition line, so every shape it missed was a regression, not a
+# gap. Three more were found on the first day. The discriminator is the COLON
+# adjoining the closing asterisks — the line from the original report carries
+# none — and NOT whitespace, which was untested and bought nothing: deleting
+# the whitespace exclusion reddened no test and left the reported defect fixed.
+
+@test "check-trace: a bold-italic header closes the block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n***ADR-0007***: We debounce in the driver.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all bold-italic-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: a header with a space before its colon closes the block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**ADR-0007** : We debounce in the driver.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all space-before-colon
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: a multi-word bold header closes the block" {
+    # A header can be a phrase and emphasis can be one token, so whitespace
+    # never separated them. An earlier round excluded whitespace from the bold
+    # run and lost this shape.
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**Decision 7**: We debounce in the driver.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all multiword-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: single-asterisk emphasis closes nothing" {
+    # Parity with the pre-change rule, which required two asterisks at line
+    # start. Widening to one would newly reject ledgers that always passed.
+    printf '**PR-001**: Crash on empty dose input.\n*Note*: an italic aside.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all single-asterisk
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+}
+
+@test "check-trace: unclosed front matter does not blank the file" {
+    # A leading `---` with no terminator — a thematic break, a half-deleted
+    # front-matter block — switched the backstop off for the WHOLE file.
+    printf -- '---\ntitle: Problem reports\n\nstatus: open\n\n## Notes\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all unclosed-front-matter
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: doc_srs and doc_sad on one directory is not an orphan" {
+    # Overlapping doc_* paths: the LLR gate reads the satisfies: correctly, so
+    # reporting the same line as an orphan is a false positive.
+    cat > .guardrails/config.yaml <<'CFG'
+guardrails_version: 0.2.0
+safety_class: B
+id_prefixes: REQ HAZ RC SDD LLR PR
+doc_srs: docs/architecture
+doc_rmf: docs/risk
+doc_sad: docs/architecture
+doc_soup: docs/architecture/soup.md
+doc_problems: docs/problems
+strict_paths:
+  - src
+test_paths:
+  - tests
+verify_commands:
+  - make test
+CFG
+    cat > docs/architecture/0001-01-01-base.md <<'SAD'
+# Software Architecture
+
+**REQ-001**: The system shall limit the dose. (implements: RC-001)
+
+**SDD-001**: Dose limiter module. traces: REQ-001
+
+**LLR-001**: Clamp requested dose to the configured maximum.
+satisfies: REQ-001
+SAD
+    rm -f docs/requirements/0001-01-01-base.md
+    commit_all overlapping-doc-paths
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 0 ]
+}
+
+@test "check-trace: a mid-file thematic break is not front matter" {
+    # Only line 1 may open front matter. Without that anchor a `---` rule
+    # anywhere in the document starts a skip region and swallows every
+    # annotation up to the next one.
+    printf '# Problems\n\n---\n\nstatus: open\n\n---\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    commit_all thematic-break
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"0001-01-01-base.md:5"* ]]
+    [ "$status" -eq 1 ]
+}
+
+# --- the close is EVERY bold line carrying a colon -------------------------
+# Review round 3. Rounds 1-3 each hand-fitted the pattern to the shapes the
+# previous round demonstrated, and each time the class stayed open. The suite
+# could not tell the shipped regex from the rule it claimed to implement:
+# substituting `^\*\*.*:` reddened nothing, and every difference between them
+# was a regression. These fixtures are that difference, made visible.
+
+@test "check-trace: a header with text between the bold and the colon closes" {
+    printf '**PR-001**: Crash on empty dose input.\nstatus: resolved\n\n**PR-b4m8p3** (duplicate of PR-001):\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all trailing-text-header
+    run sh .guardrails/scripts/check-trace.sh
+    # It closes PR-001 and opens NOTHING: the opening form requires the colon
+    # immediately after the bold, so this is not a definition. Asserting only
+    # the absence of PR-001 was too weak — an opening pattern that dropped its
+    # colon reported `UNRESOLVED-PR PR-b4m8p3** (duplicate of PR-001):` and
+    # passed.
+    [[ "$output" != *"UNRESOLVED-PR"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: a header with nested emphasis closes the block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**Note **bold** here**: an aside.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all nested-emphasis-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+@test "check-trace: a header with an interior colon closes the block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**Decision: seven revisited**\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all interior-colon-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+@test "check-trace: a header with a non-ASCII space before its colon closes" {
+    # U+00A0 NO-BREAK SPACE. The same family as the U+2011 hyphen from round 1:
+    # an ASCII-only character class is a vocabulary, and the close must not
+    # depend on one.
+    printf '\n**LLR-002**: Debounce sensor input.\n\n**ADR-0007**\xc2\xa0: superseded.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all nbsp-before-colon
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+@test "check-trace: an empty bold label with a colon closes the block" {
+    printf '\n**LLR-002**: Debounce sensor input.\n\n****:\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all empty-bold-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+}
+
+@test "check-trace: front matter closed by ... is skipped" {
+    printf -- '---\nstatus: draft\n...\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    commit_all dots-terminator
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: CRLF front matter is skipped" {
+    printf -- '---\r\nstatus: draft\r\n---\r\n\r\n**PR-001**: Crash. status: resolved\r\n' > docs/problems/0001-01-01-base.md
+    commit_all crlf-front-matter
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: the status: backstop opens on PR and no other prefix" {
+    # Round 1's per-keyword scoping was pinned only for satisfies:. An SDD
+    # header in the problems ledger must not open a block the status: backstop
+    # honours — if it did, the annotation under it would be read by nobody and
+    # reported by nobody, which is the whole defect.
+    printf '**SDD-e7q9s6**: Misfiled design item.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all status-opens-on-pr-only
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: an overlapping doc_* reports an orphan once, not twice" {
+    cat > .guardrails/config.yaml <<'CFG'
+guardrails_version: 0.2.0
+safety_class: B
+id_prefixes: REQ HAZ RC SDD LLR PR
+doc_srs: docs/architecture
+doc_rmf: docs/risk
+doc_sad: docs/architecture
+doc_soup: docs/architecture/soup.md
+doc_problems: docs/problems
+strict_paths:
+  - src
+test_paths:
+  - tests
+verify_commands:
+  - make test
+CFG
+    cat > docs/architecture/0001-01-01-base.md <<'SAD'
+# Software Architecture
+
+**REQ-001**: The system shall limit the dose. (implements: RC-001)
+
+**SDD-001**: Dose limiter module. traces: REQ-001
+
+**LLR-001**: Clamp requested dose. satisfies: REQ-001
+
+## Notes
+
+satisfies: REQ-001
+SAD
+    rm -f docs/requirements/0001-01-01-base.md
+    commit_all overlap-single-report
+    run sh .guardrails/scripts/check-trace.sh
+    n=$(printf '%s\n' "$output" | grep -c 'ORPHAN-ANNOTATION')
+    [ "$n" -eq 1 ] || { echo "expected 1 orphan report, got $n: $output"; false; }
+}
+
+@test "check-trace: a header whose label is not valid UTF-8 still closes" {
+    # `.` in a regex does not match an invalid byte sequence under gawk in a
+    # multibyte locale, so a latin-1 ledger — `**Détail**:` saved as cp1252 —
+    # stopped closing, and the verdict depended on which awk and which locale
+    # the operator had. The close is byte-wise for that reason.
+    printf '\n**SDD-002**: Audit logger.\n\n**D\xe9tail**:\ntraces: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    commit_all latin1-header
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: an H1 heading closes an item block" {
+    # Every other heading fixture uses `##`, so narrowing the rule to `^##`
+    # passed the whole suite.
+    printf '\n**SDD-002**: Audit logger.\n\n# Appendix\ntraces: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    commit_all h1-closes
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: a definition form mid-line opens no block" {
+    printf '**PR-001**: Crash on empty dose input.\n\n# Notes\n\nsee **PR-b4m8p3**: for the duplicate\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all midline-def
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"UNRESOLVED-PR"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: an unreadable ledger fails the run rather than finding nothing" {
+    # A scan that errors finds nothing, and finding nothing is what a clean
+    # ledger looks like. check-ids.sh checks git grep's status for this reason;
+    # this gate shells out to awk and must do the same.
+    printf '**PR-001**: Crash. status: open\n' > docs/problems/0001-01-01-base.md
+    commit_all unreadable-ledger
+    chmod 000 docs/problems/0001-01-01-base.md
+    run sh .guardrails/scripts/check-trace.sh
+    chmod 644 docs/problems/0001-01-01-base.md
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"orphan scan failed"* ]]
+}
+
+@test "check-trace: a UTF-8 BOM does not defeat the front-matter skip" {
+    # lib.sh already knows a BOM makes a column-one scan miss its first line —
+    # gr_check_config rejects one in config.yaml for exactly that reason. The
+    # lesson had not been carried across, so a BOM turned a title-page
+    # `status: draft` into a hard failure on a correct ledger.
+    printf '\xef\xbb\xbf---\nstatus: draft\n---\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    commit_all bom-front-matter
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: a definition form inside a closing line opens no block" {
+    # gr_block_opens is consulted only on lines that CLOSE, so an unanchored
+    # opening pattern is invisible unless the closing line also carries a
+    # definition form somewhere in it. This is that line.
+    printf '**PR-001**: Crash on empty dose input.\nstatus: resolved\n\n**Note**: see **PR-b4m8p3**: for the duplicate\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    commit_all def-inside-closing-line
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"UNRESOLVED-PR"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [ "$status" -eq 1 ]
+}
+
+@test "check-trace: the traces: backstop opens on SDD and no other prefix" {
+    # The companion to the status:/PR pin. A `traces:` line inside an LLR block
+    # is read by nobody — UNTRACED-DESIGN parses SDD blocks — so it must be
+    # reported. This is the ORPHAN-ANNOTATION case most likely to reach a real
+    # ledger, and it was pinned for status: and satisfies: but not for traces:.
+    printf '\n**LLR-002**: Debounce sensor input. satisfies: REQ-001\ntraces: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all traces-opens-on-sdd-only
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"traces:"* ]]
+    [ "$status" -eq 1 ]
 }
