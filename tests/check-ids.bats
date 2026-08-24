@@ -123,6 +123,7 @@ EOF
     # in depth for a copy ADDED without a call site being removed. Digit classes
     # are folded first so [[:digit:]] and [0123456789] cannot simply walk past.
     calls_check_ids=1
+    calls_check_review=0
     calls_check_signing=0
     calls_check_trace=2
     calls_finalize_docs=0
@@ -130,6 +131,7 @@ EOF
     calls_new_id=0
 
     forms_check_ids=0
+    forms_check_review=0
     forms_check_signing=0
     forms_check_trace=0
     forms_finalize_docs=0
@@ -140,6 +142,7 @@ EOF
     # rather than through gr_def_re. Replacing one with a hand-rolled shape
     # moves this count whichever way the replacement is spelled.
     body_check_ids=0
+    body_check_review=0
     body_check_signing=0
     body_check_trace=7
     body_finalize_docs=0
@@ -152,6 +155,7 @@ EOF
     # starts and ends. Five gates read the second one; a sixth opinion about
     # where an item ends is precisely the defect that change fixed.
     loose_check_ids=1
+    loose_check_review=0
     loose_check_signing=0
     loose_check_trace=0
     loose_finalize_docs=0
@@ -159,11 +163,26 @@ EOF
     loose_new_id=0
 
     block_check_ids=0
+    block_check_review=1
     block_check_signing=0
     block_check_trace=5
     block_finalize_docs=0
     block_lib=0
     block_new_id=0
+
+    # GR_AWK_FRONT_MATTER, added 2026-08-23 and pinned for the reason above.
+    # Two gates skip YAML front matter and they must skip the SAME bytes: one
+    # reads a `status:` there as metadata and the other must not accept a
+    # `reviewer:` there as a field. A third opinion about where a header block
+    # ends is the same shape of defect as a third opinion about where an item
+    # ends.
+    fm_check_ids=0
+    fm_check_review=1
+    fm_check_signing=0
+    fm_check_trace=1
+    fm_finalize_docs=0
+    fm_lib=0
+    fm_new_id=0
 
     forms() {
         # Fold the digit-class spellings together, then drop backslashes and
@@ -184,8 +203,9 @@ EOF
         eval "want_body=\$body_$key"
         eval "want_loose=\$loose_$key"
         eval "want_block=\$block_$key"
+        eval "want_fm=\$fm_$key"
         [ -n "$want_calls" ] && [ -n "$want_forms" ] && [ -n "$want_body" ] \
-            && [ -n "$want_loose" ] && [ -n "$want_block" ] \
+            && [ -n "$want_loose" ] && [ -n "$want_block" ] && [ -n "$want_fm" ] \
             || { echo "unpinned script (add it to this test): $f"; false; }
 
         got_calls=$(grep -c '\$(gr_def_re ' "$f" || true)
@@ -212,6 +232,12 @@ EOF
             false
         }
 
+        got_fm=$(grep -c '\$GR_AWK_FRONT_MATTER' "$f" || true)
+        [ "$got_fm" -eq "$want_fm" ] || {
+            echo "$f: $got_fm GR_AWK_FRONT_MATTER uses, pinned at $want_fm"
+            false
+        }
+
         got_forms=$(forms "$f" | grep -c . || true)
         [ "$got_forms" -eq "$want_forms" ] || {
             echo "$f: $got_forms spelled-out definition forms, pinned at $want_forms"
@@ -219,7 +245,7 @@ EOF
             false
         }
     done
-    [ "$seen" -eq 6 ] || { echo "expected 6 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 7 ] || { echo "expected 7 scripts, scanned $seen"; false; }
 
     # And the constructor and the body each exist exactly once, so the counts
     # above are counts of uses of something real rather than of a name nothing
@@ -228,6 +254,16 @@ EOF
     [ "$(grep -c '^GR_ID_BODY=' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c '^gr_def_re_loose() {' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c "^GR_AWK_ITEM_BLOCK='" scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c "^GR_AWK_FRONT_MATTER='" scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c '^gr_verification_dir() {' scripts/lib.sh)" -eq 1 ]
+    # The emptiness rule has one definition and two readers (gr_doc_files and
+    # check-review.sh); a hand-copy in either is what this counts.
+    [ "$(grep -c '^gr_md_files() {' scripts/lib.sh)" -eq 1 ]
+    # Two call sites in lib.sh (the definition line and gr_doc_files) and one
+    # in check-review.sh. A third reader spelling the rule out by hand moves
+    # neither count, which is why the poison tests exist alongside these pins.
+    [ "$(grep -c 'gr_md_files ' scripts/lib.sh)" -eq 2 ]
+    [ "$(grep -c 'gr_md_files ' scripts/check-review.sh)" -eq 1 ]
 }
 
 @test "every script parses as POSIX sh" {
@@ -241,7 +277,7 @@ EOF
         seen=$((seen + 1))
         sh -n "$f" || { echo "does not parse: $f"; false; }
     done
-    [ "$seen" -eq 6 ] || { echo "expected 6 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 7 ] || { echo "expected 7 scripts, scanned $seen"; false; }
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {

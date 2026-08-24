@@ -89,12 +89,46 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
    Rigor scales with class — A may skip this step, B one reviewer, C a
    thorough review (consider two independent reviewers for critical items).
 
-6b. **Verification record** — write `docs/verification/<date>-<branch>.md`
-   in the worktree and commit it (unsigned, like all worktree commits):
-   test totals from step 6, coverage summary (if configured), each check
-   script's result, open PR warnings, and the reviewer's verdict from 6a.
-   The squash commit then carries the evidence on the base branch, and its
-   `Verified:` line references this record.
+6b. **Verification record** — copy `.guardrails/templates/verification.md` to
+   `docs/verification/<date>-<branch>.md` in the worktree, fill it in, and
+   commit it (unsigned, like all worktree commits): test totals from step 6,
+   coverage summary (if configured), each check script's result, open PR
+   warnings, and the reviewer's verdict from 6a. The squash commit then carries
+   the evidence on the base branch, and its `Verified:` line references this
+   record.
+
+   Four fields are required, each a plain annotation at column one:
+
+   - `branch:` — the change this record covers. It is how the gate finds the
+     record, matched whole; the filename is not.
+   - `reviewer:` — who performed step 6a.
+   - `verdict:` — what the review concluded. A review that raised nothing must
+     still say so.
+   - `reproduced:` — was the defect reproduced before the fix, and how, or why
+     not. **The value is never judged.** "Root cause measured directly, the
+     end-to-end failure never reproduced" is an honest, passing record; the
+     field exists so that the absence of evidence is a visible omission rather
+     than an optional act of honesty.
+
+   Each finding from 6a gets a block with its disposition:
+
+   ```markdown
+   **finding-1**: <what the reviewer found>
+   disposition: <what changed, and the test that reddens without it>
+   ```
+
+6c. **`.guardrails/scripts/check-review.sh`** — the record exists, declares
+   this branch, carries all four fields with values, and leaves no finding
+   without a disposition. Run it from the worktree; on the base branch it
+   exits 2, because there is no change under review there.
+
+   `MISSING-RECORD` means step 6b did not happen for this branch.
+   `STALE-RECORD` means a record declares this branch but the change did not
+   write it — a reused branch name, with the previous change's record
+   answering for this one. `UNDISPOSED-FINDING` means a finding from 6a has no
+   stated resolution; `ORPHAN-DISPOSITION` and `MALFORMED-FINDING` mean a
+   finding header the rule cannot read, so a disposition is attached to the
+   wrong finding or to none. Never answer any of them by deleting the finding.
 
 7. **Signed squash merge onto the base branch:**
 
@@ -133,3 +167,6 @@ Halt on any failure, fix in the worktree, and rerun from step 1.
 | "Merge the base branch in afterwards if something breaks" | Step 1 exists so breakage surfaces in the worktree. |
 | "Leave the worktree around just in case" | Merged work lives on the base branch. Clean up (step 8). |
 | "Checks fail but the change is obviously fine" | Fix the artifact or the genuine gap. Never bypass. |
+| "The reviewer found nothing worth writing down" | Then `verdict:` says so. A record with no findings is legal; a record with no verdict is not. |
+| "Drop the finding, I decided it was wrong" | Its disposition says that, with the reason. A deleted finding and a finding that never existed read identically. |
+| "The record is prose, a gate cannot check it" | It checks presence, not quality — that a reviewer, a verdict and a `reproduced:` are there at all (step 6c). |

@@ -1897,3 +1897,39 @@ SAD
     [[ "$output" == *"traces:"* ]]
     [ "$status" -eq 1 ]
 }
+
+@test "poisoning GR_AWK_FRONT_MATTER changes the orphan scan's verdict" {
+    # The behavioural pin for the shared front-matter rule, the companion to
+    # "poisoning GR_AWK_ITEM_BLOCK". check-review.sh needs the identical rule
+    # for the identical reason — a `reviewer:` key in a header block must not
+    # satisfy a required field — and two copies of one rule is what the
+    # 2026-08-22 change was about.
+    #
+    # A textual pin cannot tell a shared fragment from a copy of one, so make
+    # the shared definition inert and require the consumer to change its
+    # answer. Stubbed so that NOTHING is ever front matter: the `status: open`
+    # in the header block below then belongs to no item and must be reported.
+    # A private copy in check-trace.sh keeps skipping it, stays silent, and the
+    # test reddens.
+    printf -- '---\nstatus: open\ntitle: Problem reports\n---\n\n**PR-001**: Crash. status: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all front-matter-poison-fixture
+
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "baseline wrong: $output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] \
+        || { echo "baseline wrong: $output"; false; }
+
+    cat >> .guardrails/scripts/lib.sh <<'POISON'
+
+GR_AWK_FRONT_MATTER='
+function gr_fm_reset() { }
+function gr_fm_scan(line, n) { }
+function gr_fm_skip(n) { return 0 }
+'
+POISON
+
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] \
+        || { echo "the orphan scan kept its own front-matter rule: $output"; false; }
+}

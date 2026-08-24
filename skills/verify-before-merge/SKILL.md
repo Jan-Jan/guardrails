@@ -37,6 +37,11 @@ Run, in the worktree, and show actual output for each:
    rule.
 7. `git status` — no uncommitted work, no stray files.
 
+`check-review.sh` is deliberately NOT in this list. The verification record it
+reads does not exist yet — `merge-change` step 6b writes it, after the
+independent review at 6a, and 6c checks it there. Adding it here would fail
+every change for a record it is not yet time to write.
+
 ## Rules
 
 - Any failure: stop, fix in the worktree, re-run the whole gate. Partial

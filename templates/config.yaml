@@ -49,7 +49,7 @@
 #
 # A duplicate key, or a second list block for the same key, is accepted and the
 # later one ignored. Do not rely on overriding a key by repeating it.
-guardrails_version: 0.2.0
+guardrails_version: 0.3.0
 
 # IEC 62304 software safety class: A, B, or C. Set by /ratchet.
 # Per-item overrides: document them in the SAD next to the SDD item.
@@ -66,6 +66,13 @@ doc_rmf: docs/risk
 doc_sad: docs/architecture
 doc_soup: docs/architecture/soup.md
 doc_problems: docs/problems
+
+# Where merge-change writes one verification record per change. THE ONLY doc_*
+# key with a default — `docs/verification`, which /ratchet creates — because
+# this key arrived after projects were already configured. The default cannot
+# hide a gate: an absent directory, or one holding no *.md, is exit 2 rather
+# than an empty scan. Set it if your records live anywhere else.
+# doc_verification: docs/verification
 
 # Paths where traceability is enforced. On retrofit projects this list
 # starts small and grows as untraced code is brought under guardrails.

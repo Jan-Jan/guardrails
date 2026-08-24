@@ -36,6 +36,7 @@ doc_rmf
 doc_sad
 doc_soup
 doc_problems
+doc_verification
 strict_paths
 test_paths
 verify_commands
@@ -246,6 +247,40 @@ function gr_block_id(line,   id) {
 }
 '
 
+# Bounded YAML front matter, as an awk fragment with ONE definition.
+#
+# A leading front-matter block is document metadata, not ledger prose:
+# `status: draft` there is a title-page field, and a scan that reads it as an
+# annotation fails a correct document. A gate that requires a field must not
+# accept one from the header block either, which is the same rule read the
+# other way round.
+#
+# TWO PASSES, and the second one is what makes the block bounded. Pass one
+# finds where the front matter ENDS; pass two skips up to there. A single pass
+# with a running flag has no bound, so a leading `---` that is a thematic break
+# — or front matter someone half deleted — switches the scan off for the whole
+# file, which is the read-matched-and-dropped-in-silence these gates exist to
+# remove. With no terminator, GR_FM_END stays 0 and nothing is skipped.
+#
+# Only line 1 may OPEN a block; `...` closes one as well as `---`, and a
+# trailing CR is tolerated so a document saved with CRLF endings is not read as
+# having no front matter at all.
+#
+# CONSUMERS MUST REPORT FNR, NEVER NR. The file is read twice, so NR is offset
+# by the whole first pass and every line number reported would name a line that
+# does not exist. An early version of the orphan scan did exactly that.
+#
+# A BOM sits in front of column one and hides it from every match here, the
+# `---` delimiter included, so the caller strips it in BOTH passes.
+GR_AWK_FRONT_MATTER='
+function gr_fm_reset() { GR_FM_IN = 0; GR_FM_END = 0 }
+function gr_fm_scan(line, n) {
+    if (n == 1 && line ~ /^---[ \t\r]*$/) { GR_FM_IN = 1; return }
+    if (GR_FM_IN && line ~ /^(---|\.\.\.)[ \t\r]*$/) { GR_FM_END = n; GR_FM_IN = 0 }
+}
+function gr_fm_skip(n) { return (n <= GR_FM_END) }
+'
+
 gr_die() {
     echo "guardrails: $*" >&2
     exit 2
@@ -444,20 +479,70 @@ gr_doc_files() {
     _v=$(cfg_get "$1")
     [ -n "$_v" ] || return 0
     if [ -d "$_v" ]; then
-        _n=0
-        for _f in "$_v"/*.md; do
-            [ -f "$_f" ] || continue
-            _n=$((_n + 1))
-            printf '%s\n' "$_f"
-        done
-        [ "$_n" -gt 0 ] || \
-            gr_die "$1 is configured as directory '$_v', which contains no *.md files"
+        gr_md_files "$_v" "$1 is configured as directory"
     elif [ -f "$_v" ]; then
         printf '%s\n' "$_v"
     else
         gr_die "$1 is configured as '$_v', which does not exist"
     fi
     return 0
+}
+
+# gr_md_files DIR LABEL — the *.md files directly in DIR, one per line. A
+# directory holding none is an ERROR, never an empty list, for the reason
+# gr_doc_files gives: a gate reading nothing is indistinguishable from a gate
+# finding nothing wrong. LABEL names the caller in that error.
+#
+# Extracted so that gr_doc_files and gr_verification_dir cannot drift. They
+# could not share gr_doc_files itself — that one is keyed on a config key and
+# yields nothing for an unset one, which is exactly the shape the verification
+# directory must not have — so the EMPTINESS RULE is what is shared instead.
+#
+# One level only: a *.md in a subdirectory is not listed. That is the limit
+# gr_doc_files has always had, stated here where both readers can see it.
+gr_md_files() {
+    _dir="$1"
+    _n=0
+    for _f in "$_dir"/*.md; do
+        [ -f "$_f" ] || continue
+        _n=$((_n + 1))
+        printf '%s\n' "$_f"
+    done
+    [ "$_n" -gt 0 ] || gr_die "$2 '$_dir', which contains no *.md files"
+    return 0
+}
+
+# gr_verification_dir — the directory holding verification records.
+#
+# The ONE doc_* key with a default, and the exception needs its reason stated.
+# ratchet creates docs/verification/ on every project it sets up, and this key
+# arrived long after those projects were configured; requiring it would fail
+# every config already written, at a gate whose whole purpose is to be adopted.
+#
+# The default cannot produce a false green, and that is the only reason it is
+# allowed. A project that keeps its records somewhere else leaves
+# docs/verification/ absent, and an absent directory is fatal here — never an
+# empty file list. The distinction is the same one gr_doc_files draws, for the
+# same reason: a gate reading nothing is indistinguishable from a gate finding
+# nothing wrong.
+gr_verification_dir() {
+    _v=$(cfg_get doc_verification)
+    # PRESENT-BUT-EMPTY is not ABSENT. cfg_get cannot tell them apart, and the
+    # default below would silently adopt a key whose value the reader could not
+    # see — the one shape gr_check_config exists to reject, arriving through the
+    # one key with a fallback. Ask the file directly.
+    if [ -z "$_v" ] && grep -q '^doc_verification:' "$GR_CONFIG" 2>/dev/null; then
+        gr_die \
+"doc_verification is set to an empty value in $GR_CONFIG.
+  Give it the directory that holds the verification records, or remove the key
+  to use the default (docs/verification)."
+    fi
+    [ -n "$_v" ] || _v=docs/verification
+    [ -d "$_v" ] || gr_die \
+"doc_verification resolves to '$_v', which is not a directory.
+  Verification records live there. Create it, or set doc_verification in
+  $GR_CONFIG to the directory that holds them."
+    printf '%s\n' "$_v"
 }
 
 # gr_check_config — refuse a config that would silently disable a gate. Every

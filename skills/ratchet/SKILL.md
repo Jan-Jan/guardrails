@@ -51,7 +51,19 @@ ls src lib app AGENTS.md docs 2>/dev/null
    (`YYYY-MM-DD-<slug>.md`, merge date), created in the worktree as
    `DRAFT-<branch>-<slug>.md` and renamed by `merge-change`. The README in
    each directory carries the item grammar.
-4. Create `docs/adr/`, `docs/plans/`, and `docs/verification/` directories.
+4. Create `docs/adr/`, `docs/plans/`, and `docs/verification/` directories, and
+   copy `templates/verification.md` → `.guardrails/templates/verification.md`.
+   `docs/verification/` is where `merge-change` step 6b writes one record per
+   change and step 6c checks it; `doc_verification` in the config overrides the
+   location and defaults to it. The default is safe only because an absent
+   directory is exit 2 — so if you keep records elsewhere, set the key.
+
+   **The template goes into `.guardrails/`, never into `docs/verification/`.**
+   Every `*.md` directly in that directory is read as a record, and the
+   template carries the field names at column one because that is the shape it
+   teaches. Filed among the records it would be one — a document declaring a
+   `branch:`, a `reviewer:` and a `**finding-1**:` that nobody wrote about any
+   change. Leave the records directory holding records.
    Ensure `.gitignore` excludes worktree directories and sed backups — add
    any of these that are missing:
 
@@ -182,6 +194,25 @@ ls src lib app AGENTS.md docs 2>/dev/null
 >   was invisible to every gate under the old scripts too; this is the first
 >   version that says so. Give it a real ID.
 >
+> **The review artefact is now checked.** `check-review.sh` is new. It reads
+> the verification record for the change under merge and reports
+> `MISSING-RECORD` when there is none, `INCOMPLETE-RECORD` when it omits
+> `reviewer:`, `verdict:` or `reproduced:`, and `UNDISPOSED-FINDING` when a
+> `**finding-N**:` block carries no `disposition:`. Three things to know at
+> the upgrade:
+>
+> * **Records already written are left alone.** Only the record for the branch
+>   under merge is read, so a ledger of sixty-nine legacy records does not go
+>   red on the day you upgrade. The schema applies from the next change on,
+>   and the migration cost is one record at a time.
+> * **`reproduced:` is required and its value is never judged.** `reproduced:
+>   no — the root cause was measured directly, the end-to-end failure never
+>   reproduced` is a passing record. The field exists so the absence of
+>   evidence is a visible omission, not an optional act of honesty.
+> * **It is not a CI gate on the base branch.** There is no change under
+>   review there, so it exits 2. Run it at `merge-change` step 6c from the
+>   worktree, or in pull-request CI as `check-review.sh --branch <head>`.
+>
 > Every one of these is a pre-existing gap the older scripts passed over, not
 > a new requirement invented by the upgrade. Fix the config or the layout;
 > **there is no compatibility flag, deliberately.** Almost every shape above
@@ -265,7 +296,12 @@ Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`:
 - [ ] Branch protection on the base branch: no direct pushes, require signed
       commits.
 - [ ] CI: run `verify_commands`, `check-ids.sh`, `check-trace.sh`, and
-      `check-signing.sh --strict <base>..HEAD` on every merge.
+      `check-signing.sh --strict <base>..HEAD` on every merge. **Not
+      `check-review.sh`** — it asks about the change under merge, so on the
+      base branch it exits 2 rather than reporting a pass over no question.
+      It runs from the change worktree at `merge-change` step 6c. To gate it
+      in CI on a pull request, name the branch: `check-review.sh --branch
+      <head-branch>`.
 - [ ] Decide the human review/approval policy for merges (who signs off),
       including who acts as the independent reviewer in `merge-change`
       step 6a when a human is preferred over a fresh agent.

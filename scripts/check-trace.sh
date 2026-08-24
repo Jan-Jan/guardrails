@@ -466,7 +466,7 @@ check_orphans() {
         # or busybox awk; it is kept because the escapes are byte values and
         # some awk in some locale will read them as characters.
         LC_ALL=C awk -v body="$GR_ID_BODY" -v popen="$_open" -v kw="$_kw" -v fname="$_f" \
-            "$GR_AWK_ITEM_BLOCK"'
+            "$GR_AWK_ITEM_BLOCK$GR_AWK_FRONT_MATTER"'
             # The opening prefix is the reader of THIS keyword, never every
             # declared prefix. Opening on all of them left a third state the
             # gates do not have: inside another prefix block, where the reader
@@ -474,27 +474,18 @@ check_orphans() {
             # sees a block open. An extra prefix is a supported config and is
             # not placement-checked, so an ADR header in the SRS swallowed a
             # `satisfies: derived` with both gates silent and the run at exit 0.
-            BEGIN { gr_block_init(popen, body) }
-            # A leading YAML front-matter block is document metadata, not ledger
-            # prose: `status: draft` there is a title-page field, and reporting
-            # it would fail a correct ledger.
+            BEGIN { gr_block_init(popen, body); gr_fm_reset() }
             # A BOM sits in front of column one and hides it from every
             # match below, front-matter delimiter included. Stripped in both
             # passes; LC_ALL=C on the invocation is what makes the octal
             # escapes byte-exact, the same reasoning gr_check_config uses.
             FNR == 1 { sub(/^\357\273\277/, "") }
-            # Pass one finds where front matter ENDS; pass two skips it.
-            # A single pass with a running flag had no bound, so a leading
-            # `---` that is a thematic break, or front matter someone half
-            # deleted, switched the backstop off for the whole file — the same
-            # read-matched-and-dropped-in-silence this gate exists to remove.
-            # With no terminator, fmend stays 0 and nothing is skipped.
-            FNR == NR {
-                if (FNR == 1 && /^---[ \t\r]*$/) inhead = 1
-                else if (inhead && /^(---|\.\.\.)[ \t\r]*$/) { fmend = FNR; inhead = 0 }
-                next
-            }
-            FNR <= fmend { next }
+            # Front matter is skipped, bounded, in two passes. The rule has ONE
+            # definition — GR_AWK_FRONT_MATTER in lib.sh — because
+            # check-review.sh reads it too, and a second reader of a hand-copied
+            # rule is how the item-block defect of 2026-08-22 happened.
+            FNR == NR { gr_fm_scan($0, FNR); next }
+            gr_fm_skip(FNR) { next }
             gr_block_closes($0) { inblock = gr_block_opens($0) }
             !inblock && gr_kw_here($0, kw) {
                 # FNR, never NR: the file is read TWICE (see the

@@ -347,3 +347,53 @@ EOF
     [ "${#lines[@]}" -eq 1 ]
     [ "${lines[0]}" = "REQ-b4m8p3" ]
 }
+
+# --- doc_verification and gr_verification_dir -------------------------------
+# The one doc_* key with a DEFAULT. Every test below exists because the default
+# is the shape that could hide a gate: a key nobody sets, resolving to a path
+# nobody checked.
+
+@test "gr_verification_dir defaults to docs/verification" {
+    mkdir -p docs/verification
+    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
+    [ "$status" -eq 0 ]
+    [ "$output" = "docs/verification" ]
+}
+
+@test "gr_verification_dir honours a configured doc_verification" {
+    mkdir -p docs/evidence
+    printf 'doc_verification: docs/evidence\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
+    [ "$status" -eq 0 ]
+    [ "$output" = "docs/evidence" ]
+}
+
+@test "gr_verification_dir dies when the directory is absent" {
+    # The default resolving to nothing must be fatal, not empty. A project that
+    # keeps its records elsewhere and never set the key would otherwise get a
+    # green review gate over a directory that does not exist.
+    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"docs/verification"* ]]
+}
+
+@test "gr_verification_dir dies when a configured directory is absent" {
+    printf 'doc_verification: docs/nowhere\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"docs/nowhere"* ]]
+}
+
+@test "doc_verification is a known config key" {
+    mkdir -p docs/verification
+    printf '# rec\n' > docs/verification/2026-01-01-x.md
+    printf 'true\n' > tests/test_a.sh
+    printf 'doc_verification: docs/verification\n' >> .guardrails/config.yaml
+    commit_all doc-verification-key
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"unknown config key"* ]]
+    # And positively: a negative assertion alone is satisfied by a script that
+    # is not there, which is the class this suite has now produced five times.
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"checked:"* ]] || { echo "$output"; false; }
+}

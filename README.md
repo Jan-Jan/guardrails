@@ -51,7 +51,7 @@ flowchart TD
     B[resolve-problem<br/>PR items for every bug] --> DEV
     DEV --> CT[check-traceability]
     CT --> V[verify-before-merge<br/>evidence + coverage gate]
-    V --> M[merge-change<br/>finalize IDs, independent review,<br/>verification record, signed squash merge,<br/>cleanup worktree]
+    V --> M[merge-change<br/>finalize ledger files, independent review,<br/>verification record + check-review.sh,<br/>signed squash merge, cleanup worktree]
 ```
 
 Three rules carry the whole system:
@@ -107,6 +107,7 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 | `new-id.sh PREFIX [COUNT]` | mint item IDs. Redraws a candidate that already occurs anywhere in the tree, tracked or untracked; refuses a prefix that is not declared in `id_prefixes`, and refuses to invent one at all when there is no entropy source rather than falling back to the pid and the clock |
 | `check-ids.sh [--allow-draft-files]` | no draft ID tokens (always fatal — nothing mints one any more), no draft-named ledger files unless the flag is given, no duplicate IDs, and no `MALFORMED-ID`: a line opening with a definition form whose body is not a valid ID, which no other gate can see |
 | `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; no `ORPHAN-ANNOTATION` (an annotation belonging to no item); open PRs listed as warnings. Ends with `checked:` (items found) and `sources:` (document files read, then the number of configured path entries) |
+| `check-review.sh [--branch NAME]` | the change under merge has a verification record that declares it and that this change wrote (`MISSING-RECORD`, `STALE-RECORD`), that record names a `reviewer:`, a `verdict:` and what was `reproduced:` (`INCOMPLETE-RECORD`), and every `**finding-N**:` the reviewer raised carries a `disposition:` (`UNDISPOSED-FINDING`, plus `MALFORMED-FINDING` and `ORPHAN-DISPOSITION` for the headers and annotations that would otherwise detach one). Ends with `checked:` (records read, records for this change, findings, and whether provenance was checked). Run on the base branch it exits **2**, never 0 — there is no change under review there |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified |
 | `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their merge-dated names. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme landed |
 
@@ -135,6 +136,48 @@ every block is reported as `ORPHAN-ANNOTATION` rather than dropped —
 `status:`, `traces:` and `satisfies:` only, in the documents where each is
 block-parsed, at column one, and scoped to the prefix whose gate reads it. This
 rule too has one definition, shared by all five gates that need it.
+
+### The review artefact
+
+Independent review (`merge-change` step 6a) is the highest-yield step in the
+sequence and was the only one with nothing behind it: no check that a reviewer
+was dispatched, that findings were answered, or that the verdict recorded
+corresponds to anything. `check-review.sh` closes the omission case.
+
+It judges **presence, never quality**. It cannot know whether a review was good,
+and it deliberately does not test whether the reviewer was independent of the
+author — with agent reviewers the identity string is whatever the author types,
+and a gate keyed on it would be theatre. Independence is what step 6a is for.
+
+The record is found by **content, not filename**: it carries a `branch:` line
+naming the change it covers, matched whole — and it must be the FIRST such line
+in the file, so that a record quoting `branch: other-change` in an example or a
+fenced block does not become the record for that change. A branch name carries
+no identity of its own, so the record must also be one **this change wrote**:
+committed on this branch since it left the base, modified in the working tree,
+or not yet tracked. Without that, a reused branch name lets the previous
+change's record answer for this one, and the summary line says whether the
+check ran. `reviewer:`, `verdict:` and
+`reproduced:` must each carry a value — a keyword with nothing after it is an
+omission wearing the shape of compliance. `reproduced:` exists so that the
+absence of evidence is a visible omission rather than an optional act of
+honesty, and **its value is never judged**: `reproduced: no — the root cause was
+measured directly` is a passing record.
+
+A finding is an item block in the same shape as every other ledger item, so
+where it starts and ends is the shared rule and not a new one; `disposition:` is
+a plain column-one annotation for the same reason `status:` is — written in
+bold it would close the very finding it belongs to. Every near-miss on a finding
+header is reported rather than dropped: a missing colon, a missing hyphen, an
+indented header or an unreadable label all make a finding vanish and hand its
+disposition to the finding above, so `MALFORMED-FINDING` names the shape and
+`ORPHAN-DISPOSITION` catches whatever the shape rule cannot — the same backstop
+`ORPHAN-ANNOTATION` provides for ledger items. Both tests are byte-wise; a
+regex there failed open under gawk in a multibyte locale on a latin-1 label. Two limits are stated rather
+than papered over: only the record for the change under merge is checked, so
+records written before this schema existed are left alone; and `doc_verification`
+is the one document key with a default (`docs/verification`), which is safe only
+because an absent directory is exit 2 rather than an empty scan.
 
 **A configured entry that matches nothing is an error, not an empty result.**
 Exit 2 — never a quiet exit 0 — for a `doc_*`, `strict_paths` or `test_paths`

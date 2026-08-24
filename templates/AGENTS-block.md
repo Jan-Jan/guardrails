@@ -69,6 +69,10 @@ notes.
 - `.guardrails/scripts/check-ids.sh [--allow-draft-files]` — draft, duplicate and
   malformed IDs
 - `.guardrails/scripts/check-trace.sh` — traceability gates
+- `.guardrails/scripts/check-review.sh [--branch NAME]` — the change under merge
+  has a verification record, written by this change, naming a reviewer, a
+  verdict, what was reproduced, and a disposition per finding. Run from the
+  change worktree (merge-change step 6c); on the base branch it exits 2, never 0
 - `.guardrails/scripts/check-signing.sh [--strict] [RANGE]` — signature verification
 - `.guardrails/scripts/finalize-docs.sh [--dry-run]` — rename draft ledger files
 

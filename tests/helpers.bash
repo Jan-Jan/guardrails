@@ -55,3 +55,27 @@ commit_all() {
     git add -A
     git commit -qm "${1:-update}"
 }
+
+# Creates a linked worktree on a new branch and leaves the shell cd'd into it.
+# This is the shape merge-change runs in, and the only shape in which the base
+# branch and the change branch are distinguishable: in a single checkout
+# gr_base_branch reports whatever is checked out, so a "change branch" there
+# is its own base.
+make_change_worktree() {
+    git worktree add -q "$BATS_TEST_TMPDIR/wt" -b "${1:-my-change}"
+    cd "$BATS_TEST_TMPDIR/wt"
+}
+
+# A verification record satisfying every required field. Callers override one
+# field at a time to test its absence.
+write_record() {
+    mkdir -p docs/verification
+    cat > "docs/verification/2026-01-01-${1:-rec}.md" <<EOF
+# Verification — ${1:-rec}
+
+branch: ${2:-my-change}
+reviewer: an independent subagent
+verdict: accepted, no findings outstanding
+reproduced: yes, against the shipped scripts, before any change
+EOF
+}
