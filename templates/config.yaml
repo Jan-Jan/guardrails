@@ -49,7 +49,7 @@
 #
 # A duplicate key, or a second list block for the same key, is accepted and the
 # later one ignored. Do not rely on overriding a key by repeating it.
-guardrails_version: 0.3.0
+guardrails_version: 0.4.0
 
 # IEC 62304 software safety class: A, B, or C. Set by /ratchet.
 # Per-item overrides: document them in the SAD next to the SDD item.
@@ -86,6 +86,20 @@ test_paths:
 # Commands merge-change and verify-before-merge must run and pass.
 verify_commands:
   - make test
+
+# Problem-report triage limits. Both are whole numbers, both mean "more than",
+# and both are OPTIONAL — comment one out and that dimension has no limit.
+#
+# They are shipped SET rather than commented out on purpose. The finding these
+# answer is that `UNRESOLVED-PR` had become something to scroll past; an
+# enforcement mechanism that defaults to off does not answer it. The values are
+# policy, they live here, one line changes either, and check-trace.sh prints
+# both on every run — set or not — next to the backlog they hold down.
+#
+# A value that is not a non-negative whole number is exit 2, not "no limit": a
+# limit the reader cannot parse would be a gate disabling itself on a typo.
+problem_age_days: 30
+problem_open_max: 10
 
 # Optional: structural-coverage report command, judged against the class
 # target (A: none required, B: statement, C: statement + decision).

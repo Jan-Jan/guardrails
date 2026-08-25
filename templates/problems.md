@@ -11,12 +11,33 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
 
   **PR-NNNNNN**: <observable symptom, one sentence>.
   affects: <REQ/RC/SDD/LLR IDs implicated>.
+  owner: <who is answerable for it — free text>
+  opened: YYYY-MM-DD
   status: open|resolved
   <when resolved: one line — root cause + fix reference (reproducing test)>
 
 - Record the problem BEFORE investigating (resolve-problem skill).
-- Open PRs are printed as UNRESOLVED-PR warnings at every merge — they
-  never block, but they are always seen.
+- EVERY item needs a `status:`, and every OPEN item an `owner:` and an
+  `opened:` date. `opened:` is a real calendar date in `YYYY-MM-DD`, and may
+  be at most ONE day ahead of the machine running the check — that one day is
+  there because "today" differs across timezones; anything further is a
+  failure, because a date in the future ages backwards and would make a stale
+  item look fresh. Each of the three is read at COLUMN ONE, inside the item's
+  block, and the FIRST occurrence of each is the one that counts. A keyword
+  with nothing after it declares nothing and is reported as absent.
+- Resolved items need neither owner nor opened: they cannot age, and
+  requiring the fields on them would redden every ledger already written for
+  no gain. Adopting this on an existing ledger is a backfill of the items
+  still open, and check-trace.sh names each one.
+- An item with no readable `status:` is reported INCOMPLETE-PROBLEM. It is
+  not merely unlabelled — before that check it read as RESOLVED and was
+  absent from every merge's known-problem list.
+- Open PRs are printed as UNRESOLVED-PR warnings at every merge, carrying
+  their age and owner so the list can be triaged. The warning itself never
+  blocks; what blocks is an item older than `problem_age_days`, a backlog
+  larger than `problem_open_max`, or a missing field. Both limits are set in
+  `.guardrails/config.yaml`, and both are printed on every run whether they
+  are set or not.
 - status: resolved only in the same change that merges the fix.
 - Mint the ID when you write the item: run
   `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The token

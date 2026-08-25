@@ -40,7 +40,9 @@ doc_verification
 strict_paths
 test_paths
 verify_commands
-coverage_command'
+coverage_command
+problem_age_days
+problem_open_max'
 
 # The ID body vocabulary. An item ID is <PREFIX>-<body>, and a body is either
 # a minted token or a legacy sequential number.
@@ -214,13 +216,22 @@ function gr_block_closes(line) {
 }
 # Is KW the annotation this line carries? Column one, and only column one.
 #
-# A KNOWN ASYMMETRY, recorded rather than fixed, and the consequence stated
-# plainly because it is the one this change exists to remove: the block gates
-# match their keyword ANYWHERE on the line, so `- status: open` counts inside a
-# block, while the same line OUTSIDE every block is not reported here at all.
-# On a bullet-style ledger that means exit 0 with an open problem report absent
-# from the known-problem list and a derived item never checked against the RMF.
-# The block rule above makes that case rare; it does not make it impossible.
+# A KNOWN ASYMMETRY, now HALF closed. The rule is that a reader must not take
+# a value from a position this backstop cannot see, because then an annotation
+# belonging to no item is read, matched and dropped in silence.
+#
+#   * `status:`, `owner:`, `opened:` — CLOSED, 2026-08-25. The problem-report
+#     reader in check-trace.sh goes through this function, so reader and
+#     backstop look in the same place, and a `- status: open` bullet is
+#     reported INCOMPLETE-PROBLEM rather than passing silently.
+#   * `traces:` and `satisfies:` — STILL OPEN. They are read by gr_id_run,
+#     which finds its keyword ANYWHERE on the line, so `- satisfies: REQ-001`
+#     counts inside a block while the same line outside every block is not
+#     reported here at all: exit 0 with a derived item never checked against
+#     the RMF. The block rule above makes it rare, not impossible. Closing it
+#     changes what every SAD and SRS ledger already written may look like,
+#     which is why it is stated rather than folded in. See
+#     skills/check-traceability/SKILL.md.
 #
 # Extending this to list markers was tried and reverted: it fired on
 # `- status: resolved only in the same change that merges the fix.` in the
@@ -237,6 +248,20 @@ function gr_block_closes(line) {
 # is not folded in here.
 function gr_kw_here(line, kw) {
     return (index(line, kw) == 1)
+}
+# The value of an annotation: everything after the keyword, trimmed. A keyword
+# with nothing after it declares nothing, and every reader here treats it as
+# absent — an empty `owner:` is an omission wearing the shape of compliance.
+#
+# Meaningful only where gr_kw_here holds, which is why both live here: a reader
+# that takes a value from a keyword the ORPHAN-ANNOTATION backstop cannot see
+# reopens the hole that backstop was built to close. That is not hypothetical
+# — it is exactly how the PR `status:` reader drifted (see check-trace.sh).
+function gr_value(line, kw,   v) {
+    v = substr(line, length(kw) + 1)
+    sub(/^[ \t]+/, "", v)
+    sub(/[ \t]+$/, "", v)
+    return v
 }
 # The bare ID of a definition line. Meaningful only where gr_block_opens holds.
 function gr_block_id(line,   id) {
@@ -275,10 +300,83 @@ function gr_block_id(line,   id) {
 GR_AWK_FRONT_MATTER='
 function gr_fm_reset() { GR_FM_IN = 0; GR_FM_END = 0 }
 function gr_fm_scan(line, n) {
-    if (n == 1 && line ~ /^---[ \t\r]*$/) { GR_FM_IN = 1; return }
+    # Line 2 decides. A `---` at line 1 opens front matter only if a KEY
+    # follows it immediately; `---` then a blank line is a horizontal rule at
+    # the top of a document, and treating one as a header switched the scan off
+    # for everything up to the next rule. The independent review of 2026-08-25
+    # reproduced that on the problem-report reader — an open item 236 days old
+    # absent from the roll-call at exit 0 — and this is the same defect in the
+    # backstop, where it silently drops every annotation in the span instead.
+    # YAML has no blank line between the opening delimiter and the first key,
+    # so nothing legitimate is lost, and the rule can only make the scan read
+    # MORE than before: no report that used to fire stops firing.
+    if (n == 1) { GR_FM_MAYBE = (line ~ /^---[ \t\r]*$/); return }
+    if (n == 2) {
+        if (GR_FM_MAYBE && line !~ /^[ \t\r]*$/) GR_FM_IN = 1
+        GR_FM_MAYBE = 0
+        if (!GR_FM_IN) return
+    }
     if (GR_FM_IN && line ~ /^(---|\.\.\.)[ \t\r]*$/) { GR_FM_END = n; GR_FM_IN = 0 }
 }
 function gr_fm_skip(n) { return (n <= GR_FM_END) }
+'
+
+# Calendar dates, as an awk fragment with ONE definition.
+#
+# `date -d` is GNU and `date -j -f` is BSD; neither is POSIX, so no shell-level
+# date arithmetic is portable. `date +%Y-%m-%d` IS POSIX, and everything after
+# it is integer work done here — which runs the same on gawk, mawk and busybox
+# awk, and needs no locale, no timezone database and no external process.
+#
+# BYTE-WISE, deliberately. The obvious shape test is a regex, and the previous
+# change measured what that costs: under gawk in a multibyte locale a bracket
+# expression does not match an invalid byte sequence, so a latin-1 value made
+# the check fail OPEN. substr and index count bytes in every locale.
+#
+# gr_date_ok sets GR_DATE_DAYS as a side effect rather than returning it,
+# because the day number is legitimately negative for dates before 1970 and
+# there is then no value left to mean "not a date".
+GR_AWK_CIVIL='
+function gr_digits(s,   i, n) {
+    n = length(s)
+    if (n == 0) return 0
+    for (i = 1; i <= n; i++)
+        if (index("0123456789", substr(s, i, 1)) == 0) return 0
+    return 1
+}
+function gr_date_valid(y, m, d,   dim) {
+    if (y < 1 || m < 1 || m > 12 || d < 1) return 0
+    dim = 31
+    if (m == 4 || m == 6 || m == 9 || m == 11) dim = 30
+    else if (m == 2) dim = (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 29 : 28
+    return (d <= dim)
+}
+# Days since 1970-01-01, by Howard Hinnant days_from_civil. int() truncates
+# toward zero rather than flooring, which differs for negative operands — the
+# year is >= 1 here (gr_date_valid rejects the rest), so it does not arise.
+function gr_days_from_civil(y, m, d,   era, yoe, doy, doe) {
+    if (m <= 2) y--
+    era = int(y / 400)
+    yoe = y - era * 400
+    doy = int((153 * (m > 2 ? m - 3 : m + 9) + 2) / 5) + d - 1
+    doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
+    return era * 146097 + doe - 719468
+}
+# 1 and GR_DATE_DAYS set, or 0. Nothing else in the toolkit parses a date.
+function gr_date_ok(s,   y, m, d) {
+    GR_DATE_DAYS = 0
+    if (length(s) != 10) return 0
+    if (substr(s, 5, 1) != "-" || substr(s, 8, 1) != "-") return 0
+    if (!gr_digits(substr(s, 1, 4))) return 0
+    if (!gr_digits(substr(s, 6, 2))) return 0
+    if (!gr_digits(substr(s, 9, 2))) return 0
+    y = substr(s, 1, 4) + 0
+    m = substr(s, 6, 2) + 0
+    d = substr(s, 9, 2) + 0
+    if (!gr_date_valid(y, m, d)) return 0
+    GR_DATE_DAYS = gr_days_from_civil(y, m, d)
+    return 1
+}
 '
 
 gr_die() {
@@ -543,6 +641,52 @@ gr_verification_dir() {
   Verification records live there. Create it, or set doc_verification in
   $GR_CONFIG to the directory that holds them."
     printf '%s\n' "$_v"
+}
+
+# gr_limit KEY — a triage limit from the config: a non-negative whole number,
+# or EMPTY when the key is absent, meaning no limit on that dimension.
+#
+# Absent is a legitimate configuration and is never silent: check-trace.sh
+# prints every limit, set or not, in its `problems:` summary line, so a team
+# that has switched one off sees that fact at every merge.
+#
+# What is NOT legitimate is a limit the reader cannot parse. `thirty`, `-1`,
+# `1.5` and a present-but-empty value would all read as "no limit" through
+# cfg_get, which is a gate disabling itself on a typo — exit 2 instead.
+gr_limit() {
+    _lv=$(cfg_get "$1")
+    if [ -z "$_lv" ]; then
+        # PRESENT-BUT-EMPTY is not ABSENT; cfg_get cannot tell them apart.
+        # Same reasoning, and the same remedy, as gr_verification_dir.
+        if grep -q "^$1:" "$GR_CONFIG" 2>/dev/null; then
+            gr_die \
+"$1 is set to an empty value in $GR_CONFIG.
+  Give it a whole number, or remove the key to apply no limit."
+        fi
+        return 0
+    fi
+    case "$_lv" in
+        *[!0-9]*) gr_die \
+"$1 must be a non-negative whole number, not '$_lv' (in $GR_CONFIG).
+  Remove the key to apply no limit; 0 means every item of that kind fails." ;;
+    esac
+    # Digits alone are not enough. A value past the shell's integer range makes
+    # `[ "$n" -gt "$limit" ]` fail with "Illegal number", the `if` takes its
+    # else branch, and the gate is off with the run still green — the exact
+    # shape the paragraph above forbids, reached through the one path the
+    # digit test lets past.
+    #
+    # Asked of the shell rather than guessed at as a digit width: whatever it
+    # can compare HERE it can compare at the point of use, on any shell, with
+    # no constant to be wrong about. The first version fixed nine digits, which
+    # refused 1000000000 with the untrue explanation that it was too large to
+    # compare. awk is the other consumer (`agelim + 0`), where a value past
+    # the exact-integer range would silently become a float.
+    [ "$_lv" -ge 0 ] 2>/dev/null || gr_die \
+"$1 is $_lv, which this shell cannot compare as a number (in $GR_CONFIG).
+  Use a limit inside the shell's integer range, or remove the key to apply
+  no limit."
+    printf '%s\n' "$_lv"
 }
 
 # gr_check_config — refuse a config that would silently disable a gate. Every

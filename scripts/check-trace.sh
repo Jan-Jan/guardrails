@@ -17,10 +17,20 @@
 #                              defined nowhere
 #   MISPLACED-ITEM ID        — item defined outside the document configured
 #                              for its prefix
-#   ORPHAN-ANNOTATION FILE:LINE — a status:/traces:/satisfies: line at column
-#                              one that belongs to no item block
-#   UNRESOLVED-PR ID         — problem report with status: open. WARNING
-#                              only: listed for review, never fails the check
+#   ORPHAN-ANNOTATION FILE:LINE — a status:/owner:/opened:/traces:/satisfies:
+#                              line at column one that belongs to no item block
+#   UNRESOLVED-PR ID         — problem report with status: open, with its age
+#                              and owner. WARNING only: listed for review,
+#                              never fails the check on its own
+#   INCOMPLETE-PROBLEM ID    — PR with no column-one status: in its block, or
+#                              an OPEN one with no owner:/opened: (a keyword
+#                              with an empty value counts as absent)
+#   MALFORMED-STATUS ID      — status: whose value is neither open nor resolved
+#   MALFORMED-DATE ID        — an open PR whose opened: is not a YYYY-MM-DD
+#                              calendar date, or is more than a day ahead of
+#                              today (one day is allowed for clock skew)
+#   STALE-PROBLEM ID         — open longer than problem_age_days (more than)
+#   PROBLEM-BACKLOG          — more open PRs than problem_open_max (more than)
 #
 # Each doc_* config value may be a single file or a directory of per-change
 # dated *.md files (see gr_doc_files in lib.sh).
@@ -48,10 +58,12 @@
 # space, so `verifies: REQ-001 (was REQ-042)` credits REQ-001 alone. The rule
 # has exactly one definition — GR_AWK_ID_RUN in lib.sh.
 #
-# Every run ends with `checked:` (items found per prefix) and `sources:` (the
-# document files read, then the number of configured path entries — one entry
-# may be a directory or a pathspec), so a pass over zero cannot be
-# mistaken for a pass over sixty-three. MISPLACED-ITEM is what makes `checked:`
+# Every run ends with `checked:` (items found per prefix), `problems:` (open
+# count, oldest open item, and both triage limits — whether or not they are
+# set) and `sources:` (the document files read, then the number of configured
+# path entries — one entry may be a directory or a pathspec), so a pass over
+# zero cannot be mistaken for a pass over sixty-three, and a limit switched
+# off cannot be mistaken for a limit met. MISPLACED-ITEM is what makes `checked:`
 # trustworthy: while it is green, every item counted there sits in a document
 # some gate actually opened. It covers the six gated prefixes only — an extra
 # prefix has no configured document and is not placement-checked, so an item
@@ -64,6 +76,27 @@ set -u
 cd "$(gr_root)" || exit 2
 
 gr_check_config
+
+# Read beside gr_check_config, and for its reason: every other config
+# invariant in this toolkit is settled BEFORE any gate runs, so that a typo is
+# diagnosed as a typo rather than after a page of violations. Read at the point
+# of use, a bad limit reported exit 2 with the `checked:`/`problems:`/`sources:`
+# lines never printed — the evidence suppressed by the error.
+age_limit=$(gr_limit problem_age_days) || exit 2
+open_limit=$(gr_limit problem_open_max) || exit 2
+
+# "Today" is the denominator of every age this gate computes, so a garbage
+# value would not fail — it would make every age silently wrong. Two checks,
+# because they catch different things and one message must not stand in for
+# the other: the shell tests the SHAPE (and with it the `-v` value awk is
+# about to be handed), and awk tests the CALENDAR.
+today=$(date +%Y-%m-%d) || gr_die "date(1) failed; the age of an open problem cannot be established"
+case "$today" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+    *) gr_die "date +%Y-%m-%d produced '$today', which is not a date in YYYY-MM-DD form" ;;
+esac
+LC_ALL=C awk -v today="$today" "$GR_AWK_CIVIL"'BEGIN { exit(gr_date_ok(today) ? 0 : 1) }' \
+    || gr_die "date +%Y-%m-%d produced '$today', which is not a calendar date"
 
 prefixes=$(gr_prefixes) || exit 2
 P=$(gr_prefix_re) || exit 2
@@ -416,23 +449,176 @@ $(ids_defined "$pfx")"
     done
 fi
 
-# --- UNRESOLVED-PR: open problem reports are listed for review, but this ----
-# --- is a WARNING — it never sets fail (DO-178C-style known-problem review) --
-for f in $problems_files; do
-    LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ITEM_BLOCK"'
-        BEGIN { gr_block_init("PR", body) }
-        function flush() { if (cur != "" && open) print cur }
-        gr_block_closes($0) {
-            flush()
-            cur = gr_block_opens($0) ? gr_block_id($0) : ""
-            open = 0
-        }
-        cur != "" && /status:[ \t]*open/ { open = 1 }
-        END { flush() }
-    ' "$f" | while IFS= read -r id; do
-        [ -n "$id" ] && echo "UNRESOLVED-PR $id (open problem report — review before release)"
+# --- Problem-report triage --------------------------------------------------
+# UNRESOLVED-PR is the roll-call and stays a WARNING: the known-problem review
+# it serves is a review, not a prohibition, and an item under the configured
+# limits does not fail the run. What DOES fail is an item the roll-call cannot
+# state truthfully, and a backlog past a limit the project set for itself.
+#
+# The reader was rewritten here for one reason. It used to be
+#
+#     cur != "" && /status:[ \t]*open/ { open = 1 }
+#
+# — unanchored, matched anywhere in the line, and therefore reading a `status:`
+# occurrence that check_orphans below CANNOT SEE, because that backstop reports
+# a keyword only at column one. ORPHAN-ANNOTATION exists to catch annotations
+# belonging to no item; a reader looking where the backstop does not reopens
+# the hole it closed. Worse, an item whose `status:` line the pattern missed —
+# `Status: open`, `status : open`, no `status:` line at all — read as RESOLVED
+# and vanished from the roll-call: an open problem no merge would ever see.
+# Measured on a real ledger, one item in 159 was in exactly that state.
+#
+# So: column one, first occurrence in the block wins, value from a closed set.
+# Anchoring alone would move the false green rather than remove it, which is
+# why the missing-status: violation ships in the same change.
+#
+# Ages are whole days in LOCAL time, from `date +%Y-%m-%d`; the arithmetic
+# itself is exact (GR_AWK_CIVIL in lib.sh). A one-day disagreement about what
+# "today" is, on the other hand, is NOT immaterial in one place: `opened:`
+# tomorrow would otherwise be a hard failure on a correct item. One day of
+# tolerance is allowed there and clamped to age 0 — see gr_prflush. Two local
+# dates differ by more than one only when the offsets differ by more than 24
+# hours, which no pair of real timezones does.
+#
+# Each line is `W <age> <text>` or `F 0 <text>`: W is the roll-call warning and
+# carries the age so the summary can report the oldest, F fails the run. The
+# split is made in awk, which knows the limits, and the shell only aggregates —
+# a `while read` over a pipe runs in a subshell here, where a `fail=1` would be
+# lost. An age of -1 means the item is open and cannot be dated.
+_prs=$(
+    for f in $problems_files; do
+        LC_ALL=C awk -v body="$GR_ID_BODY" -v today="$today" \
+            -v agelim="$age_limit" \
+            "$GR_AWK_ITEM_BLOCK$GR_AWK_CIVIL"'
+            function gr_prflush(   age, who) {
+                if (cur == "") return
+                # Neither of the next two returns reaches the roll-call, so
+                # neither counts toward the backlog. That is deliberate: the
+                # gate does not GUESS an unstated status, it demands one. The
+                # count can therefore under-report — but only on a run that is
+                # already red for that very item, never on a green one.
+                if (!st_seen) {
+                    printf "F 0 INCOMPLETE-PROBLEM %s (no status: line in its block)\n", cur
+                    return
+                }
+                if (st != "open" && st != "resolved") {
+                    printf "F 0 MALFORMED-STATUS %s (status: %s — expected open or resolved)\n", cur, st
+                    return
+                }
+                if (st == "resolved") return
+
+                # OPEN. Every branch below still reaches the roll-call: an open
+                # item missing from it is the defect this gate exists to remove,
+                # and an item that cannot be dated is not thereby young.
+                who = (own_seen && own != "") ? own : "unrecorded"
+                if (who == "unrecorded")
+                    printf "F 0 INCOMPLETE-PROBLEM %s (open, no owner:)\n", cur
+                age = -1
+                if (!opd_seen || opd == "")
+                    printf "F 0 INCOMPLETE-PROBLEM %s (open, no opened:)\n", cur
+                else if (!gr_date_ok(opd))
+                    printf "F 0 MALFORMED-DATE %s (opened: %s is not a YYYY-MM-DD calendar date)\n", cur, opd
+                else {
+                    age = todaydays - GR_DATE_DAYS
+                    # A future date yields a negative age, which compares as
+                    # younger than any limit — the false-green direction, so it
+                    # is rejected rather than clamped.
+                    #
+                    # ONE day of tolerance, though, and the day is clamped to
+                    # zero. `resolve-problem` tells the author to write today,
+                    # and "today" differs by a day across timezones and under
+                    # ordinary clock skew: without this, an author in UTC+13
+                    # blocks the merge on a correct item on the day they record
+                    # it. One day cannot make a stale item look fresh against
+                    # limits measured in weeks; a fortnight can, and still
+                    # fails.
+                    if (age == -1) age = 0
+                    else if (age < 0) {
+                        printf "F 0 MALFORMED-DATE %s (opened: %s is more than a day in the future)\n", cur, opd
+                        age = -1
+                    }
+                }
+                if (age < 0)
+                    printf "W -1 UNRESOLVED-PR %s (open, age unrecorded, owner %s)\n", cur, who
+                else {
+                    printf "W %d UNRESOLVED-PR %s (open %d days, owner %s)\n", age, cur, age, who
+                    if (agelim != "" && age > agelim + 0)
+                        printf "F 0 STALE-PROBLEM %s (open %d days, limit %d)\n", cur, age, agelim + 0
+                }
+            }
+            BEGIN {
+                gr_block_init("PR", body)
+                gr_date_ok(today)   # validated in the shell above
+                todaydays = GR_DATE_DAYS
+            }
+            FNR == 1 { sub(/^\357\273\277/, "") }
+            # NO front-matter skip here, and that is a decision, not an
+            # omission. The first version of this scan skipped front matter
+            # "so the reader and the backstop agree", and the independent
+            # review reproduced what that costs: GR_AWK_FRONT_MATTER treats ANY
+            # `---` on line 1 as opening a header block, so a leading
+            # horizontal rule swallowed every ITEM DEFINITION up to the next
+            # `---`. An open problem 236 days old vanished from the roll-call,
+            # `problem_open_max` did not apply, and the run exited 0 — every
+            # failure this gate exists to prevent, introduced by the gate.
+            #
+            # The backstop reads ANNOTATIONS, where skipping a real header
+            # block is right; this scan reads DEFINITIONS, and the rule for
+            # those is already settled across the toolkit — a definition form
+            # at column one is judged wherever it sits, fenced block or not.
+            #
+            # That is not the whole story, and the rest was found by the same
+            # review: the backstop could not tell a header from a horizontal
+            # rule either, so a leading `---` switched IT off for the same span
+            # and dropped every annotation in it. GR_AWK_FRONT_MATTER now
+            # requires a key on line 2, which fixes both. One disagreement
+            # survives and is fail-loud: an item definition pasted INSIDE a
+            # genuine header block is read here and invisible to the backstop,
+            # so its own fields are reported as orphans. A contrived document,
+            # reported rather than passed, and named here so it is not
+            # rediscovered as a surprise. Skipping was also unobservable in the intended direction —
+            # no item block can be open before line 1 — so it removed nothing
+            # and lost items. Not skipping keeps this scan in step with
+            # `ids_defined`, which is what makes `checked:` and `problems:`
+            # reconcilable.
+            { line = $0; sub(/\r$/, "", line) }
+            gr_block_closes(line) {
+                gr_prflush()
+                cur = ""
+                st = ""; own = ""; opd = ""
+                st_seen = 0; own_seen = 0; opd_seen = 0
+                if (gr_block_opens(line)) cur = gr_block_id(line)
+            }
+            # First occurrence wins, per keyword — the GR_AWK_ID_RUN rule
+            # applied to a scalar annotation. A later line cannot reopen an
+            # item the first line already closed.
+            cur != "" && !st_seen  && gr_kw_here(line, "status:") { st_seen = 1;  st = gr_value(line, "status:") }
+            cur != "" && !own_seen && gr_kw_here(line, "owner:")  { own_seen = 1; own = gr_value(line, "owner:") }
+            cur != "" && !opd_seen && gr_kw_here(line, "opened:") { opd_seen = 1; opd = gr_value(line, "opened:") }
+            END { gr_prflush() }
+        ' "$f" || gr_die "problem-report scan failed on $f"
     done
-done
+) || exit 2
+
+_open_n=$(printf '%s\n' "$_prs" | grep -c '^W ' || true)
+_undatable_n=$(printf '%s\n' "$_prs" | grep -c '^W -1 ' || true)
+# m starts at -1, which is also what an undatable item reports, so "no age
+# known" and "the maximum age" are the same value and need no second flag. The
+# first version seeded the maximum from awk's uninitialised 0 and kept a `seen`
+# flag: an age of 0 is the one age that does not exceed 0, so a ledger whose
+# only open item was opened TODAY reported `oldest n/a` — an item counted as
+# open and absent from the age.
+_oldest=$(printf '%s\n' "$_prs" | LC_ALL=C awk 'BEGIN { m = -1 } $1 == "W" && $2 + 0 > m { m = $2 + 0 } END { print m }')
+if [ -n "$_prs" ]; then
+    printf '%s\n' "$_prs" | cut -d' ' -f3-
+    printf '%s\n' "$_prs" | grep -q '^F ' && fail=1
+fi
+if [ -n "$open_limit" ] && [ "$_open_n" -gt "$open_limit" ]; then
+    _noun="open problem reports"
+    [ "$_open_n" -eq 1 ] && _noun="open problem report"
+    echo "PROBLEM-BACKLOG ($_open_n $_noun, limit $open_limit)"
+    fail=1
+fi
 
 # --- ORPHAN-ANNOTATION: an annotation that belongs to no item --------------
 # The backstop to the block rule, and the reason that rule can be relaxed
@@ -502,6 +688,12 @@ _sat_files=$(printf '%s\n' $sad_files $srs_files | sort -u)
 # shellcheck disable=SC2086
 _orphans=$(
     check_orphans 'status:' PR $problems_files
+    # The reader added `owner:` and `opened:` to the same block, so the
+    # backstop covers them too. An orphaned owner: is worse than a missing
+    # one: under a looser block rule it is credited to the item above, and an
+    # ownerless item then reads as owned.
+    check_orphans 'owner:' PR $problems_files
+    check_orphans 'opened:' PR $problems_files
     check_orphans 'traces:' SDD $sad_files
     # ONE scan over the union, opening on BOTH prefixes that read `satisfies:`.
     # Two scans over two lists reported a false positive when doc_srs and
@@ -532,6 +724,21 @@ for pfx in $prefixes; do
     summary="${summary}${summary:+, }${pfx} ${n}"
 done
 echo "checked: $summary"
+# The third summary line, and the reason an unset limit is not a silent one.
+# A team that has switched a limit off reads that fact at every merge, next to
+# the backlog the limit was meant to hold down.
+_oldest_txt="n/a"
+[ "$_oldest" -ge 0 ] && _oldest_txt="$_oldest days"
+# Reported separately rather than folded into `oldest`, because it is the one
+# number the age cannot represent: an item whose age is unknown is open all the
+# same, and an `oldest` that quietly ignored it would read as if every open
+# item had been accounted for.
+#
+# "no usable date", not "undated": the count includes an item whose `opened:`
+# was REFUSED — malformed, or too far ahead — as well as one that has none.
+# Both are open and of unknown age; only one of them is undated.
+[ "$_undatable_n" -gt 0 ] && _oldest_txt="$_oldest_txt ($_undatable_n with no usable date)"
+echo "problems: open $_open_n, oldest $_oldest_txt; limits age ${age_limit:-none}, open ${open_limit:-none}"
 echo "sources: srs $(count_lines "$srs_files"), rmf $(count_lines "$rmf_files"), sad $(count_lines "$sad_files"), soup $(count_lines "$soup_files"), problems $(count_lines "$problems_files"); strict $(count_lines "$strict_paths"), tests $(count_lines "$test_paths")"
 
 exit $fail

@@ -184,6 +184,18 @@ EOF
     fm_lib=0
     fm_new_id=0
 
+    # GR_AWK_CIVIL, added 2026-08-24. One reader today, pinned before there is
+    # a second: the toolkit has one notion of what a calendar date is and what
+    # a day number is, and hand-rolled date arithmetic is famously the kind
+    # that is wrong only in February.
+    civil_check_ids=0
+    civil_check_review=0
+    civil_check_signing=0
+    civil_check_trace=2
+    civil_finalize_docs=0
+    civil_lib=0
+    civil_new_id=0
+
     forms() {
         # Fold the digit-class spellings together, then drop backslashes and
         # both quotes — in separate passes, because a single `tr -d` argument
@@ -204,8 +216,10 @@ EOF
         eval "want_loose=\$loose_$key"
         eval "want_block=\$block_$key"
         eval "want_fm=\$fm_$key"
+        eval "want_civil=\$civil_$key"
         [ -n "$want_calls" ] && [ -n "$want_forms" ] && [ -n "$want_body" ] \
             && [ -n "$want_loose" ] && [ -n "$want_block" ] && [ -n "$want_fm" ] \
+            && [ -n "$want_civil" ] \
             || { echo "unpinned script (add it to this test): $f"; false; }
 
         got_calls=$(grep -c '\$(gr_def_re ' "$f" || true)
@@ -238,6 +252,12 @@ EOF
             false
         }
 
+        got_civil=$(grep -c '\$GR_AWK_CIVIL' "$f" || true)
+        [ "$got_civil" -eq "$want_civil" ] || {
+            echo "$f: $got_civil GR_AWK_CIVIL uses, pinned at $want_civil"
+            false
+        }
+
         got_forms=$(forms "$f" | grep -c . || true)
         [ "$got_forms" -eq "$want_forms" ] || {
             echo "$f: $got_forms spelled-out definition forms, pinned at $want_forms"
@@ -255,6 +275,15 @@ EOF
     [ "$(grep -c '^gr_def_re_loose() {' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c "^GR_AWK_ITEM_BLOCK='" scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c "^GR_AWK_FRONT_MATTER='" scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c "^GR_AWK_CIVIL='" scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c '^gr_limit() {' scripts/lib.sh)" -eq 1 ]
+    # gr_value moved into the shared fragment when the problem-report reader
+    # became its second consumer. An awk program that redefines it is a syntax
+    # error rather than a silent divergence, but a copy under another NAME is
+    # not, and that is what this counts.
+    [ "$(grep -c 'function gr_value(' scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c 'function gr_value(' scripts/check-review.sh)" -eq 0 ]
+    [ "$(grep -c 'function gr_value(' scripts/check-trace.sh)" -eq 0 ]
     [ "$(grep -c '^gr_verification_dir() {' scripts/lib.sh)" -eq 1 ]
     # The emptiness rule has one definition and two readers (gr_doc_files and
     # check-review.sh); a hand-copy in either is what this counts.

@@ -28,7 +28,7 @@ EOF
 @test "check-trace: fully traced fixture passes" {
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: REQ without verifying test fails" {
@@ -68,7 +68,7 @@ EOF
     # and no direct test for REQ-001
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: LLR without satisfies fails" {
@@ -87,7 +87,7 @@ EOF
     commit_all derived
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: LLR without verifying test fails" {
@@ -125,7 +125,7 @@ EOF
 }
 
 @test "check-trace: open problem report warns but passes" {
-    printf '**PR-001**: Crash on empty dose input. affects: REQ-001. status: open\n' > docs/problems/0001-01-01-base.md
+    write_pr PR-001 open "$(days_ago 5)"
     commit_all open-pr
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -133,15 +133,15 @@ EOF
 }
 
 @test "check-trace: resolved problem report is silent" {
-    printf '**PR-001**: Crash on empty dose input. affects: REQ-001. status: resolved\n' > docs/problems/0001-01-01-base.md
+    printf '**PR-001**: Crash on empty dose input.\naffects: REQ-001\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all resolved-pr
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: open PR warning coexists with real failure exit 1" {
-    printf '**PR-001**: Crash on empty dose input. affects: REQ-001. status: open\n' > docs/problems/0001-01-01-base.md
+    write_pr PR-001 open "$(days_ago 5)"
     printf '\n**HAZ-002**: Underdose.\n' >> docs/risk/0001-01-01-base.md
     commit_all pr-and-haz
     run sh .guardrails/scripts/check-trace.sh
@@ -169,16 +169,22 @@ EOF
     [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]]
 }
 
-@test "check-trace: open draft PR does not misattribute to a resolved PR" {
-    printf '**PR-001**: Crash on empty input. affects: REQ-001. status: resolved\n\n**PR-DRAFT-b-1**: New issue. affects: REQ-001. status: open\n' > docs/problems/0001-01-01-base.md
+@test "check-trace: a later item's open status does not reach the resolved item above" {
+    # Was written against `**PR-DRAFT-b-1**`, from the ID scheme that minted
+    # draft tokens and rewrote them at merge. That scheme is gone: IDs are now
+    # random and final from the first keystroke, so a DRAFT- token is not an ID
+    # at all and this fixture stopped exercising block attribution. It now uses
+    # two real items, which is what the name always claimed.
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-001\nstatus: resolved\n\n**PR-p9r5wx**: New issue.\naffects: REQ-001\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 5)" > docs/problems/0001-01-01-base.md
     commit_all mixed-prs
     run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]]
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-p9r5wx"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: dangling affects reference in problems log fails" {
-    printf '**PR-001**: Crash on empty input. affects: REQ-999. status: resolved\n' > docs/problems/0001-01-01-base.md
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-999\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all dangling-pr
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
@@ -195,7 +201,7 @@ EOF
     commit_all cross-file
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: derived assessment in any rmf-directory file counts" {
@@ -205,7 +211,7 @@ EOF
     commit_all derived-cross
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: template READMEs in ledger dirs cause no false positives" {
@@ -216,7 +222,7 @@ EOF
     commit_all readmes
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 0 ]
 }
@@ -233,7 +239,7 @@ EOF
     commit_all single-file-layout
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # only the summary line: no violations
+    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
     printf '\n**HAZ-002**: Underdose.\n' >> docs/risk/rmf.md
     commit_all haz2-single
     run sh .guardrails/scripts/check-trace.sh
@@ -764,7 +770,7 @@ EOF
 }
 
 @test "check-trace: a PR defined outside doc_problems is reported" {
-    printf '**PR-001**: a problem report in the wrong file\n\nstatus: closed\n' > docs/notes.md
+    printf '**PR-001**: a problem report in the wrong file\n\nstatus: resolved\n' > docs/notes.md
     commit_all pr-outside
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
@@ -776,7 +782,7 @@ EOF
     # gate did. Its value is in the mutation runs — removing the gr_contains
     # check in check_placement turns it red while the misplacement tests stay
     # green, which is what proves it constrains over-firing.
-    printf '**PR-001**: A closed problem.\n\nstatus: closed\n' \
+    printf '**PR-001**: A closed problem.\n\nstatus: resolved\n' \
         > docs/problems/0001-01-01-base.md
     commit_all placed
     run sh .guardrails/scripts/check-trace.sh
@@ -1149,7 +1155,7 @@ EOF
 
 @test "check-trace: an open token problem report is listed, without failing" {
     token_fixture
-    printf '**PR-p9r5wx**: Something went wrong.\nstatus: open\n' \
+    printf '**PR-p9r5wx**: Something went wrong.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 5)" \
         > docs/problems/2026-01-01-x.md
     commit_all pr
     run sh .guardrails/scripts/check-trace.sh
@@ -1274,8 +1280,11 @@ EOF
 # violations. The four tests below are one per gate, split by direction.
 
 @test "check-trace: an emphasised line in a PR body does not detach status:" {
-    cat > docs/problems/0001-01-01-base.md <<'LEDGER'
-**PR-001**: Crash on empty dose input. affects: REQ-001.
+    cat > docs/problems/0001-01-01-base.md <<LEDGER
+**PR-001**: Crash on empty dose input.
+affects: REQ-001
+owner: jvdv
+opened: $(days_ago 5)
 **21 of 35 inverted, 14 not.**
 status: open
 LEDGER
@@ -1342,7 +1351,7 @@ LEDGER
 # one — an unreadable header ends an item without starting one.
 
 @test "check-trace: an unreadable definition form still closes the block above" {
-    printf '**PR-001**: Crash on empty input. affects: REQ-001. status: resolved\n**PR-abcdef**: Hand-typed ID with no digit.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-001\nstatus: resolved\n**PR-abcdef**: Hand-typed ID with no digit.\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all malformed-closes
     run sh .guardrails/scripts/check-trace.sh
     # Both halves of the pair, on one fixture. The block rule stops the
@@ -1363,7 +1372,7 @@ LEDGER
 }
 
 @test "check-trace: an indented definition form is prose, and closes nothing" {
-    printf '**PR-001**: Crash on empty input. affects: REQ-001.\n  **PR-abcdef**: Grammar example in a ledger README.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-001\nowner: jvdv\nopened: %s\n  **PR-abcdef**: Grammar example in a ledger README.\nstatus: open\n' "$(days_ago 5)" > docs/problems/0001-01-01-base.md
     commit_all indented-malformed
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1377,7 +1386,7 @@ LEDGER
 # silent shape the block rule above exists to remove.
 
 @test "check-trace: a status: line before the first item is an orphan" {
-    printf 'status: open\n\n**PR-001**: Crash on empty input. affects: REQ-001. status: resolved\n' > docs/problems/0001-01-01-base.md
+    printf 'status: open\n\n**PR-001**: Crash on empty input.\naffects: REQ-001\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all orphan-status
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
@@ -1404,7 +1413,7 @@ LEDGER
 }
 
 @test "check-trace: an annotation inside its own item is not an orphan" {
-    printf '**PR-001**: Crash on empty input.\naffects: REQ-001.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-001\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 5)" > docs/problems/0001-01-01-base.md
     commit_all attributed
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1416,7 +1425,7 @@ LEDGER
     # The shape templates/problems.md ships: the item grammar inside an HTML
     # comment, indented. Column-one anchoring is what keeps it inert, and is
     # what makes this gate cheap enough to adopt without editing every ledger.
-    printf '<!--\n  **PR-NNNNNN**: <symptom>.\n  status: open|resolved\n-->\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    printf '<!--\n  **PR-NNNNNN**: <symptom>.\n  status: open|resolved\n-->\n\n**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all grammar-comment
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1477,6 +1486,12 @@ function gr_block_opens(line) { return 0 }
 function gr_block_closes(line) { return 0 }
 function gr_block_id(line) { return "ZZ-NO-SUCH-ITEM-ZZ" }
 function gr_kw_here(line, kw) { return 1 }
+function gr_value(line, kw,   v) {
+    v = substr(line, length(kw) + 1)
+    sub(/^[ \t]+/, "", v)
+    sub(/[ \t]+$/, "", v)
+    return v
+}
 '
 POISON
 
@@ -1541,7 +1556,7 @@ POISON
 @test "check-trace: an emphasised sentence with spaces still closes nothing" {
     # The regression guard for the fix above: whitespace inside the bold is what
     # separates emphasis from a header. This is the line from the original bug.
-    printf '**PR-001**: Crash on empty dose input.\n**21 of 35 inverted, 14 not.**\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    printf '**PR-001**: Crash on empty dose input.\nowner: jvdv\nopened: %s\n**21 of 35 inverted, 14 not.**\nstatus: open\n' "$(days_ago 5)" > docs/problems/0001-01-01-base.md
     commit_all emphasis-with-spaces
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1580,7 +1595,7 @@ CFG
 }
 
 @test "check-trace: YAML front matter is not an orphan" {
-    printf -- '---\nstatus: draft\ntitle: Problem reports\n---\n\n**PR-001**: Crash. status: resolved\n' \
+    printf -- '---\nstatus: draft\ntitle: Problem reports\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' \
         > docs/problems/0001-01-01-base.md
     commit_all front-matter
     run sh .guardrails/scripts/check-trace.sh
@@ -1630,7 +1645,7 @@ CFG
 @test "check-trace: single-asterisk emphasis closes nothing" {
     # Parity with the pre-change rule, which required two asterisks at line
     # start. Widening to one would newly reject ledgers that always passed.
-    printf '**PR-001**: Crash on empty dose input.\n*Note*: an italic aside.\nstatus: open\n' > docs/problems/0001-01-01-base.md
+    printf '**PR-001**: Crash on empty dose input.\nowner: jvdv\nopened: %s\n*Note*: an italic aside.\nstatus: open\n' "$(days_ago 5)" > docs/problems/0001-01-01-base.md
     commit_all single-asterisk
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1687,7 +1702,7 @@ SAD
     # Only line 1 may open front matter. Without that anchor a `---` rule
     # anywhere in the document starts a skip region and swallows every
     # annotation up to the next one.
-    printf '# Problems\n\n---\n\nstatus: open\n\n---\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    printf '# Problems\n\n---\n\nstatus: open\n\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all thematic-break
     run sh .guardrails/scripts/check-trace.sh
     [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
@@ -1752,7 +1767,7 @@ SAD
 }
 
 @test "check-trace: front matter closed by ... is skipped" {
-    printf -- '---\nstatus: draft\n...\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    printf -- '---\nstatus: draft\n...\n\n**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all dots-terminator
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1760,7 +1775,7 @@ SAD
 }
 
 @test "check-trace: CRLF front matter is skipped" {
-    printf -- '---\r\nstatus: draft\r\n---\r\n\r\n**PR-001**: Crash. status: resolved\r\n' > docs/problems/0001-01-01-base.md
+    printf -- '---\r\nstatus: draft\r\n---\r\n\r\n**PR-001**: Crash.\r\nstatus: resolved\r\n' > docs/problems/0001-01-01-base.md
     commit_all crlf-front-matter
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1847,17 +1862,34 @@ SAD
     [ "$status" -eq 1 ]
 }
 
-@test "check-trace: an unreadable ledger fails the run rather than finding nothing" {
+@test "check-trace: an unreadable problems ledger fails the run rather than finding nothing" {
     # A scan that errors finds nothing, and finding nothing is what a clean
     # ledger looks like. check-ids.sh checks git grep's status for this reason;
     # this gate shells out to awk and must do the same.
-    printf '**PR-001**: Crash. status: open\n' > docs/problems/0001-01-01-base.md
+    #
+    # The problems ledger is now read TWICE — by the triage scan and then by
+    # the orphan backstop — and the triage scan gets there first, so the
+    # message names it. The backstop's own error path is pinned by the SAD
+    # test below, on a file the triage scan never opens. Asserting only the
+    # message that happens to come first would have left it uncovered.
+    printf '**PR-001**: Crash.\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all unreadable-ledger
     chmod 000 docs/problems/0001-01-01-base.md
     run sh .guardrails/scripts/check-trace.sh
     chmod 644 docs/problems/0001-01-01-base.md
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
-    [[ "$output" == *"orphan scan failed"* ]]
+    [[ "$output" == *"problem-report scan failed"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an unreadable architecture ledger fails the orphan scan" {
+    # The orphan backstop's half of the pair above. doc_sad is read by
+    # check_orphans and by nothing else that opens the working-tree file, so
+    # this is the only fixture in which its error path is reachable.
+    chmod 000 docs/architecture/0001-01-01-base.md
+    run sh .guardrails/scripts/check-trace.sh
+    chmod 644 docs/architecture/0001-01-01-base.md
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"orphan scan failed"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a UTF-8 BOM does not defeat the front-matter skip" {
@@ -1865,7 +1897,7 @@ SAD
     # gr_check_config rejects one in config.yaml for exactly that reason. The
     # lesson had not been carried across, so a BOM turned a title-page
     # `status: draft` into a hard failure on a correct ledger.
-    printf '\xef\xbb\xbf---\nstatus: draft\n---\n\n**PR-001**: Crash. status: resolved\n' > docs/problems/0001-01-01-base.md
+    printf '\xef\xbb\xbf---\nstatus: draft\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all bom-front-matter
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1911,7 +1943,7 @@ SAD
     # in the header block below then belongs to no item and must be reported.
     # A private copy in check-trace.sh keeps skipping it, stays silent, and the
     # test reddens.
-    printf -- '---\nstatus: open\ntitle: Problem reports\n---\n\n**PR-001**: Crash. status: resolved\n' \
+    printf -- '---\nstatus: open\ntitle: Problem reports\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' \
         > docs/problems/0001-01-01-base.md
     commit_all front-matter-poison-fixture
 
@@ -1932,4 +1964,785 @@ POISON
     run sh .guardrails/scripts/check-trace.sh
     [[ "$output" == *"ORPHAN-ANNOTATION"* ]] \
         || { echo "the orphan scan kept its own front-matter rule: $output"; false; }
+}
+
+# --- Problem-report triage: practice-feedback finding 09a -------------------
+# The roll-call has to be complete before it is worth pricing higher. These
+# pin the reader; the limits that act on it are further down.
+
+@test "check-trace: an item with no status: line is reported, not read as resolved" {
+    # verifies: practice-feedback finding 09a (D1)
+    # Measured on sightings-app: one item of 159 (PR-028) records its state in
+    # prose bullets and carries no status: line. Every gate run since it was
+    # written has read it as resolved.
+    printf '**PR-001**: Crash on empty dose input.\naffects: REQ-001\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all no-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"status:"* ]]
+}
+
+@test "check-trace: an indented status: line no longer states an item's status" {
+    # verifies: practice-feedback finding 09a (D1)
+    # Column one, so that the reader and the ORPHAN-ANNOTATION backstop look in
+    # the same place. Silently dropping the line would be the same false green
+    # moved one step; it becomes INCOMPLETE-PROBLEM instead.
+    #
+    # The item is otherwise COMPLETE on purpose. The first version left out
+    # owner: and opened: as well, so INCOMPLETE-PROBLEM fired whatever the
+    # status rule did and the test passed without constraining it — a mutation
+    # restoring the old anywhere-on-the-line reader survived it untouched.
+    # Here only the status rule can decide the verdict.
+    printf '**PR-001**: Crash on empty dose input.\nowner: jvdv\nopened: %s\n  status: open\n' "$(days_ago 5)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all indented-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001 (no status: line in its block)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]] || { echo "read the indented line: $output"; false; }
+}
+
+@test "check-trace: a status: value outside the closed set is malformed" {
+    # verifies: practice-feedback finding 09a (D1)
+    printf '**PR-001**: Crash.\nstatus: openish\n' > docs/problems/0001-01-01-base.md
+    commit_all bad-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MALFORMED-STATUS PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]] || { echo "counted as open: $output"; false; }
+}
+
+@test "check-trace: a capitalised Status: does not state an item's status" {
+    # verifies: practice-feedback finding 09a (D1)
+    # The old pattern matched `status:` only, so `Status: open` left the item
+    # reading as resolved. It is now an omission, which is loud.
+    # Complete but for the status, so that only the status rule decides — see
+    # the indented-status test above for why that matters.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nStatus: open\n' "$(days_ago 5)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all capital-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001 (no status: line in its block)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: the first status: in a block wins" {
+    # verifies: practice-feedback finding 09a (D1)
+    # The GR_AWK_ID_RUN rule, applied to a scalar annotation: a later line
+    # cannot reopen or close an item the first line already stated.
+    printf '**PR-001**: Crash.\nowner: jvdv\nstatus: resolved\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all two-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an open item with no owner: is incomplete" {
+    # verifies: practice-feedback finding 09a (D2, D3)
+    printf '**PR-001**: Crash.\nopened: %s\nstatus: open\n' "$(days_ago 2)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all no-owner
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"owner:"* ]]
+}
+
+@test "check-trace: an open item with an empty owner: is incomplete" {
+    # verifies: practice-feedback finding 09a (D2)
+    # A keyword with nothing after it declares nothing — the same rule the
+    # verification-record gate applies to `reproduced:`.
+    printf '**PR-001**: Crash.\nowner:\nopened: %s\nstatus: open\n' "$(days_ago 2)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all empty-owner
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"owner:"* ]]
+}
+
+@test "check-trace: an open item with no opened: is still on the roll-call" {
+    # verifies: practice-feedback finding 09a (D2)
+    # The item cannot be aged, but it is open, and an open item missing from
+    # the roll-call is the defect this whole gate exists to remove.
+    printf '**PR-001**: Crash.\nowner: jvdv\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all no-opened
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"opened:"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "dropped from roll-call: $output"; false; }
+}
+
+@test "check-trace: a resolved item needs neither owner: nor opened:" {
+    # verifies: practice-feedback finding 09a (D3)
+    # The backfill this change asks of an existing ledger is bounded to the
+    # items that are still open.
+    printf '**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
+    commit_all resolved-bare
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+}
+
+@test "check-trace: a complete open item passes and reports its age and owner" {
+    # verifies: practice-feedback finding 09a (D2, task 4)
+    write_pr PR-001 open "$(days_ago 10)"
+    commit_all complete-open
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001 (open 10 days, owner jvdv)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: an opened: that is not a calendar date is malformed" {
+    # verifies: practice-feedback finding 09a (D5)
+    #
+    # Each input asserts MALFORMED-DATE specifically. The first version allowed
+    # `MALFORMED-DATE || INCOMPLETE-PROBLEM (no opened:)` so that the empty
+    # value could share the loop — a disjunction no input could distinguish,
+    # which left the empty-value rule unpinned on all eight. The independent
+    # review's mutation of that rule survived the whole suite. The empty value
+    # now has its own test below.
+    #
+    # 2026-00-10 and 2026-08-00 are here because a zero component is a
+    # plausible typo and the calendar test is the only thing that rejects it:
+    # a mutation dropping the `m < 1 || d < 1` half of gr_date_valid survived
+    # the list without them.
+    for bad in 2026-13-01 2026-02-30 2023-02-29 2026-00-10 2026-08-00 24-08-01 2026-08-1 2026-1a-01 yesterday 2026/08/01; do
+        printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$bad" \
+            > docs/problems/0001-01-01-base.md
+        commit_all "bad-date"
+        run sh .guardrails/scripts/check-trace.sh
+        [ "$status" -eq 1 ] || { echo "accepted '$bad': $output"; false; }
+        [[ "$output" == *"MALFORMED-DATE PR-001"* ]] \
+            || { echo "'$bad' was not reported malformed: $output"; false; }
+    done
+}
+
+@test "check-trace: an empty opened: is an omission, not a date" {
+    # verifies: practice-feedback finding 09a (D2)
+    # The mirror of the empty-owner: rule, which had its own test from the
+    # start. This one did not, and the review found it unpinned.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened:\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all empty-opened
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001 (open, no opened:)"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MALFORMED-DATE"* ]] || { echo "reported as a bad date: $output"; false; }
+}
+
+@test "check-trace: a leap day is a calendar date and a non-leap century day is not" {
+    # verifies: practice-feedback finding 09a (D5)
+    # Hand-rolled date arithmetic is wrong in February or it is not wrong at all.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: 2024-02-29\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all leap-ok
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "rejected a real leap day: $output"; false; }
+
+    # 1900 is divisible by 4 and by 100 but not by 400 — not a leap year, and
+    # the century rule is the half of the calendar a naive `% 4` gets wrong.
+    #
+    # 1900, and not 2100, deliberately. The first version used 2100, which is
+    # in the FUTURE: dropping the century rule made the date valid, the future
+    # rule then reported MALFORMED-DATE anyway, and the test passed while
+    # constraining nothing — a mutation removing the century rule survived it.
+    # A past date leaves only the calendar rule able to reject it.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: 1900-02-29\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all leap-century
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "accepted 1900-02-29: $output"; false; }
+    [[ "$output" == *"MALFORMED-DATE PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"not a YYYY-MM-DD calendar date"* ]] \
+        || { echo "rejected for the wrong reason: $output"; false; }
+}
+
+@test "check-trace: an opened: date in the future is rejected, not treated as young" {
+    # verifies: practice-feedback finding 09a (D4, amended)
+    # A future date yields a negative age, which compares as younger than any
+    # limit — the false-green direction, so it fails rather than clamping.
+    # AMENDED by the independent review: one day of tolerance, because that is
+    # the width of a timezone disagreement about "today". This test now uses
+    # two days; the boundary itself is pinned by `an opened: one day ahead is
+    # clock skew, further is an error`.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago -2)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all future-date
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-DATE PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"future"* ]]
+}
+
+@test "check-trace: an item opened today is zero days old, not a day either way" {
+    # verifies: practice-feedback finding 09a (D4)
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 0)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all opened-today
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"(open 0 days, owner jvdv)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: problem_age_days fails an item older than the limit" {
+    # verifies: practice-feedback finding 09a (D6)
+    printf 'problem_age_days: 30\n' >> .guardrails/config.yaml
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 31)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all stale
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"STALE-PROBLEM PR-001 (open 31 days, limit 30)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: problem_age_days passes an item exactly at the limit" {
+    # verifies: practice-feedback finding 09a (D6)
+    # The limit is "more than", stated once here so it cannot drift.
+    printf 'problem_age_days: 30\n' >> .guardrails/config.yaml
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 30)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all at-limit
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"STALE-PROBLEM"* ]]
+}
+
+@test "check-trace: problem_open_max fails a backlog past the limit" {
+    # verifies: practice-feedback finding 09a (D6)
+    printf 'problem_open_max: 2\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    write_pr PR-p9r5wx open "$(days_ago 1)"
+    write_pr PR-b4m8p3 open "$(days_ago 1)"
+    commit_all backlog
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"PROBLEM-BACKLOG (3 open problem reports, limit 2)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: problem_open_max passes a backlog exactly at the limit" {
+    # verifies: practice-feedback finding 09a (D6)
+    printf 'problem_open_max: 2\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    write_pr PR-p9r5wx open "$(days_ago 1)"
+    commit_all backlog-at-limit
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"PROBLEM-BACKLOG"* ]]
+}
+
+@test "check-trace: the backlog count spans every ledger file, not one at a time" {
+    # verifies: practice-feedback finding 09a (D6)
+    # The scan runs per file; the limit is a property of the ledger.
+    printf 'problem_open_max: 1\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    printf '**PR-p9r5wx**: Another.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 1)" \
+        > docs/problems/2026-01-02-second.md
+    commit_all backlog-two-files
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"PROBLEM-BACKLOG (2 open problem reports, limit 1)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an unparseable limit is an environment error, not no limit" {
+    # verifies: practice-feedback finding 09a (D6)
+    # A limit the reader cannot see reads as "no limit" through cfg_get — a
+    # gate disabling itself on a typo, which is the whole shape gr_check_config
+    # exists to reject.
+    for bad in thirty -1 1.5 "30 days" ""; do
+        cp .guardrails/config.yaml .guardrails/config.yaml.bak
+        printf 'problem_age_days: %s\n' "$bad" >> .guardrails/config.yaml
+        run sh .guardrails/scripts/check-trace.sh
+        cp .guardrails/config.yaml.bak .guardrails/config.yaml
+        [ "$status" -eq 2 ] || { echo "accepted '$bad': status $status: $output"; false; }
+    done
+    rm -f .guardrails/config.yaml.bak
+}
+
+@test "check-trace: problem_age_days 0 is a limit, not an absent one" {
+    # verifies: practice-feedback finding 09a (D6)
+    # Zero and unset are distinguishable and must stay so: cfg_get returns the
+    # empty string for both a missing key and an empty value, which is exactly
+    # how a configured limit would vanish.
+    printf 'problem_age_days: 0\n' >> .guardrails/config.yaml
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 1)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all zero-limit
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"STALE-PROBLEM PR-001 (open 1 days, limit 0)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: the summary states the limits, set or not, on pass and on failure" {
+    # verifies: practice-feedback finding 09a (D6)
+    # An unset limit is a legitimate configuration and never a silent one.
+    write_pr PR-001 open "$(days_ago 7)"
+    commit_all summary-unset
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 1, oldest 7 days; limits age none, open none"* ]] \
+        || { echo "$output"; false; }
+
+    printf 'problem_age_days: 3\nproblem_open_max: 9\n' >> .guardrails/config.yaml
+    commit_all summary-set
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 1, oldest 7 days; limits age 3, open 9"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: the summary reports no open problems as none, not as zero days" {
+    # verifies: practice-feedback finding 09a (D6)
+    printf '**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
+    commit_all summary-empty
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 0, oldest n/a;"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an undatable open item counts toward the backlog limit" {
+    # verifies: practice-feedback finding 09a (D2, D6)
+    # It is already failing for the missing field. It must not ALSO be missing
+    # from the count, or a ledger could hold its backlog down by omission.
+    printf 'problem_open_max: 1\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    printf '**PR-p9r5wx**: Undated.\nowner: jvdv\nstatus: open\n' \
+        > docs/problems/2026-01-02-second.md
+    commit_all undatable-counts
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"PROBLEM-BACKLOG (2 open problem reports, limit 1)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an owner: belonging to no item is an orphan" {
+    # verifies: practice-feedback finding 09a (D8)
+    # The reader and the backstop must cover the same keywords. An orphaned
+    # owner: is worse than a missing one: under a looser block rule it is
+    # credited to the item above, and an ownerless item then reads as owned.
+    printf 'owner: jvdv\n\n**PR-001**: Crash.\nstatus: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all orphan-owner
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"(owner: belongs to no item)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an opened: belonging to no item is an orphan" {
+    # verifies: practice-feedback finding 09a (D8)
+    printf '# Notes\n\nopened: 2026-01-01\n\n**PR-001**: Crash.\nstatus: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all orphan-opened
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"(opened: belongs to no item)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: owner: and opened: in another ledger are out of scope" {
+    # verifies: practice-feedback finding 09a (D8)
+    # Per-keyword scope, as for status:. These are block-parsed only in
+    # doc_problems; reporting them from the SRS, where nothing reads them,
+    # would be noise, and noise is what teaches people to read past the output.
+    printf '\nowner: jvdv\nopened: 2026-01-01\n' >> docs/requirements/0001-01-01-base.md
+    commit_all owner-in-srs
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: an indented owner: in a grammar comment is not an orphan" {
+    # verifies: practice-feedback finding 09a (D8)
+    # Column one, like every definition form here — which is what keeps the
+    # grammar comment shipped in templates/problems.md inert.
+    printf '<!--\n  **PR-NNNNNN**: <symptom>.\n  owner: <name>\n  opened: YYYY-MM-DD\n  status: open|resolved\n-->\n\n**PR-001**: Crash.\nstatus: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all owner-grammar-comment
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: a CRLF ledger states its status like any other" {
+    # verifies: practice-feedback finding 09a (D1)
+    # A ledger written on Windows must not read as an item with no status.
+    printf '**PR-001**: Crash.\r\nowner: jvdv\r\nopened: %s\r\nstatus: open\r\n' "$(days_ago 4)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all crlf-item
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001 (open 4 days, owner jvdv)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an indented owner: does not answer for an open item" {
+    # verifies: practice-feedback finding 09a (D1, D8)
+    # The other half of the column-one rule. Its companion test proves an
+    # indented owner: is not an ORPHAN; this one proves it is not a FIELD
+    # either. Only the pair rules out a grammar comment answering for a real
+    # item three lines below it.
+    printf '**PR-001**: Crash.\n  owner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 4)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all indented-owner
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001 (open, no owner:)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: trailing whitespace on a field is not part of its value" {
+    # verifies: practice-feedback finding 09a (D1)
+    # `status: open ` must be open, not a fourth state.
+    printf '**PR-001**: Crash.\nowner: jvdv \nopened: %s \nstatus: open \n' "$(days_ago 4)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all trailing-space
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001 (open 4 days, owner jvdv)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: the backlog counts open items only" {
+    # verifies: practice-feedback finding 09a (D6)
+    printf 'problem_open_max: 1\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    printf '\n**PR-p9r5wx**: Fixed already.\nstatus: resolved\n\n**PR-b4m8p3**: Also fixed.\nstatus: resolved\n' \
+        >> docs/problems/0001-01-01-base.md
+    commit_all backlog-open-only
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 1,"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a date(1) that does not produce a calendar date is an error" {
+    # verifies: practice-feedback finding 09a (D5)
+    # "Today" is the denominator of every age this gate computes. A garbage
+    # value would not fail — it would make every age silently wrong, which is
+    # the shape of every other defect in this file.
+    write_pr PR-001 open "$(days_ago 4)"
+    commit_all date-stub
+    mkdir -p "$BATS_TEST_TMPDIR/fakebin"
+    printf '#!/bin/sh\necho "Tue 25 Aug 2026"\n' > "$BATS_TEST_TMPDIR/fakebin/date"
+    chmod +x "$BATS_TEST_TMPDIR/fakebin/date"
+    PATH="$BATS_TEST_TMPDIR/fakebin:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"not a date in YYYY-MM-DD form"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a date(1) that is date-SHAPED but not a real date is an error" {
+    # verifies: practice-feedback finding 09a (D5)
+    # The shell check tests the shape and the awk guard tests the calendar.
+    # Only the pair rejects 2026-13-45, and a mutation that removes just one
+    # of them survives — which is why both are exercised here.
+    write_pr PR-001 open "$(days_ago 4)"
+    commit_all date-stub-shaped
+    mkdir -p "$BATS_TEST_TMPDIR/fakebin2"
+    printf '#!/bin/sh\necho 2026-13-45\n' > "$BATS_TEST_TMPDIR/fakebin2/date"
+    chmod +x "$BATS_TEST_TMPDIR/fakebin2/date"
+    PATH="$BATS_TEST_TMPDIR/fakebin2:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    # INDEPENDENT REVIEW, finding 9. The calendar guard used to live in the
+    # per-file awk, so a clock problem was announced as `problem-report scan
+    # failed on docs/problems/....md` — naming a ledger file for a fault in
+    # date(1). Asserting only the exit code did not catch the misdirection.
+    [[ "$output" == *"not a calendar date"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"scan failed on"* ]] \
+        || { echo "a clock fault blamed on a ledger file: $output"; false; }
+}
+
+@test "check-trace: a leading --- does not hide the items beneath it" {
+    # verifies: practice-feedback finding 09a (D1)
+    #
+    # INDEPENDENT REVIEW, BLOCKING 1, and this test is the repair of the test
+    # that pinned the defect. The triage scan first shipped with a front-matter
+    # skip, argued as "the reader and the backstop must read the same bytes".
+    # GR_AWK_FRONT_MATTER opens on ANY `---` at line 1, so a leading horizontal
+    # rule swallowed every item definition up to the next one: an open problem
+    # 236 days old absent from the roll-call, problem_open_max not applied,
+    # exit 0 — with `checked: PR 2` printed next to `problems: open 1` and
+    # nothing reconciling them.
+    #
+    # The test that shipped with it asserted the ID appeared NOWHERE in the
+    # output, which is true both when the header is correctly ignored and when
+    # a real item is swallowed. It could not tell the two apart.
+    printf -- '---\n\n# Problem reports\n\n**PR-p9r5wx**: Swallowed.\nowner: jvdv\nopened: 2026-01-01\nstatus: open\n\n---\n\n**PR-001**: Another.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 5)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all leading-rule
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-p9r5wx"* ]] \
+        || { echo "item hidden by a leading ---: $output"; false; }
+    [[ "$output" == *"problems: open 2,"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: the open count and the item count reconcile" {
+    # verifies: practice-feedback finding 09a (D1)
+    # The self-contradiction the blocking finding left in the output is itself
+    # worth pinning: `checked:` counts the items and `problems:` counts the
+    # open ones, and no reading of a ledger where every item is open can make
+    # the second smaller than the first.
+    printf -- '---\n\n**PR-p9r5wx**: One.\nowner: jvdv\nopened: 2026-01-01\nstatus: open\n\n---\n\n**PR-001**: Two.\nowner: jvdv\nopened: 2026-01-02\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all reconcile
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"PR 2"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 2,"* ]] \
+        || { echo "checked: and problems: disagree: $output"; false; }
+}
+
+@test "check-trace: an age spanning February is counted exactly" {
+    # verifies: practice-feedback finding 09a (D5)
+    # days_from_civil shifts March to the start of its year so that the leap
+    # day falls at the END. Every other test in this file uses a date near
+    # today, which is never in January or February, so the shift itself went
+    # unexercised — a mutation that applied the March branch to every month
+    # survived the whole suite. `date` is stubbed so the arithmetic, not the
+    # calendar the tests happen to run on, decides the answer.
+    mkdir -p "$BATS_TEST_TMPDIR/febbin"
+    printf '#!/bin/sh\necho 2026-03-01\n' > "$BATS_TEST_TMPDIR/febbin/date"
+    chmod +x "$BATS_TEST_TMPDIR/febbin/date"
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: 2026-02-01\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all feb-age
+    PATH="$BATS_TEST_TMPDIR/febbin:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"(open 28 days, owner jvdv)"* ]] || { echo "2026 February: $output"; false; }
+
+    # And the same span across a leap February is one day longer.
+    printf '#!/bin/sh\necho 2024-03-01\n' > "$BATS_TEST_TMPDIR/febbin/date"
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: 2024-02-01\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all feb-age-leap
+    PATH="$BATS_TEST_TMPDIR/febbin:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"(open 29 days, owner jvdv)"* ]] || { echo "2024 February: $output"; false; }
+
+    # A span that crosses the year boundary, where the shift moves the year too.
+    printf '#!/bin/sh\necho 2026-01-10\n' > "$BATS_TEST_TMPDIR/febbin/date"
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: 2025-12-31\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all jan-age
+    PATH="$BATS_TEST_TMPDIR/febbin:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"(open 10 days, owner jvdv)"* ]] || { echo "year boundary: $output"; false; }
+}
+
+@test "check-trace: an item opened today is the oldest, not no age at all" {
+    # verifies: practice-feedback finding 09a (D6)
+    # The running maximum started at awk's uninitialised 0, so an age of 0 —
+    # the only age that does not exceed it — never registered, and a ledger
+    # whose sole open item was opened today reported `oldest n/a`: an open
+    # item present in the count and absent from the age. Found by reading,
+    # after the mutation battery had already gone green.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 0)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all oldest-today
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 1, oldest 0 days;"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: the first owner: and the first opened: in a block win" {
+    # verifies: practice-feedback finding 09a (D1)
+    # The plan listed "second owner: line ignored" as a RED test and no such
+    # test was written; the review's mutation making the LAST occurrence win
+    # survived the whole suite. templates/problems.md states the rule, so it
+    # was documented and unenforced — the pairing this toolkit exists to end.
+    printf '**PR-001**: Crash.\nowner: jvdv\nowner: someone-else\nopened: %s\nopened: 1999-01-01\nstatus: open\n' "$(days_ago 6)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all first-owner-wins
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001 (open 6 days, owner jvdv)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an indented opened: does not answer for an open item" {
+    # verifies: practice-feedback finding 09a (D1)
+    # The column-one rule was pinned for status: and for owner: but not for
+    # opened:, which the review's mutation showed. All three keywords are read
+    # by the same rule and all three are now pinned by it.
+    printf '**PR-001**: Crash.\nowner: jvdv\n  opened: %s\nstatus: open\n' "$(days_ago 6)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all indented-opened
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001 (open, no opened:)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an age spanning a century boundary is counted exactly" {
+    # verifies: practice-feedback finding 09a (D5)
+    # days_from_civil's `- int(yoe / 100)` term. Every dated fixture lives in
+    # 2024-2026, so the term was never exercised and a mutation deleting it
+    # survived: 1999-01-01 to 2001-01-01 is 731 days, and 728 without it. This
+    # is a different rule from the leap-CENTURY rule in gr_date_valid.
+    mkdir -p "$BATS_TEST_TMPDIR/centbin"
+    printf '#!/bin/sh\necho 2001-01-01\n' > "$BATS_TEST_TMPDIR/centbin/date"
+    chmod +x "$BATS_TEST_TMPDIR/centbin/date"
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: 1999-01-01\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all century-age
+    PATH="$BATS_TEST_TMPDIR/centbin:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"(open 731 days, owner jvdv)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a BOM in front of the first item does not hide it" {
+    # verifies: practice-feedback finding 09a (D1)
+    # A BOM sits in front of column one and hides it from every match. The
+    # strip was carried across from check_orphans and nothing pinned it.
+    #
+    # It leaves a known divergence, stated rather than hidden: `ids_defined`
+    # greps for an anchored definition and does NOT tolerate a BOM, so the
+    # item is on the roll-call and absent from `checked:`. Both readings are
+    # red — DANGLING-REF fires — and red-and-confusing beats an open problem
+    # nobody sees. Making git grep BOM-tolerant is a change to every gate.
+    printf '\xef\xbb\xbf**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago 6)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all bom-item
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" == *"UNRESOLVED-PR PR-001 (open 6 days, owner jvdv)"* ]] \
+        || { echo "BOM hid the item from the roll-call: $output"; false; }
+}
+
+@test "check-trace: an opened: one day ahead is clock skew, further is an error" {
+    # verifies: practice-feedback finding 09a (D4, amended)
+    # INDEPENDENT REVIEW, finding 2. resolve-problem tells the author to write
+    # today, and "today" differs by a day across timezones; without tolerance
+    # an author in UTC+13 blocked the merge on a correct item on the day they
+    # recorded it. One day cannot make a stale item look fresh against limits
+    # measured in weeks.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago -1)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all one-day-ahead
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "one day ahead was refused: $output"; false; }
+    [[ "$output" == *"(open 0 days, owner jvdv)"* ]] || { echo "$output"; false; }
+
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n' "$(days_ago -2)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all two-days-ahead
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "two days ahead was accepted: $output"; false; }
+    [[ "$output" == *"more than a day in the future"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a limit too large to compare is an error, not no limit" {
+    # verifies: practice-feedback finding 09a (D6)
+    # INDEPENDENT REVIEW, finding 3. Digits alone passed gr_limit, then
+    # `[ n -gt limit ]` failed with "Illegal number", the if took its else
+    # branch, and the backlog gate was off with the run green.
+    printf 'problem_open_max: 99999999999999999999\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    commit_all huge-limit
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"cannot compare as a number"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a bad limit is diagnosed before any gate runs" {
+    # verifies: practice-feedback finding 09a (D6)
+    # INDEPENDENT REVIEW, finding 5. Read at the point of use, a typo in a
+    # limit was reported after a page of violations and with every summary
+    # line suppressed — the evidence lost to the error.
+    printf 'problem_age_days: thirty\n' >> .guardrails/config.yaml
+    printf '\nSee REQ-777 for context.\n' >> docs/problems/README.md
+    commit_all late-diagnosis
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"problem_age_days must be"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-REF"* ]] \
+        || { echo "gates ran before the config was settled: $output"; false; }
+}
+
+@test "check-trace: the summary counts undated open items apart from the oldest" {
+    # verifies: practice-feedback finding 09a (D6)
+    # INDEPENDENT REVIEW, finding 10. `oldest` is the oldest DATABLE item, so
+    # an undated open item was in the count and invisible in the age.
+    write_pr PR-001 open "$(days_ago 3)"
+    printf '\n**PR-p9r5wx**: Undated.\nowner: jvdv\nstatus: open\n' \
+        >> docs/problems/0001-01-01-base.md
+    commit_all undated-summary
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"problems: open 2, oldest 3 days (1 with no usable date);"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: one open problem report is reported in the singular" {
+    # verifies: practice-feedback finding 09a (D6)
+    printf 'problem_open_max: 0\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    commit_all singular
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"PROBLEM-BACKLOG (1 open problem report, limit 0)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a leading --- does not switch the orphan backstop off either" {
+    # verifies: practice-feedback finding 09a (D8)
+    #
+    # INDEPENDENT REVIEW, second pass, finding N2. The blocking finding was
+    # repaired in the READER by removing its front-matter skip; the BACKSTOP
+    # still could not tell a header from a horizontal rule, so a leading `---`
+    # silently dropped every annotation up to the next one. Pre-existing for
+    # `status:`, and this change had newly extended it to `owner:`/`opened:` —
+    # the two gates disagreeing about what `---` means, in a change whose whole
+    # argument is that they must agree.
+    #
+    # The bound is on line 2: YAML has no blank line between the opening
+    # delimiter and the first key, so `---` followed by a blank line is a rule.
+    printf -- '---\n\nstatus: open\nowner: jvdv\nopened: 2026-01-01\n\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all leading-rule-backstop
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"(status: belongs to no item)"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"(owner: belongs to no item)"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"(opened: belongs to no item)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: real front matter is still skipped by the backstop" {
+    # verifies: practice-feedback finding 09a (D8)
+    # The other side of the bound above: a header block with a key on line 2
+    # is still a header block, and a `status: draft` in it is a title-page
+    # field, not an orphan. Without this the fix would trade one false green
+    # for a false red on every document that carries front matter.
+    printf -- '---\nstatus: draft\nowner: docs team\ntitle: Problem reports\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all real-front-matter-kept
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a limit at the shell's integer range is accepted" {
+    # verifies: practice-feedback finding 09a (D6)
+    # INDEPENDENT REVIEW, second pass, N5. The first repair fixed nine digits
+    # and refused 1000000000 with the untrue explanation that it was too large
+    # to compare. Loosening that constant to eighteen digits survived the whole
+    # suite, so the boundary was unpinned in both directions. The rule now asks
+    # the shell, and both ends are pinned here.
+    printf 'problem_open_max: 1000000000\n' >> .guardrails/config.yaml
+    write_pr PR-001 open "$(days_ago 1)"
+    commit_all big-but-comparable
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "a comparable limit was refused: $output"; false; }
+    [[ "$output" == *"limits age none, open 1000000000"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an item with a refused date is counted as having no usable date" {
+    # verifies: practice-feedback finding 09a (D6)
+    # INDEPENDENT REVIEW, second pass, N6. The count is of items whose age is
+    # unknown, which includes a date that was read and REJECTED — not only one
+    # that is absent. The word had to become true of both.
+    printf '**PR-001**: Crash.\nowner: jvdv\nopened: 2026-13-01\nstatus: open\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all refused-date-counted
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"problems: open 1, oldest n/a (1 with no usable date);"* ]] \
+        || { echo "$output"; false; }
 }

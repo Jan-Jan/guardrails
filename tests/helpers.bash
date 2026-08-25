@@ -79,3 +79,27 @@ verdict: accepted, no findings outstanding
 reproduced: yes, against the shipped scripts, before any change
 EOF
 }
+
+# YYYY-MM-DD for N days before today. GNU date and BSD date disagree on the
+# flag, and the tests must run on whichever the developer has; the scripts
+# under test do their own date arithmetic in awk precisely to avoid needing
+# either.
+days_ago() {
+    date -d "$1 days ago" +%Y-%m-%d 2>/dev/null \
+        || date -v-"$1"d +%Y-%m-%d 2>/dev/null \
+        || { echo "no usable date(1) for relative dates" >&2; return 1; }
+}
+
+# A problem-report item carrying every field the gate requires, appended to the
+# problems ledger. Callers drop or corrupt one field at a time to test it.
+#   write_pr [ID] [STATUS] [OPENED]
+write_pr() {
+    cat >> docs/problems/0001-01-01-base.md <<EOF
+
+**${1:-PR-001}**: Crash on empty dose input.
+affects: REQ-001
+owner: jvdv
+opened: ${3:-$(days_ago 3)}
+status: ${2:-open}
+EOF
+}

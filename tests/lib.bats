@@ -397,3 +397,51 @@ EOF
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [[ "$output" == *"checked:"* ]] || { echo "$output"; false; }
 }
+
+@test "the shipped config template names only keys the reader knows" {
+    # A key in the template that GR_KNOWN_KEYS does not list makes every
+    # freshly ratcheted project exit 2 on its first gate run; a key in
+    # GR_KNOWN_KEYS that the template never mentions is a gate nobody
+    # discovers. Neither is visible from either file alone. Commented-out
+    # keys count as documented, not as configured, so only column-one keys
+    # are checked here.
+    cp "$BATS_TEST_DIRNAME/../templates/config.yaml" .guardrails/config.yaml
+    known=$(sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "$GR_KNOWN_KEYS"')
+    used=$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*:' .guardrails/config.yaml | tr -d ':')
+    [ -n "$used" ] || { echo "no keys found in the template"; false; }
+    for k in $used; do
+        printf '%s\n' "$known" | grep -qx "$k" \
+            || { echo "template sets '$k', which GR_KNOWN_KEYS does not list"; false; }
+    done
+    # And every known key is at least mentioned, set or commented out.
+    for k in $known; do
+        grep -q "^# *$k:\|^$k:" .guardrails/config.yaml \
+            || { echo "GR_KNOWN_KEYS has '$k', which the template never mentions"; false; }
+    done
+}
+
+@test "the shipped config template is accepted by gr_check_config" {
+    # The template is what /ratchet copies in. If it does not pass the schema
+    # check, every new project's first gate run is exit 2.
+    cp "$BATS_TEST_DIRNAME/../templates/config.yaml" .guardrails/config.yaml
+    sed -i 's/^safety_class: TBD/safety_class: B/' .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config && echo accepted'
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *accepted* ]]
+}
+
+@test "gr_limit reads a whole number, refuses anything else, and is empty when unset" {
+    run sh -c '. .guardrails/scripts/lib.sh && gr_limit problem_age_days && echo "[$?]"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "[0]" ] || { echo "unset limit was not empty: $output"; false; }
+
+    printf 'problem_open_max: 7\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_limit problem_open_max'
+    [ "$status" -eq 0 ]
+    [ "$output" = "7" ]
+
+    printf 'problem_age_days:\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_limit problem_age_days'
+    [ "$status" -eq 2 ] || { echo "empty value accepted: $status $output"; false; }
+    [[ "$output" == *"empty value"* ]]
+}

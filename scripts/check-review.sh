@@ -152,15 +152,6 @@ function gr_flush() {
     if (!disposed) printf "U %d %s\n", open_line, open_id
     open_line = 0
 }
-# The value of an annotation: everything after the keyword, trimmed. A keyword
-# with nothing after it declares nothing, and is reported as absent — an empty
-# `reproduced:` is an omission wearing the shape of compliance.
-function gr_value(line, kw,   v) {
-    v = substr(line, length(kw) + 1)
-    sub(/^[ \t]+/, "", v)
-    sub(/[ \t]+$/, "", v)
-    return v
-}
 # Is this line SHAPED like a finding header? Deliberately much broader than the
 # opener, and BYTE-WISE.
 #

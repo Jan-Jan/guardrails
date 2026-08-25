@@ -451,6 +451,12 @@ function gr_block_opens_loose(line) { return 0 }
 function gr_block_closes(line) { return 0 }
 function gr_block_id(line) { return "ZZ-NO-SUCH-ITEM-ZZ" }
 function gr_kw_here(line, kw) { return 1 }
+function gr_value(line, kw,   v) {
+    v = substr(line, length(kw) + 1)
+    sub(/^[ \t]+/, "", v)
+    sub(/[ \t]+$/, "", v)
+    return v
+}
 '
 POISON
 

@@ -213,6 +213,32 @@ ls src lib app AGENTS.md docs 2>/dev/null
 >   review there, so it exits 2. Run it at `merge-change` step 6c from the
 >   worktree, or in pull-request CI as `check-review.sh --branch <head>`.
 >
+> **Problem reports are now triaged, and this one DOES touch the existing
+> ledger.** It is the only part of the upgrade that does. `check-trace.sh`
+> requires a column-one `status:` on every problem report, and an `owner:` and
+> an `opened: YYYY-MM-DD` on every one that is **open**. Work through it in
+> this order, because the first item finds things the other two do not:
+>
+> 1. `INCOMPLETE-PROBLEM … (no status: line in its block)` — an item whose
+>    state the gate has never been able to read. Until now it counted as
+>    resolved and was absent from every merge's known-problem list. **Read it
+>    before you label it**; it may well still be open. On a real ledger of 159
+>    items there was one of these, recorded in prose bullets.
+> 2. `MALFORMED-STATUS` — `closed`, `wontfix`, `Open`. Pick `open` or
+>    `resolved`; an unrecognised status counted as resolved too.
+> 3. `INCOMPLETE-PROBLEM … (open, no owner:/no opened:)` — the backfill. Only
+>    the still-open items need it, so this is bounded and shrinks every time
+>    one is resolved. For `opened:`, the merge date in the defining file's own
+>    name (`docs/problems/YYYY-MM-DD-slug.md`) is the honest answer when the
+>    real date is not recorded.
+>
+> The two limits, `problem_age_days` and `problem_open_max`, are separate.
+> They ship set in `templates/config.yaml` but an existing config does not
+> gain them by upgrading the scripts — add them deliberately, with the numbers
+> your team will actually act on. Until you do, both print as `none` in the
+> `problems:` summary line on every run, which is the point: an unset limit is
+> a decision that stays visible.
+>
 > Every one of these is a pre-existing gap the older scripts passed over, not
 > a new requirement invented by the upgrade. Fix the config or the layout;
 > **there is no compatibility flag, deliberately.** Almost every shape above
