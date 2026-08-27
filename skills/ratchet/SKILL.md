@@ -239,6 +239,23 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > `problems:` summary line on every run, which is the point: an unset limit is
 > a decision that stays visible.
 >
+> **On macOS, `check-review.sh` has never run at all.** From the version that
+> introduced it until this one, its record scan handed `awk -v` a value
+> carrying literal newlines. The awk that ships with macOS — BWK, `awk version
+> 20200816`, the only awk on a stock box — rejects that outright: `awk:
+> newline in string ... at source line 1`, exit 2, before the program runs.
+> gawk, mawk and busybox awk all accept it, which is how it shipped. The
+> consequence is worse than a false pass and less visible: the gate never read
+> a record, and exit 2 reads as a *setup* error, so the natural response was
+> to go looking in the project's own configuration.
+>
+> So any project that ran `/ratchet` on macOS has a `merge-change` step 6c
+> that has never executed. Those records may well satisfy the schema — but
+> nothing mechanical has ever confirmed it, and "it exited 2 every time" is
+> not evidence either way. After upgrading, run
+> `check-review.sh --branch <name>` once over each record the ledger already
+> holds. That is the honest remedy; assuming they were fine is not.
+>
 > **The config schema gained five fatal rules, and every one applies in EVERY
 > gate**, not in one script — they live in `gr_check_config`, which runs before
 > any gate does. Each is a shape in which a key does not take effect as written

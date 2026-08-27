@@ -71,7 +71,7 @@
 # below the first, which is what editing by appending produces, means the
 # project's real test suite never runs while the merge gate passes on the
 # placeholder above it.
-guardrails_version: 0.5.0
+guardrails_version: 0.5.1
 
 # IEC 62304 software safety class: A, B, or C. Set by /ratchet.
 # Per-item overrides: document them in the SAD next to the SDD item.

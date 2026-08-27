@@ -218,7 +218,8 @@ gr_kw_here(line, "disposition:") {
     else printf "O %d\n", FNR
 }
 {
-    # Default FS: the field list is newline-separated (see below).
+    # Default FS, which splits on runs of space, tab and newline alike. The
+    # shell hands this list space-separated; see GR_RECORD_KWS for why.
     n = split(kws, K)
     for (i = 1; i <= n; i++) {
         if (!gr_kw_here(line, K[i])) continue
@@ -256,8 +257,28 @@ GR_RECORD_FIELDS='reviewer:
 verdict:
 reproduced:'
 
+# The same list, flattened to spaces, for the one consumer that cannot take a
+# newline. Computed once: scan_record runs per record. GR_RECORD_FIELDS itself
+# must STAY newline-separated — IFS is a newline for this whole script, so the
+# `for _kw in $GR_RECORD_FIELDS` loop below would otherwise split a
+# space-separated value into ONE word and look for a field named
+# `reviewer: verdict: reproduced:`, which no record carries, reporting
+# INCOMPLETE-RECORD against every record in the repository.
+GR_RECORD_KWS=$(printf '%s' "branch: $GR_RECORD_FIELDS" | tr '\n' ' ')
+
 scan_record() {
-    LC_ALL=C awk -v kws="branch: $GR_RECORD_FIELDS" "$GR_RECORD_SCAN" "$1" "$1" \
+    # GR_RECORD_KWS, never GR_RECORD_FIELDS: macOS's awk (BWK, "awk version
+    # 20200816" — the one that ships with the OS, and the only awk on a stock
+    # box) refuses a LITERAL newline inside a -v assignment: `awk: newline in
+    # string ... at source line 1`, exit 2, before the program runs. gawk,
+    # mawk and busybox awk all accept it, and every measurement recorded in
+    # this toolkit's comments was taken on one of those three — which is how
+    # this reached a release, and why the symptom was exit 2 rather than a
+    # wrong answer: the gate did not run at all.
+    #
+    # `kws` is read only by `split(kws, K)` under the default FS, so the
+    # flattened list is the same list to awk.
+    LC_ALL=C awk -v kws="$GR_RECORD_KWS" "$GR_RECORD_SCAN" "$1" "$1" \
         || gr_die "record scan failed on $1"
 }
 

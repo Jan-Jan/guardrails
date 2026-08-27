@@ -426,7 +426,8 @@ EOF
     # The template is what /ratchet copies in. If it does not pass the schema
     # check, every new project's first gate run is exit 2.
     cp "$BATS_TEST_DIRNAME/../templates/config.yaml" .guardrails/config.yaml
-    sed -i 's/^safety_class: TBD/safety_class: B/' .guardrails/config.yaml
+    sed -i.bak 's/^safety_class: TBD/safety_class: B/' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config && echo accepted'
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [[ "$output" == *accepted* ]]
@@ -457,7 +458,8 @@ EOF
     # off. So: every key, scalar and list alike.
     printf '// implements: REQ-zzz9zz\n' > src/main.c
     printf 'true\n' > tests/test_a.sh
-    sed -i 's|^  - src$|#  - src|' .guardrails/config.yaml
+    sed -i.bak 's|^  - src$|#  - src|' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
     commit_all commented-strict-paths
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
@@ -466,7 +468,8 @@ EOF
 
     # Positive control: restored, the same tree is a genuine failure rather
     # than a pass — which is what the commented-out key was hiding.
-    sed -i 's|^#  - src$|  - src|' .guardrails/config.yaml
+    sed -i.bak 's|^#  - src$|  - src|' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
     commit_all restored
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -507,7 +510,8 @@ EOF
     # pronounced valid: the validator made the byte invisible.
     printf 'verify_commands:\r\n  - echo FIRST\r\n\r\n  - echo SECOND\r\n' \
         >> .guardrails/config.yaml
-    sed -i '/^verify_commands:$/,+1d' .guardrails/config.yaml
+    del_first_line 'verify_commands:'
+    del_first_line '  - make test'
     run sh -c '. .guardrails/scripts/lib.sh && cfg_list verify_commands'
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [ "${lines[0]}" = "echo FIRST" ] || { echo "$output"; false; }
@@ -530,8 +534,8 @@ EOF
     # The duplicate check has to run first. Reordering the two checks changes
     # nothing else, which is why nothing else can detect it.
     printf 'verify_commands:\nverify_commands:\n  - make test\n' >> .guardrails/config.yaml
-    sed -i '0,/^verify_commands:$/{/^verify_commands:$/d}' .guardrails/config.yaml
-    sed -i '0,/^  - make test$/{/^  - make test$/d}' .guardrails/config.yaml
+    del_first_line 'verify_commands:'
+    del_first_line '  - make test'
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
     [[ "$output" == *"more than once"* ]] || { echo "$output"; false; }
@@ -545,8 +549,8 @@ EOF
     # scalar and refused the config from every gate. The config file's own
     # rule says a trailing ` # comment` is stripped for EVERY key.
     printf 'true\n' > tests/test_a.sh
-    sed -i 's|^strict_paths:$|strict_paths:  # only these are enforced|' \
-        .guardrails/config.yaml
+    sed -i.bak 's|^strict_paths:$|strict_paths:  # only these are enforced|' \
+        .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     # Through a command substitution, which is how every caller reads it.
     run sh -c '. .guardrails/scripts/lib.sh
         v=$(cfg_get strict_paths); printf "[%s]" "$v"'
@@ -675,8 +679,8 @@ PY
     # another everywhere else: the same config, two verdicts, decided by an
     # unrelated file. Here `ADR*` would silently become the valid prefix `ADRx`.
     mkdir ADRx
-    sed -i 's|^id_prefixes: .*|id_prefixes: REQ HAZ RC SDD LLR PR ADR*|' \
-        .guardrails/config.yaml
+    sed -i.bak 's|^id_prefixes: .*|id_prefixes: REQ HAZ RC SDD LLR PR ADR*|' \
+        .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_prefixes'
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
     [[ "$output" == *"not a bare identifier"* ]] || { echo "$output"; false; }
@@ -799,8 +803,10 @@ PY
     [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
     [[ "$output" == *accepted* ]] || { echo "$output"; false; }
 
-    sed -i 's|^coverage_command:$|coverage_command: make coverage|' .guardrails/config.yaml
-    sed -i '/^  - make coverage$/d' .guardrails/config.yaml
+    sed -i.bak 's|^coverage_command:$|coverage_command: make coverage|' \
+        .guardrails/config.yaml
+    sed -i.bak '/^  - make coverage$/d' .guardrails/config.yaml
+    rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
     [[ "$output" == *"wrong form"* ]] || { echo "$output"; false; }

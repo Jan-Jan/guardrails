@@ -110,9 +110,17 @@ EOF
 # flag, and the tests must run on whichever the developer has; the scripts
 # under test do their own date arithmetic in awk precisely to avoid needing
 # either.
+# A NEGATIVE count means the future, and the clock-skew tests need it. GNU
+# date reads `-d "-1 days ago"` and answers with tomorrow; BSD date is handed
+# `-v--1d`, cannot parse the doubled sign, and refuses — so the sign is folded
+# into the adjustment here rather than spelled twice.
 days_ago() {
-    date -d "$1 days ago" +%Y-%m-%d 2>/dev/null \
-        || date -v-"$1"d +%Y-%m-%d 2>/dev/null \
+    date -d "$1 days ago" +%Y-%m-%d 2>/dev/null && return 0
+    case "$1" in
+        -*) _adj="+${1#-}d" ;;
+        *)  _adj="-${1}d" ;;
+    esac
+    date -v"$_adj" +%Y-%m-%d 2>/dev/null \
         || { echo "no usable date(1) for relative dates" >&2; return 1; }
 }
 
@@ -128,4 +136,122 @@ owner: jvdv
 opened: ${3:-$(days_ago 3)}
 status: ${2:-open}
 EOF
+}
+
+# Creates a stub `awk` and echoes the directory to put on PATH. The stub is
+# the real awk in every respect but one: it refuses a `-v` assignment whose
+# value carries a LITERAL newline, exiting 2 with the message the real one
+# gives, before the program runs.
+#
+# That is exactly what macOS's BWK awk ("awk version 20200816", the one that
+# ships with the OS) does, and gawk, mawk and busybox awk all ACCEPT the same
+# newline. So on a developer's Linux box the defect is invisible — and it is
+# not a wrong answer that a behavioural test would catch, it is exit 2 with no
+# gate having run at all. The stub is how a Linux CI reproduces it.
+make_strict_awk() {
+    _real=$(command -v awk)
+    _bin="$BATS_TEST_TMPDIR/strict-awk"
+    # Called with the stub already on PATH, `command -v awk` finds the STUB and
+    # bakes its own path into the exec below — a fork bomb, not a test failure.
+    # The comment used to be the only thing preventing that.
+    case "$_real" in
+        "$_bin"/*) echo "make_strict_awk called with the stub already on PATH" >&2
+                   return 1 ;;
+    esac
+    mkdir -p "$_bin"
+    # Written with the real awk's path baked in: the stub must not find itself
+    # on PATH, and PATH is what the caller is about to change.
+    cat > "$_bin/awk" <<EOF
+#!/bin/sh
+# Every route a value takes into awk's variable space, because real BWK awk
+# refuses a literal newline in all of them: \`-v k=v\` as two words, \`-vk=v\` as
+# one, and a bare \`k=v\` OPERAND after the program. A stub watching only \`-v\`
+# would pass a defect of the same class straight through.
+#
+# The options are walked rather than pattern-matched across the whole argument
+# list, because the PROGRAM text is not an assignment however much it looks
+# like one: \`BEGIN { n = split(kws, K) }\` contains both an identifier and an
+# \`=\`, and it is multi-line in every script here. Only what follows the
+# program can be an operand assignment.
+_chk() {
+    case "\$1" in
+        *'
+'*)
+            # The real message quotes the VALUE, not the whole assignment.
+            printf 'awk: newline in string %s... at source line 1\n' "\${1#*=}" >&2
+            return 2 ;;
+    esac
+    return 0
+}
+_scan() {
+    while [ \$# -gt 0 ]; do
+        case "\$1" in
+            --)        shift; break ;;
+            -v)        _chk "\$2" || return 2; shift 2 ;;
+            -v?*)      _chk "\${1#-v}" || return 2; shift ;;
+            -f|-F)     shift 2 ;;
+            -f?*|-F?*) shift ;;
+            -*)        shift ;;
+            *)         shift; break ;;   # the program itself
+        esac
+    done
+    for _a in "\$@"; do                  # operands: files and var=value
+        case "\$_a" in
+            [A-Za-z_]*=*) _chk "\$_a" || return 2 ;;
+        esac
+    done
+    return 0
+}
+_scan "\$@" || exit 2
+exec "$_real" "\$@"
+EOF
+    chmod +x "$_bin/awk"
+    echo "$_bin"
+}
+
+# Deletes the FIRST line exactly equal to $1 from $2 (default the fixture
+# config), in place. The GNU spellings for this hand sed the scripts
+# `0,/re/{/re/d}` and `/re/,+1d`, and BSD sed rejects both: address 0 and the
+# `+N` relative address are GNU extensions, so no backup suffix would have
+# saved them. awk is the portable answer, and a whole-line comparison is what
+# every caller actually wanted.
+del_first_line() {
+    _f=${2:-.guardrails/config.yaml}
+    # `$0 "" == want ""` forces a STRING comparison. Bare `$0 == want` is
+    # numeric whenever both sides look like numbers under awk's strnum rules,
+    # so a line `  10` would match `want=010` — not what "exactly equal" means.
+    awk -v want="$1" '!seen && $0 "" == want "" { seen = 1; next } { print }' "$_f" \
+        > "$_f.tmp" && mv "$_f.tmp" "$_f"
+}
+
+# Creates a stub `date` and echoes the directory to put on PATH. The stub is
+# BSD date on the one point that matters here: it refuses `-d`, and its `-v`
+# adjustment carries its own sign, so `-v--1d` is an error rather than
+# tomorrow. Everything else passes through to the real date.
+#
+# The awk class got make_strict_awk so that a GNU box sees BWK behaviour. This
+# is the same instrument for the other half of the platform gap: without it the
+# `days_ago` regression test can only redden on macOS — on exactly the platform
+# where the defect it guards escaped, it is green.
+make_bsd_date() {
+    _real=$(command -v date)
+    _bin="$BATS_TEST_TMPDIR/bsd-date"
+    case "$_real" in
+        "$_bin"/*) echo "make_bsd_date called with the stub already on PATH" >&2
+                   return 1 ;;
+    esac
+    mkdir -p "$_bin"
+    cat > "$_bin/date" <<EOF
+#!/bin/sh
+for _a in "\$@"; do
+    case "\$_a" in
+        -d*) echo "date: illegal option -- d" >&2; exit 1 ;;
+        -v-[0-9]*|-v+[0-9]*|-v[0-9]*) ;;
+        -v*) printf '%s: Cannot apply date adjustment\n' "\${_a#-v}" >&2; exit 1 ;;
+    esac
+done
+exec "$_real" "\$@"
+EOF
+    chmod +x "$_bin/date"
+    echo "$_bin"
 }
