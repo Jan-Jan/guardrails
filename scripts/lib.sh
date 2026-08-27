@@ -28,6 +28,27 @@ SDD
 LLR
 PR'
 
+# The keys whose value is a LIST of `  - item` lines. Every other known key is
+# a scalar. Each key has exactly ONE form, and the distinction is enforced,
+# because a key written in the other form is read by nobody:
+#
+#   strict_paths: src        — cfg_list finds no items, every traceability scan
+#                              then walks no path, and a merge over an
+#                              undefined-ID reference exits 0 with `strict 0`
+#                              printed in the summary.
+#   doc_soup:
+#     - docs/soup.md         — cfg_get finds no value, gr_doc_files returns an
+#                              empty file list at status 0, and the document is
+#                              scanned by nobody.
+#
+# Neither shape breaks any other rule, and both look right: `id_prefixes: REQ
+# HAZ RC` is a space-separated scalar two lines above, so `strict_paths: src` is
+# the form an adopter reaches for.
+GR_LIST_KEYS='strict_paths
+test_paths
+verify_commands
+coverage_command'
+
 GR_KNOWN_KEYS='guardrails_version
 safety_class
 id_prefixes
@@ -379,8 +400,16 @@ function gr_date_ok(s,   y, m, d) {
 }
 '
 
+# gr_die MESSAGE — diagnose and exit 2.
+#
+# printf, never echo. Under dash — /bin/sh on Debian and its derivatives —
+# `echo` processes backslash escapes in its argument, and these messages quote
+# the operator's own config back at them. A config line containing `\t` is then
+# shown with a literal tab where the file has two characters, on a message whose
+# whole job is to point at that line; and one containing `\c` TRUNCATES the
+# message there, discarding the remedy that follows the quoted text.
 gr_die() {
-    echo "guardrails: $*" >&2
+    printf '%s\n' "guardrails: $*" >&2
     exit 2
 }
 
@@ -416,26 +445,64 @@ function gr_clean(v) {
 }
 '
 
+# A CARRIAGE RETURN IS STRIPPED BEFORE THE STRUCTURE IS JUDGED, not only out of
+# the value. gr_clean handles a `\r` inside a value; that is not enough. In a
+# CRLF file a BLANK line is a line containing one `\r`, which is neither a space
+# nor a tab, so cfg_list's "a column-one line ends the block" test fired on it:
+# every item below the first blank line in a list was read by nobody, and the
+# gate that wanted them passed having examined less than it was configured to.
+#
+# gr_check_config normalises `\r` before validating each line, so such a file
+# is pronounced valid — the validator whose purpose is to refuse a config that
+# would silently disable a gate is what made the byte invisible. It rejects a
+# BOM outright, and CRLF was left half-supported instead.
+GR_AWK_STRIP_CR='
+function gr_line(s) { sub(/\r$/, "", s); return s }
+'
+
 # cfg_get KEY — print the scalar value of a top-level `key: value` entry.
+#
+# The post-colon blanks are stripped AFTER gr_clean, not before. Stripping them
+# first takes away the whitespace gr_clean's ` #` rule needs to see, so
+# `strict_paths:  # only these` yields the VALUE `# only these` — non-empty —
+# and the form rule below then reads a list key as a scalar and refuses the
+# config from every gate. The rule this file states is that a trailing
+# ` # comment` is stripped for EVERY key; this is what makes that true of a key
+# whose value is otherwise empty.
+#
+# No gr_line here, deliberately: a CR in a CRLF file is always at end of record,
+# so it cannot reach the key match at column one, and gr_clean already strips it
+# off the value. cfg_list needs it because a blank CRLF line is a record
+# consisting of the CR alone, and that record is judged as structure.
 cfg_get() {
     [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
     awk -v k="$1" "$GR_AWK_CLEAN_VALUE"'
-        index($0, k ":") == 1 { sub(/^[^:]*:[ \t]*/, ""); print gr_clean($0); exit }
+        index($0, k ":") == 1 {
+            sub(/^[^:]*:/, "")
+            v = gr_clean($0)
+            sub(/^[ \t]+/, "", v)
+            print v
+            exit
+        }
     ' "$GR_CONFIG"
 }
 
 # cfg_list KEY — print items of a top-level `key:` block of `  - item` lines.
 cfg_list() {
     [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
-    awk -v k="$1" "$GR_AWK_CLEAN_VALUE"'
-        !inlist && index($0, k ":") == 1 { inlist = 1; next }
+    awk -v k="$1" "$GR_AWK_CLEAN_VALUE$GR_AWK_STRIP_CR"'
+        { line = gr_line($0) }
+        !inlist && index(line, k ":") == 1 { inlist = 1; next }
         # A column-one line ends the block, comments included. Skipping them
         # instead would silently ADOPT any items below into this list — an
         # item under a commented-out key would become a member of whatever
         # block was open above it. gr_check_config rejects that shape outright
         # rather than either reader guessing at it.
-        inlist && /^[^ \t]/ { exit }
-        inlist && /^[ \t]*-[ \t]/ { sub(/^[ \t]*-[ \t]*/, ""); print gr_clean($0) }
+        inlist && line ~ /^[^ \t]/ { exit }
+        inlist && line ~ /^[ \t]*-[ \t]/ {
+            sub(/^[ \t]*-[ \t]*/, "", line)
+            print gr_clean(line)
+        }
     ' "$GR_CONFIG"
 }
 
@@ -451,6 +518,13 @@ gr_prefixes() {
     # the caller's IFS, or the whole value arrives as one "prefix".
     _saved_ifs=${IFS-__gr_unset__}
     unset IFS
+    # `set -f` with it: word splitting drags pathname expansion along, so
+    # without this an `id_prefixes` entry containing a glob character means one
+    # thing in a repository whose root happens to hold a matching name and
+    # another everywhere else — the same config, two verdicts, decided by an
+    # unrelated directory listing.
+    case $- in *f*) _pfx_refl=1 ;; *) _pfx_refl=0 ;; esac
+    set -f
     _out=""
     for _one in $_v; do
         case "$_one" in
@@ -460,6 +534,7 @@ gr_prefixes() {
         _out="${_out}${_one}
 "
     done
+    [ "$_pfx_refl" -eq 1 ] || set +f
     if [ "$_saved_ifs" = "__gr_unset__" ]; then unset IFS; else IFS=$_saved_ifs; fi
     printf '%s' "$_out"
 }
@@ -701,9 +776,37 @@ gr_check_config() {
     # rather than with `head -c`, which is not in POSIX head. LC_ALL=C so
     # substr counts bytes: in a UTF-8 locale awk counts characters and the
     # three BOM bytes are one of them.
-    if [ -n "$(LC_ALL=C awk 'NR == 1 { if (substr($0, 1, 3) == "\357\273\277") print "bom"; exit }' "$GR_CONFIG" 2>/dev/null)" ]; then
-        gr_die "config begins with a UTF-8 BOM: $GR_CONFIG — save it as plain UTF-8"
-    fi
+    # ONE read gate, before any scan. Every scan below prints nothing when it
+    # cannot open the file, so each would pass vacuously and the verdict would
+    # come from an unrelated check further down naming a cause that is not the
+    # cause — which is what a config with mode 000 produced.
+    #
+    # One gate rather than a status check on each: the checks after the first
+    # would be unreachable, since the first scan already died, so they could not
+    # be tested and a mutation removing any of them would survive the suite.
+    # Unkillable code is code nobody can show works.
+    [ -r "$GR_CONFIG" ] || gr_die \
+"cannot read $GR_CONFIG — it exists but this user cannot open it."
+
+    # The BOM and a CLASSIC-MAC line ending are rejected together: both make
+    # the file one thing to its author and another to every reader here. A
+    # \r-only file is a SINGLE awk record, so the scans below accept it whole
+    # and the verdict arrives from gr_prefixes naming the wrong cause. Every
+    # record is inspected, not only the first: a file whose first line ends LF
+    # and whose remainder is CR-separated passed a first-line-only check.
+    # LC_ALL=C so substr counts bytes: in a UTF-8 locale the three BOM bytes
+    # are one character.
+    _first=$(LC_ALL=C awk '
+        NR == 1 && substr($0, 1, 3) == "\357\273\277" { print "bom"; exit }
+        index($0, "\r") > 0 && index($0, "\r") < length($0) { print "cr"; exit }
+        ' "$GR_CONFIG") || gr_die "cannot read $GR_CONFIG"
+    case "$_first" in
+        bom) gr_die "config begins with a UTF-8 BOM: $GR_CONFIG — save it as plain UTF-8" ;;
+        cr)  gr_die \
+"config has carriage returns inside a line: $GR_CONFIG
+  A file with \\r-only line endings is one single line to every reader here.
+  Save it with LF or CRLF endings." ;;
+    esac
 
     # Every line must be blank, a comment, a `  - item` list entry, a `---`
     # document separator, or exactly `<key>:` at column one. Matching only
@@ -736,11 +839,103 @@ gr_check_config() {
         gr_die "config line(s) that are neither a comment, a top-level key, nor a '  - item' belonging to one:${_msg}"
     fi
 
+    # Read ONCE and reused by every check below. `for _k in $(awk …)` swallows
+    # awk's status entirely, which is one of the ways the unreadable-config
+    # case reached three scans deep without a word.
+    # No CR strip here: `sub(/:.*/, "")` removes everything after the colon,
+    # the carriage return with it, and the match is unanchored at the end. The
+    # same idiom in the malformed-line scan above IS load-bearing, because that
+    # one judges the whole line. A copy of it here was dead code — measured
+    # identical output with and without — and dead code is code nobody can show
+    # works.
+    _keys=$(awk '/^[A-Za-z_][A-Za-z0-9_]*:/ { sub(/:.*/, ""); print }' "$GR_CONFIG")
+
     _unknown=""
-    for _k in $(awk '/^[A-Za-z_][A-Za-z0-9_]*:/ { sub(/:.*/, ""); print }' "$GR_CONFIG"); do
+    for _k in $_keys; do
         gr_contains "$GR_KNOWN_KEYS" "$_k" || _unknown="${_unknown} $_k"
     done
     [ -z "$_unknown" ] || gr_die "unknown config key(s):${_unknown}"
+
+    # DUPLICATES FIRST. Both readers take the first occurrence and stop, while
+    # YAML itself takes the last, so a second block is read by nobody and the
+    # file says one thing to its author and another to the tooling. The shape
+    # that matters is a `verify_commands:` appended below the one already
+    # there — which is what editing by appending produces: the project's real
+    # suite never runs and the merge gate passes on the placeholder above it.
+    #
+    # Before the emptiness rule, because a key duplicated with an empty first
+    # block otherwise arrives there and is reported twice under a diagnosis
+    # that names neither the duplication nor the block nobody reads.
+    _dup=$(printf '%s\n' "$_keys" | sort | uniq -d | tr '\n' ' ')
+    [ -z "$_dup" ] || gr_die \
+"config key(s) set more than once in $GR_CONFIG: ${_dup}
+  Every reader here takes the FIRST one and stops, while YAML takes the last,
+  so one of the two is read by nobody. Keep one."
+
+    # A KEY THAT ITS OWN CONSUMER CANNOT READ, in three directions: set to
+    # nothing at all, set in the form the other kind of key uses, or carrying
+    # an item with nothing after its `-`.
+    #
+    # The rule had been arriving one key at a time — gr_verification_dir for
+    # doc_verification, gr_limit for the problem limits — while every key it
+    # had not reached was a gate that a single `#` could switch off. Asking the
+    # question generally is not enough on its own either: a first version
+    # accepted a key if EITHER reader found something, which passed
+    # `strict_paths: src` (non-empty to cfg_get, empty to cfg_list, and
+    # cfg_list is what reads it) straight through to a merge that exited 0
+    # having walked no paths. The question has to be asked in the form that
+    # key's own consumer uses.
+    _empty=""
+    _wrong=""
+    _blank=""
+    _commented=""
+    for _k in $_keys; do
+        if gr_contains "$GR_LIST_KEYS" "$_k"; then
+            [ -z "$(cfg_get "$_k")" ] || _wrong="${_wrong} $_k"
+            [ -n "$(cfg_list "$_k")" ] || _empty="${_empty} $_k"
+            # An item with nothing after its `-` is dropped by every reader, so
+            # the list that takes effect is shorter than the one written.
+            #
+            # An item that is ITSELF a comment is the neighbouring shape and
+            # worse: `  - # make test` survives as the literal string
+            # `# make test`, because gr_clean's comment strip needs whitespace
+            # before the `#` and the dash strip has already eaten it. The list
+            # is not short, it carries a command the shell reads as a comment —
+            # so the step runs nothing and reports that nothing failed. Caught
+            # with `^#` and not `^[ \t]*#`: inside a grep bracket expression
+            # `\t` is the set {space, backslash, t}, which would refuse `t#x`.
+            cfg_list "$_k" | grep -q '^$' && _blank="${_blank} $_k"
+            cfg_list "$_k" | grep -q '^#' && _commented="${_commented} $_k"
+        else
+            [ -z "$(cfg_list "$_k")" ] || _wrong="${_wrong} $_k"
+            [ -n "$(cfg_get "$_k")" ] || _empty="${_empty} $_k"
+        fi
+    done
+    [ -z "$_commented" ] || gr_die \
+"config key(s) with a commented-out item in $GR_CONFIG:${_commented}
+  A '  - # value' item is not a comment to the reader — the '#' is stripped from
+  a value only when whitespace precedes it, and the dash strip has already
+  removed that. It survives as an item whose value begins with '#', which for a
+  command key means the shell reads it as a comment: the step runs nothing and
+  reports that nothing failed. Comment out the whole '  - ' line, or remove it."
+    [ -z "$_blank" ] || gr_die \
+"config key(s) with an item that has no value after its '-' in $GR_CONFIG:${_blank}
+  Every reader here drops it, so the list that takes effect is shorter than the
+  one written. Give the item a value or delete the line."
+    [ -z "$_wrong" ] || gr_die \
+"config key(s) written in the wrong form in $GR_CONFIG:${_wrong}
+  A list key takes indented '  - item' lines and nothing after its colon; a
+  scalar key takes a value after its colon and no items. Written the other way
+  round a key is read by nobody, and the gate that wanted it passes having
+  examined nothing.
+  List keys: $(printf '%s' "$GR_LIST_KEYS" | tr '\n' ' ')"
+    [ -z "$_empty" ] || gr_die \
+"config key(s) set to nothing in $GR_CONFIG:${_empty}
+  Such a key reads as absent to the gate that uses it, and that gate then
+  passes having examined nothing. GIVE IT A VALUE.
+  Deleting the key is not the remedy: absent is the same gate-off as empty,
+  and for the keys that carry a gate's whole scope — strict_paths,
+  verify_commands, test_paths — deleting it is refused separately."
 
     # gr_prefixes dies in a subshell here, so the status must be propagated or
     # the loops below would iterate over nothing.
@@ -814,6 +1009,28 @@ gr_check_config() {
         [ -n "$(cfg_get "$_home")" ] || \
             gr_die "id_prefixes declares $_p but $_home is not configured — that is the only document a $_p may be defined in, so every $_p would be misplaced"
     done
+
+    # ABSENT IS THE SAME GATE-OFF AS EMPTY, and until this rule the emptiness
+    # check above actually RECOMMENDED it: "remove the key and its items
+    # entirely" turned a refusal into the exit-0 no-scan state it was refusing.
+    #
+    # `strict_paths` is the whole of DANGLING-REF's source-code scope. With no
+    # entries, a reference to an ID nobody defined goes from exit 1 to exit 0
+    # with `strict 0` in the summary. A project with nothing to scan does not
+    # exist: point it at whatever should be under traceability, as the ledger
+    # directories are on a documentation-first project.
+    [ -n "$(cfg_list strict_paths)" ] || gr_die \
+"strict_paths names no path in $GR_CONFIG.
+  It is the entire scope of the source scan: with none, a reference to an ID
+  nobody defined is never looked for and the run exits 0 having examined no
+  code. Name at least one path — on a documentation-first project that is the
+  ledger directories."
+    # `verify_commands` has the same defect one level up — absent, the merge
+    # gate runs no commands and reports that nothing failed — and is NOT
+    # required here, deliberately. Nothing in this change reads it; the script
+    # that runs those commands is what should refuse to run none of them, and
+    # requiring it from a validator that never uses it would be a rule with no
+    # reader behind it. Recorded rather than fixed in passing.
 
     if gr_contains "$_pfx" REQ || gr_contains "$_pfx" LLR; then
         [ -n "$(cfg_list test_paths)" ] || \

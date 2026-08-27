@@ -21,7 +21,12 @@
 set -u
 
 . "$(dirname "$0")/lib.sh"
-cd "$(gr_root)" || exit 2
+# NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
+# substitution, and under dash `cd ""` returns 0 and stays put — so outside a
+# git repository the script carried on in the caller's directory with a
+# relative config path. The status has to be taken from the substitution.
+gr_repo_root=$(gr_root) || exit 2
+cd "$gr_repo_root" || exit 2
 
 dry=0
 while [ $# -gt 0 ]; do
@@ -86,6 +91,15 @@ for key in doc_srs doc_rmf doc_sad doc_problems; do
 done
 
 [ -n "$renames" ] || exit 0
+
+# No `set -f` around the splits below, deliberately, and this is the reason
+# rather than an oversight. Word splitting does drag pathname expansion along,
+# which is why check-trace.sh and check-review.sh both set it — but here every
+# `renames` field is `"$f $target"` under one directory, expansion splits the
+# pattern on `/`, and a draft ledger name containing whitespace is already
+# rejected during planning above. No input reaches it. A `set -f` added here
+# was unkillable: no mutation of it could change any output, and unkillable
+# code is code nobody can show works.
 
 for line in $renames; do
     [ -n "$line" ] || continue

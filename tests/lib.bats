@@ -207,6 +207,8 @@ EOF
     cat > .guardrails/config.yaml <<'EOF'
 id_prefixes: REQ
 doc_srs: docs/requirements
+strict_paths:
+  - src
 test_paths:
   - tests
 ...
@@ -444,4 +446,374 @@ EOF
     run sh -c '. .guardrails/scripts/lib.sh && gr_limit problem_age_days'
     [ "$status" -eq 2 ] || { echo "empty value accepted: $status $output"; false; }
     [[ "$output" == *"empty value"* ]]
+}
+
+@test "gr_check_config refuses a key set to nothing, whichever key it is" {
+    # One `#` in front of one strict_paths item read as an empty list, every
+    # traceability scan then walked no paths, and a merge over an undefined-ID
+    # reference went from exit 1 to exit 0. The rule had been arriving one key
+    # at a time — doc_verification, the two problem limits, verify_commands —
+    # and every key it had not reached was a gate a single `#` could switch
+    # off. So: every key, scalar and list alike.
+    printf '// implements: REQ-zzz9zz\n' > src/main.c
+    printf 'true\n' > tests/test_a.sh
+    sed -i 's|^  - src$|#  - src|' .guardrails/config.yaml
+    commit_all commented-strict-paths
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"set to nothing"* ]] || { echo "$output"; false; }
+    [[ "$output" == *strict_paths* ]] || { echo "$output"; false; }
+
+    # Positive control: restored, the same tree is a genuine failure rather
+    # than a pass — which is what the commented-out key was hiding.
+    sed -i 's|^#  - src$|  - src|' .guardrails/config.yaml
+    commit_all restored
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"DANGLING-REF"* ]] || { echo "$output"; false; }
+}
+
+@test "gr_check_config says so when it cannot read the config at all, before any scan" {
+    [ "$(id -u)" -ne 0 ] || skip "root can read a mode-000 file"
+    chmod 000 .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    chmod 644 .guardrails/config.yaml
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"cannot read"* ]] || { echo "$output"; false; }
+    # NOT a diagnosis from a later check that happened to notice something
+    # missing. That is what four unchecked scans in a row produced.
+    [[ "$output" != *"id_prefixes not configured"* ]] || { echo "wrong cause: $output"; false; }
+    [[ "$output" == *"cannot open it"* ]] || { echo "$output"; false; }
+}
+
+@test "gr_check_config refuses a config whose lines end with bare carriage returns" {
+    # A \r-only file is ONE awk record, so every scan accepts it whole and the
+    # verdict arrives from an unrelated check naming a cause that is not the
+    # cause — the same shape as the unreadable config above, at the one line
+    # ending the CRLF handling does not cover.
+    tr '\n' '\r' < .guardrails/config.yaml > "$BATS_TEST_TMPDIR/cr.yaml"
+    run sh -c '. .guardrails/scripts/lib.sh
+        GR_CONFIG="'"$BATS_TEST_TMPDIR"'/cr.yaml" gr_check_config'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"carriage returns inside a line"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"id_prefixes not configured"* ]] || { echo "wrong cause: $output"; false; }
+}
+
+@test "cfg_list reads a whole block in a CRLF config" {
+    # A blank line in a CRLF file is a line containing one \r, which is
+    # neither a space nor a tab — so the "a column-one line ends the block"
+    # test fired on it and everything below the blank line was read by nobody.
+    # gr_check_config normalises \r before validating, so such a file was
+    # pronounced valid: the validator made the byte invisible.
+    printf 'verify_commands:\r\n  - echo FIRST\r\n\r\n  - echo SECOND\r\n' \
+        >> .guardrails/config.yaml
+    sed -i '/^verify_commands:$/,+1d' .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && cfg_list verify_commands'
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "echo FIRST" ] || { echo "$output"; false; }
+    [ "${lines[1]}" = "echo SECOND" ] || { echo "second item lost: $output"; false; }
+    [ "${#lines[@]}" -eq 2 ] || { echo "$output"; false; }
+}
+
+@test "cfg_get reads a scalar in a CRLF config" {
+    printf 'safety_class: C\r\n' > "$BATS_TEST_TMPDIR/crlf.yaml"
+    run sh -c '. .guardrails/scripts/lib.sh
+        GR_CONFIG="'"$BATS_TEST_TMPDIR"'/crlf.yaml" cfg_get safety_class'
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = "C" ] || { echo "[$output]"; false; }
+}
+
+@test "a duplicated key is diagnosed as duplicated, even when its first block is empty" {
+    # Both readers take the first occurrence, so a key duplicated with an empty
+    # first block reaches the emptiness rule and is reported twice under a
+    # diagnosis that names neither the duplication nor the block nobody reads.
+    # The duplicate check has to run first. Reordering the two checks changes
+    # nothing else, which is why nothing else can detect it.
+    printf 'verify_commands:\nverify_commands:\n  - make test\n' >> .guardrails/config.yaml
+    sed -i '0,/^verify_commands:$/{/^verify_commands:$/d}' .guardrails/config.yaml
+    sed -i '0,/^  - make test$/{/^  - make test$/d}' .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"more than once"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"set to nothing"* ]] || { echo "misdiagnosed as empty: $output"; false; }
+}
+
+@test "a trailing comment on a list key is a comment, not that key's value" {
+    # `strict_paths:  # only these` yielded the value `# only these` because
+    # the post-colon blanks were stripped before gr_clean could see the
+    # whitespace its ` #` rule needs — so the form rule read a list key as a
+    # scalar and refused the config from every gate. The config file's own
+    # rule says a trailing ` # comment` is stripped for EVERY key.
+    printf 'true\n' > tests/test_a.sh
+    sed -i 's|^strict_paths:$|strict_paths:  # only these are enforced|' \
+        .guardrails/config.yaml
+    # Through a command substitution, which is how every caller reads it.
+    run sh -c '. .guardrails/scripts/lib.sh
+        v=$(cfg_get strict_paths); printf "[%s]" "$v"'
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = "[]" ] || { echo "value was $output, expected empty"; false; }
+
+    commit_all commented-list-key
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [[ "$output" != *"wrong form"* ]] || { echo "$output"; false; }
+    # And the items are still read: a comment on the key line changes nothing
+    # about the block under it.
+    [[ "$output" == *"strict 1"* ]] || { echo "$output"; false; }
+}
+
+@test "gr_check_config refuses a list key written as a scalar" {
+    # `strict_paths: src` breaks no rule the config file states — `id_prefixes:
+    # REQ HAZ RC` two lines above is a space-separated scalar — and cfg_list,
+    # which is what reads it, finds no items. Every traceability scan then
+    # walks no path.
+    printf '// traces: REQ-zzz9zz\n' > src/main.c
+    printf 'true\n' > tests/test_a.sh
+    python3 - <<'PY'
+import re
+p = '.guardrails/config.yaml'
+s = open(p).read()
+open(p, 'w').write(s.replace('strict_paths:\n  - src\n', 'strict_paths: src\n'))
+PY
+    commit_all scalar-strict-paths
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"wrong form"* ]] || { echo "$output"; false; }
+    [[ "$output" == *strict_paths* ]] || { echo "$output"; false; }
+    # It must NOT read as a clean run over nothing.
+    [[ "$output" != *"strict 0"* ]] || { echo "it scanned nothing and said so: $output"; false; }
+}
+
+@test "gr_check_config refuses a scalar key written as a list" {
+    # The mirror. gr_doc_files reads doc_soup with cfg_get, finds nothing, and
+    # returns an empty file list at status 0 — the shape its own header calls
+    # forbidden — so the document is scanned by nobody.
+    printf 'true\n' > tests/test_a.sh
+    python3 - <<'PY'
+p = '.guardrails/config.yaml'
+s = open(p).read()
+open(p, 'w').write(s.replace('doc_soup: docs/architecture/soup.md\n',
+                             'doc_soup:\n  - docs/architecture/soup.md\n'))
+PY
+    commit_all list-doc-soup
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"wrong form"* ]] || { echo "$output"; false; }
+    [[ "$output" == *doc_soup* ]] || { echo "$output"; false; }
+}
+
+@test "every script stops outside a git repository, at gr_root" {
+    # `cd "$(gr_root)" || exit 2` does not fail closed under dash. The fix
+    # landed in all seven scripts and the evidence in one of them, so a
+    # mutation reverting the other six survived the whole suite. This asks
+    # every script the same question.
+    # Run under DASH specifically. `cd ""` returns 0 under dash and 1 under
+    # bash, so on a bash-as-/bin/sh platform the old form exits at the `||`
+    # and this test passes with the defect present — for every script. dash is
+    # /bin/sh on Debian and its derivatives, which is where the defect bites.
+    if command -v dash > /dev/null 2>&1; then
+        shell=dash
+    else
+        shell=sh
+    fi
+    scripts=$PWD/.guardrails/scripts
+    mkdir "$BATS_TEST_TMPDIR/norepo"
+    cd "$BATS_TEST_TMPDIR/norepo"
+    n=0
+    for f in "$scripts"/*.sh; do
+        [ "$(basename "$f")" != lib.sh ] || continue
+        n=$((n + 1))
+        run "$shell" "$f"
+        [ "$status" -eq 2 ] \
+            || { echo "$(basename "$f"): status $status"; echo "$output"; false; }
+        # EXACTLY the one diagnosis and nothing after it. Asserting the absence
+        # of "config not found" is not enough: check-signing.sh never reads the
+        # config, so that string cannot appear either way and the assertion was
+        # vacuous for it — it carried on and printed git's own errors instead.
+        [ "$output" = "guardrails: not inside a git repository" ] \
+            || { echo "$(basename "$f") carried on past gr_root:"; echo "$output"; false; }
+    done
+    # Pinned, so a script added later without the guard reddens here rather
+    # than being quietly excluded from the question.
+    [ "$n" -eq 6 ] || { echo "expected 6 scripts, ran $n"; false; }
+    [ "$shell" = dash ] || skip "no dash present: this ran under $shell and cannot discriminate"
+}
+
+@test "gr_verification_dir refuses a doc_verification set to nothing" {
+    # gr_check_config's general rule shadows this branch on every production
+    # path, so it is reachable only through a direct call — and without one it
+    # was unkillable code, which is the thing this toolkit says it does not
+    # keep. A library function has to be safe called on its own.
+    mkdir -p docs/verification
+    printf '# rec\n' > docs/verification/2026-01-01-x.md
+    printf 'doc_verification:\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"empty value"* ]] || { echo "$output"; false; }
+    # NOT the default. Silently falling back would adopt a key whose value the
+    # reader could not see, which is the one shape the schema check exists for.
+    [[ "$output" != *"docs/verification"*"docs/verification"* ]] || { echo "$output"; false; }
+}
+
+@test "gr_prefixes leaves pathname expansion as it found it" {
+    run sh -c '. .guardrails/scripts/lib.sh
+        set -f
+        gr_prefixes > /dev/null
+        case $- in *f*) echo still-off ;; *) echo LEAKED ;; esac
+        set +f
+        gr_prefixes > /dev/null
+        case $- in *f*) echo LEAKED-ON ;; *) echo still-on ;; esac'
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "still-off" ] || { echo "$output"; false; }
+    [ "${lines[1]}" = "still-on" ] || { echo "$output"; false; }
+}
+
+@test "gr_prefixes does not let the directory listing decide what a prefix is" {
+    # Word splitting drags pathname expansion along with it. Without `set -f`
+    # around the split, an id_prefixes entry containing a glob character means
+    # one thing in a repository whose root happens to hold a matching name and
+    # another everywhere else: the same config, two verdicts, decided by an
+    # unrelated file. Here `ADR*` would silently become the valid prefix `ADRx`.
+    mkdir ADRx
+    sed -i 's|^id_prefixes: .*|id_prefixes: REQ HAZ RC SDD LLR PR ADR*|' \
+        .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_prefixes'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"not a bare identifier"* ]] || { echo "$output"; false; }
+    [[ "$output" != *ADRx* ]] || { echo "the directory named the prefix: $output"; false; }
+}
+
+@test "gr_check_config refuses a list key that names nothing at all" {
+    # Absent is the same gate-off as empty, and the emptiness message used to
+    # RECOMMEND it. strict_paths is the whole of the source scan's scope: with
+    # no entries a reference to an ID nobody defined is never looked for.
+    printf '// implements: REQ-zzz9zz\n' > src/main.c
+    printf 'true\n' > tests/test_a.sh
+    python3 - <<'PY'
+p = '.guardrails/config.yaml'
+s = open(p).read()
+open(p, 'w').write(s.replace('strict_paths:\n  - src\n', ''))
+PY
+    commit_all no-strict-paths
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"strict_paths names no path"* ]] || { echo "$output"; false; }
+    # The exit-0 no-scan state is what this refuses; it must not be reachable.
+    [[ "$output" != *"strict 0"* ]] || { echo "it scanned nothing and passed: $output"; false; }
+}
+
+@test "gr_check_config refuses a list item with nothing after its dash" {
+    # No test covered this rule at all: deleting it left the whole suite green.
+    printf 'true\n' > tests/test_a.sh
+    printf '  - \n' >> .guardrails/config.yaml
+    python3 - <<'PY'
+p = '.guardrails/config.yaml'
+s = open(p).read()
+# Put the blank item inside the strict_paths block rather than at the end,
+# and leave a real item after it so the list is not merely empty.
+s = s.replace('strict_paths:\n  - src\n', 'strict_paths:\n  - \n  - src\n')
+s = s.rstrip('\n')
+s = s[: s.rfind('\n  - ')] + '\n'
+open(p, 'w').write(s)
+PY
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"no value after its '-'"* ]] || { echo "$output"; false; }
+    [[ "$output" == *strict_paths* ]] || { echo "$output"; false; }
+}
+
+@test "gr_check_config refuses an item that is itself a comment" {
+    # `  - # make test` survives as the literal string `# make test`, which the
+    # shell reads as a comment: the step runs nothing and reports success.
+    printf 'true\n' > tests/test_a.sh
+    python3 - <<'PY'
+p = '.guardrails/config.yaml'
+s = open(p).read()
+open(p, 'w').write(s.replace('  - make test\n', '  - # make test\n'))
+PY
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"commented-out item"* ]] || { echo "$output"; false; }
+
+    # A `#` that is not at the start of the value is a value, not a comment.
+    # `^[ \t]*#` would refuse this one: in a grep bracket expression `\t` is
+    # the set {space, backslash, t}.
+    python3 - <<'PY'
+p = '.guardrails/config.yaml'
+s = open(p).read()
+open(p, 'w').write(s.replace('  - # make test\n', '  - t#x\n'))
+PY
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config && echo accepted'
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *accepted* ]] || { echo "$output"; false; }
+}
+
+@test "a diagnosis quotes the config back without eating its escapes" {
+    # gr_die used echo, and /bin/sh here is dash, whose echo de-escapes. A
+    # value containing `\c` truncates the message and discards the remedy;
+    # one containing `\t` is shown with a tab the operator's file does not have.
+    # The malformed-line diagnosis quotes the offending line verbatim, which is
+    # the one message here that carries arbitrary operator text.
+    printf 'true\n' > tests/test_a.sh
+    printf 'this line is not a key \\cREMEDY-GONE\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *'\cREMEDY-GONE'* ]] || { echo "escape eaten: $output"; false; }
+
+    # Explicitly under dash where one exists: bash's echo does not process
+    # these escapes without xpg_echo, so on a bash-as-/bin/sh platform the
+    # assertion above holds against `echo` too and proves nothing.
+    if command -v dash > /dev/null 2>&1; then
+        run dash -c '. .guardrails/scripts/lib.sh && gr_check_config'
+        [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+        [[ "$output" == *'\cREMEDY-GONE'* ]] \
+            || { echo "truncated under dash: $output"; false; }
+    fi
+}
+
+@test "the carriage-return guard inspects every line, not only the first" {
+    # A file whose FIRST line ends LF and whose remainder is CR-separated
+    # passed a first-line-only check, and every key after the first then
+    # collapsed into one record — the wrong-cause verdict the guard exists to
+    # prevent.
+    python3 - <<'PY'
+p = '.guardrails/config.yaml'
+s = open(p).read()
+first, rest = s.split('\n', 1)
+open(p, 'w').write(first + '\n' + rest.replace('\n', '\r'))
+PY
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"carriage returns inside a line"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"id_prefixes not configured"* ]] || { echo "wrong cause: $output"; false; }
+}
+
+@test "coverage_command is a list key, and the bucket is pinned" {
+    # Nothing reads this key yet, so its bucket is decided by the template's
+    # form alone — which means nothing would notice it being wrong. A key in
+    # the wrong bucket is a false refusal for the form that works, or a false
+    # green for the form that does not.
+    printf 'true\n' > tests/test_a.sh
+    printf 'coverage_command:\n  - make coverage\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config && echo accepted'
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *accepted* ]] || { echo "$output"; false; }
+
+    sed -i 's|^coverage_command:$|coverage_command: make coverage|' .guardrails/config.yaml
+    sed -i '/^  - make coverage$/d' .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"wrong form"* ]] || { echo "$output"; false; }
+    [[ "$output" == *coverage_command* ]] || { echo "$output"; false; }
+}
+
+@test "no test file defines its own teardown, which would drop the tmpdir release" {
+    # bats replaces `teardown` wholesale, so the first .bats file to define one
+    # silently loses the inode protection for its whole file — and that
+    # protection is what keeps a mutation battery from scoring unearned kills.
+    cd "$BATS_TEST_DIRNAME"
+    n=$(grep -l '^teardown()' ./*.bats 2>/dev/null | wc -l)
+    [ "$n" -eq 0 ] || { grep -l '^teardown()' ./*.bats; false; }
+    [ "$(grep -c '^teardown()' helpers.bash)" -eq 1 ] \
+        || { echo "helpers.bash no longer defines the shared teardown"; false; }
 }

@@ -239,6 +239,27 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > `problems:` summary line on every run, which is the point: an unset limit is
 > a decision that stays visible.
 >
+> **The config schema gained five fatal rules, and every one applies in EVERY
+> gate**, not in one script — they live in `gr_check_config`, which runs before
+> any gate does. Each is a shape in which a key does not take effect as written
+> while the run used to exit 0:
+>
+> | shape | example |
+> |---|---|
+> | a key set to nothing | `strict_paths:` with its items commented out — every scan then walks no path |
+> | a key in the wrong form | `strict_paths: src` (a list key as a scalar), or `doc_soup:` with `  - path` under it (a scalar key as a list) — read by nobody |
+> | a key set twice | a second `verify_commands:` appended below the first, which is what editing by appending produces: the real suite never runs |
+> | a list item with nothing after its `-` | dropped by every reader, so the list that takes effect is shorter than the one written |
+> | bare-CR line endings | a `\r`-only file is one single line to every reader here |
+>
+> A CRLF file is now read correctly rather than truncated at its first blank
+> line, which is a fix rather than a new rule — before it, every item below that
+> line was read by nobody.
+>
+> None of these is a compatibility break in the usual sense: each was already a
+> gate reading less than it was configured to. Run `check-trace.sh` once after
+> the upgrade and the diagnosis names the key and the shape.
+>
 > Every one of these is a pre-existing gap the older scripts passed over, not
 > a new requirement invented by the upgrade. Fix the config or the layout;
 > **there is no compatibility flag, deliberately.** Almost every shape above

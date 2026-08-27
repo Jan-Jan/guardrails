@@ -11,7 +11,25 @@
 #   * a key must be one of those below. Comment one out to disable it — and if
 #     it is a list key, comment its `  - items` out too, or they are orphaned
 #     and rejected. Never misspell one;
-#   * list items are indented (`  - src`), never at column zero;
+#   * list items are indented (`  - src`), never at column zero, and each one
+#     carries a value — `  - ` with nothing after it is dropped by every reader,
+#     so the list that takes effect is shorter than the one written;
+#   * a key is written in ITS OWN FORM. A LIST key takes indented `  - item`
+#     lines and nothing after its colon; a SCALAR key takes a value after its
+#     colon and no items. The list keys are strict_paths, test_paths,
+#     verify_commands and coverage_command; everything else here is a scalar.
+#     `strict_paths: src` looks right — `id_prefixes: REQ HAZ` above is a
+#     space-separated scalar — and is read by NOBODY: cfg_list finds no items,
+#     every traceability scan walks no path, and a merge over an undefined-ID
+#     reference exits 0;
+#   * a key is set ONCE. A second block is read by nobody, while YAML itself
+#     takes the last, so the file says one thing to its author and another to
+#     the tooling;
+#   * a key that is present carries something. Set to nothing it reads as
+#     absent to the gate that uses it, and that gate then passes having
+#     examined nothing;
+#   * line endings are LF or CRLF, never bare CR: a \r-only file is one single
+#     line to every reader here;
 #   * the file must be plain UTF-8 with no byte-order mark;
 #   * `id_prefixes` must name at least one prefix with a traceability gate:
 #     REQ, HAZ, RC, SDD, LLR, PR. Others may be listed alongside them and are
@@ -47,9 +65,13 @@
 # whose own whitespace-delimited token starts with `#` is truncated silently.
 # A directory literally named `docs/req #1` cannot be configured here.
 #
-# A duplicate key, or a second list block for the same key, is accepted and the
-# later one ignored. Do not rely on overriding a key by repeating it.
-guardrails_version: 0.4.0
+# A duplicate key, or a second list block for the same key, is REJECTED — see
+# the "set ONCE" rule above. It was accepted for a long time, with the later one
+# ignored, and that should never have been: appending a second `verify_commands:`
+# below the first, which is what editing by appending produces, means the
+# project's real test suite never runs while the merge gate passes on the
+# placeholder above it.
+guardrails_version: 0.5.0
 
 # IEC 62304 software safety class: A, B, or C. Set by /ratchet.
 # Per-item overrides: document them in the SAD next to the SDD item.

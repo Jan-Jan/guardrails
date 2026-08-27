@@ -17,7 +17,12 @@
 set -u
 
 . "$(dirname "$0")/lib.sh"
-cd "$(gr_root)" || exit 2
+# NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
+# substitution, and under dash `cd ""` returns 0 and stays put — so outside a
+# git repository the script carried on in the caller's directory with a
+# relative config path. The status has to be taken from the substitution.
+gr_repo_root=$(gr_root) || exit 2
+cd "$gr_repo_root" || exit 2
 
 strict=0
 range=""

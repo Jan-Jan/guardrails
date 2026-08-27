@@ -393,9 +393,9 @@ setup() { make_fixture_repo; }
     make_change_worktree my-change
     write_record mine my-change
     printf -- '---\n**finding-1**: metadata, not a finding.\n---\n' \
-        > /tmp/gr-fm-head.$$
-    cat docs/verification/2026-01-01-mine.md >> /tmp/gr-fm-head.$$
-    mv /tmp/gr-fm-head.$$ docs/verification/2026-01-01-mine.md
+        > "$BATS_TEST_TMPDIR/gr-fm-head"
+    cat docs/verification/2026-01-01-mine.md >> "$BATS_TEST_TMPDIR/gr-fm-head"
+    mv "$BATS_TEST_TMPDIR/gr-fm-head" docs/verification/2026-01-01-mine.md
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
@@ -474,9 +474,9 @@ POISON
 @test "poisoning GR_AWK_FRONT_MATTER changes check-review's verdict" {
     make_change_worktree my-change
     write_record mine my-change
-    printf -- '---\n**finding-1**: metadata, not a finding.\n---\n' > /tmp/gr-fm2.$$
-    cat docs/verification/2026-01-01-mine.md >> /tmp/gr-fm2.$$
-    mv /tmp/gr-fm2.$$ docs/verification/2026-01-01-mine.md
+    printf -- '---\n**finding-1**: metadata, not a finding.\n---\n' > "$BATS_TEST_TMPDIR/gr-fm2"
+    cat docs/verification/2026-01-01-mine.md >> "$BATS_TEST_TMPDIR/gr-fm2"
+    mv "$BATS_TEST_TMPDIR/gr-fm2" docs/verification/2026-01-01-mine.md
     commit_all records
 
     run sh .guardrails/scripts/check-review.sh
@@ -747,5 +747,10 @@ REC
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"empty value"* ]] || { echo "$output"; false; }
+    # gr_check_config now refuses ANY key set to nothing, so this arrives at
+    # the general diagnosis rather than gr_verification_dir's own — which
+    # lib.bats still exercises directly, since a library function has to be
+    # safe when called without the validator in front of it.
+    [[ "$output" == *"set to nothing"* ]] || { echo "$output"; false; }
+    [[ "$output" == *doc_verification* ]] || { echo "$output"; false; }
 }

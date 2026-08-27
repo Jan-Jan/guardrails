@@ -1,5 +1,29 @@
 # Shared bats helpers: throwaway fixture git repos with guardrails installed.
 
+# Release each test's temporary directory as soon as the test passes.
+#
+# bats itself keeps every $BATS_TEST_TMPDIR until the whole run exits, and each
+# fixture here is a real git repository — about 120 inodes, most of them under
+# .git. One full-suite run therefore holds roughly sixty thousand inodes for
+# its entire duration, and /tmp is a tmpfs with a fixed inode budget. Three
+# overlapping runs exhaust it.
+#
+# That is not a tidiness problem, it is an EVIDENCE problem: past the budget a
+# redirect fails with ENOSPC, bats reports `not ok … teardown_suite` and
+# short-counts the plan, and a mutation runner that treats any failure as a
+# kill scores a surviving mutant as dead. A run killed that way also never
+# reaches bats' own cleanup, so its directory leaks and the next run starts
+# closer to the wall.
+#
+# A FAILING test keeps its directory, because that is what you inspect; bats
+# does the same on retry.
+teardown() {
+    if [ "${BATS_TEST_COMPLETED:-}" = 1 ] && [ -n "${BATS_TEST_TMPDIR:-}" ]; then
+        rm -rf "$BATS_TEST_TMPDIR"
+    fi
+    return 0
+}
+
 write_config() {
     cat > .guardrails/config.yaml <<'EOF'
 guardrails_version: 0.1.0
@@ -25,7 +49,9 @@ make_fixture_repo() {
     REPO="$BATS_TEST_TMPDIR/repo"
     mkdir -p "$REPO"
     cd "$REPO"
-    git init -q -b main
+    # --template= : no sample hooks. Fifteen files per fixture, times four
+    # hundred tests, for scripts that are never run.
+    git init -q -b main --template=
     git config user.name test
     git config user.email test@example.com
     git config commit.gpgsign false

@@ -196,7 +196,25 @@ still reports success.
 config reader — so the gate it was meant to configure would never run, and the
 run would still exit 0. Every such shape is exit 2, as is an `id_prefixes` list
 naming none of the six prefixes that have a traceability gate, or a declared
-prefix whose gate inputs are unconfigured. An **extra** prefix alongside the
+prefix whose gate inputs are unconfigured.
+
+The same reasoning reaches past a key's *name* to its **value**, and each of
+these was found by asking one more time how a key could fail to take effect
+while the run still exited 0:
+
+| shape | what the gate then does |
+|---|---|
+| the key is set to nothing — `strict_paths:` with its items commented out | walks no path, and a reference to an undefined ID is never looked for |
+| the key is in the wrong form — `strict_paths: src`, or `doc_soup:` with `  - items` under it | reads nothing at all; a list key is read by `cfg_list` and a scalar by `cfg_get`, and neither finds the other's shape |
+| the key is set twice | takes the first block; YAML takes the last, so one of the two is read by nobody |
+| an item is only a comment — `  - # make test` | runs it, and the shell treats it as a comment: nothing runs, nothing fails |
+| an item has nothing after its `-` | drops it, so the list that takes effect is shorter than the one written |
+| the file has bare-CR line endings | reads the whole file as one record, so every key but the first is invisible |
+| `strict_paths` is absent altogether | the same as empty — which is why it is required, and why the emptiness message does not offer deletion as the remedy |
+
+A CRLF file is read correctly rather than truncated at the first blank line
+inside a list. None of these is a compatibility break in the usual sense: each
+was already a gate reading less than it was configured to. An **extra** prefix alongside the
 six is fine and is still checked — `DANGLING-REF`, `DUPLICATE-ID` and ID
 finalization are keyed on the whole prefix list.
 There is no compatibility flag, deliberately: almost all of these were a gate
