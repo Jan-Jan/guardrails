@@ -240,18 +240,53 @@ make_bsd_date() {
         "$_bin"/*) echo "make_bsd_date called with the stub already on PATH" >&2
                    return 1 ;;
     esac
+    # Does the real date understand GNU's `-d`? The stub has to know, because
+    # ACCEPTING `-v` is not the same as being able to CARRY OUT `-v`.
+    #
+    # The first version validated the adjustment and then handed it to the real
+    # date unchanged, which works only where the real date is already BSD —
+    # that is, everywhere except the GNU box the stub exists for. There,
+    # `date -v-3d` reached a date with no `-v` at all, so a VALID adjustment
+    # was refused: the stub reproduced BSD's rejections and none of its
+    # successes. Both tests using it failed, and the failure read as a defect
+    # in `days_ago` rather than in the instrument measuring it.
+    #
+    # So on a GNU box the stub TRANSLATES `-v±Nd` into `-d "N days [ago]"`; on
+    # a real BSD box it passes it through, because there it is already right.
+    if "$_real" -d "0 days ago" +%Y-%m-%d >/dev/null 2>&1; then
+        _mode=translate
+    else
+        _mode=passthrough
+    fi
     mkdir -p "$_bin"
-    cat > "$_bin/date" <<EOF
-#!/bin/sh
-for _a in "\$@"; do
-    case "\$_a" in
+    {
+        printf '#!/bin/sh\n'
+        printf "REAL='%s'\n" "$_real"
+        printf "MODE='%s'\n" "$_mode"
+        cat <<'STUB'
+adj=""
+rest=""
+for a in "$@"; do
+    case "$a" in
         -d*) echo "date: illegal option -- d" >&2; exit 1 ;;
-        -v-[0-9]*|-v+[0-9]*|-v[0-9]*) ;;
-        -v*) printf '%s: Cannot apply date adjustment\n' "\${_a#-v}" >&2; exit 1 ;;
+        -v-[0-9]*d|-v+[0-9]*d|-v[0-9]*d) adj=$a ;;
+        -v*) printf '%s: Cannot apply date adjustment\n' "${a#-v}" >&2; exit 1 ;;
+        *) rest="$rest $a" ;;
     esac
 done
-exec "$_real" "\$@"
-EOF
+
+[ -n "$adj" ] && [ "$MODE" = translate ] || exec "$REAL" "$@"
+
+n=${adj#-v}
+n=${n%d}
+case "$n" in
+    -*) spec="${n#-} days ago" ;;
+    +*) spec="${n#+} days" ;;
+    *)  spec="$n days" ;;
+esac
+exec "$REAL" -d "$spec" $rest
+STUB
+    } > "$_bin/date"
     chmod +x "$_bin/date"
     echo "$_bin"
 }
