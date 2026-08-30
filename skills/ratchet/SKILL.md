@@ -376,6 +376,18 @@ Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`:
       install time). When `/ratchet` updates the scripts, it re-records
       both. Do not modify the scripts in the target project; change them
       upstream where the tests live.
+
+      **The suite runs in the guardrails repo, never in the target project,
+      and bats is never installed.** Run `<guardrails>/tests/run-tests.sh`
+      exactly once and capture its exit code — that script uses a system
+      bats if one exists and otherwise vendors bats-core into the guardrails
+      repo's own gitignored `tests/.bats-core/`. Do not `apt install bats`,
+      `brew install bats`, `npm/npx bats`, or add bats to the target
+      project's dependencies or `verify_commands`; the target repo records
+      the *outcome* (version, commit, pass/fail), not the tooling. If the
+      one run cannot complete (no network to vendor bats-core, say), record
+      `suite not run at install time: <reason>` in the setup document and
+      move on — an honest gap beats an installed dependency nobody asked for.
 - [ ] **Guardrails supports your QMS but is not itself regulatory
       compliance.** Your quality manual, design controls, and human sign-offs
       govern; keep your notified-body/auditor requirements authoritative.
