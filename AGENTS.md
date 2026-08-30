@@ -6,12 +6,23 @@ reference implementation of its own process.
 ## Non-negotiables
 
 1. **All work happens in a git worktree.** Documentation and code alike. Never
-   commit directly to `main`.
+   commit directly to `main`. One change gets one change worktree on one change
+   branch off `main`; each plan task is dispatched to a subagent that works in
+   its own task worktree, on a task branch off the change branch. The subagent
+   commits there and returns its dispatch report; the dispatcher — the agent in
+   the change worktree — merges that task branch into the change branch and
+   removes the task worktree and branch.
 2. **Integration is a signed squash merge.** `main` receives exactly one signed
    commit per change. Intermediate worktree commits may be unsigned
    (`git -c commit.gpgsign=false commit`); the squash commit must be signed
    (`git commit -S`) and verified before the worktree is cleaned up.
 3. **Run `tests/run-tests.sh` before any merge.** All bats tests must pass.
+   Dispatch it rather than running it in your own context: a subagent runs the
+   gate and returns the gate summary (`verify-before-merge`). The verdict comes
+   from the reported pass/fail counts — exit 0 is not a pass.
+4. **One change at a time.** A change is carried to its signed squash before
+   the next is opened. Parallelism lives inside a change, across tasks whose
+   file sets do not intersect — never across changes.
 
 ## Rules
 

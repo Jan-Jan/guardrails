@@ -35,6 +35,34 @@ merge date). **Amendments to existing requirements are edited in the dated
 file that defines them** — definitions never move. On single-file projects
 (`doc_srs` points at a file), edit that file.
 
+- **Probe for overlap before you write.** Dispatch a subagent (your harness's
+  subagent mechanism — e.g. a `Task` tool, an `/agents` command) to search the
+  requirements ledger for items that already cover this behavior. It returns
+  IDs, one-line summaries and `file:line` — nothing else. The ledger itself
+  must not enter this conversation's context. Overlap, ambiguity or
+  contradiction goes to the user and is resolved with them before the new item
+  is written.
+- **Supersession is recorded, never silent.** A new requirement may supersede
+  an old one — that is normal; performing it by deletion is not. The
+  superseded item keeps its place in the file that defines it and gains
+  `superseded-by: <new ID>`; the new item carries `supersedes: <old ID>`.
+  Because the old item stays where it is, `check-trace.sh` still resolves
+  every reference to it and the ledger still reads as a history.
+- **The supersession annotations are annotations, not exemptions.** The
+  superseded item keeps its definition, so it keeps demanding a test:
+  `check-trace.sh`'s MISSING-TEST gate walks every defined item and knows
+  nothing about `superseded-by:`. Satisfy both items with the one test that
+  already exists — **the test that verified the superseded item gains the new
+  ID alongside the old**: `verifies: <old ID>, <new ID>`. MISSING-TEST is then
+  clean for both, the history survives, and no gate has to change.
+- **Superseding is not retiring.** Supersede when the behavior still exists in
+  some form — a rewording, a narrowing, a replacement — so one test can
+  honestly verify both IDs. Behavior that is genuinely gone is a *retirement*,
+  a different operation this skill does not cover today: with no
+  `superseded-by:` exemption in `check-trace.sh`, a retired item still demands
+  a test for behavior that no longer exists. Teaching the gate that exemption
+  is a separate change with its own tests. Until it lands, put a retirement to
+  the user as its own decision rather than dressing it as a supersession.
 - REQ items are **high-level requirements**: system-observable behavior,
   written from outside the software. The "how", per software item, belongs
   to low-level requirements (LLRs) in the SAD (`design-architecture`).
@@ -74,6 +102,23 @@ Offer to record an ADR in `docs/adr/` only when all three hold:
 Format: `docs/adr/NNNN-slug.md`, sequential numbering, 1–3 sentences
 (context, decision, why). That's enough; skip ceremony.
 
+## Probe the architecture
+
+Before a requirement is settled, dispatch a subagent to read the architecture
+ledger (`doc_sad`) and answer three questions. It returns the answers with
+`file:line` citations — not the document.
+
+1. **Does an existing software item already own this behavior?** Then this is
+   an amendment to that item's LLRs, not a new item.
+2. **Does the requirement as worded force a structure the SAD forbids?**
+   Segregation boundaries are the usual casualty.
+3. **Does satisfying it need a new software item, or new SOUP?**
+
+On a contradiction, say so and hand off to `design-architecture`. **Never edit
+the SAD from this skill** — the REQ/LLR split is what keeps design decisions
+inside the skill that has the segregation and SOUP discipline. ADRs stay on
+the three-part test above.
+
 ## Class awareness
 
 Read `safety_class` from `.guardrails/config.yaml`. For Class B and C, push
@@ -84,6 +129,11 @@ the boundaries between software items (they feed `design-architecture`).
 ## Done when
 
 - The user confirms shared understanding (ask explicitly).
+- Every overlap, ambiguity or contradiction the probes surfaced is
+  resolved with the user — superseded items annotated both ways and their
+  test carrying both IDs, SAD contradictions handed to
+  `design-architecture`. An unresolved overlap means the interview is not
+  done.
 - Every new/changed REQ is a draft-ID item in the SRS, testable as written.
 - Glossary updated; ADRs recorded where warranted.
 - Hand off: risks → `analyze-risks`; design → `design-architecture`;

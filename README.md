@@ -47,10 +47,10 @@ flowchart TD
     A --> D
     D --> P[plan-change]
     P --> W[worktree-discipline<br/>isolate + draft IDs]
-    W --> DEV[develop-change<br/>TDD, verifies: annotations]
+    W --> DEV[develop-change<br/>TDD, verifies: annotations,<br/>plan tasks dispatched to subagents]
     B[resolve-problem<br/>PR items for every bug] --> DEV
     DEV --> CT[check-traceability]
-    CT --> V[verify-before-merge<br/>evidence + coverage gate]
+    CT --> V[verify-before-merge<br/>dispatched evidence + coverage gate]
     V --> M[merge-change<br/>finalize ledger files, independent review,<br/>verification record + check-review.sh,<br/>signed squash merge, cleanup worktree]
 ```
 
@@ -58,11 +58,27 @@ Three rules carry the whole system:
 
 1. **All work happens in worktrees** — documentation and code alike. The
    base branch (whatever the primary checkout has checked out — the scripts
-   detect it, nothing assumes `main`) never moves except by merge.
+   detect it, nothing assumes `main`) never moves except by merge. One change
+   gets one change worktree on one change branch, and that is the only worktree
+   `merge-change` ever sees.
 2. **Integration is a signed squash merge** — the base branch is one signed,
    verified, auditable commit per change.
 3. **Traceability is mechanical** — grep-able IDs link requirements, risks,
    design, and tests; scripts gate every merge.
+
+Within a change, the main agent orchestrates rather than implements. Each plan
+task is dispatched to a subagent that works in its own task worktree, on a task
+branch off the change branch; it commits there and returns a dispatch report.
+Merging that task branch into the change branch, and removing the task worktree
+and branch afterwards, is the dispatcher's job — the agent in the change
+worktree, which is the only one that may move the change branch. So the base
+branch still sees exactly one signed squash per change. The verification gate is
+dispatched the same way: the subagent runs the checks and returns a gate
+summary, while its raw log stays outside the tree, where the documentation
+gates cannot mistake a quoted item ID in a test name for an item. Changes are
+sequential — one reaches its signed squash before the next is opened;
+parallelism lives inside a change, across tasks whose file sets do not
+intersect.
 
 ## ID and trace grammar
 

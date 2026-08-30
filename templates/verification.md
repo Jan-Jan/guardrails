@@ -24,6 +24,17 @@ Every figure derived from the tree under test, not carried forward.
 | Coverage, against the class target | |
 | Working tree | |
 
+## Red → green
+
+One row per ID this change **Implements**, copied from the `red -> green:`
+lines of the dispatch reports. The subagent that ran the loop is the only party
+that saw the test fail, and the conversation it reported in does not outlive the
+merge — so this table is where that observation becomes durable evidence.
+
+| Item | Test | Watched red |
+| --- | --- | --- |
+| `<ID this change implements>` | `<the test that verifies it>` | <watched failing for the right reason before the implementation existed> |
+
 ## What was wrong, and what was built
 
 <the defect, measured; then the change. A record that only says the tests pass
@@ -73,6 +84,17 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   would close the very finding it belongs to. A label the rule cannot read is
   reported as MALFORMED-FINDING rather than passed over, because it opens no
   block and its disposition would be credited to nothing.
+- The red → green table is evidence, not a field: check-review.sh does not
+  parse it, and it is shaped so that it cannot be read as one. Every row starts
+  at `|`, so no cell sits at column one as an annotation and no cell opens or
+  closes a finding block. It is an attestation — it records an observation only
+  the task subagent made, and no later party can re-observe a test failing once
+  it passes — so nothing downstream re-verifies what these rows say, and
+  enforcing them would need a fifth required field and a change to the script.
+  What IS independently checkable is the same property from the other side, and
+  step 6a already asks it: do the tests verify what their `verifies:`
+  annotations claim, and would they fail if the behavior broke? A test that
+  could never have gone red is caught by that question whatever this table says.
 - Only the record for the change under merge is checked. Records written before
   this schema existed are left alone.
 - The placeholders above are in angle brackets and the illustrative forms are

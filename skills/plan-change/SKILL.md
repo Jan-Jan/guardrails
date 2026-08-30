@@ -35,6 +35,19 @@ Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
   see it fail → minimal implementation → see it pass → commit.
 - **Every task lists its trace IDs.** The tests written in the task carry
   `verifies: <IDs>` annotations — put the exact annotation text in the plan.
+- **Every task states its files and its parallelism.** Head each task with the
+  exact paths it touches and whether it may run alongside another:
+
+  ```markdown
+  ### T<N> — <title>
+
+  **Files touched:** <exact paths, one list, no globs>
+  **Parallel:** yes | no (serial, after T<N>)
+  ```
+
+  Fan-out is permitted only across tasks whose file sets do not intersect. Two
+  tasks that touch the same file run serially however independent they look —
+  the gate is the file sets, not your judgment about them.
 - Test deliverables are explicit steps with actual test code, never "add
   tests later".
 - Steps that change documentation items (SRS/RMF/SAD) mint their IDs with
@@ -48,6 +61,8 @@ Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
 1. Every ID in **Implements:** has at least one task whose test verifies it.
 2. Every task's code steps show real code, real commands, expected output.
 3. Names/signatures used across tasks are consistent.
+4. Every task carries **Files touched:** and **Parallel:**, and no two tasks
+   marked parallel name the same file.
 
 ## Execution
 
