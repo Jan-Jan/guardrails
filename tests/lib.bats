@@ -639,7 +639,7 @@ PY
     done
     # Pinned, so a script added later without the guard reddens here rather
     # than being quietly excluded from the question.
-    [ "$n" -eq 6 ] || { echo "expected 6 scripts, ran $n"; false; }
+    [ "$n" -eq 7 ] || { echo "expected 7 scripts, ran $n"; false; }
     [ "$shell" = dash ] || skip "no dash present: this ran under $shell and cannot discriminate"
 }
 

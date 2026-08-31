@@ -98,8 +98,15 @@ EOF
     # pass a message-only assertion while proving nothing.
     #
     # Covered: check-ids.sh, check-trace.sh, check-review.sh, finalize-docs.sh,
-    # new-id.sh — every script in scripts/ that calls awk. check-signing.sh
-    # calls none and is deliberately absent.
+    # new-id.sh. check-signing.sh calls no awk and is deliberately absent.
+    # finish-merge.sh DOES call awk and is absent for a different reason: every
+    # script here is asserted at exit 0, and finish-merge.sh has nothing to
+    # verify on this tree, so it would refuse — correctly, and the sweep would
+    # read that as a failure. Its strict-awk coverage lives in its own file
+    # instead: "derives the worktree path under an awk that refuses a newline
+    # in -v" (tests/finish-merge.bats), which builds the squash this needs.
+    # A script added to scripts/ that calls awk belongs in one place or the
+    # other; absent from both, nothing measures it.
     cat > docs/requirements/0001-01-01-base.md <<'EOF'
 # SRS
 

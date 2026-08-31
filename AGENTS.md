@@ -14,8 +14,12 @@ reference implementation of its own process.
    removes the task worktree and branch.
 2. **Integration is a signed squash merge.** `main` receives exactly one signed
    commit per change. Intermediate worktree commits may be unsigned
-   (`git -c commit.gpgsign=false commit`); the squash commit must be signed
-   (`git commit -S`) and verified before the worktree is cleaned up.
+   (`git -c commit.gpgsign=false commit`) — including the base merge, since
+   `git merge` honors `commit.gpgsign` and will otherwise block on the key;
+   the squash commit must be signed (`git commit -S`) and verified before the
+   worktree is cleaned up. The agent stages the squash and hands over one
+   command; **the user runs the signing**, and `finish-merge.sh` verifies the
+   signature before it removes anything (`merge-change` steps 7 and 8).
 3. **Run `tests/run-tests.sh` before any merge.** All bats tests must pass.
    Dispatch it rather than running it in your own context: a subagent runs the
    gate and returns the gate summary (`verify-before-merge`). The verdict comes

@@ -320,13 +320,13 @@ Never overwrite. Sequence:
 4. **Later teeth** (separate worktree changes, listed in the gap analysis):
    migrate legacy requirement/risk docs into ID'd form via
    `grill-requirements` / `analyze-risks`; extend `strict_paths` as areas are
-   brought under trace discipline; enable `--strict` signing checks once
-   allowed_signers is set up. **Monolith → ledger migration:** doc config
-   keys accept a file or a directory, so an existing single `srs.md` keeps
-   working; for multi-developer repos recommend switching each `doc_*` key
-   to a directory (move the monolith in as its first dated file, add the
-   README) — new changes then land as dated per-change files and stop
-   conflicting.
+   brought under trace discipline. Signing is **not** on this list — it is a
+   Step 5 prerequisite that the first merge already enforces.
+   **Monolith → ledger migration:** doc config keys accept a file or a
+   directory, so an existing single `srs.md` keeps working; for multi-developer
+   repos recommend switching each `doc_*` key to a directory (move the monolith
+   in as its first dated file, add the README) — new changes then land as dated
+   per-change files and stop conflicting.
 5. Integrate via `merge-change` like any other change.
 
 ## Step 4: Safety-class interview (IEC 62304 4.3)
@@ -347,25 +347,49 @@ two classes, the higher class governs until justified otherwise.
 
 ## Step 5: Human setup checklist
 
-Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`:
+Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
+
+**The signing items are a gate on the ratchet itself, not a later tooth.**
+Every merge ends with `finish-merge.sh`, which runs `check-signing.sh --strict`
+before it removes the worktree and deletes the branch — strictness begins at
+the first merge, not in CI. A project that defers signing completes each merge
+and is then refused the cleanup, accumulating worktrees with no obvious cause.
+So ratchet is not complete until `check-signing.sh --setup` exits 0, and that
+includes ratchet's own scaffold change: satisfy the signing items before the
+integration in Step 2.7 / Step 3.5.
+
+For a retrofit, say this plainly and early rather than letting it be
+discovered at the first merge: **an existing project must configure commit
+signing before it can finish adopting guardrails.** Ratchet cannot do it alone
+— it needs each committer's public key. If those keys are not available yet,
+stop and name exactly what is missing instead of calling adoption done.
 
 - [ ] Commit signing key: `git config gpg.format ssh`,
       `git config user.signingkey <key>`, `git config commit.gpgsign true`
       (GPG works too). Hardware keys require a physical touch per signature.
 - [ ] Signature verification: create an allowed_signers file listing each
       committer (`<email> <key-type> <public-key>`), then
-      `git config gpg.ssh.allowedSignersFile <path>`. Until this exists,
-      `check-signing.sh` passes signed commits with WARN-UNVERIFIED; after,
-      enable `--strict` in CI.
+      `git config gpg.ssh.allowedSignersFile <path>`. Without it every
+      signature reads as unverifiable, which `--strict` rejects.
+- [ ] **Prove the chain, and only then is the ratchet done:**
+      `.guardrails/scripts/check-signing.sh --setup` must exit 0. It checks
+      that `gpg.format`, `user.signingkey`, `commit.gpgsign` and the format's
+      trust root are set and readable, then makes a real signed commit in a
+      throwaway repository and confirms it reads `%G?` = `G` — configuration
+      being present says nothing about whether the key can sign or the
+      signature verifies. Exit 1 is a failed proof, exit 2 a usage or
+      environment error. Each missing piece is named separately; work through
+      them in order.
 - [ ] Branch protection on the base branch: no direct pushes, require signed
       commits.
 - [ ] CI: run `verify_commands`, `check-ids.sh`, `check-trace.sh`, and
-      `check-signing.sh --strict <base>..HEAD` on every merge. **Not
-      `check-review.sh`** — it asks about the change under merge, so on the
-      base branch it exits 2 rather than reporting a pass over no question.
-      It runs from the change worktree at `merge-change` step 6c. To gate it
-      in CI on a pull request, name the branch: `check-review.sh --branch
-      <head-branch>`.
+      `check-signing.sh --strict <base>..HEAD` on every merge — a backstop for
+      what `finish-merge.sh` already enforced on the merging machine, not the
+      point at which strictness begins. **Not `check-review.sh`** — it asks
+      about the change under merge, so on the base branch it exits 2 rather
+      than reporting a pass over no question. It runs from the change worktree
+      at `merge-change` step 6c. To gate it in CI on a pull request, name the
+      branch: `check-review.sh --branch <head-branch>`.
 - [ ] Decide the human review/approval policy for merges (who signs off),
       including who acts as the independent reviewer in `merge-change`
       step 6a when a human is preferred over a fresh agent.
@@ -398,5 +422,6 @@ Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`:
 |---|---|
 | "I'll just overwrite their AGENTS.md" | Retrofit never overwrites. Managed block only. |
 | "Enable strict checks everywhere now" | That blocks all work on legacy code. Tighten one tooth. |
+| "Signing can be a later tooth" | The first merge enforces it. Without a proved signature the merge lands and the cleanup is refused. `--setup` exits 0 or the ratchet is unfinished. |
 | "Skip the worktree for the scaffold" | Ratchet follows its own rules. Worktree + signed squash merge. |
 | "safety_class can stay TBD" | Nothing else scales correctly until it's set. Interview now. |

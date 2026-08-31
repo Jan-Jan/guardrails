@@ -204,33 +204,69 @@ the base branch. Then rerun from step 1.
    finding header the rule cannot read, so a disposition is attached to the
    wrong finding or to none. Never answer any of them by deleting the finding.
 
-7. **Signed squash merge onto the base branch:**
+7. **Squash onto the base branch, then hand the signing over.** The squash is
+   yours; the commit is the user's. Do the merge in the primary checkout, with
+   the base branch checked out:
 
    ```sh
    cd <primary checkout>       # or exit the worktree via your harness tool
    git merge --squash <branch>
-   git commit -S -m "<type>: <summary>
+   ```
+
+   Write the commit message to a file **outside the repository** — a temp
+   directory such as `/tmp/merge-<branch>.msg`, never anywhere under the working
+   tree. Not because a guard would catch it: none of them reads the primary
+   checkout's working tree, so an untracked message file there is invisible to
+   all three. The reason is plainer — a stray file in the repository is one
+   `git add -A` away from being committed as part of the change, and it would
+   be committed by the very commit it describes. The message is unchanged:
+
+   ```
+   <type>: <summary>
 
    Implements: <final REQ/RC/SDD/LLR IDs>
    Plan: docs/plans/<plan file>
-   Verified: docs/verification/<record file>"
+   Verified: docs/verification/<record file>
    ```
 
-   Signing may require the user's hardware-key touch — tell them before
-   running it. If signing fails (no key configured), **stop**: point to the
-   ratchet setup checklist. There is no unsigned fallback, ever.
-8. **Verify and clean up:**
+   Then hand the user exactly one command, with the real paths and branch name
+   substituted in — their shell has none of your variables — and **stop**:
 
    ```sh
-   .guardrails/scripts/check-signing.sh   # verifies the new HEAD
-   git worktree remove <worktree-path>    # or your harness's exit/cleanup tool
-   git branch -D <branch>
+   git commit -S -F /tmp/merge-<branch>.msg && sh .guardrails/scripts/finish-merge.sh <branch>
    ```
 
-   Cleanup happens only after the signature check passes — a failed check
-   means investigate, not proceed. If the harness created the worktree
-   (e.g. `EnterWorktree`), leave/remove it with the harness tool so its
-   state stays consistent.
+   **You never run `git commit -S` yourself.** Signing may require the user's
+   hardware-key touch, and starting a blocking wait on their behalf is exactly
+   what this handoff replaces. Tell them the touch is coming.
+
+   The command is a compound for a reason. The half that needs their key is a
+   plain `git commit` they can read before they touch it; the half that deletes
+   things is a script, because `&&` guards nothing and the tail force-deletes a
+   branch (`-D`, necessarily — git does not consider a squashed branch merged).
+   `finish-merge.sh` proves three things before it removes anything: the new
+   HEAD's signature verifies under `--strict`, `git diff HEAD <branch>` is
+   empty, and the worktree is clean. Then, in that order, it removes the
+   worktree and deletes the branch. **Cleanup happens only after the signature
+   check passes** — that is the script's first guard, not a step anyone may take
+   on their own judgment.
+
+   If signing fails (no key configured), **stop**: point to the ratchet setup
+   checklist. There is no unsigned fallback, ever.
+
+   The script takes the branch name and finds the worktree itself, so it needs
+   no path from you — a pasted path is a chance to remove the wrong directory.
+   If the harness created the worktree (e.g. `EnterWorktree`) and you left or
+   removed it with the harness tool so its state stays consistent, that is fine:
+   with no worktree registered for the branch the script skips the removal and
+   still deletes the branch.
+8. **Confirm, then report.** On the user's word that the command succeeded,
+   confirm it rather than take it — the base branch's HEAD is the signed squash:
+
+   ```sh
+   git log -1 --format='%h %G? %s'
+   .guardrails/scripts/check-signing.sh   # verifies the new HEAD
+   ```
 
    Then report the merge — the squash commit, the IDs it implements, the
    verification record it cites — and recommend compacting the conversation
@@ -239,12 +275,40 @@ the base branch. Then rerun from step 1.
    holds nothing they do not. If the harness offers a compaction step (e.g. a
    `/compact` command), name it so the user can run it.
 
+   **If the script refused.** Every refusal exits non-zero having removed
+   nothing and deleted nothing, and the signed commit is on the base branch
+   either way — what is refused is the cleanup, which is a safe thing to refuse.
+   Read which guard fired:
+
+   | Refusal | What it means | What fixes it |
+   |---|---|---|
+   | `UNVERIFIED` / `UNSIGNED` from `check-signing.sh --strict` | The new HEAD's signature does not verify against trusted signers — usually a missing or incomplete `gpg.ssh.allowedSignersFile`. `--strict` is unconditional here, so a signature nobody can verify never passes for cleanup. | Configure the signers file (ratchet's signing checklist), then re-run the script. |
+   | The squash did not capture everything — `git diff HEAD <branch>` is non-empty | Step 1 merged the base into the change branch, so a correct squash leaves the two trees identical. A difference means something did not land: an unstaged file, a partial `git add`, or a base that moved between step 1 and the squash. Deleting the branch would destroy exactly that difference. | `git diff HEAD <branch>` to see what is missing. Bring it onto the base branch, or rerun the sequence from step 1, before re-running the script. |
+   | `git worktree remove` refused | The worktree is dirty — uncommitted work still lives there. No `--force` is passed, and git's own refusal is the guard. | Inspect the worktree, commit or discard what is there, then re-run the script. |
+   | A precondition error (exit 2) | The script is in the wrong place or was given the wrong branch: run from a linked worktree, run on a detached HEAD, no such branch, or the branch named *is* the base branch. | Run it from the primary checkout with the base branch checked out, naming the change branch. |
+
+   **The fix is to re-run the script alone**, never the whole compound:
+
+   ```sh
+   sh .guardrails/scripts/finish-merge.sh <branch>
+   ```
+
+   Re-running the compound is safe — the squash is no longer staged, so
+   `git commit` fails and `&&` short-circuits before the script, and nothing
+   double-commits — but it spends a key touch to prove that, and it reads as
+   though the merge itself needs redoing. It does not. The merge is done; only
+   the cleanup is outstanding.
+
 ## Red flags
 
 | Thought | Reality |
 |---|---|
 | "Skip re-verification, the rename touched no code" | It moved regulated documents. Re-dispatch the gate (step 6). |
 | "Sign later, merge now" | An unsigned base branch is a broken audit trail. Stop instead. |
+| "I'll run `git commit -S` myself, it's one command" | The commit is the user's: it may need their hardware touch, and waiting on their key on their behalf is what step 7 replaces. Hand over the compound and stop. |
+| "The message file can live in the repo, it's temporary" | No guard would catch it, which is the problem: it is one `git add -A` from being committed by the commit it describes. Write it outside the repository (step 7). |
+| "The script refused, I'll remove the worktree and branch by hand" | A guard caught something. `--force` and `-D` destroy exactly what it caught. Fix the cause, re-run the script (step 8). |
+| "Cleanup failed, so re-run the whole command" | The merge is done and the commit survived. Re-run the script alone — the compound only spends another key touch to short-circuit (step 8). |
 | "Merge the base branch in afterwards if something breaks" | Step 1 exists so breakage surfaces in the worktree. |
 | "Leave the worktree around just in case" | Merged work lives on the base branch. Clean up (step 8). |
 | "Checks fail but the change is obviously fine" | Fix the artifact or the genuine gap. Never bypass. |

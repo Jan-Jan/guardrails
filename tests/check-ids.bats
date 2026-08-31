@@ -127,6 +127,7 @@ EOF
     calls_check_signing=0
     calls_check_trace=2
     calls_finalize_docs=0
+    calls_finish_merge=0
     calls_lib=0
     calls_new_id=0
 
@@ -135,6 +136,7 @@ EOF
     forms_check_signing=0
     forms_check_trace=0
     forms_finalize_docs=0
+    forms_finish_merge=0
     forms_lib=0
     forms_new_id=0
 
@@ -146,6 +148,7 @@ EOF
     body_check_signing=0
     body_check_trace=7
     body_finalize_docs=0
+    body_finish_merge=0
     body_lib=2
     body_new_id=0
 
@@ -159,6 +162,7 @@ EOF
     loose_check_signing=0
     loose_check_trace=0
     loose_finalize_docs=0
+    loose_finish_merge=0
     loose_lib=0
     loose_new_id=0
 
@@ -167,6 +171,7 @@ EOF
     block_check_signing=0
     block_check_trace=5
     block_finalize_docs=0
+    block_finish_merge=0
     block_lib=0
     block_new_id=0
 
@@ -181,6 +186,7 @@ EOF
     fm_check_signing=0
     fm_check_trace=1
     fm_finalize_docs=0
+    fm_finish_merge=0
     fm_lib=0
     fm_new_id=0
 
@@ -193,6 +199,7 @@ EOF
     civil_check_signing=0
     civil_check_trace=2
     civil_finalize_docs=0
+    civil_finish_merge=0
     civil_lib=0
     civil_new_id=0
 
@@ -265,7 +272,7 @@ EOF
             false
         }
     done
-    [ "$seen" -eq 7 ] || { echo "expected 7 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 8 ] || { echo "expected 8 scripts, scanned $seen"; false; }
 
     # And the constructor and the body each exist exactly once, so the counts
     # above are counts of uses of something real rather than of a name nothing
@@ -306,7 +313,7 @@ EOF
         seen=$((seen + 1))
         sh -n "$f" || { echo "does not parse: $f"; false; }
     done
-    [ "$seen" -eq 7 ] || { echo "expected 7 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 8 ] || { echo "expected 8 scripts, scanned $seen"; false; }
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {
