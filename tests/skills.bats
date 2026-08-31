@@ -14,3 +14,23 @@
     grep -q 'bats is never installed' "$skill"
     grep -q 'suite not run at install time:' "$skill"
 }
+
+@test "problem grammar prose: no shipped file still carries owner:" {
+    # verifies: PR-dudg35
+    # owner: was dropped from the problem-item grammar; any shipped prose
+    # (templates, skills, READMEs) still requiring or documenting it would
+    # reintroduce the field the scripts no longer read. The dated ledger
+    # files and this test are deliberately out of scope: leftover owner:
+    # lines in ledgers are inert, and this file names the literal to grep.
+    root="$BATS_TEST_DIRNAME/.."
+    run grep -n 'owner:' \
+        "$root/templates/problems.md" \
+        "$root/templates/AGENTS-block.md" \
+        "$root/skills/resolve-problem/SKILL.md" \
+        "$root/skills/check-traceability/SKILL.md" \
+        "$root/skills/ratchet/SKILL.md" \
+        "$root/README.md" \
+        "$root/docs/problems/README.md"
+    [ "$status" -ne 0 ]
+    [ -z "$output" ]
+}

@@ -42,8 +42,8 @@ MC/DC beyond the class C target is optional extra credit. Requirements with
 no parent in system needs are marked `satisfies: derived` and must be
 assessed in the risk management file (UNANALYZED-DERIVED otherwise). Every
 bug becomes a problem report (`resolve-problem` skill) in the log at
-`doc_problems` (config), carrying an `owner:` and an `opened:` date while it
-is open; open PRs are listed at each merge with their age and owner, and past
+`doc_problems` (config), carrying an `opened:` date while it
+is open; open PRs are listed at each merge with their age, and past
 the config's `problem_age_days` or `problem_open_max` the list stops being a
 warning and fails the merge. The coverage gate runs the config's `coverage_command`
 when one is configured — projects without one document why in their setup

@@ -241,7 +241,7 @@ function gr_block_closes(line) {
 # a value from a position this backstop cannot see, because then an annotation
 # belonging to no item is read, matched and dropped in silence.
 #
-#   * `status:`, `owner:`, `opened:` — CLOSED, 2026-08-25. The problem-report
+#   * `status:`, `opened:` — CLOSED, 2026-08-25. The problem-report
 #     reader in check-trace.sh goes through this function, so reader and
 #     backstop look in the same place, and a `- status: open` bullet is
 #     reported INCOMPLETE-PROBLEM rather than passing silently.
@@ -272,7 +272,7 @@ function gr_kw_here(line, kw) {
 }
 # The value of an annotation: everything after the keyword, trimmed. A keyword
 # with nothing after it declares nothing, and every reader here treats it as
-# absent — an empty `owner:` is an omission wearing the shape of compliance.
+# absent — an empty `opened:` is an omission wearing the shape of compliance.
 #
 # Meaningful only where gr_kw_here holds, which is why both live here: a reader
 # that takes a value from a keyword the ORPHAN-ANNOTATION backstop cannot see

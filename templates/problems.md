@@ -11,29 +11,32 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
 
   **PR-NNNNNN**: <observable symptom, one sentence>.
   affects: <REQ/RC/SDD/LLR IDs implicated>.
-  owner: <who is answerable for it — free text>
   opened: YYYY-MM-DD
   status: open|resolved
   <when resolved: one line — root cause + fix reference (reproducing test)>
 
 - Record the problem BEFORE investigating (resolve-problem skill).
-- EVERY item needs a `status:`, and every OPEN item an `owner:` and an
-  `opened:` date. `opened:` is a real calendar date in `YYYY-MM-DD`, and may
+- EVERY item needs a `status:`, and every OPEN item an `opened:` date.
+  `opened:` is a real calendar date in `YYYY-MM-DD`, and may
   be at most ONE day ahead of the machine running the check — that one day is
   there because "today" differs across timezones; anything further is a
   failure, because a date in the future ages backwards and would make a stale
-  item look fresh. Each of the three is read at COLUMN ONE, inside the item's
-  block, and the FIRST occurrence of each is the one that counts. A keyword
+  item look fresh. Both are read at COLUMN ONE, inside the item's block,
+  and the FIRST occurrence of each is the one that counts. A keyword
   with nothing after it declares nothing and is reported as absent.
-- Resolved items need neither owner nor opened: they cannot age, and
-  requiring the fields on them would redden every ledger already written for
-  no gain. Adopting this on an existing ledger is a backfill of the items
-  still open, and check-trace.sh names each one.
+- A resolved item needs no `opened:`: it cannot age, and requiring the field
+  on it would redden every ledger already written for no gain. Adopting this
+  on an existing ledger is a backfill of the items still open, and
+  check-trace.sh names each one.
+- There is no owner field: authorship is already answered by `git blame` on
+  the ledger line, and problems are not personally owned — anyone may
+  resolve them — so a name in the grammar only added a failure mode (a
+  missing one) without adding triage value.
 - An item with no readable `status:` is reported INCOMPLETE-PROBLEM. It is
   not merely unlabelled — before that check it read as RESOLVED and was
   absent from every merge's known-problem list.
 - Open PRs are printed as UNRESOLVED-PR warnings at every merge, carrying
-  their age and owner so the list can be triaged. The warning itself never
+  their age so the list can be triaged. The warning itself never
   blocks; what blocks is an item older than `problem_age_days`, a backlog
   larger than `problem_open_max`, or a missing field. Both limits are set in
   `.guardrails/config.yaml`, and both are printed on every run whether they

@@ -23,7 +23,6 @@ with the ID it printed:
 ```
   **PR-NNNNNN**: <observable symptom, one sentence>.
   affects: <REQ/RC/SDD/LLR IDs implicated — best current guess>.
-  owner: <who is answerable for it>
   opened: <today, YYYY-MM-DD>
   status: open
 ```
@@ -34,19 +33,21 @@ exist, and a definition form at column one is judged wherever it sits — in a
 fenced block too. Write the item flush left in the ledger, with the ID
 `new-id.sh` printed.)
 
-`owner:` and `opened:` are required on an open item and are read at column
-one, first occurrence wins. `opened:` is today's date — a real calendar date
+`opened:` is required on an open item and is read at column
+one, first occurrence wins. It is today's date — a real calendar date
 in `YYYY-MM-DD`, and no more than one day ahead of the machine that runs the
 check (that day of slack exists so a timezone difference does not fail a
-correct item; anything further is `MALFORMED-DATE`). They exist so the open list can be triaged
-rather than scrolled past: without an age nothing can go stale, and without
-an owner nothing is anyone's. `check-trace.sh` reports a missing one as
+correct item; anything further is `MALFORMED-DATE`). It exists so the open list can be triaged
+rather than scrolled past: without an age nothing can go stale. There is no
+owner field — authorship is already answered by `git blame` on the ledger
+line, and problems are not personally owned: anyone may resolve them.
+`check-trace.sh` reports a missing `opened:` as
 `INCOMPLETE-PROBLEM`, and an item with no `status:` at all the same way —
 before that check such an item read as *resolved*.
 
 Recording first is the discipline: if investigation dead-ends, the open PR
 survives and shows up at every merge (`check-trace.sh` prints
-`UNRESOLVED-PR` warnings until it's resolved, with the item's age and owner
+`UNRESOLVED-PR` warnings until it's resolved, with the item's age
 on the line). Past the project's `problem_age_days` or `problem_open_max`
 the warning becomes a failure — resolve it or raise the limit deliberately,
 but do not leave it to rot.

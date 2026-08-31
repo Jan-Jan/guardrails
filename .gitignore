@@ -1,3 +1,4 @@
 .claude/worktrees/
 tests/.bats-core
 *.bak
+.worktrees/

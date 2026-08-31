@@ -215,7 +215,7 @@ ls src lib app AGENTS.md docs 2>/dev/null
 >
 > **Problem reports are now triaged, and this one DOES touch the existing
 > ledger.** It is the only part of the upgrade that does. `check-trace.sh`
-> requires a column-one `status:` on every problem report, and an `owner:` and
+> requires a column-one `status:` on every problem report, and
 > an `opened: YYYY-MM-DD` on every one that is **open**. Work through it in
 > this order, because the first item finds things the other two do not:
 >
@@ -226,7 +226,7 @@ ls src lib app AGENTS.md docs 2>/dev/null
 >    items there was one of these, recorded in prose bullets.
 > 2. `MALFORMED-STATUS` — `closed`, `wontfix`, `Open`. Pick `open` or
 >    `resolved`; an unrecognised status counted as resolved too.
-> 3. `INCOMPLETE-PROBLEM … (open, no owner:/no opened:)` — the backfill. Only
+> 3. `INCOMPLETE-PROBLEM … (open, no opened:)` — the backfill. Only
 >    the still-open items need it, so this is bounded and shrinks every time
 >    one is resolved. For `opened:`, the merge date in the defining file's own
 >    name (`docs/problems/YYYY-MM-DD-slug.md`) is the honest answer when the

@@ -132,7 +132,6 @@ write_pr() {
 
 **${1:-PR-001}**: Crash on empty dose input.
 affects: REQ-001
-owner: jvdv
 opened: ${3:-$(days_ago 3)}
 status: ${2:-open}
 EOF

@@ -17,13 +17,13 @@
 #                              defined nowhere
 #   MISPLACED-ITEM ID        — item defined outside the document configured
 #                              for its prefix
-#   ORPHAN-ANNOTATION FILE:LINE — a status:/owner:/opened:/traces:/satisfies:
+#   ORPHAN-ANNOTATION FILE:LINE — a status:/opened:/traces:/satisfies:
 #                              line at column one that belongs to no item block
-#   UNRESOLVED-PR ID         — problem report with status: open, with its age
-#                              and owner. WARNING only: listed for review,
+#   UNRESOLVED-PR ID         — problem report with status: open, with its age.
+#                              WARNING only: listed for review,
 #                              never fails the check on its own
 #   INCOMPLETE-PROBLEM ID    — PR with no column-one status: in its block, or
-#                              an OPEN one with no owner:/opened: (a keyword
+#                              an OPEN one with no opened: (a keyword
 #                              with an empty value counts as absent)
 #   MALFORMED-STATUS ID      — status: whose value is neither open nor resolved
 #   MALFORMED-DATE ID        — an open PR whose opened: is not a YYYY-MM-DD
@@ -495,7 +495,7 @@ _prs=$(
         LC_ALL=C awk -v body="$GR_ID_BODY" -v today="$today" \
             -v agelim="$age_limit" \
             "$GR_AWK_ITEM_BLOCK$GR_AWK_CIVIL"'
-            function gr_prflush(   age, who) {
+            function gr_prflush(   age) {
                 if (cur == "") return
                 # Neither of the next two returns reaches the roll-call, so
                 # neither counts toward the backlog. That is deliberate: the
@@ -515,9 +515,6 @@ _prs=$(
                 # OPEN. Every branch below still reaches the roll-call: an open
                 # item missing from it is the defect this gate exists to remove,
                 # and an item that cannot be dated is not thereby young.
-                who = (own_seen && own != "") ? own : "unrecorded"
-                if (who == "unrecorded")
-                    printf "F 0 INCOMPLETE-PROBLEM %s (open, no owner:)\n", cur
                 age = -1
                 if (!opd_seen || opd == "")
                     printf "F 0 INCOMPLETE-PROBLEM %s (open, no opened:)\n", cur
@@ -544,9 +541,9 @@ _prs=$(
                     }
                 }
                 if (age < 0)
-                    printf "W -1 UNRESOLVED-PR %s (open, age unrecorded, owner %s)\n", cur, who
+                    printf "W -1 UNRESOLVED-PR %s (open, age unrecorded)\n", cur
                 else {
-                    printf "W %d UNRESOLVED-PR %s (open %d days, owner %s)\n", age, cur, age, who
+                    printf "W %d UNRESOLVED-PR %s (open %d days)\n", age, cur, age
                     if (agelim != "" && age > agelim + 0)
                         printf "F 0 STALE-PROBLEM %s (open %d days, limit %d)\n", cur, age, agelim + 0
                 }
@@ -590,15 +587,14 @@ _prs=$(
             gr_block_closes(line) {
                 gr_prflush()
                 cur = ""
-                st = ""; own = ""; opd = ""
-                st_seen = 0; own_seen = 0; opd_seen = 0
+                st = ""; opd = ""
+                st_seen = 0; opd_seen = 0
                 if (gr_block_opens(line)) cur = gr_block_id(line)
             }
             # First occurrence wins, per keyword — the GR_AWK_ID_RUN rule
             # applied to a scalar annotation. A later line cannot reopen an
             # item the first line already closed.
             cur != "" && !st_seen  && gr_kw_here(line, "status:") { st_seen = 1;  st = gr_value(line, "status:") }
-            cur != "" && !own_seen && gr_kw_here(line, "owner:")  { own_seen = 1; own = gr_value(line, "owner:") }
             cur != "" && !opd_seen && gr_kw_here(line, "opened:") { opd_seen = 1; opd = gr_value(line, "opened:") }
             END { gr_prflush() }
         ' "$f" || gr_die "problem-report scan failed on $f"
@@ -693,11 +689,9 @@ _sat_files=$(printf '%s\n' $sad_files $srs_files | sort -u)
 # shellcheck disable=SC2086
 _orphans=$(
     check_orphans 'status:' PR $problems_files
-    # The reader added `owner:` and `opened:` to the same block, so the
-    # backstop covers them too. An orphaned owner: is worse than a missing
-    # one: under a looser block rule it is credited to the item above, and an
-    # ownerless item then reads as owned.
-    check_orphans 'owner:' PR $problems_files
+    # The reader added `opened:` to the same block, so the backstop covers it
+    # too: under a looser block rule an orphaned opened: is credited to the
+    # item above, and an undated item then reads as dated.
     check_orphans 'opened:' PR $problems_files
     check_orphans 'traces:' SDD $sad_files
     # ONE scan over the union, opening on BOTH prefixes that read `satisfies:`.

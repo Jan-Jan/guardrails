@@ -15,7 +15,6 @@ only — investigation confirmed the pieces the item leans on already conform:
 tests/run-tests.sh vendors bats-core when no system bats exists,
 `tests/.bats-core` is gitignored, and `guardrails_version` is a schema key
 in templates/config.yaml and scripts/lib.sh.
-owner: Dr. Jan-Jan van der Vyver
 opened: 2026-08-30
 status: resolved
 The step-5 checklist item named the qualification basis and what the setup
