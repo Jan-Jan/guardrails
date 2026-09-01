@@ -59,38 +59,108 @@ signed squash merges (`merge-change`).
    test fail for the right reason means nothing if another agent is committing
    underneath you.
 
-   Create a task worktree the way steps 2 and 3 describe — harness tool
-   first — naming the change branch as the start point, and put it in
-   whichever directory this project already uses for worktrees. The two
-   usual locations resolve differently, and only one of them needs an ignore
-   entry:
+   **Where the task worktree goes: `.worktrees/<change-branch>-t<N>`, nested
+   inside the change worktree.** Not the project's usual worktree directory,
+   not the harness's — the selector is containment, not convention.
+   Where a harness isolates a dispatched subagent, that harness
+   pins that subagent to a subtree, and the only worktree inside that pin
+   is one nested inside the change worktree it was dispatched from. A
+   worktree beside the change worktree is outside that pin.
 
-   - **inside the change worktree** — step 3's `.worktrees/`, a path relative
-     to the change worktree's own root. It must be gitignored: an untracked
-     directory inside the change worktree fails `verify-before-merge`'s clean
-     `git status` check. **That entry is the dispatcher's precondition, not
-     the subagent's.** Confirm it once, in the change worktree, before
-     dispatching anyone (add + commit if missing). A subagent cannot do it —
-     the commit would land on the change branch from the change worktree,
-     where no task subagent may work, and five of them fanned out would race
-     the same commit.
-   - **outside it** — the harness's own location (e.g. `.claude/worktrees/`),
-     which usually sits beside the change worktree rather than within it.
-     Nothing there is inside the change worktree, so its `git status` never
-     sees it and no ignore entry is needed.
+   `<N>` is the plan task number: task 3 gets `.worktrees/<change-branch>-t3`,
+   on branch `<change-branch>-t3`. A dispatch with no task number takes a tag
+   in place of the number — the independent review at `merge-change` step 6a
+   goes to `.worktrees/<change-branch>-review`.
 
-   Either way, note where the worktree actually landed: the subagent reports
-   that path back on the dispatch report's `worktree:` line
-   (`develop-change`), and the dispatcher needs it to remove the worktree
+   That directory must be gitignored: an untracked directory inside the change
+   worktree fails `verify-before-merge`'s clean `git status` check. **That
+   entry is the dispatcher's precondition, not the subagent's.** Confirm it
+   once, in the change worktree, before dispatching anyone (add + commit if
+   missing). A subagent cannot do it — the commit would land on the change
+   branch from the change worktree, where no task subagent may work, and five
+   of them fanned out would race the same commit.
+
+   None of this constrains the **change** worktree. That one is created by an
+   agent that is not yet isolated and so is not yet pinned, and either location
+   serves: the harness's own (e.g. `.claude/worktrees/`) when it has a worktree
+   tool, or `.worktrees/` in the primary checkout via the step 3 fallback. What
+   the rule forbids is a *task* worktree outside the change worktree — the
+   harness location is not available to a dispatched subagent, whatever the
+   project's convention says. Both directories are gitignored by `ratchet`'s
+   setup, and both entries are load-bearing: `.claude/worktrees/` for change
+   worktrees the harness makes, `.worktrees/` for the fallback and for every
+   task worktree.
+
+   The subagent still reports the path back on the dispatch report's
+   `worktree:` line (`develop-change`) — as confirmation that it went where it
+   was sent, and because the dispatcher needs it to remove the worktree
    afterwards.
 
    ```sh
-   # <worktrees-dir> inside the change worktree (.worktrees/) must be gitignored;
-   # a harness location outside it (.claude/worktrees/) needs no ignore entry
-   git worktree add <worktrees-dir>/<change-branch>-t<N> -b <change-branch>-t<N> <change-branch>
+   # .worktrees/ is inside the change worktree and must be gitignored
+   git worktree add .worktrees/<change-branch>-t<N> -b <change-branch>-t<N> <change-branch>
    ```
 
-2. **Native tool first.** If your harness has a worktree tool (e.g.
+   **Then get inside it — harness tool first.** Creating the worktree is half
+   the step; a subagent that creates one and keeps working where it stood has
+   isolated nothing. If your harness has a worktree tool (e.g.
+   `EnterWorktree`, a `/worktree` command), hand it the path you just created;
+   otherwise stay put and drive the worktree by path, with
+   `git -C .worktrees/<change-branch>-t<N> ...` and absolute paths for every
+   edit. Either way, prove the worktree answers before you edit anything, with
+   `git -C .worktrees/<change-branch>-t<N> status` — that spelling works on
+   both branches, where `pwd` and a bare `git status` only tell you anything on
+   the first. Prove it because a harness worktree tool can report success and
+   leave you unable to run anything at all (red flags, below).
+
+   From there the task is ordinary: copy in the ignored artifacts the next
+   paragraph names, edit, run the project's `verify_commands`, and commit on
+   the task branch (unsigned — see "Inside the worktree"). Then report and
+   stop; the dispatcher merges.
+
+   **A fresh task worktree holds only tracked files.** It is a checkout of the
+   change branch's tree and nothing more, so everything gitignored is absent
+   from it — a vendored test runner, installed dependencies, a build cache.
+   `git status --ignored` in the change worktree is how you enumerate them
+   rather than guess. Whatever the project's `verify_commands` need, copy it
+   across from the change worktree before running them, or the first command
+   that reaches for a missing artifact will try to refetch it — which fails
+   outright on a machine with no network path to the source. The copy costs nothing and
+   leaves the tree clean, because anything missing for this reason is
+   gitignored by definition and so cannot dirty `git status`.
+
+   **The measurement.** Dispatched into a change worktree under
+   `.claude/worktrees/`, with the task worktree tried in each location
+   (2026-08-31):
+
+   | | nested `.worktrees/<branch>-t<N>` | beside it, `.claude/worktrees/<branch>-t<N>` |
+   |---|---|---|
+   | `git worktree add` | ok | ok |
+   | `git -C` against it | ok | refused |
+   | write tool, by path | ok | refused |
+   | harness worktree tool, by path | ok | "success", then unusable |
+   | commit, test suite | ok | unreachable |
+
+   The refusal reads *a worktree-isolated session's git operations must target
+   its own worktree*. Nothing about task worktrees is broken; the outside path
+   is simply not reachable from inside the pin. Read the write-tool row
+   narrowly: it is the write **tool** that was refused. A plain shell redirect
+   to the same outside path was not — which is the trap the red flags name,
+   and the reason a file appearing there proves nothing.
+
+   **What that rests on, and what it means for your project.** That table is
+   one harness, measured once, on the date it carries. Containment is the rule
+   to follow wherever a harness isolates dispatched subagents; the table is
+   not a measurement of every harness. To tell yours apart, do it from the
+   change worktree before you dispatch anything: create a throwaway worktree
+   beside it, dispatch a subagent, and have it run `git -C <that path> status`.
+   A refusal naming the session's own worktree means your harness pins; a
+   clean status means it does not. A harness that
+   does not pin its subagents may put a task worktree anywhere — but nesting
+   works there too, costs nothing, and spares you the test, which is why the
+   rule above is stated flat rather than as a conditional.
+
+2. **Harness tool first.** If your harness has a worktree tool (e.g.
    `EnterWorktree`, a `/worktree` command), use it.
 3. **Fallback:**
 
@@ -102,6 +172,11 @@ signed squash merges (`merge-change`).
    Ensure `.worktrees/` is gitignored before creating it (add + commit if
    not). Branch names: short, kebab-case, describing the change
    (`add-dose-limits`, `rmf-overdose-hazards`).
+
+   Steps 2 and 3 create the **change** worktree, from the primary checkout,
+   and either location is fine for it. They do not govern task worktrees:
+   those are step 1's carve-out, always nested in the change worktree's own
+   `.worktrees/`, whatever made the change worktree.
 4. **Baseline:** run the project's `verify_commands`
    (`.guardrails/config.yaml`) immediately. If the baseline is red, report it
    and get an explicit decision before building on it.
@@ -158,20 +233,28 @@ signed squash merges (`merge-change`).
   staged, half-merged change worktree behind, and `verify-before-merge`'s
   clean `git status` check then fails on the mess.
 
-  Take the worktree's path from the dispatch report rather than rebuilding it:
-  `.worktrees/` is relative to the change worktree while a harness location is
-  not (step 1). `git worktree list` gives it back if the report is out of
-  reach.
+  The path is the one the dispatcher named in the prompt,
+  `.worktrees/<change-branch>-t<N>` (step 1); the report's `worktree:` line
+  confirms the subagent went there rather than telling you where to look, and
+  `git worktree list` shows what is still registered if neither is to hand.
 
   A task worktree dispatched only to review the change has nothing to merge —
-  the dispatcher removes the worktree and its task branch as they are. Either
-  way the branch goes too, so nothing survives to `merge-change`. A verification
-  dispatch has nothing to remove at all: it runs the gate in the change
-  worktree, never in one of its own (see the carve-out in step 1). Task work
-  never reaches the base branch on its own; it gets there only inside this
-  change's signed squash. The base branch still sees exactly one squash per
-  change, and `merge-change` still sees exactly one worktree — the change
-  worktree.
+  the dispatcher removes the worktree and its task branch as they are. For the
+  independent review that dispatcher is `merge-change` itself, and the removal
+  has a place in its sequence: the end of `merge-change` step 6a, where that
+  dispatch ends. It goes there and nowhere later because a review that returns
+  findings sends the sequence back to step 1, so no step after it runs on that
+  round — and the review worktree's path and branch are fixed, so what one
+  round left behind is what the next round's dispatch collides with. A later
+  step in that sequence then checks structurally that nothing is registered
+  inside the change worktree, because `finish-merge.sh` refuses to remove one
+  that still is. Either way the branch goes too, so nothing survives to
+  `merge-change`. A verification dispatch has nothing to
+  remove at all: it runs the gate in the change worktree, never in one of its
+  own (see the carve-out in step 1). Task work does not reach the base branch
+  on its own; it gets there only inside this change's signed squash. The base
+  branch still sees exactly one squash per change, and `merge-change` still
+  sees exactly one worktree — the change worktree.
 - Never check out or commit to the base branch from here.
 
 ## Leaving
@@ -217,3 +300,7 @@ carry it.
 | "The subagent merges its own task branch back" | It can't. Git refuses to update a branch another worktree has checked out, and `git merge` from the task worktree merges the wrong way and still exits 0. The dispatcher merges, in the change worktree. |
 | "I'll remember what task 3 did" | You won't, and a subagent never could. It goes in the plan. |
 | "I'll run the gate in a fresh worktree, it's cleaner" | It is clean because it is new. `verify-before-merge`'s `git status` check then proves nothing. The gate runs in the change worktree. |
+| "The task worktree goes where this project keeps worktrees" | The selector is containment, not convention. Nested inside the change worktree, at `.worktrees/<change-branch>-t<N>` — a dispatched subagent is pinned to that subtree. |
+| "`git worktree add` succeeded, so the location is fine" | Creation succeeds in both locations. It proves nothing about whether you can then write, commit or test there. |
+| "The file wrote, so I'm somewhere usable" | A plain shell redirect to a path outside the pin is not blocked even though the write tool is. Prove the location with `git -C <path> status`, not with a file appearing — that spelling works whether you entered the worktree or are driving it by path (step 1). |
+| "The worktree tool said it entered, so I'm in" | An out-of-pin path **reports success and then refuses** every subsequent shell call, `pwd` included, with no shell-level recovery. The only way back is to re-enter the change worktree's own path with the same tool. |

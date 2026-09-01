@@ -115,12 +115,15 @@ counts at all is a finding to chase — not a pass to assume.
 ## Rules
 
 - Any failure: stop. Deciding what to fix is yours; writing the fix is
-  dispatched like any other task, and it lands in the change worktree, never on
-  the base branch. Then dispatch the whole gate again — partial passes don't
-  carry over.
+  dispatched like any other task — into its own task worktree at
+  `.worktrees/<change-branch>-<tag>`, nested inside the change worktree and
+  named in the dispatch prompt (`worktree-discipline` step 1) — and it lands on
+  the change branch, never on the base branch. Then dispatch the whole gate
+  again — partial passes don't carry over.
 - The subagent reports; it does not fix. Findings come back to you: you decide
-  what to change, the fix is dispatched into the change worktree — never onto
-  the base branch — and the gate is re-dispatched from the top.
+  what to change, the fix is dispatched the same way — its own nested task
+  worktree, merged onto the change branch, never onto the base branch — and the
+  gate is re-dispatched from the top.
 - Never weaken a check to get through it (skipping tests, loosening the
   config, `--allow-draft-files` beyond step 3, editing expected outputs) — and
   never weaken one in the dispatch prompt either.

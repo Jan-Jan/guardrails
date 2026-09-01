@@ -8,10 +8,19 @@ reference implementation of its own process.
 1. **All work happens in a git worktree.** Documentation and code alike. Never
    commit directly to `main`. One change gets one change worktree on one change
    branch off `main`; each plan task is dispatched to a subagent that works in
-   its own task worktree, on a task branch off the change branch. The subagent
-   commits there and returns its dispatch report; the dispatcher — the agent in
-   the change worktree — merges that task branch into the change branch and
-   removes the task worktree and branch.
+   its own task worktree, on a task branch off the change branch. That task
+   worktree is **nested inside the change worktree**, at
+   `.worktrees/<change-branch>-t<N>` for plan task `<N>`, or
+   `.worktrees/<change-branch>-<tag>` where the dispatch has no task number
+   (`worktree-discipline` step 1 gives both forms and the tags that go in the
+   second; `merge-change`'s sequence header is where a fix dispatch's tag is
+   required to be unique, and says why) — and the dispatcher
+   names that path in the dispatch prompt, because a subagent here is
+   pinned to the change worktree's subtree, so a worktree anywhere else is
+   created successfully and is then unusable (`worktree-discipline` step 1).
+   The subagent commits there and returns its dispatch report; the dispatcher
+   — the agent in the change worktree — merges that task branch into the change
+   branch and removes the task worktree and branch.
 2. **Integration is a signed squash merge.** `main` receives exactly one signed
    commit per change. Intermediate worktree commits may be unsigned
    (`git -c commit.gpgsign=false commit`) — including the base merge, since

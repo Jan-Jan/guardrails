@@ -72,6 +72,14 @@ ls src lib app AGENTS.md docs 2>/dev/null
    .claude/worktrees/
    *.bak
    ```
+
+   Both worktree entries earn their place, so add both even where the project
+   has only ever used one: `.claude/worktrees/` covers change worktrees a
+   harness creates, and `.worktrees/` covers both the manual fallback and
+   every task worktree, which is nested inside the change worktree
+   (`worktree-discipline` step 1). A missing `.worktrees/` entry does not stop
+   a subagent creating its task worktree — it makes the untracked directory
+   fail `verify-before-merge`'s clean `git status` check afterwards.
 5. **Make every configured path exist in the commit**, and every ledger
    directory hold at least one `*.md`. `check-trace.sh` exits 2 otherwise —
    that is what stops a typo'd path from silently disabling a gate. Git does
