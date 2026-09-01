@@ -4,6 +4,7 @@
 # "no test detects this". Fail loudly instead — mutate.sh reports exit 3 as an
 # unusable mutation. Independent review, N6.
 _gr_before=$(cksum scripts/check-ids.sh)
-sed -i 's|when it is written. Run .guardrails/scripts/new-id.sh <PREFIX> and replace|when it is written. Replace|' scripts/check-ids.sh
+sed -i.bak 's|when it is written. Run .guardrails/scripts/new-id.sh <PREFIX> and replace|when it is written. Replace|' scripts/check-ids.sh
+rm -f scripts/check-ids.sh.bak
 
 [ "$_gr_before" != "$(cksum scripts/check-ids.sh)" ] || { echo "mutation changed nothing" >&2; exit 3; }

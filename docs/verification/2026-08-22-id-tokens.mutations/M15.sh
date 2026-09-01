@@ -4,6 +4,7 @@
 # "no test detects this". Fail loudly instead — mutate.sh reports exit 3 as an
 # unusable mutation. Independent review, N6.
 _gr_before=$(cksum scripts/new-id.sh)
-sed -i 's/^gr_check_config$/:/' scripts/new-id.sh
+sed -i.bak 's/^gr_check_config$/:/' scripts/new-id.sh
+rm -f scripts/new-id.sh.bak
 
 [ "$_gr_before" != "$(cksum scripts/new-id.sh)" ] || { echo "mutation changed nothing" >&2; exit 3; }

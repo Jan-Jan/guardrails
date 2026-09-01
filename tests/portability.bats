@@ -206,7 +206,7 @@ EOF
 # --- PR-44z762 --------------------------------------------------------------
 
 @test "no in-place sed in the repository omits its backup suffix" {
-    # verifies: PR-44z762
+    # verifies: PR-44z762, PR-aap8nx
     # `AGENTS.md` already requires `sed -i.bak` (then remove the `.bak`),
     # because GNU sed takes the suffix as an optional argument glued to the
     # flag and BSD sed takes it as a mandatory separate one — so the bare form
@@ -223,6 +223,21 @@ EOF
     root=$(cd "$BATS_TEST_DIRNAME/.." && pwd)
     pat='sed -i[[:space:]]'
     paths="scripts tests templates skills install.sh"
+    # `docs/` is searched too, but for SCRIPTS only: the mutation suites under
+    # docs/verification/*.mutations/ are run, and on BSD sed the bare form
+    # changes nothing, so their cksum guard reports every mutation as unusable
+    # (exit 3) and a whole evidence suite silently measures nothing.
+    #
+    # The prose there is deliberately NOT linted. A verification record quoting
+    # the command someone actually typed — `docs/verification/2026-08-24-
+    # review-artefact.md` does, twice — is a record of what happened, and
+    # rewriting it to satisfy a scan falsifies it. The rule is that executable
+    # content is linted; a transcript is not.
+    # What must exist is the mutation SCRIPTS, not `docs/` — `docs/` is the one
+    # directory certain to be there, so guarding on it guards nothing. Guard on
+    # the reach instead: if the suites move to a top-level `verification/`, or
+    # stop being named `.mutations`, this arm finds nothing and says so rather
+    # than passing.
 
     # `grep -r`, not `git grep`: tests/evidence.sh runs this suite from a copy
     # in a mktemp directory with no `.git` and only part of the tree in it.
@@ -230,17 +245,28 @@ EOF
     # repository as a clean toolkit. A partial copy has nothing to lint, so say
     # so — but only a partial copy may say it, or a directory renamed in the
     # real repository would silently turn this check off.
-    if git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
-        for p in $paths; do
-            [ -e "$root/$p" ] \
-                || { echo "search path gone from the repository: $p"; false; }
-        done
-    else
-        for p in $paths; do
-            [ -e "$root/$p" ] \
-                || skip "not a full checkout ($p absent); nothing to lint here"
-        done
+    # Executable content under docs/, by MODE as well as by name: a mutation
+    # script that loses its `.sh` suffix is still run and still carries the
+    # defect, and an --include glob would not see it.
+    doc_files=$(cd "$root" && find docs -type f \
+        \( -name '*.sh' -o -perm -u+x \) 2>/dev/null | sort)
+
+    # Each arm is judged on its own. Skipping the whole test because ONE root is
+    # absent would let a partial copy that still carries scripts/ report clean —
+    # the arms that could run must run.
+    have=""
+    for p in $paths; do
+        if [ -e "$root/$p" ]; then have="$have $p"
+        elif git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+            echo "search path gone from the repository: $p"; false
+        fi
+    done
+    if [ -z "$doc_files" ]; then
+        git -C "$root" rev-parse --git-dir >/dev/null 2>&1 \
+            && { echo "no executable content under docs/ — has the mutation suite moved?"; false; }
     fi
+    [ -n "$have" ] || [ -n "$doc_files" ] \
+        || skip "not a full checkout; nothing to lint here"
 
     # Positive control. A pattern that stopped matching the defect it names
     # would report a clean toolkit forever, and the exit code alone cannot tell
@@ -252,6 +278,10 @@ EOF
     grep -qE "$pat" "$BATS_TEST_TMPDIR/control.sh" \
         || { echo "the pattern no longer matches the defect it names"; false; }
 
-    found=$(cd "$root" && grep -rnE --exclude-dir=.bats-core "$pat" $paths 2>/dev/null || true)
+    found=$(cd "$root" && {
+        [ -n "$have" ] && grep -rnE --exclude-dir=.bats-core "$pat" $have
+        [ -n "$doc_files" ] && printf '%s\n' "$doc_files" | tr '\n' '\0' \
+            | xargs -0 grep -nE "$pat"
+    } 2>/dev/null || true)
     [ -z "$found" ] || { echo "in-place sed with no suffix:"; echo "$found"; false; }
 }
