@@ -232,12 +232,12 @@ merges first and consumers are knowingly inconsistent until they catch up.
 Rejected: **run every unit on every change**. Unarguable, and an unrelated
 unit's pre-existing red blocks all work while runtime grows with the repository.
 
-**Derived, needs assessment:** whether the impact set is the transitive closure
+**Derived, resolved by D12:** whether the impact set is the transitive closure
 of `depends_on:` or one hop only. Transitive is the safe reading — a consumer may
 re-export a provider's behavior through its own interface and no scan can tell
 whether it does — but it makes a change to a widely used platform unit run
 nearly every unit in the repository, which is D6's rejected fourth option
-arriving by the back door. Not decided here.
+arriving by the back door. Not decided here. **Resolved by D12**: transitive.
 
 ### D7 — Every tracked path is claimed by a unit or explicitly disclaimed
 
@@ -308,12 +308,14 @@ The export surface is then whatever `check-units.sh` reports, not a file anyone
 maintains. Only `REQ` items may be exported: `LLR` and `SDD` are design data,
 and D4's `NON-EXPORTED-REF` exists precisely to keep a consumer off them.
 
-**Derived, needs assessment:** an item's export status can now be *removed* by
+**Derived, assessed (docs/risk/, this change):** an item's export status can now be *removed* by
 editing the dated file that defines it, which silently breaks every consumer
 tracing to it. The `DANGLING-REF` gate will not catch it — the item still
 exists. `NON-EXPORTED-REF` catches it only when the consumer's unit is in the
 impact set, and D6 computes that from `depends_on:`, which still names the
-provider, so the consumer *is* in the set. Believed covered; not verified.
+provider, so the consumer *is* in the set. Assessed (docs/risk/, this change): the
+chain holds by design; its links are named, binding test obligations on
+`check-units.sh` so the composed scenario cannot go unverified.
 
 ## Considerations carried, not yet decided
 
@@ -504,7 +506,9 @@ Risk-control flow-down composes without touching existing gates: the RC is
 implemented by the expectation REQ in the consumer's own SRS, so
 UNIMPLEMENTED-CONTROL is unchanged; the cross-unit hop happens one level down.
 
-**This is the first crack in D4's one-way visibility, accepted knowingly.**
+**This is the first crack in D4's one-way visibility, accepted knowingly**
+(assessed in docs/risk/, this change: safe exactly as narrow as written; the
+narrowness is pinned by named test obligations on `check-units.sh`).
 The provider's acknowledgment (`satisfies: REQ-p7k2m4`) references a consumer
 item, and the consumer is not in the provider's `depends_on:`. The scope rule
 gains one narrow reverse edge: a provider's scans also see the `expects:`
@@ -530,8 +534,8 @@ mandatory record without a driving gate is a snapshot nothing re-opens.
 Rejected: **skill guidance alone** — the gap would be invisible to every run
 the day after the conversation ends.
 
-Mechanical consequence, decided here — **derived, needs assessment**
-(`analyze-risks`): an **unmet** expectation REQ is exempt from MISSING-TEST.
+Mechanical consequence, decided here — **derived, assessed** (docs/risk/,
+this change): an **unmet** expectation REQ is exempt from MISSING-TEST.
 It creates the one class of REQ that can sit in an SRS with neither a test nor
 a MISSING-TEST conviction (non-RC-linked, inside its aging budget). The
 exemption exists because the item cannot have a verifying test yet and is already
@@ -539,6 +543,11 @@ reported once, accurately, as UNMET-EXPECTATION; convicting it twice is noise
 pointing at the wrong remedy. The moment it is met, MISSING-TEST applies
 normally, and the right test is the consumer's integration test against the
 provider's real behavior.
+
+Assessed (docs/risk/, this change): the exemption engages only on a declared
+dependency edge — an `expects:` naming a unit absent from `depends_on:`
+convicts `UNDECLARED-DEPENDENCY`, so the annotation cannot exempt arbitrary
+REQs from MISSING-TEST.
 
 **Open — decided next:** the severity of UNMET-EXPECTATION. Always exit 1
 would block every consumer merge until the provider delivers, which teaches
@@ -574,7 +583,10 @@ merges, for demands the provider never agreed to.
 Consequences:
 
 - `expectation_age_days` / `expectation_open_max` join the per-unit config
-  schema (scalars, optional, same parse rules as the problem limits). Being
+  schema (scalars, optional, same parse rules as the problem limits — and
+  **shipped set** in the template for the same reason those are: an
+  enforcement mechanism that defaults to off does not answer the finding;
+  see the risk assessment in docs/risk/). Being
   per-unit config, each consumer sets its own tolerance.
 - An expectation, unlike a problem report, needs no `status:` — its state is
   computed: met when a dependency's exported REQ satisfies it, open otherwise.
