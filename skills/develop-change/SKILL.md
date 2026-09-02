@@ -72,14 +72,29 @@ the dispatched subagent, run the loop yourself — do not dispatch again.
 
   ```
   Execute task 3 of docs/plans/2026-08-30-<topic>.md under the develop-change
-  skill. Work in a task worktree on branch <change-branch>-t3, off
+  skill. Create your task worktree at .worktrees/<change-branch>-t3, nested
+  inside the change worktree you are in, on branch <change-branch>-t3 off
   <change-branch>. Commit your work on that branch and leave it there — do not
-  merge it, do not enter the change worktree. Return the dispatch report.
+  merge it. Once your task worktree exists, do not commit on <change-branch>
+  and do not keep working in the change worktree. Return the dispatch report.
   ```
 
-  Do not restate the task. `plan-change` already put the exact paths, the real
-  code and the expected output in the plan; restating them doubles the cost at
-  both ends and lets the two copies disagree.
+  **Name the path; do not leave it to be chosen.** A dispatched subagent is
+  pinned to the change worktree's subtree, and it cannot discover that pin
+  before it has already violated it — a worktree created outside is created
+  successfully and is then unusable (`worktree-discipline` step 1). You are
+  outside the pin and know the path; state it.
+
+  **What is forbidden is the change branch, not the change worktree.** Under
+  containment the subagent *starts* in the change worktree — that is where its
+  pin puts it, and where it must run `git worktree add` from — so "do not enter
+  the change worktree" is an instruction it cannot follow. The prohibition that
+  is actually meant is narrower and begins once the task worktree exists: no
+  commit on the change branch, and no further work in the change worktree.
+
+  Otherwise, do not restate the task. `plan-change` already put the exact
+  paths, the real code and the expected output in the plan; restating them
+  doubles the cost at both ends and lets the two copies disagree.
 
 ### The dispatch report
 
@@ -100,13 +115,12 @@ surprises: <anything unexpected, or "none">
 Without the fixed shape the code simply arrives in the reply instead of in a
 read, and the delegation has bought nothing.
 
-The `worktree:` line is how the path reaches you. Only the subagent knows
-where its harness put the worktree, and the two usual locations resolve
-differently — `.worktrees/` relative to the change worktree, a harness
-location beside it (`worktree-discipline` step 1) — so you cannot rebuild the
-path from the branch name. You need it to run `git worktree remove` once the
-task branch is merged; `git worktree list` is the fallback if a report omits
-it.
+The `worktree:` line confirms the subagent went where you sent it. You named
+`.worktrees/<change-branch>-t<N>` in the prompt, so the path is no longer news
+— but a report naming anything else is a task that will not have worked, and
+it is cheaper to see that on one line than to infer it from the failures. You
+also need the path to run `git worktree remove` once the task branch is
+merged; `git worktree list` is the fallback if a report omits it.
 
 The `red -> green:` lines are the reason the iron law survives delegation: the
 subagent that ran the loop is the only party that saw the test fail, so it is

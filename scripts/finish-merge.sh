@@ -15,7 +15,7 @@
 # refuse and `-D` is the only spelling available. Nothing in a chain stands
 # between a subtly incomplete squash and unrecoverable work; this does.
 #
-# Three guards, all proved before anything is removed:
+# Four guards, all proved before anything is removed:
 #
 #   1. check-signing.sh --strict passes on HEAD. Always --strict: the default
 #      mode passes a signature it cannot verify, and cleaning up on that is a
@@ -25,6 +25,14 @@
 #      trees identical. A difference is work the squash did not capture.
 #   3. `git worktree remove` WITHOUT --force — git's own refusal of a dirty
 #      worktree is the guard.
+#   4. No registered worktree lies INSIDE the one about to be removed. Numbered
+#      last because it was added last; proved before guard 3, because guard 3's
+#      removal is the destructive act it exists to prevent. Guard 3 delegates to
+#      git, and git's refusal cannot see a nested worktree: task worktrees live
+#      at `.worktrees/<change-branch>-t<N>` inside the change worktree, that
+#      directory is gitignored, so the change worktree's `git status` is clean
+#      and the removal takes the nested worktree's uncommitted work with it at
+#      exit 0 — leaving a `prunable` registration and an orphan branch behind.
 #
 # A failing guard exits non-zero having removed nothing and deleted nothing. The
 # signed commit always survives; only cleanup is refused, which is a safe thing
@@ -139,15 +147,29 @@ git diff --quiet HEAD "$branch" || gr_refuse \
 
   then redo the squash and run this script again on its own."
 
+# git's own registry, read ONCE and captured with its status taken. Both the
+# derivation below and guard 4 read it, and neither may confuse "git failed"
+# with "nothing registered": for guard 4 those two answers differ by an entire
+# worktree's uncommitted work. Inside a `$(cmd | cmd)` the status belongs to
+# the LAST stage, so a failing `git worktree list` there is invisible; captured
+# on its own it is not.
+wt_list=$(git worktree list --porcelain) || gr_die \
+"git worktree list failed, so the worktrees cannot be inspected. Nothing was
+  removed and $branch was NOT deleted."
+
 # The worktree path is DERIVED, never taken from the caller (D4). A pasted path
 # is a chance to remove the wrong directory, and the branch name is already in
 # the command merge-change prints. `$0` is used whole rather than a field, so a
-# path containing spaces survives; a branch name cannot contain a newline, so
-# nothing carrying one reaches `awk -v`.
-wt=$(git worktree list --porcelain | awk -v want="branch refs/heads/$branch" '
+# path containing spaces survives; a branch name can contain neither a newline
+# nor a backslash (git check-ref-format forbids both), so nothing that `awk -v`
+# would mangle reaches it here. Guard 4's prefix test cannot make that argument
+# about a PATH, which is why it is written without awk at all.
+wt=$(printf '%s\n' "$wt_list" | awk -v want="branch refs/heads/$branch" '
     /^worktree / { path = substr($0, 10) }
     $0 == want { print path; exit }
-')
+') || gr_die \
+"the worktree path for $branch could not be derived. Nothing was removed and
+  $branch was NOT deleted."
 
 # Guard 3 — the worktree holds nothing uncommitted. NOT reimplemented: this is
 # `git worktree remove` without --force, and git's own refusal of a worktree
@@ -159,6 +181,76 @@ wt=$(git worktree list --porcelain | awk -v want="branch refs/heads/$branch" '
 # removed it already. Tolerant about what is already gone, strict about what it
 # proves — removal is skipped and the branch is still deleted.
 if [ -n "$wt" ]; then
+    # Guard 4 — nothing is registered INSIDE $wt. Proved here, before the
+    # removal below, because that removal is what destroys it.
+    #
+    # Written in plain shell, with no awk, and that is the point. `awk -v k=v`
+    # ESCAPE-PROCESSES the value on its way into the program: `-v inside='w\top/'`
+    # arrives as `w<TAB>op/`. A change worktree whose path contained a
+    # backslash therefore made the prefix test match nothing, `$nested` come
+    # back empty, and this guard PASS — after which guard 3 removed the change
+    # worktree and took the nested worktree's uncommitted work with it, at exit
+    # 0. Every other refusal in this script fails CLOSED and merely withholds
+    # cleanup; this is the one whose failure loses work, so it is built out of
+    # constructs that have no escape layer to get wrong: `read -r` on whole
+    # lines, `${x#...}` for the prefix strip, and a `case` pattern whose
+    # variable half is quoted and therefore literal.
+    #
+    # The subshell is deliberate. A `while read` fed by a pipe runs in one, so
+    # a variable set inside it would not survive the loop — the matches are
+    # PRINTED instead, and the command substitution is how they escape. The
+    # input was captured and status-checked above, so nothing here can fail
+    # silently; `printf` cannot fail on a string already in memory.
+    #
+    # The comparison is a prefix test on the paths git RECORDS, not on anything
+    # resolved afresh: both sides come out of the same `git worktree list`, so
+    # they are already spelled alike whatever the platform did to symlinks. The
+    # trailing `/` is load-bearing — without it a sibling at `<wt>-sibling`,
+    # which is not inside anything, would be reported as nested.
+    nested=$(printf '%s\n' "$wt_list" | while IFS= read -r gr_line; do
+        case "$gr_line" in
+            "worktree "*) ;;
+            *) continue ;;
+        esac
+        gr_path=${gr_line#worktree }
+        case "$gr_path" in
+            "$wt"/*) printf '    %s\n' "$gr_path" ;;
+        esac
+    done)
+
+    if [ -n "$nested" ]; then
+        # ALL of them, not the first. A five-way fan-out leaves five task
+        # worktrees, and reporting one per run costs the operator five runs of
+        # `check-signing.sh --strict` — a hardware key touch apiece — to learn
+        # what one run already knew. Only the sentences around the list change
+        # number, and an embedded newline is what tells them apart: command
+        # substitution strips TRAILING newlines, so one path arrives with none
+        # at all and two or more arrive with one between them.
+        gr_nl='
+'
+        case "$nested" in
+            *"$gr_nl"*)
+                gr_lead="registered worktrees lie inside $wt"
+                gr_them="those worktrees' files while git still had them"
+                gr_deal="Deal with each of them first" ;;
+            *)
+                gr_lead="a registered worktree lies inside $wt"
+                gr_them="that worktree's files while git still had it"
+                gr_deal="Deal with the nested worktree first" ;;
+        esac
+        gr_refuse \
+"$gr_lead:
+
+$nested
+
+  Removing $wt would delete $gr_them registered — uncommitted work gone,
+  registrations left prunable, branches orphaned. Guard 3 cannot see this: a
+  nested worktree is invisible to the outer one's \`git status\`, so
+  \`git worktree remove\` does not refuse it. Nothing was removed and $branch
+  was NOT deleted. $gr_deal — merge or abandon the branch, then
+  \`git worktree remove\` the path — and run this script again on its own."
+    fi
+
     git worktree remove "$wt" || gr_refuse \
 "git refused to remove the worktree at $wt, so $branch was NOT deleted.
   A worktree carrying modified or untracked files is refused on purpose:

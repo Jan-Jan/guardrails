@@ -65,8 +65,9 @@ Three rules carry the whole system:
    verified, auditable commit per change. The agent stages the squash and hands
    the user a single command; the user signs it, and `finish-merge.sh` refuses
    to remove the worktree or delete the branch until the signature verifies
-   under `--strict` and the squash provably captured everything the change
-   branch held.
+   under `--strict`, the squash provably captured everything the change branch
+   held, and no task worktree is still nested inside the one it is about to
+   remove.
 3. **Traceability is mechanical** — grep-able IDs link requirements, risks,
    design, and tests; scripts gate every merge.
 
@@ -129,7 +130,7 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 | `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; no `ORPHAN-ANNOTATION` (an annotation belonging to no item); every problem report states a `status:`, and every open one an `opened:` date; open PRs listed as warnings, and failed past the configured `problem_age_days` / `problem_open_max` limits. Ends with `checked:` (items found), `problems:` (open count, oldest, and both limits — set or not) and `sources:` (document files read, then the number of configured path entries) |
 | `check-review.sh [--branch NAME]` | the change under merge has a verification record that declares it and that this change wrote (`MISSING-RECORD`, `STALE-RECORD`), that record names a `reviewer:`, a `verdict:` and what was `reproduced:` (`INCOMPLETE-RECORD`), and every `**finding-N**:` the reviewer raised carries a `disposition:` (`UNDISPOSED-FINDING`, plus `MALFORMED-FINDING` and `ORPHAN-DISPOSITION` for the headers and annotations that would otherwise detach one). Ends with `checked:` (records read, records for this change, findings, and whether provenance was checked). Run on the base branch it exits **2**, never 0 — there is no change under review there |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified. `--setup` instead *proves the project can produce a verifiable signature*: every setting present (`gpg.format`, `user.signingkey`, `commit.gpgsign`, `user.email`, and the format's trust root), each missing one named on its own line, then a real signed commit made in a throwaway repository and read back at `%G?` = `G`. `ratchet` will not complete until it passes |
-| `finish-merge.sh BRANCH` | the guarded half of the merge command the user runs. Before it removes anything: the signature verifies under `--strict`, `git diff --quiet HEAD BRANCH` proves the squash captured everything the change branch held, and `git worktree remove` runs *without* `--force` so git's own refusal of a dirty worktree is the third guard. Only then the worktree goes and the branch is force-deleted. Any refusal leaves both intact — the signed commit always survives |
+| `finish-merge.sh BRANCH` | the guarded half of the merge command the user runs. Four guards, all proved before anything is removed: the signature verifies under `--strict`; `git diff --quiet HEAD BRANCH` proves the squash captured everything the change branch held; no registered worktree lies *inside* the one about to go, because a nested task worktree is invisible to the outer one's `git status` and would be deleted silently, work and all; and `git worktree remove` runs *without* `--force`, so git's own refusal of a dirty worktree is the last guard and the first destructive act. Only then the worktree goes and the branch is force-deleted. Any refusal leaves both intact — the signed commit always survives |
 | `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their merge-dated names. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme landed |
 
 Annotations are read as lists: only the IDs immediately following the first

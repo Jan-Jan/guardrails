@@ -27,8 +27,33 @@ of those races surfaces here rather than where it was created.
 ## The sequence
 
 Halt on any failure. Deciding what to fix is yours; writing the fix is
-dispatched like any other task, and it lands in the change worktree, never on
-the base branch. Then rerun from step 1.
+dispatched like any other task — into its own nested task worktree, at a path
+you name in the prompt (`.worktrees/<change-branch>-<tag>`,
+`worktree-discipline` step 1) — and it lands on the change branch, never on
+the base branch. That dispatch ends the way every other one does: once its
+report is green you merge the task branch into the change branch, then
+remove the worktree and delete the task branch (`worktree-discipline`,
+"Inside the worktree"). Then rerun from step 1.
+
+The tag is yours to name, and it must be unique per dispatch. Not because two
+findings rounds that both reach for the natural `fix` would collide when the
+second is created: the removal above takes round 1's branch with it, so the
+name is free again before round 2 dispatches. That is the same property
+step 6a rests on when it keeps the review tag fixed at `review`. The rule is
+insurance against a cleanup that was missed, and this is the dispatch where
+that is likeliest — no numbered step of this sequence performs its removal,
+which happens between rounds, at your hand, and which is the whole cleanup:
+`git worktree remove` and then `git branch -d`. Met by a repeated tag, either
+half left undone is `fatal: a branch named '<change-branch>-fix' already
+exists` at the next round's creation — git validates the new branch name
+before the worktree path. Met by a fresh tag the two part company. A
+leftover branch alone is a stale branch, deletable whenever you notice it.
+A wholly skipped cleanup also leaves a nested worktree still registered —
+gitignored, so `git status` never shows it — which step 6d catches and which
+guard 4 refuses at step 8, after a full `check-signing.sh --strict` run.
+Nothing is lost either way, but the second costs a halt late in the sequence
+rather than a deletion at your convenience. Date it, number it, or name it
+after the finding — anything that does not repeat.
 
 1. **Merge the latest base branch into the worktree branch.** *Latest* means
    latest on the remote, not latest in this clone — on a shared repository a
@@ -108,6 +133,15 @@ the base branch. Then rerun from step 1.
    summary — then that summary is handed over as evidence in place of the
    re-run, and the record says so.
 
+   **The reviewer's worktree is nested**, and you name its path in the dispatch
+   prompt: `.worktrees/<change-branch>-review`, on branch
+   `<change-branch>-review`, inside the change worktree. The reviewer is a
+   dispatched subagent like any other, so it is pinned to the change worktree's
+   subtree and cannot discover that before violating it
+   (`worktree-discipline` step 1) — and a reviewer whose worktree is unusable
+   reports on a suite it could not run. You remove it again at the end of this
+   step; leaving it registered blocks the cleanup at step 7.
+
    **When the diff touches documentation**, the reviewer also checks:
    - New items are in this change's draft ledger file, and no existing
      definition moved from the file that defines it to another one.
@@ -137,8 +171,51 @@ the base branch. Then rerun from step 1.
    — plus a one-line verdict, so 6b copies them instead of re-summarizing
    them. A finding reworded by the author is the author's finding.
 
+   **Remove the review worktree, every round that created one.** Findings or
+   not, the dispatch is over the moment the report is in hand, and every task
+   worktree dies with its dispatch, at the dispatcher's hand
+   (`worktree-discipline`, "Inside the worktree"). For this one that dispatcher
+   is `merge-change`, so this is where it happens. A review produces findings,
+   not commits, so there is nothing to merge — the worktree and its branch go
+   as they are:
+
+   ```sh
+   # in the change worktree, as soon as the reviewer's report is in hand
+   git worktree remove .worktrees/<change-branch>-review
+   git branch -d <change-branch>-review
+   ```
+
+   `git branch -d` and not `-D`: a review branch should be exactly where it
+   started, and a refusal here means the reviewer committed something, which
+   is worth reading before it is discarded.
+
+   Not every round creates one. A human reviewer, where team policy sends the
+   review to a person, works from their own checkout; and a class A change
+   skips this step altogether. Where no review worktree was created there is
+   nothing to remove, and `git worktree remove`
+   fails on a path that was never created — which, in a sequence that halts on
+   any failure, is a stop for no reason.
+
+   **Here, and not in a later step, because a round that returns findings never
+   reaches a later step.** The paragraph below sends the sequence back to
+   step 1, so everything after it runs only on the final, finding-free round —
+   while the path and the branch above are *fixed*. Put the removal downstream
+   and every intermediate round leaves its worktree behind, until the next
+   round's dispatch dies with `fatal: a branch named
+   '<change-branch>-review' already exists`.
+
+   `git worktree remove` refuses on untracked files as well as modified ones,
+   and a reviewer leaves scratch behind — a log, a note, a file it wrote and
+   did not delete. Nothing gitignored is among them: git does not see an
+   ignored file, which is the same property guard 4 exists for. That refusal
+   is not a reason to reach for `--force`, which destroys exactly what it
+   caught: read the scratch, delete it, and remove the worktree again, keeping
+   anything worth keeping by putting it in the record at 6b first.
+
    Findings block the merge: you decide the disposition, the fix is dispatched
-   into the change worktree — never onto the base branch — and the sequence
+   into a nested task worktree of its own — `.worktrees/<change-branch>-<tag>`,
+   named in the prompt like every other (`worktree-discipline` step 1) — and
+   merged onto the change branch, never onto the base branch, and the sequence
    reruns from step 1.
    Rigor scales with class — A may skip this step, B one reviewer, C a
    thorough review (consider two independent reviewers for critical items).
@@ -204,6 +281,34 @@ the base branch. Then rerun from step 1.
    finding header the rule cannot read, so a disposition is attached to the
    wrong finding or to none. Never answer any of them by deleting the finding.
 
+6d. **Check that nothing is registered inside the change worktree.** Every
+   worktree this change created should already be gone: the review worktree at
+   the end of step 6a, and each task worktree at the dispatcher's hand when its
+   dispatch ended (`worktree-discipline`, "Inside the worktree"). This is the
+   structural check that it actually happened:
+
+   ```sh
+   # in the change worktree, before the squash is staged
+   git worktree list
+   ```
+
+   Read the list for paths inside the change worktree: none may still be
+   registered there. A worktree registered anywhere else is not this step's
+   business — another change's, a piece of tooling, the primary checkout
+   itself — and guard 4 never mentions it either, because removing the change
+   worktree does not touch it. A path inside is a removal that was skipped or
+   refused, so go back to where it was dispatched from and do it there —
+   step 6a for the review worktree, `develop-change`'s merge-and-remove for a
+   task worktree. If `git worktree remove` refuses one of them as dirty, then
+   the remedy step 6a gives for the review worktree applies to any of them.
+
+   **This step is not tidiness.** `finish-merge.sh` refuses to remove a change
+   worktree that has a worktree registered inside it (guard 4, step 8's table),
+   because removing the outer one destroys the inner one's uncommitted work at
+   exit 0. A worktree left behind therefore blocks step 7's cleanup after the
+   user has already spent a key touch — which is a much worse place to find out
+   than here, before the squash is staged.
+
 7. **Squash onto the base branch, then hand the signing over.** The squash is
    yours; the commit is the user's. Do the merge in the primary checkout, with
    the base branch checked out:
@@ -217,7 +322,7 @@ the base branch. Then rerun from step 1.
    directory such as `/tmp/merge-<branch>.msg`, never anywhere under the working
    tree. Not because a guard would catch it: none of them reads the primary
    checkout's working tree, so an untracked message file there is invisible to
-   all three. The reason is plainer — a stray file in the repository is one
+   all four. The reason is plainer — a stray file in the repository is one
    `git add -A` away from being committed as part of the change, and it would
    be committed by the very commit it describes. The message is unchanged:
 
@@ -244,12 +349,14 @@ the base branch. Then rerun from step 1.
    plain `git commit` they can read before they touch it; the half that deletes
    things is a script, because `&&` guards nothing and the tail force-deletes a
    branch (`-D`, necessarily — git does not consider a squashed branch merged).
-   `finish-merge.sh` proves three things before it removes anything: the new
+   `finish-merge.sh` proves four things before it removes anything: the new
    HEAD's signature verifies under `--strict`, `git diff HEAD <branch>` is
-   empty, and the worktree is clean. Then, in that order, it removes the
-   worktree and deletes the branch. **Cleanup happens only after the signature
-   check passes** — that is the script's first guard, not a step anyone may take
-   on their own judgment.
+   empty, no registered worktree lies inside the one it is about to remove
+   (step 6a removes the review worktree and step 6d checks that nothing is
+   left), and that worktree is clean. Then, in that order, it removes the
+   worktree and deletes the branch. **Cleanup happens
+   only after the signature check passes** — that is the script's first guard,
+   not a step anyone may take on their own judgment.
 
    If signing fails (no key configured), **stop**: point to the ratchet setup
    checklist. There is no unsigned fallback, ever.
@@ -284,6 +391,7 @@ the base branch. Then rerun from step 1.
    |---|---|---|
    | `UNVERIFIED` / `UNSIGNED` from `check-signing.sh --strict` | The new HEAD's signature does not verify against trusted signers — usually a missing or incomplete `gpg.ssh.allowedSignersFile`. `--strict` is unconditional here, so a signature nobody can verify never passes for cleanup. | Configure the signers file (ratchet's signing checklist), then re-run the script. |
    | The squash did not capture everything — `git diff HEAD <branch>` is non-empty | Step 1 merged the base into the change branch, so a correct squash leaves the two trees identical. A difference means something did not land: an unstaged file, a partial `git add`, or a base that moved between step 1 and the squash. Deleting the branch would destroy exactly that difference. | `git diff HEAD <branch>` to see what is missing. Bring it onto the base branch, or rerun the sequence from step 1, before re-running the script. |
+   | `a registered worktree lies inside <path>` — plural, `registered worktrees lie inside <path>` | A task or review worktree is still registered inside the change worktree. Removing the outer one would delete that worktree's files while git still had it registered: uncommitted work gone, the registration left prunable, the branch orphaned. Guard 3 cannot catch it, because a nested worktree is invisible to the outer one's `git status`, so `git worktree remove` does not refuse it. | Deal with each path the refusal names — merge or abandon its branch, then `git worktree remove` the path — and re-run the script. Step 6a is where the review worktree should already have gone and step 6d is where its absence should already have been checked; a task worktree here means a dispatch was never cleaned up. |
    | `git worktree remove` refused | The worktree is dirty — uncommitted work still lives there. No `--force` is passed, and git's own refusal is the guard. | Inspect the worktree, commit or discard what is there, then re-run the script. |
    | A precondition error (exit 2) | The script is in the wrong place or was given the wrong branch: run from a linked worktree, run on a detached HEAD, no such branch, or the branch named *is* the base branch. | Run it from the primary checkout with the base branch checked out, naming the change branch. |
 
