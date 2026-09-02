@@ -50,6 +50,7 @@ verify_commands
 coverage_command'
 
 GR_KNOWN_KEYS='guardrails_version
+guardrails_commit
 safety_class
 id_prefixes
 doc_srs

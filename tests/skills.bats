@@ -15,6 +15,50 @@
     grep -q 'suite not run at install time:' "$skill"
 }
 
+@test "ratchet: tool qualification warns that a pipe eats the suite's exit status" {
+    # verifies: PR-nzpp57
+    # The step-5 item says to capture the suite's exit code, but a natural way
+    # to run it — `run-tests.sh | tee log` — leaves $? holding tee's status,
+    # and the recorded pass/fail is then the wrong command's. A reporter
+    # nearly recorded a wrong result exactly this way.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'never through a pipe' "$skill"
+    grep -q "the wrong command's" "$skill"
+}
+
+@test "verification template warns that a range in a finding header opens no block" {
+    # verifies: PR-geb5db
+    # check-review.sh already reports a range-shaped header (finding-2..4) as
+    # MALFORMED-FINDING — gr_finding_shaped is deliberately broad — but the
+    # template never taught the rule, so reviewers discovered it from the
+    # failure instead of from the document that shapes the record.
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    grep -q 'A range opens no block' "$template"
+}
+
+@test "ratchet: updating the scripts also refreshes the ledger READMEs" {
+    # verifies: PR-uavq3f
+    # The upgrade guidance replaced the scripts and the AGENTS.md managed
+    # block but never the ledger READMEs, so a target project's READMEs kept
+    # teaching grammar the scripts no longer read (the owner: case) — one
+    # commit carried an AGENTS.md and a docs/problems/README.md contradicting
+    # each other about a required field.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'prose carriers' "$skill"
+    grep -q 'Re-copy the four ledger READMEs' "$skill"
+}
+
+@test "ratchet: the qualification basis names a commit, not just a version" {
+    # verifies: PR-dcn2xc
+    # "435 tests at 0.5.1" is nominal the moment upstream advances without a
+    # version bump; a recorded commit makes the basis checkable. The skill
+    # must tell the installer to record it, and the shipped config template
+    # must carry the key it is recorded under.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'guardrails_commit' "$skill"
+    grep -q 'guardrails_commit' "$BATS_TEST_DIRNAME/../templates/config.yaml"
+}
+
 @test "worktree-discipline: the task worktree is nested inside the change worktree" {
     # verifies: PR-n57ayn
     # Step 1 used to pick the task worktree's location by convention, and

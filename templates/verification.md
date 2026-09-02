@@ -84,6 +84,9 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   would close the very finding it belongs to. A label the rule cannot read is
   reported as MALFORMED-FINDING rather than passed over, because it opens no
   block and its disposition would be credited to nothing.
+  A range opens no block either — a header naming `finding-2..4` is one such
+  unreadable label, however many findings it means to cover. Each finding
+  gets its own header, one N apiece.
 - The red → green table is evidence, not a field: check-review.sh does not
   parse it, and it is shaped so that it cannot be read as one. Every row starts
   at `|`, so no cell sits at column one as an annotation and no cell opens or

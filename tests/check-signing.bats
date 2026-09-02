@@ -60,6 +60,35 @@ signed_commit() {
     [[ "$output" == *"UNSIGNED"* ]]
 }
 
+@test "check-signing: --strict exits 2 when the trust root exists but cannot be read" {
+    # verifies: PR-mvqm4s
+    # An unverifiable signature and an environment that cannot verify any
+    # signature both read %G? = U/E, and --strict reported UNVERIFIED exit 1
+    # for both — "the project is wrong" — sending the operator hunting in the
+    # project when the repair is in the environment. Exit 2 is the
+    # environment verdict, and the message points at --setup.
+    [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
+    setup_ssh_signing
+    signed_commit a
+    chmod 000 "$BATS_TEST_TMPDIR/allowed_signers"
+    run sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"--setup"* ]] || { echo "$output"; false; }
+}
+
+@test "check-signing: --strict stays exit 1 when the trust root path is absent" {
+    # verifies: PR-mvqm4s
+    # Configured-but-absent is the typo case — a path the project wrote
+    # wrong, so exit 1 ("the project is wrong") is the correct verdict; only
+    # present-but-permission-denied is the environment's fault.
+    setup_ssh_signing
+    signed_commit a
+    git config gpg.ssh.allowedSignersFile "$BATS_TEST_TMPDIR/absent_signers"
+    run sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"UNVERIFIED"* ]] || { echo "$output"; false; }
+}
+
 # --- --setup ----------------------------------------------------------------
 #
 # A different question from the rest of this file: not "is this history
@@ -223,6 +252,70 @@ setup_proved_signing() {
     run sh .guardrails/scripts/check-signing.sh --setup
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" == *"MISSING user.email"* ]] || { echo "$output"; false; }
+}
+
+@test "check-signing: --setup exits 2 when the trust root exists but cannot be read" {
+    # verifies: PR-mvqm4s
+    # The same split as the --strict test above: absent stays a named
+    # UNREADABLE finding at exit 1 (a typo in the path is a project error),
+    # but present-and-permission-denied is the environment's fault, and exit
+    # 1 would send the operator to the project's configuration.
+    [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
+    setup_proved_signing
+    chmod 000 "$BATS_TEST_TMPDIR/allowed_signers"
+    run sh .guardrails/scripts/check-signing.sh --setup
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+}
+
+@test "check-signing: --setup exits 2 when the gpg keyring cannot be read" {
+    # verifies: PR-mvqm4s
+    # The openpgp trust root is the caller's keyring, not a configured file —
+    # the reported case is a process that cannot read ~/.gnupg at all. That
+    # is never a project setting, so it is exit 2 wherever it is found.
+    [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
+    isolate_git_config
+    git config gpg.format openpgp
+    git config user.signingkey ABCDEF0123456789
+    git config commit.gpgsign true
+    mkdir "$BATS_TEST_TMPDIR/gnupg"
+    chmod 000 "$BATS_TEST_TMPDIR/gnupg"
+    run env GNUPGHOME="$BATS_TEST_TMPDIR/gnupg" \
+        sh .guardrails/scripts/check-signing.sh --setup
+    chmod 700 "$BATS_TEST_TMPDIR/gnupg"
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+}
+
+@test "check-signing: --setup ignores a worktree-scoped commit.gpgsign false" {
+    # verifies: PR-2qdy9c
+    # worktree-discipline leaves worktree commits unsigned on purpose; a
+    # project that writes that down as worktree-scoped config is following
+    # the discipline, not missing a setting. Read from inside the worktree,
+    # the effective value is false, and --setup reported a false MISSING
+    # commit.gpgsign — and a false finding beside a true one teaches the
+    # operator to discount both. --setup's question is what the PROJECT
+    # configures, so the worktree scope does not count.
+    setup_proved_signing
+    git config extensions.worktreeConfig true
+    git worktree add -q "$BATS_TEST_TMPDIR/wt" -b wt-branch
+    cd "$BATS_TEST_TMPDIR/wt"
+    git config --worktree commit.gpgsign false
+    run sh .guardrails/scripts/check-signing.sh --setup
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" != *"MISSING commit.gpgsign"* ]] || { echo "$output"; false; }
+}
+
+@test "check-signing: --setup still reports a real commit.gpgsign gap from a worktree" {
+    # verifies: PR-2qdy9c
+    # The scope filter must not hide a genuine gap: a shared config that
+    # never set the key is MISSING wherever the check runs from.
+    setup_proved_signing
+    git config --unset commit.gpgsign
+    git config extensions.worktreeConfig true
+    git worktree add -q "$BATS_TEST_TMPDIR/wt" -b wt-branch
+    cd "$BATS_TEST_TMPDIR/wt"
+    run sh .guardrails/scripts/check-signing.sh --setup
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"MISSING commit.gpgsign"* ]] || { echo "$output"; false; }
 }
 
 @test "check-signing: --setup with --strict is a usage error" {

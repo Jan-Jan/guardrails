@@ -208,13 +208,20 @@ if [ -n "$wt" ]; then
     # trailing `/` is load-bearing — without it a sibling at `<wt>-sibling`,
     # which is not inside anything, would be reported as nested.
     nested=$(printf '%s\n' "$wt_list" | while IFS= read -r gr_line; do
+        # The leading `(` on each pattern is load-bearing, not style: this
+        # case sits inside a $(...) command substitution, and bash 3.2 —
+        # macOS's /bin/sh — mis-parses an unparenthesised pattern's closing
+        # `)` as the substitution's own, failing the WHOLE SCRIPT at parse
+        # time (`syntax error near unexpected token ';;'`), before any
+        # guard runs. POSIX makes the open paren optional; that shell makes
+        # it mandatory here.
         case "$gr_line" in
-            "worktree "*) ;;
-            *) continue ;;
+            ("worktree "*) ;;
+            (*) continue ;;
         esac
         gr_path=${gr_line#worktree }
         case "$gr_path" in
-            "$wt"/*) printf '    %s\n' "$gr_path" ;;
+            ("$wt"/*) printf '    %s\n' "$gr_path" ;;
         esac
     done)
 

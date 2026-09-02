@@ -129,6 +129,17 @@ ls src lib app AGENTS.md docs 2>/dev/null
 > | A declared `id_prefixes` entry whose document is unconfigured — `REQ`/`RC` without `doc_srs`, `HAZ`/`RC` without `doc_rmf`, `SDD`/`LLR` without `doc_sad`, `PR` without `doc_problems`, or `REQ`/`LLR` with an empty `test_paths` | Without it the gate for that prefix was skipped and the run still passed. `RC` needs both: `UNIMPLEMENTED-CONTROL` reads `doc_srs`, where the *requirements* live, and `MISPLACED-ITEM` reads `doc_rmf`, the only document a control may be defined in |
 > | An `id_prefixes` entry that is not a bare identifier | It is interpolated into every scan pattern; an invalid pattern matches nothing, which looks like a clean tree |
 >
+> **Updating the scripts updates the grammar's prose carriers too.** The
+> ledger READMEs, `.guardrails/templates/verification.md` and the AGENTS.md
+> managed block teach the grammar the scripts enforce, and nothing mechanical
+> notices when they drift apart. Re-copy the four ledger READMEs and the
+> verification template from the same guardrails version the new scripts came
+> from, and re-replace the managed block between its markers — a refresh
+> skipped here is how one commit ends up carrying an AGENTS.md and a
+> docs/problems/README.md that contradict each other about a required field.
+> (Ledger READMEs are shipped grammar, not human work; if a project has
+> edited one, diff before re-copying and carry the project's additions over.)
+>
 > Some changes are **exit 1**, not exit 2, and so are easy to miss.
 >
 > An item defined outside the document configured for its prefix now reports
@@ -403,10 +414,15 @@ stop and name exactly what is missing instead of calling adoption done.
       step 6a when a human is preferred over a fresh agent.
 - [ ] **Tool qualification (DO-330-lite):** the `.guardrails/scripts/` are
       verification tools — their failure could mask errors. Qualification
-      basis: the guardrails bats suite at the `guardrails_version` recorded
-      in config (this document records the version and the suite result at
-      install time). When `/ratchet` updates the scripts, it re-records
-      both. Do not modify the scripts in the target project; change them
+      basis: the guardrails bats suite at the `guardrails_version` AND
+      `guardrails_commit` recorded in config — the commit
+      (`git -C <guardrails> rev-parse HEAD`) is what makes the basis
+      checkable, because a version string alone moves: upstream can advance
+      mid-change while still reading the same number, and the reviewer is
+      then left establishing by hand which code "the suite passed" was
+      measured on. This document records both plus the suite result at
+      install time. When `/ratchet` updates the scripts, it re-records all
+      three. Do not modify the scripts in the target project; change them
       upstream where the tests live.
 
       **The suite runs in the guardrails repo, never in the target project,
@@ -420,6 +436,12 @@ stop and name exactly what is missing instead of calling adoption done.
       one run cannot complete (no network to vendor bats-core, say), record
       `suite not run at install time: <reason>` in the setup document and
       move on — an honest gap beats an installed dependency nobody asked for.
+
+      Capture the exit status from the run itself, never through a pipe:
+      `tests/run-tests.sh | tee ratchet.log` leaves `$?` holding tee's
+      status, so the recorded pass/fail is the wrong command's. Redirect
+      instead — `tests/run-tests.sh > ratchet.log 2>&1; status=$?` — and
+      read `$status` before anything else runs.
 - [ ] **Guardrails supports your QMS but is not itself regulatory
       compliance.** Your quality manual, design controls, and human sign-offs
       govern; keep your notified-body/auditor requirements authoritative.

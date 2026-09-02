@@ -129,6 +129,19 @@ gr_prefixes | tr "\n" " "'
     [ -z "$output" ]
 }
 
+@test "gr_check_config accepts a guardrails_commit key" {
+    # verifies: PR-dcn2xc
+    # The qualification basis is "the suite at the version recorded in
+    # config", but a version string moves — upstream can advance mid-change
+    # while still reading the same number. The commit is what makes the basis
+    # checkable, and the schema is closed, so until the key is known a target
+    # project literally cannot record it: exit 2, unknown config key.
+    printf 'guardrails_commit: f64be47\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "gr_check_config rejects a declared prefix whose document is unconfigured" {
     sed -i.bak '/^doc_sad:/d' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'

@@ -73,6 +73,14 @@
 # placeholder above it.
 guardrails_version: 0.5.1
 
+# The commit the installed scripts were copied from — the checkable half of
+# the tool-qualification basis. A version string moves: upstream can advance
+# mid-change while still reading 0.5.1, and then "435 tests passed at 0.5.1"
+# is a claim about no particular code. /ratchet sets this at install time
+# (`git -C <guardrails> rev-parse HEAD`) and re-records it on every scripts
+# update. Optional: an existing config without it stays valid.
+# guardrails_commit: <set by /ratchet>
+
 # IEC 62304 software safety class: A, B, or C. Set by /ratchet.
 # Per-item overrides: document them in the SAD next to the SDD item.
 safety_class: TBD
