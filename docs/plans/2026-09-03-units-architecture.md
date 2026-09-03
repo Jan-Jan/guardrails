@@ -132,7 +132,7 @@ resolve classifies by where its definition actually lives (D4's table):
 | own scope, or a foreign/reverse-edge item | passes |
 | a declared dependency, not exported | `NON-EXPORTED-REF` |
 | any other unit, exported or not | `UNDECLARED-DEPENDENCY` |
-| a `not_a_unit:` path | `DANGLING-REF` — disclaimed means outside compliance; a definition there is prose, not an item *(derived, needs assessment)* |
+| a `not_a_unit:` path | `DANGLING-REF` — disclaimed means outside compliance; a definition there is prose, not an item; the message names the disclaimed file *(assessed 2026-09-03, control: **disclaimed-definition-names-its-path**)* |
 | nowhere | `DANGLING-REF` |
 
 ### 3. Item annotations (grammar)
@@ -200,10 +200,12 @@ byte-for-byte today's behavior.
   scope: a sibling's drafts are the sibling's change in flight, not this
   unit's finding — convicting them here would make any unit's merge block on
   every other unit's work in progress. A `not_a_unit:` path is then scanned
-  by **no** run at all — deliberate (disclaimed means outside compliance,
-  and `DUPLICATE-ID` still sees it tree-wide), but a coverage regression
-  against today's tree-wide scans *(derived, needs assessment — item 3 of
-  the list below)*.
+  by **no** run at all for these findings — deliberate (disclaimed means
+  outside compliance, and `DUPLICATE-ID` still sees it tree-wide), but a
+  coverage regression against today's tree-wide scans *(assessed
+  2026-09-03: `check-units.sh` default mode convicts `DISCLAIMED-DRAFT` on
+  draft tokens and DRAFT-named files under disclaimed paths, exit 1;
+  `MALFORMED-ID` deliberately stays unscanned there — see item 6)*.
 
 ### 6. `check-units.sh` (new script)
 
@@ -218,7 +220,15 @@ The repository-level entry point (D5's provisional name confirmed). Modes:
   a declared dependency, or whose citation does not resolve — `(RC-…)` to a
   defined item, `(adr: <path>)` to an existing file). `safety_class: TBD`
   on either end of a dependency edge is exit 2 (D5: a floor computed from a
-  placeholder is a gate disabling itself).
+  placeholder is a gate disabling itself). Two scans added by the risk
+  assessment of this design's derived decisions (amended 2026-09-03):
+  `DISCLAIMED-DRAFT` (exit 1) — a draft token or DRAFT-named file under a
+  `not_a_unit:` path; draft work has no legitimate home in a disclaimed
+  directory, so the repository-level conviction blocking every unit's merge
+  is the point. `MALFORMED-ID` is deliberately not scanned on disclaimed
+  paths — legacy prose in definition shape would convict line by line and
+  drive pattern-widening; the narrowness is gated
+  (**disclaimed-prose-is-not-malformed**).
 - **`--impact <range>`** — map the range's changed paths to units (touched),
   close transitively over reverse `depends_on:` (dependents, D12), print one
   unit per line with its reason (`touched` / `dependent`). A changed path
@@ -244,9 +254,18 @@ uncomputable — reporting a partial impact set at exit 1 would hand
 mode's finding as the remedy.
 
 No manifest present: default mode exits 0 **after** the
-multiple-configs-without-manifest scan (item 1), printing what it proved —
-`no units.yaml — single-unit repository; no unit configs found astray`.
-*(Derived, needs assessment: the exit-0-without-manifest shape.)*
+multiple-configs-without-manifest scan (item 1) **and the near-miss
+manifest scan** (amended 2026-09-03 by the risk assessment): a file in the
+root `.guardrails/` — the manifest's own directory, the only place scanned —
+in the near-miss class (`units.yml`, `unit.yaml`, case variants of
+`units.yaml`) whose content is manifest-shaped — a top-level `units:` or
+`not_a_unit:` key — is exit 2, message "did you mean
+.guardrails/units.yaml". The repository root is deliberately not scanned:
+that is where another tool's `units.yml` legitimately lives, so a wrong-
+*directory* manifest there is accepted residual (risk assessment 2), not a
+conviction. Only then exit 0, printing what it proved — `no units.yaml —
+single-unit repository; no unit configs found astray`. *(The
+exit-0-without-manifest shape: assessed 2026-09-03.)*
 
 Rejected: **a separate impact script** — a second parser of the manifest
 that must never drift from the first. Rejected: **skill-computed impact** —
@@ -323,6 +342,8 @@ orphan them, and D6's **one verification record per change** needs a home.
 | `UNMET-EXPECTATION` | 1 (D11 rules) | check-trace (scoped) | D10, D11 |
 | `INCOMPLETE-EXPECTATION` | 1 | check-trace (scoped) | D11 |
 | `MISEXPORTED-ITEM` | 1 | check-trace (scoped) | D8 |
+| `DISCLAIMED-DRAFT` | 1 | check-units | risk assessment 3 (2026-09-03) |
+| near-miss manifest name | 2 | check-units | risk assessment 2 (2026-09-03) |
 | manifest/config shape errors | 2 | check-units, lib | D2, D5, D12 |
 
 ## Test obligations
@@ -375,7 +396,25 @@ New obligations this design adds, named so the bats suite can carry them:
 - **no-manifest-changes-nothing** — every existing test green with the
   machinery present and no `units.yaml` (item 2's engagement rule).
 
+Added 2026-09-03 by the risk assessment of the derived decisions
+(docs/risk/2026-09-03-units-architecture-derived.md):
+
+- **disclaimed-definition-names-its-path** (item 2's table; assessment 1).
+- **near-miss-manifest-name-is-exit-2** — each name in the near-miss
+  class, manifest-shaped, in `.guardrails/`, no `.guardrails/units.yaml` →
+  exit 2; the class, not one member;
+  **near-miss-without-manifest-content-passes** — non-manifest content in
+  `.guardrails/`, or manifest-shaped content outside it, convicts nothing
+  (item 6; assessment 2).
+- **disclaimed-draft-convicts-at-repo-level**;
+  **disclaimed-prose-is-not-malformed** (item 6; assessment 3).
+
 ## Derived decisions, needing assessment (`analyze-risks`)
+
+**Assessed 2026-09-03** (docs/risk/2026-09-03-units-architecture-derived.md): all
+three carry controls, amended into items 2, 5 and 6 above; five test
+obligations added to the list above. The list below stands as the record of
+what was handed off.
 
 1. **Disclaimed definitions do not resolve** (item 2). A reference to an
    item defined under `not_a_unit:` convicts `DANGLING-REF` although the
