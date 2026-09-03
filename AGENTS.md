@@ -60,6 +60,20 @@ reference implementation of its own process.
   pattern's unbalanced `)` inside `$(...)`, and whether a `case` sits inside a
   command substitution is not decidable by a line scan, so the uniform form is
   the rule everywhere. `tests/portability.bats` enforces this.
+- **Verifying an OpenPGP signature needs a WRITABLE `~/.gnupg`.** gpg opens
+  `trustdb.gpg` read-write even when only reading it — `--list-keys` does,
+  `--trust-model always` does — so a sandboxed agent, or a container that
+  mounts `~/.gnupg` read-only, can verify nothing: gpg exits
+  `Fatal: can't open ... Operation not permitted`, git reports `%G?` as `N`,
+  and a perfectly good commit reads as unsigned. Measured 2026-09-01 on macOS:
+  the same file opens `O_RDONLY` and is refused `O_RDWR`, with correct
+  ownership, mode `drwx------`, no ACLs and no flags — and the refusal survives
+  disabling the agent's own sandbox, so it is the host application's TCC grant
+  rather than the sandbox layer. To check a signature from such a shell, copy
+  `pubring.kbx` and `trustdb.gpg` somewhere writable and point `GNUPGHOME` at
+  the copy; `check-signing.sh --strict` then exits 0. It also exits 0 unaided
+  in a terminal the user launched themselves, which is why `merge-change`
+  step 7 hands the signed commit to the user instead of running it here.
 - Every behavior change to a script requires a bats test in `tests/`.
 - Skills live at `skills/<name>/SKILL.md` with `name` and `description`
   frontmatter. Skills are self-contained — they must not reference superpowers

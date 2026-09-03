@@ -45,6 +45,27 @@ stay unverifiable everywhere while no `allowed_signers` file exists. The flow
 never needs them verified — finish-merge.sh checks the new HEAD only — so
 that is an accepted gap in the history, not a fixed one.
 
+FOUND WHILE MEASURING THIS, and fixed elsewhere: the closure above is the
+disposition of this item. What measuring it turned up was a separate defect in
+the tool, carried by PR-74gcqg and PR-mtmr7h in
+docs/problems/2026-09-03-signing-diagnosis.md — `check-signing.sh` printed one
+identical `UNVERIFIED` line whatever the cause and appended the ssh trust-root
+remedy to all of them, because `git log --format=%G?` returns a letter and
+discards the verifier's output. On a history signed both ways that remedy was
+correct for the ssh commits and irrelevant to the OpenPGP ones, which is how
+this item's own diagnosis came to name a missing `allowed_signers` file as the
+reason a PGP commit would not verify. It is not: measured against a writable
+`GNUPGHOME` copy of the same keyring, those commits verify `%G? = G`, "Good
+signature ... [ultimate]", and what defeats them is that gpg opens
+`trustdb.gpg` read-write even to read it. The gate now prints the verifier's
+own words under every non-passing verdict, so the next reader of an
+`UNVERIFIED` gets the cause instead of a guess.
+
+The unverifiable ssh history that this closure accepts as a gap is carried,
+as a gap, by PR-r8q9m7 in the same file — not to reopen it, but because
+nothing in the toolkit ever inspects history at all.
+
+
 **PR-tbn6q7**: The repository-local commit identity was lost at some point
 before 2026-08-27, so a commit was authored from the global
 `jan-jan@parity.io` and GitHub refused the push with `GH007`.

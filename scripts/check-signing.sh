@@ -8,11 +8,18 @@
 # (e.g. main..feature) to check every commit in it.
 #
 #   pass            — signature verifies against trusted signers (%G? = G)
-#   WARN-UNVERIFIED — signature present but untrusted/unverifiable (%G? = U
-#                     or E, e.g. no gpg.ssh.allowedSignersFile); passes
-#                     unless --strict
-#   UNVERIFIED      — same, under --strict: fails
-#   UNSIGNED        — no signature, or a bad signature: fails
+#   WARN-UNVERIFIED — signature present, did not verify; passes unless --strict
+#   UNVERIFIED      — signature present, did not verify; fails. Under --strict
+#                     this is the strict form of WARN-UNVERIFIED; for a
+#                     signature the verifier REJECTED or could not run at all
+#                     (%G? = B/X/Y/R) it is unconditional, in both modes, and
+#                     there is no WARN- counterpart.
+#   UNSIGNED        — no signature at all; fails
+#
+# Every non-passing verdict is followed by the verifier's own output, indented
+# under it. `git log --format=%G?` answers with one letter and discards what
+# the verifier said, so the reason is asked for separately rather than guessed
+# at.
 #
 # --setup answers a different question: not "is this history signed" but "can
 # this project sign at all", which is what a merge gate depends on before there
@@ -62,6 +69,28 @@ if [ "$setup" -eq 1 ]; then
     strict=1
 fi
 
+# What the verifier itself said, indented, or nothing if it said nothing.
+#
+# `git log --format=%G?` answers with ONE LETTER and discards the verifier's
+# output: measured 2026-09-01, a gpg dying on an unwritable trustdb reaches
+# this script as `N` and zero bytes of stderr. A letter is not a cause, and
+# this script used to supply one by guessing — it appended the
+# gpg.ssh.allowedSignersFile remedy to every verdict alike, including the
+# OpenPGP ones where nothing reads that setting. A repository's history can be
+# signed BOTH ways (this one is: measured 2026-09-01, 17 ssh to 3 OpenPGP in
+# the last 20 commits), and the two formats then fail to verify for entirely
+# different reasons behind one identical line (PR-52rnrn).
+# `git verify-commit` runs the same
+# verification and lets the verifier's own words through, so ask it rather
+# than guess. Called only on a verdict that already failed, so the extra fork
+# costs nothing on a passing run.
+verifier_reason() {
+    # stderr to the pipe, THEN stdout to /dev/null: the other order sends both
+    # to /dev/null and this function reports, in silence, that the verifier
+    # said nothing.
+    git verify-commit "$1" 2>&1 >/dev/null | sed 's/^/    /'
+}
+
 # Environment guard: a trust root that is CONFIGURED AND PRESENT but that this
 # process lacks permission to read. That state produces the same %G? = U/E as
 # a genuinely untrusted signature, and reporting it as UNVERIFIED at exit 1
@@ -109,31 +138,47 @@ trust_root_env_guard() {
 check_commits() {
     _fail=0
     for c in $1; do
-        gstat=$(git log -1 --format='%G?' "$c")
+        # `%G?` is asked for the verdict letter only; whatever git wants to say
+        # about how it got there is collected deliberately by verifier_reason
+        # instead, where it is indented under the verdict it explains and where
+        # OpenPGP and ssh behave alike — git leaks its own diagnostic here for
+        # an ssh signature and nothing at all for an OpenPGP one, so left
+        # unredirected it prints a stray unattached line above half the
+        # verdicts. A `git log` that fails outright still leaves gstat empty,
+        # which falls to the `*)` branch and is reported from the commit's own
+        # headers.
+        gstat=$(git log -1 --format='%G?' "$c" 2>/dev/null)
         case "$gstat" in
             (G) ;;
             (U|E)
                 trust_root_env_guard
                 if [ "$strict" -eq 1 ]; then
-                    echo "UNVERIFIED $c (signature present but untrusted/unverifiable)"
+                    echo "UNVERIFIED $c (signature present but did not verify)"
                     _fail=1
                 else
-                    echo "WARN-UNVERIFIED $c (signature present but untrusted/unverifiable; configure gpg.ssh.allowedSignersFile or keyring to verify)"
+                    echo "WARN-UNVERIFIED $c (signature present but did not verify)"
                 fi
+                verifier_reason "$c"
                 ;;
             (B|X|Y|R)
-                echo "UNSIGNED $c (bad, expired, or revoked signature)"
+                # Failing in BOTH modes, unchanged. What changed is the claim:
+                # git reports `B` when the verifier rejected the signature AND
+                # when the verifier could not run, and the old wording picked
+                # the first and printed it as fact (PR-74gcqg).
+                echo "UNVERIFIED $c (the verifier did not accept this signature)"
                 _fail=1
+                verifier_reason "$c"
                 ;;
             (*)
                 if git cat-file commit "$c" | grep -q '^gpgsig'; then
                     trust_root_env_guard
                     if [ "$strict" -eq 1 ]; then
-                        echo "UNVERIFIED $c (signature present but not verifiable)"
+                        echo "UNVERIFIED $c (signature present but did not verify)"
                         _fail=1
                     else
-                        echo "WARN-UNVERIFIED $c (signature present but not verifiable; configure gpg.ssh.allowedSignersFile or keyring to verify)"
+                        echo "WARN-UNVERIFIED $c (signature present but did not verify)"
                     fi
+                    verifier_reason "$c"
                 else
                     echo "UNSIGNED $c (no signature)"
                     _fail=1
@@ -165,7 +210,14 @@ run_setup() {
     # permission problem.
     trust_root_env_guard
 
+    # Unset is not unconfigured. Git documents the default as openpgp, and a
+    # project that leaves it alone signs perfectly well — this repository does.
+    # Reporting MISSING here named a non-problem on a correctly configured
+    # machine and returned before the proof below, which is the only half that
+    # measures anything (PR-mtmr7h). Defaulting also fixes a latent bug: the
+    # throwaway repository below did `git config gpg.format ""`.
     _fmt=$(git config --get gpg.format 2>/dev/null)
+    [ -n "$_fmt" ] || _fmt=openpgp
     _key=$(git config --get user.signingkey 2>/dev/null)
     _sign=$(git config --bool --get commit.gpgsign 2>/dev/null)
     # In a linked worktree the effective value is not the project's answer:
@@ -191,10 +243,6 @@ run_setup() {
     _signers=""
     _missing=0
 
-    if [ -z "$_fmt" ]; then
-        echo "MISSING gpg.format (no signature format configured; e.g. git config gpg.format ssh)"
-        _missing=1
-    fi
     if [ -z "$_key" ]; then
         echo "MISSING user.signingkey (no signing key configured)"
         _missing=1

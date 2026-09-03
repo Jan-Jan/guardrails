@@ -18,6 +18,18 @@ signed_commit() {
     git -c commit.gpgsign=true commit -qS -m "signed $1"
 }
 
+# A verifier that cannot run. Not a corrupted signature: the signature is real
+# and the program that would check it fails to start, which is the shape the
+# maintainer's machine was in (gpg dying on an unwritable trustdb). git cannot
+# tell the two apart — %G? is `B` for both — so the verifier's own words are
+# the only thing that can.
+break_the_verifier() {
+    printf '#!/bin/sh\necho "stub verifier: trust store unavailable" >&2\nexit 2\n' \
+        > "$BATS_TEST_TMPDIR/broken_verifier"
+    chmod +x "$BATS_TEST_TMPDIR/broken_verifier"
+    git config gpg.ssh.program "$BATS_TEST_TMPDIR/broken_verifier"
+}
+
 @test "check-signing: unsigned commit fails with UNSIGNED" {
     run sh .guardrails/scripts/check-signing.sh
     [ "$status" -eq 1 ]
@@ -58,6 +70,116 @@ signed_commit() {
     run sh .guardrails/scripts/check-signing.sh main..feature
     [ "$status" -eq 1 ]
     [[ "$output" == *"UNSIGNED"* ]]
+}
+
+@test "check-signing: a failed verdict carries the verifier's own reason" {
+    # verifies: PR-whkz8m
+    # `git log --format=%G?` returns a letter and throws the verifier's output
+    # away — measured, zero bytes on stderr. Before this, the script filled the
+    # gap by GUESSING a cause: it appended the ssh trust-root remedy to every
+    # verdict alike, including the OpenPGP commits that never read that
+    # setting. The real cause was one command away the whole time.
+    setup_ssh_signing
+    signed_commit a
+    break_the_verifier
+    run sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"stub verifier: trust store unavailable"* ]] \
+        || { echo "the verifier's reason was discarded: $output"; false; }
+}
+
+@test "check-signing: a verifier that cannot run is not called a forgery" {
+    # verifies: PR-74gcqg
+    # %G? is `B` both for a signature that was checked and rejected and for a
+    # verifier that never ran. Saying "bad, expired, or revoked" of the second
+    # accuses the signer of something the tool did not measure.
+    setup_ssh_signing
+    signed_commit a
+    break_the_verifier
+    run sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" != *"bad, expired, or revoked"* ]] \
+        || { echo "still asserts a cause it did not measure: $output"; false; }
+    [[ "$output" != *"UNSIGNED"* ]] \
+        || { echo "a signed commit was reported UNSIGNED: $output"; false; }
+    [[ "$output" == *"UNVERIFIED"* ]] || { echo "$output"; false; }
+}
+
+@test "check-signing: a rejected signature still fails without --strict" {
+    # Deliberately carries NO `verifies:` annotation, and that is the finding
+    # rather than an oversight. It was green on its first run, before the
+    # script was touched, and could not have been otherwise: the old `B` branch
+    # already failed in both modes with no `WARN-` prefix, so both assertions
+    # held against it. It therefore verifies nothing about PR-74gcqg — the test
+    # above does, and that one was watched failing. Annotating it anyway would
+    # put a `verifies:` line behind no red->green attestation, which is the one
+    # thing `develop-change`'s iron law forbids. What it IS is a pin: the
+    # wording changed, the verdict must not, and the tolerant mode must not
+    # start passing a signature the verifier refused.
+    setup_ssh_signing
+    signed_commit a
+    break_the_verifier
+    run sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" != *"WARN-"* ]] || { echo "tolerated a refusal: $output"; false; }
+}
+
+@test "check-signing: the verifier's reason is reported once, under its verdict" {
+    # verifies: PR-whkz8m
+    # `git log --format=%G?` leaks git's OWN diagnostic to stderr for an ssh
+    # signature and leaks nothing for an OpenPGP one. Unindented and printed
+    # before the verdict, that copy reads as a separate failure — and it
+    # appears for only one of the two formats, which is the asymmetry this
+    # whole change removes. The reason belongs under the verdict it explains,
+    # once, put there by this script.
+    setup_ssh_signing
+    signed_commit a
+    git config --unset gpg.ssh.allowedSignersFile
+    run sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" == *"allowedSignersFile"* ]] \
+        || { echo "the reason went missing entirely: $output"; false; }
+    # "once" is half the claim in the name and the whole of PR-52rnrn's
+    # resolution, and nothing here measured it: two indented copies passed
+    # every other assertion in this test unchanged. Counted, not eyeballed.
+    n=$(printf '%s\n' "$output" | grep -c 'allowedSignersFile')
+    [ "$n" -eq 1 ] || { echo "the reason appeared $n times, not once: $output"; false; }
+    if printf '%s\n' "$output" | grep -q '^error:'; then
+        echo "git's own diagnostic leaked, unindented, above the verdict: $output"
+        false
+    fi
+}
+
+@test "check-signing: an untrusted signature carries the verifier's reason too" {
+    # verifies: PR-whkz8m
+    # The third of the three places the reason is printed, and the only one no
+    # test reached. Measured, because this change exists to stop a tool
+    # asserting a cause nobody read: of the other two PR-52rnrn tests, the
+    # broken-verifier one lands in `B|X|Y|R` (%G? = B) and the reported-once
+    # one in `*)` (%G? = N). Deleting verifier_reason from the U|E branch left
+    # the whole suite green.
+    #
+    # A signers file that is PRESENT and READABLE — so the environment guard
+    # does not fire — naming a DIFFERENT key: the signature verifies
+    # cryptographically and no principal owns it. Measured 2026-09-02, that is
+    # %G? = U, and git verify-commit says "No principal matched." Without the
+    # reason, "signature present but did not verify" is a verdict with no cause
+    # attached, and the cause here is not the one the old guessed remedy named.
+    setup_ssh_signing
+    signed_commit a
+    ssh-keygen -t ed25519 -N '' -f "$BATS_TEST_TMPDIR/other_key" -q
+    printf 'test@example.com %s\n' \
+        "$(cut -d' ' -f1-2 < "$BATS_TEST_TMPDIR/other_key.pub")" \
+        > "$BATS_TEST_TMPDIR/allowed_signers"
+    [ "$(git log -1 --format='%G?' 2>/dev/null)" = U ] \
+        || { echo "fixture no longer lands in U|E: $(git log -1 --format='%G?')"; false; }
+    run sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"UNVERIFIED"* ]] || { echo "$output"; false; }
+    # Indented, under the verdict it explains — the whole point of asking the
+    # verifier rather than guessing.
+    printf '%s\n' "$output" | grep -q '^    No principal matched\.$' \
+        || { echo "the verifier's reason was discarded: $output"; false; }
 }
 
 @test "check-signing: --strict exits 2 when the trust root exists but cannot be read" {
@@ -200,12 +322,60 @@ setup_proved_signing() {
 @test "check-signing: --setup names every missing piece of the configuration" {
     # The fixture repo has no signing configuration at all. One verdict for
     # three separate gaps is two more runs than the operator needs.
+    #
+    # This test used to assert MISSING gpg.format here as well. That assertion
+    # was removed because it was measured wrong, not because it was
+    # inconvenient: git documents the default for gpg.format as openpgp, so a
+    # project that never sets it HAS a format and signs perfectly well — this
+    # repository's own commits are openpgp-signed with gpg.format unset
+    # (PR-mtmr7h). The assertion is inverted rather than deleted, so the
+    # corrected behaviour is still gated here; and the two gaps that really do
+    # stop this repository signing anything, the key and commit.gpgsign, are
+    # still asserted, along with the exit status.
     isolate_git_config
     run sh .guardrails/scripts/check-signing.sh --setup
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
-    [[ "$output" == *"MISSING gpg.format"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MISSING gpg.format"* ]] || { echo "$output"; false; }
     [[ "$output" == *"MISSING user.signingkey"* ]] || { echo "$output"; false; }
     [[ "$output" == *"MISSING commit.gpgsign"* ]] || { echo "$output"; false; }
+}
+
+@test "check-signing: --setup does not call git's default format missing" {
+    # verifies: PR-mtmr7h
+    # gpg.format unset IS a configured format: git documents the default as
+    # openpgp, and this repository's own commits are signed that way. Calling
+    # it MISSING named a non-problem to the one operator who had none, and
+    # returned before the proof — the half that would have found the real
+    # fault.
+    isolate_git_config
+    setup_ssh_signing
+    git config --unset gpg.format
+    git config commit.gpgsign true
+    run sh .guardrails/scripts/check-signing.sh --setup
+    [[ "$output" != *"MISSING gpg.format"* ]] \
+        || { echo "still reports the default as missing: $output"; false; }
+}
+
+@test "check-signing: --setup carries a real format into the proof, not an empty one" {
+    # verifies: PR-mtmr7h
+    # The half of the fix no test reached. `_fmt` is written into the throwaway
+    # repository, and `git config gpg.format ""` is REJECTED by git rather than
+    # read as unset, so the proof dies before signing anything and --setup
+    # blames a project whose configuration is fine. The two tests above assert
+    # only the ABSENCE of `MISSING gpg.format`, which deleting the MISSING
+    # block alone already satisfies.
+    isolate_git_config
+    git config --unset gpg.format 2>/dev/null || true
+    git config user.email t@example.com
+    git config user.signingkey DEADBEEFDEADBEEF
+    git config commit.gpgsign true
+    run sh .guardrails/scripts/check-signing.sh --setup
+    # It cannot prove anything here — no such key exists — but it must fail for
+    # THAT reason, never because the format it wrote was empty.
+    [[ "$output" != *"invalid value for 'gpg.format'"* ]] \
+        || { echo "an empty gpg.format reached the throwaway repository: $output"; false; }
+    [[ "$output" != *"bad config variable 'gpg.format'"* ]] \
+        || { echo "$output"; false; }
 }
 
 @test "check-signing: --setup names commit.gpgsign alone when only it is off" {

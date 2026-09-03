@@ -392,13 +392,20 @@ stop and name exactly what is missing instead of calling adoption done.
       signature reads as unverifiable, which `--strict` rejects.
 - [ ] **Prove the chain, and only then is the ratchet done:**
       `.guardrails/scripts/check-signing.sh --setup` must exit 0. It checks
-      that `gpg.format`, `user.signingkey`, `commit.gpgsign` and the format's
+      that `user.signingkey`, `commit.gpgsign`, `user.email` and the format's
       trust root are set and readable, then makes a real signed commit in a
       throwaway repository and confirms it reads `%G?` = `G` — configuration
       being present says nothing about whether the key can sign or the
       signature verifies. Exit 1 is a failed proof, exit 2 a usage or
       environment error. Each missing piece is named separately; work through
       them in order.
+
+      `gpg.format` is deliberately NOT on that list. Unset is not
+      unconfigured: git documents the default as `openpgp`, and a project that
+      leaves it alone signs perfectly well, so requiring it named a
+      non-problem — and, because a named gap returns before the proof, it
+      suppressed the only half of `--setup` that measures anything. Set it
+      explicitly when you want ssh; leave it alone for OpenPGP.
 - [ ] Branch protection on the base branch: no direct pushes, require signed
       commits.
 - [ ] CI: run `verify_commands`, `check-ids.sh`, `check-trace.sh`, and

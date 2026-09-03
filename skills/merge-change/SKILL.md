@@ -372,8 +372,16 @@ after the finding — anything that does not repeat.
 
    ```sh
    git log -1 --format='%h %G? %s'
-   .guardrails/scripts/check-signing.sh   # verifies the new HEAD
+   .guardrails/scripts/check-signing.sh --strict   # verifies the new HEAD
    ```
+
+   `--strict`, not the bare form. The tolerant mode passes a signature it could
+   not verify — printing `WARN-UNVERIFIED` and exiting 0 — so under the comment
+   "verifies the new HEAD" it would confirm nothing on exactly the machine where
+   confirmation matters. `finish-merge.sh` has already run the same check with
+   `--strict` moments earlier in the same compound, so this costs one re-read of
+   a commit whose signature is known good, and it means this line cannot report
+   success where that guard would have refused.
 
    Then report the merge — the squash commit, the IDs it implements, the
    verification record it cites — and recommend compacting the conversation
@@ -389,7 +397,7 @@ after the finding — anything that does not repeat.
 
    | Refusal | What it means | What fixes it |
    |---|---|---|
-   | `UNVERIFIED` / `UNSIGNED` from `check-signing.sh --strict` | The new HEAD's signature does not verify against trusted signers — usually a missing or incomplete `gpg.ssh.allowedSignersFile`. `--strict` is unconditional here, so a signature nobody can verify never passes for cleanup. | Configure the signers file (ratchet's signing checklist), then re-run the script. |
+   | `UNVERIFIED` / `UNSIGNED` from `check-signing.sh --strict` | The new HEAD's signature did not verify. **Read the reason the gate prints indented under the verdict** — it is the verifier's own, not a guess. A missing `gpg.ssh.allowedSignersFile` is only one of the things it says, and an OpenPGP-signed commit never reads that setting at all; `gpg: ... can't open ... trustdb.gpg: Operation not permitted` is an environment fault rather than a bad signature. `--strict` is unconditional here, so a signature nobody can verify never passes for cleanup. | Fix what the reason names — the signers file for ssh (ratchet's signing checklist), a readable trust root for OpenPGP — then re-run the script. |
    | The squash did not capture everything — `git diff HEAD <branch>` is non-empty | Step 1 merged the base into the change branch, so a correct squash leaves the two trees identical. A difference means something did not land: an unstaged file, a partial `git add`, or a base that moved between step 1 and the squash. Deleting the branch would destroy exactly that difference. | `git diff HEAD <branch>` to see what is missing. Bring it onto the base branch, or rerun the sequence from step 1, before re-running the script. |
    | `a registered worktree lies inside <path>` — plural, `registered worktrees lie inside <path>` | A task or review worktree is still registered inside the change worktree. Removing the outer one would delete that worktree's files while git still had it registered: uncommitted work gone, the registration left prunable, the branch orphaned. Guard 3 cannot catch it, because a nested worktree is invisible to the outer one's `git status`, so `git worktree remove` does not refuse it. | Deal with each path the refusal names — merge or abandon its branch, then `git worktree remove` the path — and re-run the script. Step 6a is where the review worktree should already have gone and step 6d is where its absence should already have been checked; a task worktree here means a dispatch was never cleaned up. |
    | `git worktree remove` refused | The worktree is dirty — uncommitted work still lives there. No `--force` is passed, and git's own refusal is the guard. | Inspect the worktree, commit or discard what is there, then re-run the script. |
