@@ -334,9 +334,15 @@ rediscovered later.
    the diff. On the base branch there is no change under review, so the
    repository-level run is the union of all units — the existing note that
    `check-review.sh` is not a base-branch gate applies unchanged.
+   **Resolved by the architecture** (`…-units-architecture.md`):
+   `check-units.sh --impact <range>` computes the set mechanically;
+   `--list` enumerates the units for the base-branch union.
 6. **`new-id.sh` needs a unit.** It calls `gr_check_config`, so minting an ID
    inside a monorepo requires knowing which unit's config to validate. Either
    it infers the unit from the cwd or it takes the unit as an argument.
+   **Resolved by the architecture** (`…-units-architecture.md`): inferred
+   from the caller's cwd when inside a declared unit; `--unit <path>`
+   otherwise; never a guess — outside every unit with no flag is exit 2.
 
 ## Best practices for a monorepo under guardrails
 

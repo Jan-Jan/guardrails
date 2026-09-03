@@ -122,6 +122,16 @@ enforcement on the consumer — the party at risk — whose aging budget is
 shipped set (assessment 1). The prompt is a courtesy on top of a gate, not
 the gate.
 
+**Binding site, amended 2026-09-03** (by the architecture change,
+docs/plans/2026-09-03-units-architecture.md): the obligations above were
+written "on `check-units.sh`" when that script was the only named home for
+the unit machinery. The architecture places the conviction sites for five of
+them in the scoped per-unit gates (`lib.sh` scope helpers + `check-trace.sh`)
+and keeps the impact-set chain in `check-units.sh --impact`. The obligations
+bind on the unit machinery's bats suite wherever each conviction lands; no
+test is weakened or dropped, and the architecture maps every obligation to
+its owning software item.
+
 ## Disposition of the handoff
 
 All three derived items are assessed: none invalidates a merged decision;
