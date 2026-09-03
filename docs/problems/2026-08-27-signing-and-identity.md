@@ -20,7 +20,7 @@ and the missing `allowed_signers` file that
 docs/plans/2026-08-22-ratchet-gap-analysis.md records as configured and
 maintained.
 opened: 2026-08-27
-status: open
+status: resolved
 AMENDED 2026-08-31, and the severity has changed with the base branch. When
 this was recorded it was a false green — `check-signing.sh` printing
 `WARN-UNVERIFIED` and exiting 0. b7fbd7f then added `finish-merge.sh`, which
@@ -31,6 +31,19 @@ worktree and branch cleanup will refuse until an `allowed_signers` file exists
 or the GPG trustdb is readable. That is the right trade — it withholds cleanup,
 never the merge — but it means this item now blocks the tail of every merge on
 this machine rather than passing quietly.
+RESOLVED 2026-09-03: not a defect in the flow. The design already routes
+signing, verification and cleanup through the maintainer's own shell:
+merge-change step 7 hands over exactly one command —
+`git commit -S -F <msgfile> && sh scripts/finish-merge.sh <branch>` — and in
+that shell `check-signing.sh --strict` exits 0 over the new HEAD (measured
+2026-09-01; reconfirmed 2026-09-02, when the bd41d7a merge's cleanup completed
+through it). The UNVERIFIED that prompted this item is the sandboxed agent's
+environment — a TCC-denied GPG trustdb — which bd41d7a now reports as exit 2,
+environment not project (PR-mvqm4s). What this closure does NOT repair, and
+accepts: the twenty-two ssh-signed commits predating the switch to OpenPGP
+stay unverifiable everywhere while no `allowed_signers` file exists. The flow
+never needs them verified — finish-merge.sh checks the new HEAD only — so
+that is an accepted gap in the history, not a fixed one.
 
 **PR-tbn6q7**: The repository-local commit identity was lost at some point
 before 2026-08-27, so a commit was authored from the global
@@ -39,7 +52,15 @@ affects: .git/config — not a tracked artefact, which is the difficulty; no
 gate in the toolkit reads the author identity of the commit it is about to
 make.
 opened: 2026-08-27
-status: open
+status: resolved
+The repository-local identity is restored in `.git/config`
+(`user.email = 111935+Jan-Jan@users.noreply.github.com`) and GitHub accepts
+pushes again — bd41d7a, authored under that identity, is on origin/main. How
+the local identity was lost was never established: root cause unknown,
+declared rather than guessed. The
+fix is untracked configuration, so there is no reproducing test; the gap the
+item names — no gate reads the author identity of the commit it is about to
+make — remains open territory, unclaimed by this closure.
 
 **PR-dy8yup**: Eighteen of the 184 mutation scripts under `docs/verification/`
 can no longer apply their mutation, so they measure nothing and nothing reports
