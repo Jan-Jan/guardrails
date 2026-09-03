@@ -827,7 +827,7 @@ EOF
     seen=0
     while read -r mode _hash _stage path; do
         [ -n "$path" ] || continue
-        case "$path" in *.sh) ;; *) continue ;; esac
+        case "$path" in (*.sh) ;; (*) continue ;; esac
         seen=$((seen + 1))
         [ "$mode" = "100755" ] || { echo "not executable in the index: $path ($mode)"; false; }
     done <<< "$output"
@@ -1253,7 +1253,7 @@ if [ "\$1" = grep ]; then
     _oe=; _tail=
     for a in "\$@"; do
         [ "\$a" = -oE ] && _oe=1
-        case "\$a" in *'[^0-9A-Za-z]'*) _tail=1 ;; esac
+        case "\$a" in (*'[^0-9A-Za-z]'*) _tail=1 ;; esac
     done
     [ -n "\$_oe" ] && [ -n "\$_tail" ] && exit 129
 fi

@@ -119,7 +119,7 @@ make_failing_worktree_list() {
     _real=$(command -v git)
     _bin="$BATS_TEST_TMPDIR/failing-git"
     case "$_real" in
-        "$_bin"/*) echo "make_failing_worktree_list called with the stub already on PATH" >&2
+        ("$_bin"/*) echo "make_failing_worktree_list called with the stub already on PATH" >&2
                    return 1 ;;
     esac
     mkdir -p "$_bin"
@@ -150,7 +150,7 @@ make_failing_awk() {
     _real=$(command -v awk)
     _bin="$BATS_TEST_TMPDIR/failing-awk"
     case "$_real" in
-        "$_bin"/*) echo "make_failing_awk called with the stub already on PATH" >&2
+        ("$_bin"/*) echo "make_failing_awk called with the stub already on PATH" >&2
                    return 1 ;;
     esac
     mkdir -p "$_bin"
@@ -158,7 +158,7 @@ make_failing_awk() {
     cat >> "$_bin/awk" <<'STUB'
 for a in "$@"; do
     case "$a" in
-        want=*|-vwant=*)
+        (want=*|-vwant=*)
             echo "awk: the derivation failed" >&2
             exit 2 ;;
     esac

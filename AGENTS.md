@@ -55,6 +55,11 @@ reference implementation of its own process.
 - The same caution applies to `date`: BSD `date` has no `-d`, and its `-v`
   adjustment carries its own sign, so a relative date needs both spellings
   (`tests/helpers.bash:days_ago`).
+- Every `case` pattern in executable shell opens with a leading `(` — the
+  POSIX-optional spelling. bash 3.2 (macOS `/bin/sh`, forever) cannot parse a
+  pattern's unbalanced `)` inside `$(...)`, and whether a `case` sits inside a
+  command substitution is not decidable by a line scan, so the uniform form is
+  the rule everywhere. `tests/portability.bats` enforces this.
 - Every behavior change to a script requires a bats test in `tests/`.
 - Skills live at `skills/<name>/SKILL.md` with `name` and `description`
   frontmatter. Skills are self-contained — they must not reference superpowers

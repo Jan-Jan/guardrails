@@ -285,3 +285,139 @@ EOF
     } 2>/dev/null || true)
     [ -z "$found" ] || { echo "in-place sed with no suffix:"; echo "$found"; false; }
 }
+
+# --- PR-vh6cud --------------------------------------------------------------
+
+@test "every case pattern in executable shell opens with a parenthesis" {
+    # verifies: PR-vh6cud
+    # bash 3.2 — macOS /bin/sh, forever — cannot parse a parenless case
+    # pattern inside `$(...)`: the pattern's lone `)` unbalances the command
+    # substitution for that parser, and finish-merge.sh died at the terminal
+    # with `syntax error near unexpected token ';;'` before running a line.
+    # The defective spelling cannot be grepped narrowly: whether a `case`
+    # sits inside a command substitution is not decidable by a line scan. So
+    # the rule covers EVERY pattern — the leading `(` is POSIX everywhere,
+    # costs one character, and the uniform form is what makes this gate
+    # simple enough to trust.
+    #
+    # Executable content is linted: scripts/, install.sh, and the test suite
+    # itself — including heredocs that generate stub scripts, because sh runs
+    # the stubs too. Prose, docs and skills are not linted: a transcript
+    # quoting a spelling is a record, not a program — the same boundary the
+    # in-place-sed test above draws.
+    root=$(cd "$BATS_TEST_DIRNAME/.." && pwd)
+
+    # Pattern position is syntactic, not line-based: it opens after
+    # `case ... in` and after every `;;`, wherever they fall on a line. So
+    # each line is split into segments at `;;` and scanned segment by
+    # segment — a one-line `case ... in pat) ... ;; esac` puts a pattern in
+    # the middle of the line, where a line-anchored scan never looks.
+    # `esac` is exempt — it ends the construct rather than opening a
+    # pattern. Full-line comments are transparent: they neither open a
+    # pattern position nor consume one. Arming after `;;` is gated on an
+    # open `case` construct so a `;;` quoted in prose or in a printf format
+    # cannot arm the scan, and all state resets at each new file. A `case`
+    # keyword preceded by an unclosed quote on its segment is prose, not
+    # code — a test name like "every case pattern in ..." must not arm.
+    cat > "$BATS_TEST_TMPDIR/caselint.awk" <<'AWK'
+function inquote(p,  c) {
+    c = p
+    if (gsub(/"/, "", c) % 2) return 1
+    c = p
+    return gsub("\\047", "", c) % 2
+}
+function verdict(s,  t) {
+    if (!armed) return
+    t = s
+    sub(/^[[:space:]]+/, "", t)
+    if (t == "" || t ~ /^#/) return
+    armed = 0
+    if (t ~ /^\(/ || t ~ /^esac([^A-Za-z0-9_]|$)/) return
+    print FILENAME ":" FNR ": " $0
+}
+FNR == 1 { armed = 0; pending = 0; incase = 0 }
+{
+    stripped = $0
+    sub(/^[[:space:]]+/, "", stripped)
+    if (stripped ~ /^#/) next
+    n = split($0, seg, /;;/)
+    for (i = 1; i <= n; i++) {
+        s = seg[i]
+        if (i > 1 && incase) armed = 1
+        verdict(s)
+        if (match(s, /(^|[[:space:];(])case[[:space:]]/) \
+                && !inquote(substr(s, 1, RSTART))) {
+            rest = substr(s, RSTART + RLENGTH)
+            if (match(rest, /(^|[[:space:]])in([[:space:]]|$)/)) {
+                armed = 1; incase = 1
+                verdict(substr(rest, RSTART + RLENGTH))
+            } else pending = 1
+        } else if (pending) {
+            if (match(s, /(^|[[:space:]])in([[:space:]]|$)/)) {
+                armed = 1; incase = 1; pending = 0
+                verdict(substr(s, RSTART + RLENGTH))
+            } else {
+                t = s
+                sub(/^[[:space:]]+/, "", t)
+                if (t != "") pending = 0
+            }
+        }
+        if (s ~ /(^|[[:space:];])esac([^A-Za-z0-9_]|$)/) { armed = 0; incase = 0; pending = 0 }
+    }
+}
+AWK
+
+    # Calibrate the instrument in both directions before trusting it: a scan
+    # that stopped matching the defect would report a clean toolkit forever.
+    # Both controls are built with printf so this file does not itself
+    # contain the parenless spelling it hunts.
+    printf '%s $x in\n    foo) : ;;\nesac\n' case > "$BATS_TEST_TMPDIR/bad.sh"
+    [ -n "$(awk -f "$BATS_TEST_TMPDIR/caselint.awk" "$BATS_TEST_TMPDIR/bad.sh")" ] \
+        || { echo "the scan no longer matches the defect it names"; false; }
+    printf '%s $x in\n    (foo) : ;;\nesac\n' case > "$BATS_TEST_TMPDIR/good.sh"
+    [ -z "$(awk -f "$BATS_TEST_TMPDIR/caselint.awk" "$BATS_TEST_TMPDIR/good.sh")" ] \
+        || { echo "the scan flags the compliant spelling"; false; }
+
+    # The independent review of PR-vh6cud probed the shapes a line-anchored
+    # scan never sees: a one-line case statement (with and without `$(...)`
+    # around it — the very spelling that killed finish-merge.sh), a second
+    # pattern after `;;` on the same line, `;;` followed by a trailing
+    # comment, and `case "$x"` with `in` alone on the next line. Each stays
+    # a control so the scan cannot regress to line anchors.
+    printf '%s $y in foo) echo a ;; esac\n' case > "$BATS_TEST_TMPDIR/bad-oneline.sh"
+    printf 'x=$(%s $y in foo) echo a ;; esac)\n' case > "$BATS_TEST_TMPDIR/bad-subst.sh"
+    printf '%s $x in (a) : ;; b) : ;; esac\n' case > "$BATS_TEST_TMPDIR/bad-second.sh"
+    printf '%s $x in\n    (a) : ;; # note\n    b) : ;;\nesac\n' case > "$BATS_TEST_TMPDIR/bad-comment.sh"
+    printf '%s "$x"\nin\n    b) : ;;\nesac\n' case > "$BATS_TEST_TMPDIR/bad-lonein.sh"
+    for shape in oneline subst second comment lonein; do
+        [ -n "$(awk -f "$BATS_TEST_TMPDIR/caselint.awk" "$BATS_TEST_TMPDIR/bad-$shape.sh")" ] \
+            || { echo "the scan misses the $shape shape"; false; }
+    done
+    printf 'x=$(%s $y in (foo) echo a ;; esac)\n' case > "$BATS_TEST_TMPDIR/good-subst.sh"
+    printf '%s $x in (a) : ;; (b) : ;; esac\n' case > "$BATS_TEST_TMPDIR/good-second.sh"
+    for shape in subst second; do
+        [ -z "$(awk -f "$BATS_TEST_TMPDIR/caselint.awk" "$BATS_TEST_TMPDIR/good-$shape.sh")" ] \
+            || { echo "the scan flags the compliant $shape spelling"; false; }
+    done
+
+    # tests/evidence.sh runs this suite from a partial copy in a mktemp
+    # directory with no .git: there an absent install.sh has nothing to lint
+    # and is passed over. In the real repository an absent search path means
+    # the check has been silently disconnected, and must fail instead.
+    files=""
+    for f in "$root"/scripts/*.sh "$root"/install.sh \
+             "$root"/tests/*.bats "$root"/tests/*.bash "$root"/tests/*.sh; do
+        [ -e "$f" ] && files="$files
+$f"
+    done
+    for p in scripts install.sh tests; do
+        [ -e "$root/$p" ] && continue
+        git -C "$root" rev-parse --git-dir >/dev/null 2>&1 \
+            && { echo "search path gone from the repository: $p"; false; }
+    done
+    [ -n "$files" ] || skip "not a full checkout; nothing to lint here"
+
+    found=$(printf '%s\n' "$files" | grep -v '^$' | tr '\n' '\0' \
+        | xargs -0 awk -f "$BATS_TEST_TMPDIR/caselint.awk")
+    [ -z "$found" ] || { echo "case patterns missing the leading (:"; echo "$found"; false; }
+}

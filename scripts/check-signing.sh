@@ -43,10 +43,10 @@ setup=0
 range=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        --strict) strict=1 ;;
-        --setup) setup=1 ;;
-        -*) gr_die "unknown argument: $1" ;;
-        *)
+        (--strict) strict=1 ;;
+        (--setup) setup=1 ;;
+        (-*) gr_die "unknown argument: $1" ;;
+        (*)
             [ -z "$range" ] || gr_die "only one rev range allowed"
             range="$1"
             ;;
@@ -111,8 +111,8 @@ check_commits() {
     for c in $1; do
         gstat=$(git log -1 --format='%G?' "$c")
         case "$gstat" in
-            G) ;;
-            U|E)
+            (G) ;;
+            (U|E)
                 trust_root_env_guard
                 if [ "$strict" -eq 1 ]; then
                     echo "UNVERIFIED $c (signature present but untrusted/unverifiable)"
@@ -121,11 +121,11 @@ check_commits() {
                     echo "WARN-UNVERIFIED $c (signature present but untrusted/unverifiable; configure gpg.ssh.allowedSignersFile or keyring to verify)"
                 fi
                 ;;
-            B|X|Y|R)
+            (B|X|Y|R)
                 echo "UNSIGNED $c (bad, expired, or revoked signature)"
                 _fail=1
                 ;;
-            *)
+            (*)
                 if git cat-file commit "$c" | grep -q '^gpgsig'; then
                     trust_root_env_guard
                     if [ "$strict" -eq 1 ]; then
@@ -239,15 +239,15 @@ run_setup() {
     # path written relative to the project would be looked for beside that
     # repository instead, and read as absent.
     case "$_signers" in
-        /*) ;;
-        *) _signers="$gr_repo_root/$_signers" ;;
+        (/*) ;;
+        (*) _signers="$gr_repo_root/$_signers" ;;
     esac
     # The same for the key, but only where the value names a file that is
     # there: user.signingkey may equally be literal key material or a
     # fingerprint, and those must be passed through untouched.
     case "$_key" in
-        /*) ;;
-        *) [ ! -f "$_key" ] || _key="$gr_repo_root/$_key" ;;
+        (/*) ;;
+        (*) [ ! -f "$_key" ] || _key="$gr_repo_root/$_key" ;;
     esac
 
     _tmp=$(mktemp -d 2>/dev/null) || _tmp=""

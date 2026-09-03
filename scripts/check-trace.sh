@@ -97,8 +97,8 @@ open_limit=$(gr_limit problem_open_max) || exit 2
 # about to be handed), and awk tests the CALENDAR.
 today=$(date +%Y-%m-%d) || gr_die "date(1) failed; the age of an open problem cannot be established"
 case "$today" in
-    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
-    *) gr_die "date +%Y-%m-%d produced '$today', which is not a date in YYYY-MM-DD form" ;;
+    ([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+    (*) gr_die "date +%Y-%m-%d produced '$today', which is not a date in YYYY-MM-DD form" ;;
 esac
 LC_ALL=C awk -v today="$today" "$GR_AWK_CIVIL"'BEGIN { exit(gr_date_ok(today) ? 0 : 1) }' \
     || gr_die "date +%Y-%m-%d produced '$today', which is not a calendar date"
@@ -318,13 +318,13 @@ check_placement() {
 for _pfx in $prefixes; do
     case "$_pfx" in
         # shellcheck disable=SC2086
-        REQ) check_placement REQ doc_srs $srs_files ;;
+        (REQ) check_placement REQ doc_srs $srs_files ;;
         # shellcheck disable=SC2086
-        HAZ|RC) check_placement "$_pfx" doc_rmf $rmf_files ;;
+        (HAZ|RC) check_placement "$_pfx" doc_rmf $rmf_files ;;
         # shellcheck disable=SC2086
-        SDD|LLR) check_placement "$_pfx" doc_sad $sad_files ;;
+        (SDD|LLR) check_placement "$_pfx" doc_sad $sad_files ;;
         # shellcheck disable=SC2086
-        PR) check_placement PR doc_problems $problems_files ;;
+        (PR) check_placement PR doc_problems $problems_files ;;
     esac
 done
 

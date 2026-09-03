@@ -47,7 +47,7 @@ gr_contains "$(gr_prefixes || exit 2)" "$prefix" \
     || gr_die "$prefix is not declared in id_prefixes"
 
 case "$count" in
-    ''|*[!0-9]*) gr_die "COUNT must be a positive integer: $count" ;;
+    (''|*[!0-9]*) gr_die "COUNT must be a positive integer: $count" ;;
 esac
 [ "$count" -ge 1 ] || gr_die "COUNT must be a positive integer: $count"
 
@@ -129,8 +129,8 @@ while [ "$n" -lt "$count" ]; do
         # per attempt would be a fork per attempt.
         [ "${#tok}" -eq 6 ] || continue
         case "$tok" in
-            *["$digits"]*) ;;
-            *) continue ;;   # ~1 draw in 6 is all letters; REQ-argued is why
+            (*["$digits"]*) ;;
+            (*) continue ;;   # ~1 draw in 6 is all letters; REQ-argued is why
         esac
         drew=1
         cand="${prefix}-${tok}"

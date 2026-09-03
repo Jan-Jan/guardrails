@@ -51,12 +51,12 @@ gr_check_config
 allow_draft_files=0
 while [ $# -gt 0 ]; do
     case "$1" in
-        --allow-draft-files) allow_draft_files=1 ;;
+        (--allow-draft-files) allow_draft_files=1 ;;
         # --allow-drafts and --base are refused, not ignored. Both named a gate
         # that no longer exists, and a flag accepted in silence is a check the
         # caller believes they configured. Failing here is what makes a stale
         # CI line or an un-upgraded skill visible at the upgrade.
-        *) gr_die "unknown argument: $1" ;;
+        (*) gr_die "unknown argument: $1" ;;
     esac
     shift
 done

@@ -676,10 +676,10 @@ PY
     run sh -c '. .guardrails/scripts/lib.sh
         set -f
         gr_prefixes > /dev/null
-        case $- in *f*) echo still-off ;; *) echo LEAKED ;; esac
+        case $- in (*f*) echo still-off ;; (*) echo LEAKED ;; esac
         set +f
         gr_prefixes > /dev/null
-        case $- in *f*) echo LEAKED-ON ;; *) echo still-on ;; esac'
+        case $- in (*f*) echo LEAKED-ON ;; (*) echo still-on ;; esac'
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [ "${lines[0]}" = "still-off" ] || { echo "$output"; false; }
     [ "${lines[1]}" = "still-on" ] || { echo "$output"; false; }

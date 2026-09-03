@@ -70,9 +70,9 @@ gr_refuse() {
 branch=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        -*) gr_die "unknown argument: $1
+        (-*) gr_die "unknown argument: $1
   usage: finish-merge.sh <change-branch>" ;;
-        *)
+        (*)
             [ -z "$branch" ] || gr_die "only one change branch allowed
   usage: finish-merge.sh <change-branch>"
             branch="$1"
@@ -236,11 +236,11 @@ if [ -n "$wt" ]; then
         gr_nl='
 '
         case "$nested" in
-            *"$gr_nl"*)
+            (*"$gr_nl"*)
                 gr_lead="registered worktrees lie inside $wt"
                 gr_them="those worktrees' files while git still had them"
                 gr_deal="Deal with each of them first" ;;
-            *)
+            (*)
                 gr_lead="a registered worktree lies inside $wt"
                 gr_them="that worktree's files while git still had it"
                 gr_deal="Deal with the nested worktree first" ;;

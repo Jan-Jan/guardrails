@@ -58,12 +58,12 @@ branch=""
 named=0
 while [ $# -gt 0 ]; do
     case "$1" in
-        --branch)
+        (--branch)
             shift
             [ $# -gt 0 ] || gr_die "--branch needs a branch name"
             branch="$1"
             named=1 ;;
-        *) gr_die "unknown argument: $1" ;;
+        (*) gr_die "unknown argument: $1" ;;
     esac
     shift
 done
@@ -334,13 +334,13 @@ for f in $records; do
     done
     for _l in $_facts; do
         case "$_l" in
-            "U "*)
+            ("U "*)
                 echo "UNDISPOSED-FINDING $f:${_l#U }"
                 fail=1 ;;
-            "M "*)
+            ("M "*)
                 echo "MALFORMED-FINDING $f:${_l#M } (shaped like a finding header, opens no finding)"
                 fail=1 ;;
-            "O "*)
+            ("O "*)
                 echo "ORPHAN-DISPOSITION $f:${_l#O } (belongs to no finding)"
                 fail=1 ;;
         esac

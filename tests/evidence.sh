@@ -61,7 +61,7 @@ while read -r _mode _type _hash _path; do
     mkdir -p "$work/base/$(dirname "$_path")"
     git show "$base:$_path" > "$work/base/$_path"
     case "$_mode" in
-        *755) chmod +x "$work/base/$_path" ;;
+        (*755) chmod +x "$work/base/$_path" ;;
     esac
 done < "$work/tree.txt"
 _have=$(ls "$work/base/scripts"/*.sh 2>/dev/null | grep -c . || true)

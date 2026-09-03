@@ -31,8 +31,8 @@ cd "$gr_repo_root" || exit 2
 dry=0
 while [ $# -gt 0 ]; do
     case "$1" in
-        --dry-run) dry=1 ;;
-        *) gr_die "unknown argument: $1" ;;
+        (--dry-run) dry=1 ;;
+        (*) gr_die "unknown argument: $1" ;;
     esac
     shift
 done
@@ -68,7 +68,7 @@ for key in doc_srs doc_rmf doc_sad doc_problems; do
     for f in "$dir"/DRAFT-*.md; do
         [ -f "$f" ] || continue
         case "$f" in
-            *" "* | *"	"*)
+            (*" "* | *"	"*)
                 gr_die "draft ledger file name contains whitespace: $f" ;;
         esac
         slug=${f##*/}

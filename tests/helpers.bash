@@ -117,8 +117,8 @@ EOF
 days_ago() {
     date -d "$1 days ago" +%Y-%m-%d 2>/dev/null && return 0
     case "$1" in
-        -*) _adj="+${1#-}d" ;;
-        *)  _adj="-${1}d" ;;
+        (-*) _adj="+${1#-}d" ;;
+        (*)  _adj="-${1}d" ;;
     esac
     date -v"$_adj" +%Y-%m-%d 2>/dev/null \
         || { echo "no usable date(1) for relative dates" >&2; return 1; }
@@ -154,7 +154,7 @@ make_strict_awk() {
     # bakes its own path into the exec below — a fork bomb, not a test failure.
     # The comment used to be the only thing preventing that.
     case "$_real" in
-        "$_bin"/*) echo "make_strict_awk called with the stub already on PATH" >&2
+        ("$_bin"/*) echo "make_strict_awk called with the stub already on PATH" >&2
                    return 1 ;;
     esac
     mkdir -p "$_bin"
@@ -174,7 +174,7 @@ make_strict_awk() {
 # program can be an operand assignment.
 _chk() {
     case "\$1" in
-        *'
+        (*'
 '*)
             # The real message quotes the VALUE, not the whole assignment.
             printf 'awk: newline in string %s... at source line 1\n' "\${1#*=}" >&2
@@ -185,18 +185,18 @@ _chk() {
 _scan() {
     while [ \$# -gt 0 ]; do
         case "\$1" in
-            --)        shift; break ;;
-            -v)        _chk "\$2" || return 2; shift 2 ;;
-            -v?*)      _chk "\${1#-v}" || return 2; shift ;;
-            -f|-F)     shift 2 ;;
-            -f?*|-F?*) shift ;;
-            -*)        shift ;;
-            *)         shift; break ;;   # the program itself
+            (--)        shift; break ;;
+            (-v)        _chk "\$2" || return 2; shift 2 ;;
+            (-v?*)      _chk "\${1#-v}" || return 2; shift ;;
+            (-f|-F)     shift 2 ;;
+            (-f?*|-F?*) shift ;;
+            (-*)        shift ;;
+            (*)         shift; break ;;   # the program itself
         esac
     done
     for _a in "\$@"; do                  # operands: files and var=value
         case "\$_a" in
-            [A-Za-z_]*=*) _chk "\$_a" || return 2 ;;
+            ([A-Za-z_]*=*) _chk "\$_a" || return 2 ;;
         esac
     done
     return 0
@@ -236,7 +236,7 @@ make_bsd_date() {
     _real=$(command -v date)
     _bin="$BATS_TEST_TMPDIR/bsd-date"
     case "$_real" in
-        "$_bin"/*) echo "make_bsd_date called with the stub already on PATH" >&2
+        ("$_bin"/*) echo "make_bsd_date called with the stub already on PATH" >&2
                    return 1 ;;
     esac
     # Does the real date understand GNU's `-d`? The stub has to know, because
@@ -267,10 +267,10 @@ adj=""
 rest=""
 for a in "$@"; do
     case "$a" in
-        -d*) echo "date: illegal option -- d" >&2; exit 1 ;;
-        -v-[0-9]*d|-v+[0-9]*d|-v[0-9]*d) adj=$a ;;
-        -v*) printf '%s: Cannot apply date adjustment\n' "${a#-v}" >&2; exit 1 ;;
-        *) rest="$rest $a" ;;
+        (-d*) echo "date: illegal option -- d" >&2; exit 1 ;;
+        (-v-[0-9]*d|-v+[0-9]*d|-v[0-9]*d) adj=$a ;;
+        (-v*) printf '%s: Cannot apply date adjustment\n' "${a#-v}" >&2; exit 1 ;;
+        (*) rest="$rest $a" ;;
     esac
 done
 
@@ -279,9 +279,9 @@ done
 n=${adj#-v}
 n=${n%d}
 case "$n" in
-    -*) spec="${n#-} days ago" ;;
-    +*) spec="${n#+} days" ;;
-    *)  spec="$n days" ;;
+    (-*) spec="${n#-} days ago" ;;
+    (+*) spec="${n#+} days" ;;
+    (*)  spec="$n days" ;;
 esac
 exec "$REAL" -d "$spec" $rest
 STUB

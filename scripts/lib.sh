@@ -524,12 +524,12 @@ gr_prefixes() {
     # thing in a repository whose root happens to hold a matching name and
     # another everywhere else — the same config, two verdicts, decided by an
     # unrelated directory listing.
-    case $- in *f*) _pfx_refl=1 ;; *) _pfx_refl=0 ;; esac
+    case $- in (*f*) _pfx_refl=1 ;; (*) _pfx_refl=0 ;; esac
     set -f
     _out=""
     for _one in $_v; do
         case "$_one" in
-            [!A-Za-z]* | *[!A-Za-z0-9]*)
+            ([!A-Za-z]* | *[!A-Za-z0-9]*)
                 gr_die "id_prefixes entry is not a bare identifier: $_one" ;;
         esac
         _out="${_out}${_one}
@@ -742,7 +742,7 @@ gr_limit() {
         return 0
     fi
     case "$_lv" in
-        *[!0-9]*) gr_die \
+        (*[!0-9]*) gr_die \
 "$1 must be a non-negative whole number, not '$_lv' (in $GR_CONFIG).
   Remove the key to apply no limit; 0 means every item of that kind fails." ;;
     esac
@@ -802,8 +802,8 @@ gr_check_config() {
         index($0, "\r") > 0 && index($0, "\r") < length($0) { print "cr"; exit }
         ' "$GR_CONFIG") || gr_die "cannot read $GR_CONFIG"
     case "$_first" in
-        bom) gr_die "config begins with a UTF-8 BOM: $GR_CONFIG — save it as plain UTF-8" ;;
-        cr)  gr_die \
+        (bom) gr_die "config begins with a UTF-8 BOM: $GR_CONFIG — save it as plain UTF-8" ;;
+        (cr)  gr_die \
 "config has carriage returns inside a line: $GR_CONFIG
   A file with \\r-only line endings is one single line to every reader here.
   Save it with LF or CRLF endings." ;;
@@ -972,13 +972,13 @@ gr_check_config() {
     # claimed the map was complete and a reviewer proved it was not.
     for _p in $_pfx; do
         case "$_p" in
-            REQ) _need="doc_srs" ;;
-            HAZ) _need="doc_rmf" ;;
-            RC)  _need="doc_srs" ;;
-            SDD) _need="doc_sad" ;;
-            LLR) _need="doc_sad" ;;
-            PR)  _need="doc_problems" ;;
-            *)   continue ;;
+            (REQ) _need="doc_srs" ;;
+            (HAZ) _need="doc_rmf" ;;
+            (RC)  _need="doc_srs" ;;
+            (SDD) _need="doc_sad" ;;
+            (LLR) _need="doc_sad" ;;
+            (PR)  _need="doc_problems" ;;
+            (*)   continue ;;
         esac
         for _k in $_need; do
             [ -n "$(cfg_get "$_k")" ] || \
@@ -1001,11 +1001,11 @@ gr_check_config() {
     # is rather than an oscillation.
     for _p in $_pfx; do
         case "$_p" in
-            REQ)    _home="doc_srs" ;;
-            HAZ|RC) _home="doc_rmf" ;;
-            SDD|LLR) _home="doc_sad" ;;
-            PR)     _home="doc_problems" ;;
-            *)      continue ;;
+            (REQ)    _home="doc_srs" ;;
+            (HAZ|RC) _home="doc_rmf" ;;
+            (SDD|LLR) _home="doc_sad" ;;
+            (PR)     _home="doc_problems" ;;
+            (*)      continue ;;
         esac
         [ -n "$(cfg_get "$_home")" ] || \
             gr_die "id_prefixes declares $_p but $_home is not configured — that is the only document a $_p may be defined in, so every $_p would be misplaced"
