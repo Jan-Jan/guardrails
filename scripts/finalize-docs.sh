@@ -37,6 +37,13 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# Unit-scoped by nature: this renames drafts inside ONE config's doc_*
+# directories. merge-change runs it once per touched unit of the impact set,
+# GR_CONFIG pointing at each (architecture item 9) — so in a manifest
+# repository a bare invocation must refuse rather than rename nothing and
+# report success.
+gr_unit_engage
+
 # A typo'd doc_* key makes the rename loop below skip that ledger entirely and
 # still exit 0 — a silent no-op reported as success. gr_check_config validates
 # a key's SPELLING; gr_doc_files below validates its VALUE. Both are needed: a

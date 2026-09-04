@@ -1,5 +1,32 @@
 load helpers
 
+# An expectation REQ appended to pump's SRS.
+#   add_expectation [TARGET] [OPENED] [RC-SUFFIX]
+# RC-SUFFIX non-empty appends "(implements: RC-p4q7t3)" to the REQ line.
+add_expectation() {
+    _tgt="${1:-platform/hal}"
+    _opd="${2:-$(days_ago 3)}"
+    _rc=""
+    [ -n "${3:-}" ] && _rc=" (implements: RC-p4q7t3)"
+    cat >> apps/pump/docs/requirements/0001-01-01-base.md <<EOF
+
+**REQ-e7x2m4**: The software shall rely on $_tgt to bound slew rate.$_rc
+expects: $_tgt
+opened: $_opd
+EOF
+}
+
+# hal's exported answer to REQ-e7x2m4, with its own trace/test so hal stays
+# green. satisfy_expectation [EXPORTED-LINE]
+satisfy_expectation() {
+    cat >> platform/hal/docs/requirements/0001-01-01-base.md <<EOF
+
+**REQ-h8s3t2**: The software shall bound actuator slew rate. satisfies: REQ-e7x2m4
+${1:-exported: yes}
+EOF
+    printf '# verifies: REQ-h8s3t2\ntrue\n' > platform/hal/tests/test_b.sh
+}
+
 setup() {
     make_fixture_repo
     cat > docs/requirements/0001-01-01-base.md <<'EOF'
@@ -2733,4 +2760,276 @@ POISON
     [ "$status" -eq 1 ]
     [[ "$output" == *"problems: open 1, oldest n/a (1 with no usable date);"* ]] \
         || { echo "$output"; false; }
+}
+
+@test "check-trace: units fixture is green for both units, and the summary is scoped" {
+    make_units_fixture
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"scope: unit apps/pump"* ]] || false
+    [[ "$output" == *"checked: REQ 1,"* ]] || false   # pump's own item only
+    unit_run check-trace.sh platform/hal
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"expectations against this unit: 0 open"* ]]
+}
+
+@test "check-trace: a manifest repo without GR_CONFIG is exit 2 naming the remedy" {
+    make_units_fixture
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"multi-unit repository"* ]]
+}
+
+@test "check-trace: scoped-run-convicts-standalone — a sibling-internal reference convicts with no orchestrator" {
+    make_units_fixture
+    printf '\nSee LLR-h6k9m3 for the clamp.\n' >> apps/pump/docs/architecture/0001-01-01-base.md
+    commit_all ref
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"NON-EXPORTED-REF LLR-h6k9m3"* ]]
+}
+
+@test "check-trace: a reference into an undeclared unit convicts UNDECLARED-DEPENDENCY" {
+    make_units_fixture
+    printf '\nSee REQ-p2m4k7.\n' >> platform/hal/docs/architecture/0001-01-01-base.md
+    commit_all ref
+    unit_run check-trace.sh platform/hal
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-p2m4k7"* ]]
+}
+
+@test "check-trace: disclaimed-definitions-do-not-resolve, and disclaimed-definition-names-its-path" {
+    make_units_fixture
+    printf '**REQ-z9q3w2**: Legacy behavior, kept for reference.\n' >> legacy/notes.md
+    printf '\nSee REQ-z9q3w2.\n' >> apps/pump/docs/architecture/0001-01-01-base.md
+    commit_all legacy-def
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-z9q3w2"* ]] || false
+    [[ "$output" == *"legacy/notes.md"* ]]      # the message names the file
+}
+
+@test "check-trace: a truly undefined reference stays plain DANGLING-REF" {
+    make_units_fixture
+    printf '\nSee REQ-zz9zz2.\n' >> apps/pump/docs/architecture/0001-01-01-base.md
+    commit_all dangling
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DANGLING-REF REQ-zz9zz2 (referenced but never defined)"* ]]
+}
+
+@test "check-trace: misexported-item-convicts — a non-yes value and a non-REQ carrier" {
+    make_units_fixture
+    # corrupt the REQ's own annotation (first occurrence wins, so edit in place)
+    sed -i.bak 's/^exported: yes$/exported: true/' platform/hal/docs/requirements/0001-01-01-base.md
+    rm -f platform/hal/docs/requirements/0001-01-01-base.md.bak
+    # and put a well-formed one on a design item (appends inside the LLR block)
+    printf 'exported: yes\n' >> platform/hal/docs/architecture/0001-01-01-base.md
+    commit_all bad-export
+    unit_run check-trace.sh platform/hal
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISEXPORTED-ITEM REQ-h4m2p9"* ]] || false
+    [[ "$output" == *"MISEXPORTED-ITEM LLR-h6k9m3"* ]]
+}
+
+@test "check-trace: expects-undeclared-unit-convicts — and the MISSING-TEST exemption never engages" {
+    make_units_fixture
+    add_expectation legacy      # not in depends_on
+    commit_all exp
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-e7x2m4"* ]] || false
+    [[ "$output" == *"MISSING-TEST REQ-e7x2m4"* ]]
+}
+
+@test "check-trace: expects-grammar-errors-convict — empty value, no opened:, non-REQ carrier" {
+    make_units_fixture
+    cat >> apps/pump/docs/requirements/0001-01-01-base.md <<'EOF'
+
+**REQ-g2h6j3**: The software shall do a thing.
+expects:
+EOF
+    printf 'expects: platform/hal\n' >> apps/pump/docs/architecture/0001-01-01-base.md  # LLR block
+    cat >> apps/pump/docs/requirements/0001-01-01-base.md <<'EOF'
+
+**REQ-k4m7n2**: The software shall do another thing.
+expects: platform/hal
+EOF
+    commit_all bad-expects   # REQ-k4m7n2 has no opened:
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"INCOMPLETE-EXPECTATION REQ-g2h6j3"* ]] || false
+    [[ "$output" == *"INCOMPLETE-EXPECTATION LLR-p6r3z9"* ]] || false
+    [[ "$output" == *"INCOMPLETE-EXPECTATION REQ-k4m7n2"* ]]
+}
+
+@test "check-trace: an unmet expectation is reported, exempt from MISSING-TEST, and exit 0 inside its budget" {
+    make_units_fixture
+    add_expectation
+    commit_all exp
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || false
+    [[ "$output" != *"MISSING-TEST REQ-e7x2m4"* ]] || false
+    [[ "$output" == *"expectations: open 1,"* ]] || false
+    [[ "$output" == *"limits age 90, open 10"* ]]
+}
+
+@test "check-trace: unmet-rc-linked-expectation-exits-1" {
+    make_units_fixture
+    add_expectation platform/hal "$(days_ago 1)" rc
+    commit_all exp-rc
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || false
+    [[ "$output" == *"risk control"* ]]
+}
+
+@test "check-trace: expectation-aging-mirrors-problem-limits — past the age limit fails, unset limit prints none, unparseable is exit 2" {
+    make_units_fixture
+    add_expectation platform/hal "$(days_ago 120)"
+    commit_all exp-old
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"limit 90"* ]] || false
+    del_first_line 'expectation_age_days: 90' apps/pump/.guardrails/config.yaml
+    commit_all no-age-limit
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"limits age none, open 10"* ]] || false
+    sed -i.bak 's/^expectation_open_max: 10$/expectation_open_max: many/' apps/pump/.guardrails/config.yaml
+    rm -f apps/pump/.guardrails/config.yaml.bak
+    commit_all bad-limit
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 2 ]
+}
+
+@test "check-trace: the expectation backlog limit fails like PROBLEM-BACKLOG" {
+    make_units_fixture
+    sed -i.bak 's/^expectation_open_max: 10$/expectation_open_max: 0/' apps/pump/.guardrails/config.yaml
+    rm -f apps/pump/.guardrails/config.yaml.bak
+    add_expectation
+    commit_all exp
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"EXPECTATION-BACKLOG (1 open expectation"* ]]
+}
+
+@test "check-trace: expectation-met-requires-export — satisfied by a non-exported REQ stays unmet" {
+    make_units_fixture
+    add_expectation
+    satisfy_expectation "not-exported: placeholder"   # any non-exported line
+    commit_all half-met
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]]
+}
+
+@test "check-trace: missing-test-exemption-ends-when-met" {
+    make_units_fixture
+    add_expectation
+    satisfy_expectation
+    commit_all met
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" != *"UNMET-EXPECTATION"* ]] || false
+    [[ "$output" == *"MISSING-TEST REQ-e7x2m4"* ]] || false
+    printf '# verifies: REQ-e7x2m4\ntrue\n' > apps/pump/tests/test_e.sh
+    commit_all met-tested
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 0 ]
+}
+
+@test "check-trace: reverse-edge-is-exactly-expects — the provider resolves the expectation and nothing else" {
+    make_units_fixture
+    add_expectation
+    satisfy_expectation
+    commit_all met
+    unit_run check-trace.sh platform/hal
+    [ "$status" -eq 0 ]      # satisfies: REQ-e7x2m4 resolves via the reverse edge
+    [[ "$output" == *"expectations against this unit: 0 open"* ]]
+}
+
+@test "check-trace: satisfies-across-wrong-edge-convicts" {
+    make_units_fixture
+    make_unit svc/util
+    write_unit_items svc/util REQ-u2v6w3 HAZ-u3x8y2 RC-u4z7a3 SDD-u5b2c8 LLR-u6d3e9
+    cat > .guardrails/units.yaml <<'EOF'
+units:
+  - platform/hal
+  - apps/pump
+  - svc/util
+not_a_unit:
+  - legacy
+  - docs
+EOF
+    printf '  - svc/util\n' >> apps/pump/.guardrails/config.yaml   # extends depends_on
+    add_expectation svc/util
+    satisfy_expectation      # hal answers an expectation aimed at svc/util
+    commit_all wrong-edge
+    unit_run check-trace.sh platform/hal
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-e7x2m4"* ]]
+}
+
+@test "check-trace: reverse-edge-discharges-nothing — the consumer's item joins no provider enumeration" {
+    make_units_fixture
+    add_expectation
+    commit_all exp
+    unit_run check-trace.sh platform/hal
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"checked: REQ 1,"* ]] || false   # hal's own REQ only, never REQ-e7x2m4
+    [[ "$output" == *"expectations against this unit: 1 open"* ]] || false
+    # and it cannot absorb a provider test: a hal test verifying only the
+    # consumer's item leaves hal's own REQ uncovered
+    printf '# verifies: REQ-e7x2m4\ntrue\n' > platform/hal/tests/test_a.sh
+    commit_all swap-test
+    unit_run check-trace.sh platform/hal
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISSING-TEST"* ]]
+}
+
+# verifies: engagement rule (architecture item 2) — byte-exact manifest name
+@test "check-trace: a UNITS.YAML near-miss leaves the run in single-unit mode on any filesystem" {
+    # setup()'s fixture is the green single-unit shape; the near-miss manifest
+    # must not flip this run into a scoped or refusing mode — on APFS the old
+    # `-f` test also matched UNITS.YAML and engaged off a manifest that
+    # officially does not exist. check-units.sh separately convicts the
+    # near-miss NAME at exit 2 (near-miss-manifest-name-is-exit-2 holds that
+    # door); this run stays exactly what a single-unit repository gets.
+    printf 'units:\n  - pkg/a\n' > .guardrails/UNITS.YAML
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"scope: unit"* ]]
+}
+
+# --- fix1 finding-6: abnormal-input coverage for the unit annotations --------
+
+# verifies: MISEXPORTED-ITEM (D8) — abnormal input: empty exported: value
+@test "check-trace: an empty-valued exported: convicts MISEXPORTED-ITEM" {
+    make_units_fixture
+    # appends inside pump's REQ block; the value is empty, which must read as
+    # a conviction, never as "not exported" (that strands consumers silently)
+    printf 'exported:\n' >> apps/pump/docs/requirements/0001-01-01-base.md
+    commit_all empty-export
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"MISEXPORTED-ITEM REQ-p2m4k7"* ]] || false
+    [[ "$output" == *"only accepted value is yes"* ]]
+}
+
+# verifies: ORPHAN-ANNOTATION backstop over exported:/expects: (architecture item 3)
+@test "check-trace: orphan exported: and expects: outside any block convict ORPHAN-ANNOTATION in a scoped run" {
+    make_units_fixture
+    cat > apps/pump/docs/requirements/0002-01-01-orphan.md <<'ORPHAN'
+# Notes
+
+exported: yes
+expects: platform/hal
+ORPHAN
+    commit_all orphans
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0002-01-01-orphan.md:3 (exported: belongs to no item)"* ]] || false
+    [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0002-01-01-orphan.md:4 (expects: belongs to no item)"* ]]
 }

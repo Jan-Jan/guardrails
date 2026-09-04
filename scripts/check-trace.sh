@@ -32,6 +32,28 @@
 #   STALE-PROBLEM ID         — open longer than problem_age_days (more than)
 #   PROBLEM-BACKLOG          — more open PRs than problem_open_max (more than)
 #
+# Scoped (multi-unit) runs add:
+#   NON-EXPORTED-REF ID      — reference to an item defined in a declared
+#                              dependency but not `exported: yes` there
+#   UNDECLARED-DEPENDENCY ID — reference to (or expects: naming) a unit that
+#                              is not in this unit's depends_on
+#   UNMET-EXPECTATION        — an expects: REQ its provider has not yet
+#                              answered with an exported satisfies: REQ.
+#                              Advisory inside its aging budget; exit 1 past
+#                              expectation_age_days, and on every run when the
+#                              expectation implements a risk control
+#   INCOMPLETE-EXPECTATION ID — an expects: the reader cannot use: empty
+#                              value, a non-REQ carrier, or no usable opened:
+#   MISEXPORTED-ITEM ID      — exported: with any value but yes, or on a
+#                              non-REQ item
+#   EXPECTATION-BACKLOG      — more open expectations than expectation_open_max
+#
+# Scoped runs engage only when .guardrails/units.yaml exists and GR_CONFIG
+# names a declared unit's config (gr_unit_engage in lib.sh). With no manifest
+# every path below is byte-identical to the single-unit script; with a
+# manifest and no unit config the run is refused (exit 2) rather than scoped
+# by guesswork.
+#
 # Each doc_* config value may be a single file or a directory of per-change
 # dated *.md files (see gr_doc_files in lib.sh).
 #
@@ -80,6 +102,12 @@ set -u
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
 
+# The engagement rule (architecture item 2): with no manifest this is a
+# no-op and everything below is exactly the single-unit script. Engaged,
+# GR_UNIT names the unit whose config this run reads, and the scoped
+# machinery at the bottom of this file switches on.
+gr_unit_engage
+
 gr_check_config
 
 # Read beside gr_check_config, and for its reason: every other config
@@ -89,6 +117,12 @@ gr_check_config
 # lines never printed — the evidence suppressed by the error.
 age_limit=$(gr_limit problem_age_days) || exit 2
 open_limit=$(gr_limit problem_open_max) || exit 2
+exp_age_limit=""
+exp_open_limit=""
+if [ -n "$GR_UNIT" ]; then
+    exp_age_limit=$(gr_limit expectation_age_days) || exit 2
+    exp_open_limit=$(gr_limit expectation_open_max) || exit 2
+fi
 
 # "Today" is the denominator of every age this gate computes, so a garbage
 # value would not fail — it would make every age silently wrong. Two checks,
@@ -181,10 +215,143 @@ require_paths test_paths $test_paths
 
 fail=0
 
-# ids_defined PREFIX — all finalized IDs with a `**ID**:` definition site
+foreign=""
+reverse=""
+deps=""
+if [ -n "$GR_UNIT" ]; then
+    deps=$(cfg_list depends_on)
+    # Pathname expansion back ON for the unit scans: gr_unit_srs (under
+    # gr_exported_reqs and gr_unit_req_scan) expands the unit's doc_srs
+    # directory with a *.md glob, exactly as gr_doc_files did above before
+    # set -f. Nothing here can expand by accident — gr_check_units has
+    # already refused any manifest entry carrying a glob character.
+    set +f
+    for _dep in $deps; do
+        _fx=$(gr_exported_reqs "$_dep") || exit 2
+        foreign="$foreign
+$(printf '%s\n' "$_fx" | cut -f1)"
+    done
+    for _con in $(gr_consumers_of "$GR_UNIT"); do
+        _cs=$(gr_unit_req_scan "$_con") || exit 2
+        reverse="$reverse
+$(printf '%s\n' "$_cs" | awk -F'\t' -v me="$GR_UNIT" \
+            '$3 == "EXPECTS" && $4 == me && $1 ~ /^REQ-/ { print $1 }')"
+    done
+    set -f
+fi
+
+# --- Unit annotations and expectations (architecture items 3 and 4) ----------
+# Scoped runs only. exported:/expects:/opened: are read by gr_req_scan under
+# the same column-one, first-occurrence, block-attributed rules as status:,
+# and the ORPHAN-ANNOTATION backstop below is extended to match.
+exempt_expect=""
+exp_summary=""
+if [ -n "$GR_UNIT" ]; then
+    # shellcheck disable=SC2086
+    own_scan=$(gr_req_scan $srs_files $rmf_files $sad_files $problems_files) || exit 2
+
+    # MISEXPORTED-ITEM: only `exported: yes` on a REQ is an export (D8). A
+    # misspelled value would read as "not exported" and strand every consumer
+    # silently, so any other value — empty included — convicts, as does the
+    # annotation on a non-REQ block.
+    _misexp=$(printf '%s\n' "$own_scan" | awk -F'\t' '
+        $3 != "EXP" { next }
+        $1 !~ /^REQ-/       { printf "MISEXPORTED-ITEM %s (exported: on a non-REQ item — only requirements are exported; LLR and SDD are design data)\n", $1; next }
+        $4 != "yes"         { printf "MISEXPORTED-ITEM %s (exported: %s — the only accepted value is yes; anything else reads as not exported, which strands consumers silently)\n", $1, $4 }')
+    if [ -n "$_misexp" ]; then
+        printf '%s\n' "$_misexp"
+        fail=1
+    fi
+
+    # Expectations. Grammar first (INCOMPLETE-EXPECTATION is the one token for
+    # every expectation the reader cannot read), then the computed state.
+    _badexp=$(printf '%s\n' "$own_scan" | awk -F'\t' '
+        $3 != "EXPECTS" { next }
+        $1 !~ /^REQ-/ { printf "INCOMPLETE-EXPECTATION %s (expects: on a non-REQ item)\n", $1; next }
+        $4 == ""      { printf "INCOMPLETE-EXPECTATION %s (expects: with no unit named)\n", $1 }')
+    if [ -n "$_badexp" ]; then
+        printf '%s\n' "$_badexp"
+        fail=1
+    fi
+
+    exp_open=0
+    exp_oldest=-1
+    _tab=$(printf '\t')
+    for _el in $(printf '%s\n' "$own_scan" \
+            | awk -F'\t' '$3 == "EXPECTS" && $1 ~ /^REQ-/ && $4 != "" { print $1 "\t" $4 }'); do
+        _eid=${_el%%"$_tab"*}
+        _etgt=${_el#*"$_tab"}
+        if ! gr_contains "$deps" "$_etgt"; then
+            echo "UNDECLARED-DEPENDENCY $_eid (expects: names $_etgt, which is not in this unit's depends_on — the MISSING-TEST exemption never engages across an undeclared edge)"
+            fail=1
+            continue
+        fi
+        _eopd=$(printf '%s\n' "$own_scan" | awk -F'\t' -v i="$_eid" '$1 == i && $3 == "OPENED" { print $4; exit }')
+        _eage=$(LC_ALL=C awk -v today="$today" -v opd="$_eopd" "$GR_AWK_CIVIL"'BEGIN {
+            gr_date_ok(today); t = GR_DATE_DAYS
+            if (!gr_date_ok(opd)) { print -1; exit }
+            a = t - GR_DATE_DAYS
+            if (a == -1) a = 0            # one day of clock-skew tolerance,
+            print (a < 0 ? -1 : a)        # further future is refused (as PRs)
+        }')
+        if [ "$_eage" -lt 0 ]; then
+            echo "INCOMPLETE-EXPECTATION $_eid (opened: cannot be used — '$_eopd' is absent, not a calendar date, or more than a day in the future)"
+            fail=1
+            continue
+        fi
+        # met iff the named provider defines an EXPORTED REQ carrying
+        # satisfies: <this ID> — both conditions (D11; obligation
+        # expectation-met-requires-export).
+        # Globbing back on for the provider scan, as at the foreign/reverse
+        # computation above and for the same *.md-glob reason.
+        set +f
+        _pscan=$(gr_unit_req_scan "$_etgt") || exit 2
+        set -f
+        _met=$(printf '%s\n' "$_pscan" | awk -F'\t' -v want="$_eid" '
+            $3 == "EXP" && $4 == "yes" { expd[$1] = 1 }
+            $3 == "SAT" && $4 == want  { sat[$1] = 1 }
+            END { for (i in sat) if (i in expd) { print "met"; exit } }')
+        if [ "$_met" = "met" ]; then
+            continue          # an ordinary REQ again; MISSING-TEST applies
+        fi
+        exempt_expect="$exempt_expect
+$_eid"
+        exp_open=$((exp_open + 1))
+        [ "$_eage" -gt "$exp_oldest" ] && exp_oldest=$_eage
+        if printf '%s\n' "$own_scan" | awk -F'\t' -v i="$_eid" '$1 == i && $3 == "RC" { found = 1 } END { exit !found }'; then
+            echo "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days — implements a risk control, exit 1 on every run until the provider delivers or the risk is re-analyzed)"
+            fail=1
+        elif [ -n "$exp_age_limit" ] && [ "$_eage" -gt "$exp_age_limit" ]; then
+            echo "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days, limit $exp_age_limit)"
+            fail=1
+        else
+            echo "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days)"
+        fi
+    done
+    if [ -n "$exp_open_limit" ] && [ "$exp_open" -gt "$exp_open_limit" ]; then
+        _noun="open expectations"
+        [ "$exp_open" -eq 1 ] && _noun="open expectation"
+        echo "EXPECTATION-BACKLOG ($exp_open $_noun, limit $exp_open_limit)"
+        fail=1
+    fi
+    _eold_txt="n/a"
+    [ "$exp_oldest" -ge 0 ] && _eold_txt="$exp_oldest days"
+    exp_summary="expectations: open $exp_open, oldest $_eold_txt; limits age ${exp_age_limit:-none}, open ${exp_open_limit:-none}"
+fi
+
+# ids_defined PREFIX — all finalized IDs with a `**ID**:` definition site.
+# Scoped, the site must lie inside the unit: sibling items are not this run's
+# items (they neither owe MISSING-TEST here nor discharge anything —
+# obligation reverse-edge-discharges-nothing generalizes to every foreign
+# definition), and MISPLACED-ITEM must never see them at all.
 ids_defined() {
-    git grep -h --untracked -oE "$(gr_def_re "$1")" -- . \
-        "$GR_SCAN_EXCLUDE" 2>/dev/null | sed 's/[*:]//g' | sort -u
+    if [ -n "$GR_UNIT" ]; then
+        git grep -h --untracked -oE "$(gr_def_re "$1")" -- "$GR_UNIT" 2>/dev/null \
+            | sed 's/[*:]//g' | sort -u
+    else
+        git grep -h --untracked -oE "$(gr_def_re "$1")" -- . "$GR_SCAN_EXCLUDE" 2>/dev/null \
+            | sed 's/[*:]//g' | sort -u
+    fi
 }
 
 # ids_defined_in PREFIX FILES… — definitions of PREFIX inside the given files.
@@ -347,6 +514,10 @@ if [ -n "$test_paths" ]; then
 $sats"
     done
     for id in $(ids_defined REQ); do
+        # A valid UNMET expectation is exempt (D10): it cannot have a
+        # verifying test yet and is already reported once, accurately, by
+        # UNMET-EXPECTATION above. Met, it is an ordinary REQ again.
+        gr_contains "$exempt_expect" "$id" && continue
         gr_contains "$covered" "$id" || { echo "MISSING-TEST $id (no direct 'verifies:' and no tested LLR satisfies it)"; fail=1; }
     done
 fi
@@ -430,6 +601,38 @@ for f in $srs_files $rmf_files $sad_files $soup_files $problems_files \
     [ -n "$f" ] && scope="${scope}${scope:+
 }$f"
 done
+# classify_unresolved ID — the architecture's item-2 table: a scoped reference
+# that resolves against nothing classifies by where its definition actually
+# lives. One git grep per unresolved ID; unresolved IDs are the rare case.
+# A dependency definition wins over another unit's (it names the remedy —
+# export it); a disclaimed definition never outranks either.
+classify_unresolved() {
+    _cid="$1"
+    _sites=$(git grep -l --untracked -E "^\\*\\*${_cid}\\*\\*:" -- . "$GR_SCAN_EXCLUDE" 2>/dev/null)
+    _v=""
+    _d=""
+    for _sf in $_sites; do
+        _w=$(gr_unit_of_path "$_sf") || continue
+        case "$_w" in
+            (not_a_unit\ *)
+                if [ -z "$_v" ]; then
+                    _v="DANGLING-REF"
+                    _d="(defined only in $_sf, under disclaimed path ${_w#not_a_unit } — disclaimed means outside compliance; that definition is prose, not an item)"
+                fi ;;
+            (*)
+                if gr_contains "$deps" "$_w"; then
+                    _v="NON-EXPORTED-REF"
+                    _d="(defined in declared dependency $_w, but not exported: yes)"
+                    break
+                elif [ "$_w" != "$GR_UNIT" ]; then
+                    _v="UNDECLARED-DEPENDENCY"
+                    _d="(defined in unit $_w, which is not in this unit's depends_on)"
+                fi ;;
+        esac
+    done
+    [ -n "$_v" ] || { _v="DANGLING-REF"; _d="(referenced but never defined)"; }
+    echo "$_v $_cid $_d"
+}
 if [ -n "$scope" ]; then
     # The trailing boundary is matched and then stripped: without it a mention
     # of REQ-a3k9z2x harvests its first six characters and is reported against
@@ -450,7 +653,15 @@ if [ -n "$scope" ]; then
 $(ids_defined "$pfx")"
     done
     for id in $referenced; do
-        gr_contains "$defined" "$id" || { echo "DANGLING-REF $id (referenced but never defined)"; fail=1; }
+        gr_contains "$defined" "$id" && continue
+        if [ -n "$GR_UNIT" ]; then
+            gr_contains "$foreign" "$id" && continue
+            gr_contains "$reverse" "$id" && continue
+            classify_unresolved "$id"
+        else
+            echo "DANGLING-REF $id (referenced but never defined)"
+        fi
+        fail=1
     done
 fi
 
@@ -708,6 +919,20 @@ if [ -n "$_orphans" ]; then
     fail=1
 fi
 
+if [ -n "$GR_UNIT" ]; then
+    # shellcheck disable=SC2086
+    _ann_files=$(printf '%s\n' $srs_files $rmf_files $sad_files $problems_files | sort -u)
+    _orphans2=$(
+        check_orphans 'exported:' 'REQ|HAZ|RC|SDD|LLR|PR' $_ann_files
+        check_orphans 'expects:'  'REQ|HAZ|RC|SDD|LLR|PR' $_ann_files
+        check_orphans 'opened:'   'REQ|HAZ|RC|SDD|LLR|PR' $srs_files
+    ) || exit 2
+    if [ -n "$_orphans2" ]; then
+        printf '%s\n' "$_orphans2"
+        fail=1
+    fi
+fi
+
 # --- Summary: report the denominator ----------------------------------------
 # Two numbers, because one is not enough. `checked:` counts the items found;
 # `sources:` counts the files and paths each gate actually read. An item count
@@ -738,6 +963,23 @@ _oldest_txt="n/a"
 # Both are open and of unknown age; only one of them is undated.
 [ "$_undatable_n" -gt 0 ] && _oldest_txt="$_oldest_txt ($_undatable_n with no usable date)"
 echo "problems: open $_open_n, oldest $_oldest_txt; limits age ${age_limit:-none}, open ${open_limit:-none}"
+if [ -n "$GR_UNIT" ]; then
+    echo "scope: unit $GR_UNIT; foreign $(count_lines "$foreign"), reverse $(count_lines "$reverse")"
+    [ -n "$exp_summary" ] && echo "$exp_summary"
+    # The D10 advisory: the open expectations standing against THIS unit,
+    # computed from the reverse edge and our own exports. Exit 0 — the
+    # consumer's aging budget is the gate; this is the courtesy on top.
+    _against=0
+    for _rid in $reverse; do
+        [ -n "$_rid" ] || continue
+        _ans=$(printf '%s\n' "$own_scan" | awk -F'\t' -v want="$_rid" '
+            $3 == "EXP" && $4 == "yes" { expd[$1] = 1 }
+            $3 == "SAT" && $4 == want  { sat[$1] = 1 }
+            END { for (i in sat) if (i in expd) { print "met"; exit } }')
+        [ "$_ans" = "met" ] || _against=$((_against + 1))
+    done
+    echo "expectations against this unit: $_against open"
+fi
 echo "sources: srs $(count_lines "$srs_files"), rmf $(count_lines "$rmf_files"), sad $(count_lines "$sad_files"), soup $(count_lines "$soup_files"), problems $(count_lines "$problems_files"); strict $(count_lines "$strict_paths"), tests $(count_lines "$test_paths")"
 
 exit $fail

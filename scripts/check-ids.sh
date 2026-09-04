@@ -28,6 +28,10 @@
 # (step 4). There is likewise no mint ceiling and so no UNANCHORED-DEF: a
 # definition form sitting in prose reserves nothing.
 #
+# Scoped runs engage only when .guardrails/units.yaml exists and GR_CONFIG
+# names a declared unit's config. Engaged, the DRAFT-ID, DRAFT-FILE and
+# MALFORMED-ID scans narrow to the unit; DUPLICATE-ID stays tree-wide.
+#
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
 
@@ -38,6 +42,12 @@ set -u
 # relative config path. The status has to be taken from the substitution.
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
+
+# The engagement rule (architecture item 2): with no manifest this is a
+# no-op and everything below is exactly the single-unit script. Engaged,
+# GR_UNIT names the unit whose config this run reads, and the scans below
+# that narrow to the unit switch on — DUPLICATE-ID alone stays tree-wide.
+gr_unit_engage
 
 # This gate validated nothing about the config until change B — recorded as gap
 # 3 in docs/verification/2026-08-18-config-schema.md. It reads only
@@ -71,7 +81,7 @@ P=$(gr_prefix_re) || exit 2
 # Deliberately NOT limited to the configured prefixes: a draft whose prefix is
 # absent from id_prefixes is one nothing was ever going to mint, which is
 # exactly the case that must not reach the base branch.
-draft_re="[A-Za-z][A-Za-z0-9]*-DRAFT-[A-Za-z0-9][A-Za-z0-9-]*-[0-9]+"
+draft_re="$GR_DRAFT_TOKEN_RE"
 def_re=$(gr_def_re "$P")
 fail=0
 
@@ -83,7 +93,16 @@ fail=0
 # but reports others (an unreadable file, for one) on stderr while still
 # exiting 1. This catches the loud cases; the quiet ones are recorded as a
 # known gap rather than claimed as covered.
-drafts=$(git grep -In --untracked -E "$draft_re" -- . "$GR_SCAN_EXCLUDE")
+# Scoped, drafts narrow to the unit: a sibling's drafts are the sibling's
+# change in flight, and convicting them here would make any unit's merge
+# block on every other unit's work in progress (architecture item 5). A
+# disclaimed path is then scanned by NO unit run — check-units.sh convicts
+# DISCLAIMED-DRAFT there at the repository level instead.
+if [ -n "$GR_UNIT" ]; then
+    drafts=$(git grep -In --untracked -E "$draft_re" -- "$GR_UNIT")
+else
+    drafts=$(git grep -In --untracked -E "$draft_re" -- . "$GR_SCAN_EXCLUDE")
+fi
 _st=$?
 [ "$_st" -le 1 ] || gr_die "scanning for draft IDs failed (git grep exit $_st)"
 if [ -n "$drafts" ]; then
@@ -96,8 +115,12 @@ fi
 
 # --- DRAFT-FILE: no draft-named ledger files may reach the base branch ------
 if [ "$allow_draft_files" -eq 0 ]; then
-    draft_files=$(git ls-files --cached --others --exclude-standard 2>/dev/null \
-        | grep -E '(^|/)DRAFT-[^/]*$' || true)
+    # Scoped, the same narrowing as DRAFT-ID above: a sibling's draft-named
+    # ledger is the sibling's change in flight. "." when unscoped is the
+    # whole tree from the root this script already cd'd to.
+    draft_files=$(git ls-files --cached --others --exclude-standard \
+            -- "${GR_UNIT:-.}" 2>/dev/null \
+        | grep -E "$GR_DRAFT_FILE_RE" || true)
     if [ -n "$draft_files" ]; then
         printf '%s\n' "$draft_files" | sed 's/^/DRAFT-FILE /'
         fail=1
@@ -124,9 +147,24 @@ fi
 # which reported every line that MENTIONED a malformed form, not the lines that
 # opened with one. Measured on a real 1178-file project: one violation, ten
 # lines of report.
-malformed=$(git grep -nI --untracked -E \
-    -e "$(gr_def_re_loose "$P")" --and --not -e "$def_re" \
-    -- . "$GR_SCAN_EXCLUDE")
+# MALFORMED-ID deliberately narrows too, and deliberately NOWHERE covers a
+# disclaimed path (risk assessment 3, 2026-09-03): legacy prose in
+# definition shape would convict line by line and drive pattern-widening —
+# the exact pressure the assessment names. The narrowness is gated:
+# disclaimed-prose-is-not-malformed.
+# One gr_def_re_loose call site feeding both branches — the call-site pin in
+# tests/check-ids.bats counts them, and the pathspec pair is what cannot live
+# in a variable, not the pattern.
+def_re_loose=$(gr_def_re_loose "$P") || exit 2
+if [ -n "$GR_UNIT" ]; then
+    malformed=$(git grep -nI --untracked -E \
+        -e "$def_re_loose" --and --not -e "$def_re" \
+        -- "$GR_UNIT")
+else
+    malformed=$(git grep -nI --untracked -E \
+        -e "$def_re_loose" --and --not -e "$def_re" \
+        -- . "$GR_SCAN_EXCLUDE")
+fi
 _st=$?
 [ "$_st" -le 1 ] || gr_die "MALFORMED-ID scan failed (git grep exit $_st)"
 if [ -n "$malformed" ]; then
@@ -146,6 +184,11 @@ fi
 #
 # It matters more since this change than it did before: the duplicate-vs-base
 # gate is gone, so this is the only gate left that catches an ID defined twice.
+# DUPLICATE-ID stays TREE-WIDE under scope (architecture item 5): IDs are
+# one global namespace, and a cross-unit duplicate must convict somewhere
+# even when neither unit depends on the other. This is the only gate that
+# sees it, the scan is read-only over definitions, and no false green rides
+# on it — a disclaimed path included.
 _defs=$(git grep -h --untracked -oE "$def_re" -- . "$GR_SCAN_EXCLUDE")
 _st=$?
 [ "$_st" -le 1 ] || gr_die "duplicate scan failed (git grep exit $_st)"

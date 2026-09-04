@@ -213,3 +213,59 @@ token_re() {
     [ "$status" -eq 2 ]
     [[ "$output" == *"is a FIFO"* ]] || { echo "$output"; false; }
 }
+
+@test "new-id: new-id-infers-unit-from-cwd — minting inside a unit needs no ceremony" {
+    make_units_fixture
+    cd apps/pump/src
+    run sh ../../../.guardrails/scripts/new-id.sh REQ
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ ^REQ-[abcdefghjkmnpqrstuvwxyz23456789]{6}$ ]]
+}
+
+@test "new-id: new-id-outside-unit-requires-flag — at the root it refuses and lists the units" {
+    make_units_fixture
+    run sh .guardrails/scripts/new-id.sh REQ
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"platform/hal"* ]] || false
+    [[ "$output" == *"apps/pump"* ]] || false
+    [[ "$output" == *"--unit"* ]]
+}
+
+@test "new-id: --unit selects explicitly, from anywhere" {
+    make_units_fixture
+    run sh .guardrails/scripts/new-id.sh --unit platform/hal REQ
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ ^REQ- ]] || false
+    run sh .guardrails/scripts/new-id.sh --unit no/such REQ
+    [ "$status" -eq 2 ]
+}
+
+@test "new-id: --unit disagreeing with an explicit GR_CONFIG is exit 2, never a guess" {
+    make_units_fixture
+    GR_CONFIG=apps/pump/.guardrails/config.yaml \
+        run sh .guardrails/scripts/new-id.sh --unit platform/hal REQ
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"disagree"* ]]
+}
+
+@test "new-id: an explicit unit GR_CONFIG alone still works (the engagement rule)" {
+    make_units_fixture
+    GR_CONFIG=apps/pump/.guardrails/config.yaml run sh .guardrails/scripts/new-id.sh REQ
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ ^REQ- ]]
+}
+
+@test "new-id: the mint collision scan stays tree-wide under scope" {
+    make_units_fixture
+    # wedge the draw to an ID defined in the OTHER unit: the scan must see it
+    run sh -c 'cd apps/pump && GR_ID_FORCE_TOKEN=h4m2p9 sh ../../.guardrails/scripts/new-id.sh REQ'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"100 attempts"* ]]
+}
+
+# verifies: engagement rule — --unit is meaningless without a manifest (finding-6c)
+@test "new-id: --unit in a single-unit repository is exit 2, never a silent guess" {
+    run sh .guardrails/scripts/new-id.sh --unit apps/pump REQ
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"single-unit repository"* ]]
+}

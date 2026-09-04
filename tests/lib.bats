@@ -2,6 +2,51 @@ load helpers
 
 setup() { make_fixture_repo; }
 
+# A minimal valid two-unit manifest repo, built by hand: no root config.
+# T3's shared fixture will sit above this; these tests construct by hand so
+# the validator is tested below the fixture that later depends on it.
+make_manifest_repo() {
+    # setup() has already run make_fixture_repo; calling it again would
+    # re-init the same $REPO and fail on an empty fixture commit. Build on it.
+    git rm -q .guardrails/config.yaml
+    for u in platform/hal apps/pump; do
+        mkdir -p "$u/.guardrails" "$u/docs/requirements" "$u/docs/risk" \
+                 "$u/docs/architecture" "$u/docs/problems" "$u/src" "$u/tests"
+        sed "s|docs/|$u/docs/|; s|- src|- $u/src|; s|- tests|- $u/tests|" \
+            > "$u/.guardrails/config.yaml" <<'EOF'
+guardrails_version: 0.1.0
+safety_class: B
+id_prefixes: REQ HAZ RC SDD LLR PR
+doc_srs: docs/requirements
+doc_rmf: docs/risk
+doc_sad: docs/architecture
+doc_soup: docs/architecture/soup.md
+doc_problems: docs/problems
+strict_paths:
+  - src
+test_paths:
+  - tests
+verify_commands:
+  - make test
+EOF
+        printf '# SOUP\n' > "$u/docs/architecture/soup.md"
+        for d in requirements risk architecture problems; do
+            printf '# ledger\n' > "$u/docs/$d/README.md"
+        done
+        : > "$u/src/.gitkeep"
+    done
+    printf 'depends_on:\n  - platform/hal\n' >> apps/pump/.guardrails/config.yaml
+    cat > .guardrails/units.yaml <<'EOF'
+units:
+  - platform/hal
+  - apps/pump
+not_a_unit:
+  - legacy
+EOF
+    mkdir -p legacy && printf 'notes\n' > legacy/notes.md
+    commit_all manifest
+}
+
 @test "cfg_get returns scalar value" {
     run sh -c '. .guardrails/scripts/lib.sh && cfg_get safety_class'
     [ "$status" -eq 0 ]
@@ -652,7 +697,7 @@ PY
     done
     # Pinned, so a script added later without the guard reddens here rather
     # than being quietly excluded from the question.
-    [ "$n" -eq 7 ] || { echo "expected 7 scripts, ran $n"; false; }
+    [ "$n" -eq 8 ] || { echo "expected 8 scripts, ran $n"; false; }
     [ "$shell" = dash ] || skip "no dash present: this ran under $shell and cannot discriminate"
 }
 
@@ -835,4 +880,286 @@ PY
     [ "$n" -eq 0 ] || { grep -l '^teardown()' ./*.bats; false; }
     [ "$(grep -c '^teardown()' helpers.bash)" -eq 1 ] \
         || { echo "helpers.bash no longer defines the shared teardown"; false; }
+}
+
+# verifies: architecture item 8 — depends_on / segregated_from are per-unit
+# list keys the single-unit config accepts
+@test "gr_check_config accepts depends_on and segregated_from as list keys" {
+    cat >> .guardrails/config.yaml <<'EOF'
+depends_on:
+  - platform/hal
+segregated_from:
+  - platform/hal (RC-k3n8p2)
+EOF
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 0 ]
+}
+
+# verifies: architecture item 8 — a list key written as a scalar is refused,
+# not read as empty
+@test "gr_check_config rejects depends_on written in scalar form" {
+    printf 'depends_on: platform/hal\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"wrong form"* ]]
+}
+
+# verifies: architecture item 8 — expectation limits parse through the same
+# gr_limit path as the problem limits
+@test "gr_limit parses the expectation limits like the problem limits" {
+    printf 'expectation_age_days: 90\nexpectation_open_max: 10\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_limit expectation_age_days && gr_limit expectation_open_max'
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "90" ]
+    [ "${lines[1]}" = "10" ]
+}
+
+# verifies: architecture item 8 — an unparseable expectation limit is exit 2,
+# never a silently disabled gate
+@test "gr_limit rejects an unparseable expectation limit" {
+    printf 'expectation_age_days: ninety\n' >> .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_limit expectation_age_days'
+    [ "$status" -eq 2 ]
+}
+
+# verifies: architecture item 1 groundwork — one parser for every config-shaped
+# file: cfg_get/cfg_list read an explicit FILE argument
+@test "cfg_get and cfg_list read an explicit second file argument" {
+    printf 'units:\n  - packages/pump\n' > other.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && cfg_list units other.yaml && cfg_get safety_class'
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "packages/pump" ]
+    [ "${lines[1]}" = "B" ]
+}
+
+@test "gr_check_units accepts the minimal valid manifest" {
+    make_manifest_repo
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 0 ]
+}
+
+@test "lib: manifest-shape-errors-are-exit-2 — unknown key" {
+    make_manifest_repo
+    printf 'unitz:\n  - oops\n' >> .guardrails/units.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"unknown manifest key"* ]]
+}
+
+@test "lib: manifest-shape-errors-are-exit-2 — units in scalar form" {
+    make_manifest_repo
+    printf 'units: platform/hal\n' > .guardrails/units.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+}
+
+@test "lib: manifest-shape-errors-are-exit-2 — duplicate entry across lists" {
+    make_manifest_repo
+    printf '  - platform/hal\n' >> .guardrails/units.yaml   # under not_a_unit:
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"more than once"* ]]
+}
+
+@test "lib: manifest-shape-errors-are-exit-2 — nested unit" {
+    make_manifest_repo
+    mkdir -p platform/hal/drivers/.guardrails
+    cp platform/hal/.guardrails/config.yaml platform/hal/drivers/.guardrails/ 2>/dev/null || true
+    printf '  - platform/hal/drivers\n' >> .guardrails/units.yaml  # appends to not_a_unit:
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"overlap"* ]]
+}
+
+@test "lib: manifest-shape-errors-are-exit-2 — missing unit config" {
+    make_manifest_repo
+    rm apps/pump/.guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"no .guardrails/config.yaml"* ]]
+}
+
+@test "lib: manifest-shape-errors-are-exit-2 — glob character in an entry" {
+    make_manifest_repo
+    printf '  - packages/*\n' >> .guardrails/units.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+}
+
+@test "lib: manifest-shape-errors-are-exit-2 — trailing slash, dot, escape" {
+    make_manifest_repo
+    for bad in 'legacy2/' '.' '../elsewhere'; do
+        cp .guardrails/units.yaml units.bak
+        printf '  - %s\n' "$bad" >> .guardrails/units.yaml
+        run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+        [ "$status" -eq 2 ]
+        mv units.bak .guardrails/units.yaml
+    done
+}
+
+@test "lib: manifest entry with whitespace is exit 2" {
+    make_manifest_repo
+    printf '  - two words\n' >> .guardrails/units.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+}
+
+@test "lib: root-config-with-manifest-is-exit-2" {
+    make_manifest_repo
+    write_config     # recreates root .guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"two authorities"* ]]
+}
+
+@test "lib: cycle-is-exit-2" {
+    make_manifest_repo
+    printf 'depends_on:\n  - apps/pump\n' >> platform/hal/.guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"cycle"* ]]
+}
+
+@test "lib: depends_on naming an undeclared unit is exit 2" {
+    make_manifest_repo
+    printf 'depends_on:\n  - vendor/lib\n' >> platform/hal/.guardrails/config.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"undeclared"* ]]
+}
+
+@test "lib: unit-paths-outside-unit-are-exit-2" {
+    make_manifest_repo
+    sed -i.bak 's|^doc_srs: apps/pump/docs/requirements|doc_srs: platform/hal/docs/requirements|' \
+        apps/pump/.guardrails/config.yaml && rm -f apps/pump/.guardrails/config.yaml.bak
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"outside the unit"* ]]
+}
+
+@test "lib: a unit config setting doc_verification is exit 2" {
+    make_manifest_repo
+    printf 'doc_verification: apps/pump/docs/verification\n' >> apps/pump/.guardrails/config.yaml
+    mkdir -p apps/pump/docs/verification
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"repository-level"* ]]
+}
+
+# --- T3: engagement rule, scope resolver, annotation parser -----------------
+
+# verifies: no-manifest-changes-nothing (plan obligation)
+@test "gr_unit_engage is a no-op without a manifest" {
+    run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage && printf "[%s]" "$GR_UNIT"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+# verifies: engagement rule — root config refused in a manifest repo
+@test "gr_unit_engage refuses the default config path in a manifest repo, naming the remedy" {
+    make_units_fixture
+    run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"multi-unit repository"* ]] || false
+    [[ "$output" == *"check-units.sh"* ]] || false
+    [[ "$output" == *"GR_CONFIG"* ]]
+}
+
+# verifies: engagement rule — undeclared config refused
+@test "gr_unit_engage refuses a GR_CONFIG that is not a declared unit's" {
+    make_units_fixture
+    mkdir -p vendor/thing/.guardrails
+    cp apps/pump/.guardrails/config.yaml vendor/thing/.guardrails/
+    GR_CONFIG=vendor/thing/.guardrails/config.yaml \
+        run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"not a declared unit"* ]]
+}
+
+# verifies: engagement rule — declared unit config resolves to its unit
+@test "gr_unit_engage resolves a declared unit's config to its unit" {
+    make_units_fixture
+    GR_CONFIG=apps/pump/.guardrails/config.yaml \
+        run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage && printf "%s" "$GR_UNIT"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "apps/pump" ]
+}
+
+# verifies: exports-mode-matches-resolution (plan obligation)
+@test "gr_exported_reqs lists exactly the exported REQ IDs with their files" {
+    make_units_fixture
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units && gr_exported_reqs platform/hal'
+    [ "$status" -eq 0 ]
+    [[ "$output" == "REQ-h4m2p9	"* ]] || false
+    [[ "$output" != *"LLR-"* ]]
+}
+
+# verifies: annotation grammar reader (architecture item 3)
+@test "gr_req_scan reports expects, opened and RC linkage per block" {
+    make_units_fixture
+    cat >> apps/pump/docs/requirements/0001-01-01-base.md <<'EOF'
+
+**REQ-e7x2m4**: The software shall rely on platform/hal to bound slew rate. (implements: RC-p4q7t3)
+expects: platform/hal
+opened: 2026-09-01
+EOF
+    run sh -c '. .guardrails/scripts/lib.sh && gr_unit_req_scan apps/pump'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"REQ-e7x2m4	"*"	EXPECTS	platform/hal"* ]] || false
+    [[ "$output" == *"REQ-e7x2m4	"*"	OPENED	2026-09-01"* ]] || false
+    [[ "$output" == *"REQ-e7x2m4	"*"	RC	1"* ]]
+}
+
+# verifies: consumer resolution over depends_on edges
+@test "gr_consumers_of names the units whose depends_on points here" {
+    make_units_fixture
+    run sh -c '. .guardrails/scripts/lib.sh && gr_consumers_of platform/hal && gr_consumers_of apps/pump'
+    [ "$status" -eq 0 ]
+    [ "$output" = "apps/pump" ]
+}
+
+# verifies: path-to-unit classification (D7 whole-component rule)
+@test "gr_unit_of_path classifies unit, disclaimed and unowned paths" {
+    make_units_fixture
+    run sh -c '. .guardrails/scripts/lib.sh
+        gr_unit_of_path apps/pump/src/x.c
+        gr_unit_of_path legacy/notes.md
+        gr_unit_of_path tools/x.c || echo unowned'
+    [ "${lines[0]}" = "apps/pump" ]
+    [ "${lines[1]}" = "not_a_unit legacy" ]
+    [ "${lines[2]}" = "unowned" ]
+}
+
+@test "templates: config template ships the expectation limits set" {
+    grep -q '^expectation_age_days: 90$' "$BATS_TEST_DIRNAME/../templates/config.yaml"
+    grep -q '^expectation_open_max: 10$' "$BATS_TEST_DIRNAME/../templates/config.yaml"
+}
+
+@test "templates: units.yaml template is inert — comments only, no live keys" {
+    run grep -cE '^(units|not_a_unit):' "$BATS_TEST_DIRNAME/../templates/units.yaml"
+    [ "$output" = "0" ]
+}
+
+# --- fix1 finding-3: the manifest engages on its exact byte-name only --------
+
+# verifies: engagement rule (architecture item 2) — byte-exact manifest name
+@test "lib: UNITS.YAML on a case-insensitive filesystem never engages gr_units_present" {
+    # On APFS (case-insensitive by default) `[ -f .guardrails/units.yaml ]` is
+    # also satisfied by UNITS.YAML — a manifest that officially does not exist
+    # (check-units.sh refuses the near-miss name at exit 2). On a
+    # case-SENSITIVE filesystem -f never matches the near-miss at all, so
+    # "not-engaged" holds on both; only the APFS half exercises the byte rule.
+    printf 'units:\n  - pkg/a\n' > .guardrails/UNITS.YAML
+    run sh -c '. .guardrails/scripts/lib.sh && gr_units_present && echo engaged || echo not-engaged'
+    [ "$status" -eq 0 ]
+    [ "$output" = "not-engaged" ]
+}
+
+# verifies: manifest validation (gr_check_units) — abnormal input: absolute entry
+@test "lib: manifest entry that is absolute is exit 2" {
+    make_manifest_repo
+    printf '  - /abs\n' >> .guardrails/units.yaml
+    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"absolute"* ]]
 }

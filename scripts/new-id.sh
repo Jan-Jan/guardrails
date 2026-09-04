@@ -22,6 +22,14 @@
 # Exit codes: 0 success, 2 usage/environment error.
 set -u
 
+# Captured BEFORE lib.sh runs: lib fills GR_CONFIG's default in, after which
+# "the caller set it" and "nobody set it" read identically — and the unit
+# inference below must never override an explicit choice.
+gr_config_env="${GR_CONFIG:-}"
+# The caller's directory, captured before the cd to the repository root: it is
+# the unit-selection signal (architecture item 7) and exists nowhere else.
+caller_pwd=$(pwd -P)
+
 . "$(dirname "$0")/lib.sh"
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
 # substitution, and under dash `cd ""` returns 0 and stays put — so outside a
@@ -29,6 +37,50 @@ set -u
 # relative config path. The status has to be taken from the substitution.
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
+
+unit_arg=""
+if [ "${1:-}" = "--unit" ]; then
+    unit_arg="${2:-}"
+    [ -n "$unit_arg" ] || gr_die "usage: new-id.sh [--unit PATH] PREFIX [COUNT]"
+    shift 2
+fi
+
+# Unit selection (architecture item 7). In a manifest repository an ID must
+# be minted against SOME unit's config — the gates that will ever check the
+# item are that unit's. Inside a unit, the caller's cwd says which; --unit
+# says it explicitly; nothing else is inferred, because a wrong guess mints
+# an ID whose gates are another unit's.
+if gr_units_present; then
+    gr_check_units
+    unit=""
+    if [ -n "$unit_arg" ]; then
+        gr_contains "$(gr_unit_list)" "$unit_arg" || gr_die \
+"--unit does not name a declared unit: $unit_arg
+  Declared units: $(gr_unit_list | tr '\n' ' ')"
+        if [ -n "$gr_config_env" ] && [ "$gr_config_env" != "$unit_arg/.guardrails/config.yaml" ]; then
+            gr_die \
+"--unit $unit_arg and GR_CONFIG=$gr_config_env disagree — refusing to guess
+  which one you meant. Drop one of the two."
+        fi
+        unit="$unit_arg"
+    elif [ -n "$gr_config_env" ]; then
+        gr_unit_engage          # validates GR_CONFIG names a declared unit
+        unit="$GR_UNIT"
+    else
+        rel="${caller_pwd#"$gr_repo_root"}"
+        rel="${rel#/}"
+        for u in $(gr_unit_list); do
+            case "$rel" in ("$u" | "$u"/*) unit="$u"; break ;; esac
+        done
+        [ -n "$unit" ] || gr_die \
+"not inside any declared unit, and no --unit given — a wrong guess would mint
+  an ID whose gates are another unit's. Run from inside a unit, or select one:
+  new-id.sh --unit <path> PREFIX. Declared units: $(gr_unit_list | tr '\n' ' ')"
+    fi
+    GR_CONFIG="$unit/.guardrails/config.yaml"
+elif [ -n "$unit_arg" ]; then
+    gr_die "--unit given but there is no $GR_UNITS — this is a single-unit repository"
+fi
 
 # A misspelled key, a BOM, a prefix whose gates are unconfigured: every one of
 # them makes some gate skip in silence, and an ID minted into such a project is
@@ -137,6 +189,9 @@ while [ "$n" -lt "$count" ]; do
         gr_contains "$minted" "$cand" && continue
         # Status checked, stderr not suppressed: a scan that errors finds
         # nothing, and "found nothing" is exactly what a free token looks like.
+        # Tree-wide even under scope — IDs are one global namespace
+        # (architecture item 5's DUPLICATE-ID reasoning applies at mint time
+        # identically).
         git grep -q --untracked -F -e "$cand" -- . "$GR_SCAN_EXCLUDE"
         _st=$?
         [ "$_st" -le 1 ] || gr_die "scanning for an existing $cand failed (git grep exit $_st)"

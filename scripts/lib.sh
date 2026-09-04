@@ -47,7 +47,16 @@ PR'
 GR_LIST_KEYS='strict_paths
 test_paths
 verify_commands
-coverage_command'
+coverage_command
+depends_on
+segregated_from'
+
+# depends_on / segregated_from / expectation_age_days / expectation_open_max
+# are the per-unit keys of the monorepo machinery (docs/plans/
+# 2026-09-03-units-architecture.md item 8). In a single-unit repository they
+# are accepted and read by nothing that gates — the same status safety_class
+# held before the class floor — because a config must stay valid when a
+# repository grows a manifest.
 
 GR_KNOWN_KEYS='guardrails_version
 guardrails_commit
@@ -64,7 +73,11 @@ test_paths
 verify_commands
 coverage_command
 problem_age_days
-problem_open_max'
+problem_open_max
+depends_on
+segregated_from
+expectation_age_days
+expectation_open_max'
 
 # The ID body vocabulary. An item ID is <PREFIX>-<body>, and a body is either
 # a minted token or a legacy sequential number.
@@ -475,8 +488,14 @@ function gr_line(s) { sub(/\r$/, "", s); return s }
 # so it cannot reach the key match at column one, and gr_clean already strips it
 # off the value. cfg_list needs it because a blank CRLF line is a record
 # consisting of the CR alone, and that record is judged as structure.
+# cfg_get/cfg_list read $GR_CONFIG unless handed an explicit FILE as $2. The
+# second argument exists for exactly two callers — the manifest reader and the
+# cross-unit helpers — so that .guardrails/units.yaml and a sibling unit's
+# config are read by THE SAME parser that reads this config. Two near-copies
+# of a reader is how readers drift (GR_AWK_ID_RUN's block comment).
 cfg_get() {
-    [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
+    _cf="${2:-$GR_CONFIG}"
+    [ -f "$_cf" ] || gr_die "config not found: $_cf"
     awk -v k="$1" "$GR_AWK_CLEAN_VALUE"'
         index($0, k ":") == 1 {
             sub(/^[^:]*:/, "")
@@ -485,12 +504,13 @@ cfg_get() {
             print v
             exit
         }
-    ' "$GR_CONFIG"
+    ' "$_cf"
 }
 
 # cfg_list KEY — print items of a top-level `key:` block of `  - item` lines.
 cfg_list() {
-    [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
+    _cf="${2:-$GR_CONFIG}"
+    [ -f "$_cf" ] || gr_die "config not found: $_cf"
     awk -v k="$1" "$GR_AWK_CLEAN_VALUE$GR_AWK_STRIP_CR"'
         { line = gr_line($0) }
         !inlist && index(line, k ":") == 1 { inlist = 1; next }
@@ -504,7 +524,7 @@ cfg_list() {
             sub(/^[ \t]*-[ \t]*/, "", line)
             print gr_clean(line)
         }
-    ' "$GR_CONFIG"
+    ' "$_cf"
 }
 
 # gr_prefixes — the configured ID prefixes, one per line, validated. A prefix
@@ -579,6 +599,20 @@ gr_prefix_re() {
 # inherited from the environment could widen it to `:(exclude).` and blind
 # every gate in the toolkit while each one still exited 0.
 GR_SCAN_EXCLUDE=':(exclude).guardrails/scripts'
+
+# GR_DRAFT_TOKEN_RE — a draft ID token (<PREFIX>-DRAFT-<slug>-<n>), the shape
+# check-ids.sh convicts as DRAFT-ID and check-units.sh as DISCLAIMED-DRAFT.
+# GR_DRAFT_FILE_RE — a draft-named file (DRAFT-… as its last path component),
+# the DRAFT-FILE / DISCLAIMED-DRAFT file half of the same rule.
+#
+# One definition because two readers of one pattern is how DISCLAIMED-DRAFT
+# would silently split from DRAFT-ID: hand-copied, the repo-level scan and the
+# scoped scan drift apart one edit at a time, and a token one of them no
+# longer recognises merges through the other's blind spot. Assigned
+# unconditionally, like GR_SCAN_EXCLUDE above and for the same reason: an
+# environment-inherited value could narrow both gates at once in silence.
+GR_DRAFT_TOKEN_RE='[A-Za-z][A-Za-z0-9]*-DRAFT-[A-Za-z0-9][A-Za-z0-9-]*-[0-9]+'
+GR_DRAFT_FILE_RE='(^|/)DRAFT-[^/]*$'
 
 # gr_def_re ALTERNATION [POSITION] — ERE matching an item definition
 # line: a bold ID followed immediately by a colon, at line start.
@@ -765,11 +799,16 @@ gr_limit() {
     printf '%s\n' "$_lv"
 }
 
-# gr_check_config — refuse a config that would silently disable a gate. Every
-# rejection here is a shape the config READER cannot see, which is why none of
-# them could ever be reported by the gate that was meant to use the value.
-gr_check_config() {
-    [ -f "$GR_CONFIG" ] || gr_die "config not found: $GR_CONFIG"
+# gr_check_flat FILE — the structural rules every flat guardrails file obeys:
+# readable; no BOM; no bare-CR line endings; every line blank, a comment, a
+# `  - item` belonging to a key, a document separator, or `identifier:` at
+# column one; no key set twice. Prints the file's top-level keys, one per
+# line. Extracted from gr_check_config when the manifest arrived, because a
+# second hand-copied structure gate is how the item-block defect of
+# 2026-08-22 happened.
+gr_check_flat() {
+    _ff="$1"
+    [ -f "$_ff" ] || gr_die "file not found: $_ff"
 
     # A UTF-8 BOM makes the first key unreadable by every awk matcher here, so
     # it must be rejected explicitly — the alternative is a first key that
@@ -786,8 +825,8 @@ gr_check_config() {
     # would be unreachable, since the first scan already died, so they could not
     # be tested and a mutation removing any of them would survive the suite.
     # Unkillable code is code nobody can show works.
-    [ -r "$GR_CONFIG" ] || gr_die \
-"cannot read $GR_CONFIG — it exists but this user cannot open it."
+    [ -r "$_ff" ] || gr_die \
+"cannot read $_ff — it exists but this user cannot open it."
 
     # The BOM and a CLASSIC-MAC line ending are rejected together: both make
     # the file one thing to its author and another to every reader here. A
@@ -800,11 +839,11 @@ gr_check_config() {
     _first=$(LC_ALL=C awk '
         NR == 1 && substr($0, 1, 3) == "\357\273\277" { print "bom"; exit }
         index($0, "\r") > 0 && index($0, "\r") < length($0) { print "cr"; exit }
-        ' "$GR_CONFIG") || gr_die "cannot read $GR_CONFIG"
+        ' "$_ff") || gr_die "cannot read $_ff"
     case "$_first" in
-        (bom) gr_die "config begins with a UTF-8 BOM: $GR_CONFIG — save it as plain UTF-8" ;;
+        (bom) gr_die "config begins with a UTF-8 BOM: $_ff — save it as plain UTF-8" ;;
         (cr)  gr_die \
-"config has carriage returns inside a line: $GR_CONFIG
+"config has carriage returns inside a line: $_ff
   A file with \\r-only line endings is one single line to every reader here.
   Save it with LF or CRLF endings." ;;
     esac
@@ -830,12 +869,12 @@ gr_check_config() {
         line ~ /^[ \t]+-[ \t]/ { if (owner != "key") print NR; next }
         line !~ /^[A-Za-z_][A-Za-z0-9_]*:/ { print NR; next }
         { owner = "key" }
-    ' "$GR_CONFIG")
+    ' "$_ff")
     if [ -n "$_malformed" ]; then
         _msg=""
         for _n in $_malformed; do
             _msg="${_msg}
-  line ${_n}: $(sed -n "${_n}p" "$GR_CONFIG")"
+  line ${_n}: $(sed -n "${_n}p" "$_ff")"
         done
         gr_die "config line(s) that are neither a comment, a top-level key, nor a '  - item' belonging to one:${_msg}"
     fi
@@ -849,14 +888,7 @@ gr_check_config() {
     # one judges the whole line. A copy of it here was dead code — measured
     # identical output with and without — and dead code is code nobody can show
     # works.
-    _keys=$(awk '/^[A-Za-z_][A-Za-z0-9_]*:/ { sub(/:.*/, ""); print }' "$GR_CONFIG")
-
-    _unknown=""
-    for _k in $_keys; do
-        gr_contains "$GR_KNOWN_KEYS" "$_k" || _unknown="${_unknown} $_k"
-    done
-    [ -z "$_unknown" ] || gr_die "unknown config key(s):${_unknown}"
-
+    _keys=$(awk '/^[A-Za-z_][A-Za-z0-9_]*:/ { sub(/:.*/, ""); print }' "$_ff")
     # DUPLICATES FIRST. Both readers take the first occurrence and stop, while
     # YAML itself takes the last, so a second block is read by nobody and the
     # file says one thing to its author and another to the tooling. The shape
@@ -869,10 +901,19 @@ gr_check_config() {
     # that names neither the duplication nor the block nobody reads.
     _dup=$(printf '%s\n' "$_keys" | sort | uniq -d | tr '\n' ' ')
     [ -z "$_dup" ] || gr_die \
-"config key(s) set more than once in $GR_CONFIG: ${_dup}
+"config key(s) set more than once in $_ff: ${_dup}
   Every reader here takes the FIRST one and stops, while YAML takes the last,
   so one of the two is read by nobody. Keep one."
 
+    printf '%s\n' "$_keys"
+}
+
+# gr_check_forms FILE LISTKEYS KEY... — the per-key form/emptiness rules: a
+# LIST key (member of LISTKEYS) has items and no scalar value; every other key
+# the reverse; no item blank, none itself a comment. Same extraction, same
+# reason.
+gr_check_forms() {
+    _ff="$1"; _lk="$2"; shift 2
     # A KEY THAT ITS OWN CONSUMER CANNOT READ, in three directions: set to
     # nothing at all, set in the form the other kind of key uses, or carrying
     # an item with nothing after its `-`.
@@ -890,10 +931,10 @@ gr_check_config() {
     _wrong=""
     _blank=""
     _commented=""
-    for _k in $_keys; do
-        if gr_contains "$GR_LIST_KEYS" "$_k"; then
-            [ -z "$(cfg_get "$_k")" ] || _wrong="${_wrong} $_k"
-            [ -n "$(cfg_list "$_k")" ] || _empty="${_empty} $_k"
+    for _k in "$@"; do
+        if gr_contains "$_lk" "$_k"; then
+            [ -z "$(cfg_get "$_k" "$_ff")" ] || _wrong="${_wrong} $_k"
+            [ -n "$(cfg_list "$_k" "$_ff")" ] || _empty="${_empty} $_k"
             # An item with nothing after its `-` is dropped by every reader, so
             # the list that takes effect is shorter than the one written.
             #
@@ -905,38 +946,54 @@ gr_check_config() {
             # so the step runs nothing and reports that nothing failed. Caught
             # with `^#` and not `^[ \t]*#`: inside a grep bracket expression
             # `\t` is the set {space, backslash, t}, which would refuse `t#x`.
-            cfg_list "$_k" | grep -q '^$' && _blank="${_blank} $_k"
-            cfg_list "$_k" | grep -q '^#' && _commented="${_commented} $_k"
+            cfg_list "$_k" "$_ff" | grep -q '^$' && _blank="${_blank} $_k"
+            cfg_list "$_k" "$_ff" | grep -q '^#' && _commented="${_commented} $_k"
         else
-            [ -z "$(cfg_list "$_k")" ] || _wrong="${_wrong} $_k"
-            [ -n "$(cfg_get "$_k")" ] || _empty="${_empty} $_k"
+            [ -z "$(cfg_list "$_k" "$_ff")" ] || _wrong="${_wrong} $_k"
+            [ -n "$(cfg_get "$_k" "$_ff")" ] || _empty="${_empty} $_k"
         fi
     done
     [ -z "$_commented" ] || gr_die \
-"config key(s) with a commented-out item in $GR_CONFIG:${_commented}
+"config key(s) with a commented-out item in $_ff:${_commented}
   A '  - # value' item is not a comment to the reader — the '#' is stripped from
   a value only when whitespace precedes it, and the dash strip has already
   removed that. It survives as an item whose value begins with '#', which for a
   command key means the shell reads it as a comment: the step runs nothing and
   reports that nothing failed. Comment out the whole '  - ' line, or remove it."
     [ -z "$_blank" ] || gr_die \
-"config key(s) with an item that has no value after its '-' in $GR_CONFIG:${_blank}
+"config key(s) with an item that has no value after its '-' in $_ff:${_blank}
   Every reader here drops it, so the list that takes effect is shorter than the
   one written. Give the item a value or delete the line."
     [ -z "$_wrong" ] || gr_die \
-"config key(s) written in the wrong form in $GR_CONFIG:${_wrong}
+"config key(s) written in the wrong form in $_ff:${_wrong}
   A list key takes indented '  - item' lines and nothing after its colon; a
   scalar key takes a value after its colon and no items. Written the other way
   round a key is read by nobody, and the gate that wanted it passes having
   examined nothing.
-  List keys: $(printf '%s' "$GR_LIST_KEYS" | tr '\n' ' ')"
+  List keys: $(printf '%s' "$_lk" | tr '\n' ' ')"
     [ -z "$_empty" ] || gr_die \
-"config key(s) set to nothing in $GR_CONFIG:${_empty}
+"config key(s) set to nothing in $_ff:${_empty}
   Such a key reads as absent to the gate that uses it, and that gate then
   passes having examined nothing. GIVE IT A VALUE.
   Deleting the key is not the remedy: absent is the same gate-off as empty,
   and for the keys that carry a gate's whole scope — strict_paths,
   verify_commands, test_paths — deleting it is refused separately."
+}
+
+# gr_check_config — refuse a config that would silently disable a gate. Every
+# rejection here is a shape the config READER cannot see, which is why none of
+# them could ever be reported by the gate that was meant to use the value.
+gr_check_config() {
+    _keys=$(gr_check_flat "$GR_CONFIG") || exit 2
+
+    _unknown=""
+    for _k in $_keys; do
+        gr_contains "$GR_KNOWN_KEYS" "$_k" || _unknown="${_unknown} $_k"
+    done
+    [ -z "$_unknown" ] || gr_die "unknown config key(s):${_unknown}"
+
+    # shellcheck disable=SC2086
+    gr_check_forms "$GR_CONFIG" "$GR_LIST_KEYS" $_keys || exit 2
 
     # gr_prefixes dies in a subshell here, so the status must be propagated or
     # the loops below would iterate over nothing.
@@ -1037,6 +1094,329 @@ gr_check_config() {
         [ -n "$(cfg_list test_paths)" ] || \
             gr_die "id_prefixes declares REQ/LLR but test_paths is empty — nothing would be searched for 'verifies:'"
     fi
+}
+
+# --- The unit manifest (docs/plans/2026-09-03-units-architecture.md) ---------
+#
+# .guardrails/units.yaml declares a multi-unit repository. Its PRESENCE is the
+# whole engagement rule: absent, every script below runs exactly the code it
+# ran before the manifest existed, and the test obligation
+# no-manifest-changes-nothing holds the door.
+GR_UNITS='.guardrails/units.yaml'
+
+# Both manifest keys are LIST keys; there are no scalars here.
+GR_UNITS_KEYS='units
+not_a_unit'
+
+# Present means the exact BYTE-NAME is in the directory listing, not merely
+# that `-f` succeeds: on a case-insensitive filesystem (macOS APFS by default)
+# `-f .guardrails/units.yaml` is also satisfied by UNITS.YAML — a manifest
+# that officially does not exist (check-units.sh refuses the near-miss name at
+# exit 2), and the same tree would engage here and not on case-sensitive CI.
+# One definition for every scoped script, so no two of them can disagree about
+# whether the repository is multi-unit.
+gr_units_present() {
+    [ -f "$GR_UNITS" ] || return 1
+    ls .guardrails 2>/dev/null | grep -qxF units.yaml
+}
+
+# The manifest's two lists, one entry per line. Readers of the same parser the
+# config uses — see cfg_get's file argument.
+gr_unit_list()       { cfg_list units "$GR_UNITS"; }
+gr_disclaimed_list() { cfg_list not_a_unit "$GR_UNITS"; }
+
+# gr_check_units — refuse a manifest that would mis-scope a gate. Everything
+# here is exit 2, the environment-error class: a manifest defect is a wrong
+# SCOPE for every scan in the repository, which is worse than any finding.
+#
+# Entries are validated to contain no whitespace and no glob characters
+# before any loop interpolates them into a case pattern or a pathspec, so the
+# iteration below is safe under any IFS the caller set (the lists are
+# newline-separated; a whitespace entry would otherwise read as two).
+gr_check_units() {
+    [ -f "$GR_UNITS" ] || gr_die "manifest not found: $GR_UNITS"
+    _ukeys=$(gr_check_flat "$GR_UNITS") || exit 2
+    _unknown=""
+    for _k in $_ukeys; do
+        gr_contains "$GR_UNITS_KEYS" "$_k" || _unknown="${_unknown} $_k"
+    done
+    [ -z "$_unknown" ] || gr_die \
+"unknown manifest key(s) in $GR_UNITS:${_unknown}
+  The manifest takes units: and not_a_unit: only; everything else a unit
+  needs lives in that unit's own .guardrails/config.yaml."
+    gr_contains "$_ukeys" units || gr_die \
+"manifest has no units: list: $GR_UNITS — a manifest that declares no unit
+  scopes nothing. Declare at least one, or delete the file to stay single-unit."
+    # shellcheck disable=SC2086
+    gr_check_forms "$GR_UNITS" "$GR_UNITS_KEYS" $_ukeys || exit 2
+
+    # Exclusivity: two authorities over one tree is the one shape every
+    # reader would have to GUESS its way out of.
+    [ ! -e .guardrails/config.yaml ] || gr_die \
+"root .guardrails/config.yaml alongside $GR_UNITS — two authorities over the
+  same tree; every scan would have to guess which one scopes it. A multi-unit
+  repository keeps its configs inside the units. Remove one of the two."
+
+    _units=$(gr_unit_list)
+    _all=$(printf '%s\n%s\n' "$_units" "$(gr_disclaimed_list)" | grep -v '^$')
+
+    _saved_ifs=${IFS-__gr_unset__}
+    IFS='
+'
+    case $- in (*f*) _un_f=1 ;; (*) _un_f=0 ;; esac
+    set -f
+
+    _dupe=$(printf '%s\n' "$_all" | sort | uniq -d | tr '\n' ' ')
+    [ -z "$_dupe" ] || gr_die "path listed more than once in $GR_UNITS: ${_dupe}"
+
+    for _e in $_all; do
+        case "$_e" in
+            (*" "* | *"	"*) gr_die "manifest entry contains whitespace: '$_e' — it would read as two entries to any space-separated consumer" ;;
+            (*[\*\?\[]*)     gr_die "manifest entry carries a glob character: $_e — entries are literal directory paths, never patterns (D2 rejected discovery by convention)" ;;
+            (*/)             gr_die "manifest entry has a trailing slash: $_e" ;;
+            (.)              gr_die "manifest entry names the repository root: . — the root cannot be a unit" ;;
+            (/*)             gr_die "manifest entry is absolute: $_e — entries are repository-relative" ;;
+            (./*)            gr_die "manifest entry is not plain-relative: $_e — drop the ./" ;;
+            (..|../*|*/..|*/../*) gr_die "manifest entry reaches outside the repository: $_e" ;;
+        esac
+    done
+
+    # Overlap, every direction. The architecture names the unit-nesting cases;
+    # the reason it gives — one file, two scopes, two verdicts — condemns a
+    # disclaimed path inside a unit and a redundant nested disclaim equally,
+    # so all four directions are refused with one rule.
+    for _a in $_all; do
+        for _b in $_all; do
+            [ "$_a" = "$_b" ] && continue
+            case "$_b" in ("$_a"/*) gr_die \
+"manifest entries overlap: $_b is inside $_a — one file would have two scopes,
+  and every scoped gate two verdicts. Claim or disclaim each subtree once." ;;
+            esac
+        done
+    done
+
+    for _u in $_units; do
+        [ -d "$_u" ] || gr_die "units: entry is not an existing directory: $_u"
+        _ucfg="$_u/.guardrails/config.yaml"
+        [ -f "$_ucfg" ] || gr_die \
+"units: entry has no .guardrails/config.yaml: $_u
+  A unit is a directory guardrails already governs. Run /ratchet in it, or
+  disclaim it under not_a_unit: until it is ratcheted."
+        # The unit's config passes the SAME validator a single-unit repository
+        # runs. In a subshell so GR_CONFIG here is untouched; the subshell's
+        # own message has already named the defect when this dies.
+        ( GR_CONFIG="$_ucfg"; gr_check_config ) || gr_die \
+"unit config failed validation: $_ucfg (see above)"
+
+        # Own scope must BE the unit (architecture item 2): two units' scans
+        # are disjoint by construction, or MISPLACED-ITEM sees a sibling's
+        # items and the scoped summary lies.
+        [ -z "$(cfg_get doc_verification "$_ucfg")" ] || gr_die \
+"unit $_u sets doc_verification — the verification record is repository-level
+  (one record per change, at the root docs/verification), so a unit-level key
+  would be read by nobody. Remove it."
+        for _dk in doc_srs doc_rmf doc_sad doc_soup doc_problems; do
+            _dv=$(cfg_get "$_dk" "$_ucfg")
+            [ -n "$_dv" ] || continue
+            case "$_dv" in ("$_u"/*) ;; (*) gr_die \
+"unit $_u: $_dk resolves outside the unit: $_dv — a unit's documents live in
+  its own subtree, or two units' scans stop being disjoint." ;;
+            esac
+        done
+        for _pk in strict_paths test_paths; do
+            for _pv in $(cfg_list "$_pk" "$_ucfg"); do
+                case "$_pv" in ("$_u"/*) ;; (*) gr_die \
+"unit $_u: $_pk entry outside the unit: $_pv" ;;
+                esac
+            done
+        done
+
+        for _d in $(cfg_list depends_on "$_ucfg"); do
+            [ "$_d" != "$_u" ] || gr_die "unit $_u depends on itself"
+            gr_contains "$_units" "$_d" || gr_die \
+"unit $_u: depends_on names an undeclared unit: $_d
+  Declare it in $GR_UNITS, or remove the edge."
+        done
+    done
+
+    # Cycles: peel units whose dependencies are all peeled; a remainder is a
+    # cycle. A worklist over flat lists — POSIX sh, per D12's note.
+    _left="$_units"
+    _progress=1
+    while [ -n "$_left" ] && [ "$_progress" -eq 1 ]; do
+        _progress=0
+        _next=""
+        for _u in $_left; do
+            _blocked=0
+            for _d in $(cfg_list depends_on "$_u/.guardrails/config.yaml"); do
+                gr_contains "$_left" "$_d" && { _blocked=1; break; }
+            done
+            if [ "$_blocked" -eq 0 ]; then _progress=1
+            else _next="${_next}${_u}
+"
+            fi
+        done
+        _left=$(printf '%s' "$_next")
+    done
+    [ -z "$_left" ] || gr_die \
+"dependency cycle among units: $(printf '%s' "$_left" | tr '\n' ' ')
+  Cyclic units are not partially independent at all — every gate built on the
+  edge direction would read ambiguously (D12)."
+
+    [ "$_un_f" -eq 1 ] || set +f
+    if [ "$_saved_ifs" = "__gr_unset__" ]; then unset IFS; else IFS=$_saved_ifs; fi
+    return 0
+}
+
+# A disclaimed entry is deliberately NOT required to exist: a mistyped disclaim
+# leaves the real directory unclaimed, which UNCLAIMED-PATH reports loudly —
+# the failure is toward conviction, so no rule is needed here.
+
+# gr_unit_engage — the engagement rule (architecture item 2). Sets GR_UNIT to
+# the running unit's path, or to "" in a single-unit repository. Every
+# unit-scoped script calls this immediately after cd'ing to the root and
+# BEFORE gr_check_config: engaged, the config named by GR_CONFIG is the
+# unit's own, already validated once by gr_check_units — validating it again
+# through the ordinary gr_check_config call that follows costs one pass and
+# buys the same message a single-unit project gets.
+gr_unit_engage() {
+    GR_UNIT=""
+    gr_units_present || return 0
+    gr_check_units
+    case "$GR_CONFIG" in
+        (.guardrails/config.yaml) gr_die \
+"this is a multi-unit repository ($GR_UNITS) — there is no root config to read.
+  Run check-units.sh for the repository-level gates, or set GR_CONFIG to a
+  unit's .guardrails/config.yaml for that unit's run." ;;
+    esac
+    for _c in $(gr_unit_list); do
+        if [ "$GR_CONFIG" = "$_c/.guardrails/config.yaml" ]; then
+            GR_UNIT="$_c"
+            return 0
+        fi
+    done
+    gr_die \
+"GR_CONFIG is not a declared unit's config: $GR_CONFIG
+  Scoping an undeclared config would invent a unit the manifest never granted.
+  Declared units: $(gr_unit_list | tr '\n' ' ')"
+}
+
+# gr_req_scan FILE... — the annotation reader of architecture item 3. One
+# line per fact, tab-separated: <id> <file> KIND <value>, where KIND is
+#   DEF      the block exists (value -)
+#   EXP      exported: (raw value — the consumer judges it)
+#   EXPECTS  expects:  (raw value)
+#   OPENED   opened:   (raw value)
+#   RC       the block carries implements: RC-… (value 1)
+#   SAT      one line per satisfies: REQ entry (value the REQ id)
+# Column one only, first occurrence per keyword per block — the same rules
+# the PR status reader follows, so ORPHAN-ANNOTATION sees what this sees.
+# Blocks open on every gated prefix, so exported: on an LLR is ATTRIBUTED and
+# convicted (MISEXPORTED-ITEM), never dropped.
+gr_req_scan() {
+    for _f in "$@"; do
+        LC_ALL=C awk -v body="$GR_ID_BODY" -v fname="$_f" \
+            "$GR_AWK_ID_RUN$GR_AWK_ITEM_BLOCK"'
+            BEGIN { gr_block_init("REQ|HAZ|RC|SDD|LLR|PR", body) }
+            FNR == 1 { sub(/^\357\273\277/, "") }
+            { line = $0; sub(/\r$/, "", line) }
+            gr_block_closes(line) {
+                cur = gr_block_opens(line) ? gr_block_id(line) : ""
+                exp_seen = 0; expc_seen = 0; opd_seen = 0; rc_seen = 0
+                if (cur != "") printf "%s\t%s\tDEF\t-\n", cur, fname
+            }
+            cur == "" { next }
+            !exp_seen && gr_kw_here(line, "exported:") {
+                exp_seen = 1
+                printf "%s\t%s\tEXP\t%s\n", cur, fname, gr_value(line, "exported:")
+            }
+            !expc_seen && gr_kw_here(line, "expects:") {
+                expc_seen = 1
+                printf "%s\t%s\tEXPECTS\t%s\n", cur, fname, gr_value(line, "expects:")
+            }
+            !opd_seen && gr_kw_here(line, "opened:") {
+                opd_seen = 1
+                printf "%s\t%s\tOPENED\t%s\n", cur, fname, gr_value(line, "opened:")
+            }
+            {
+                run = gr_id_run(line, "implements:")
+                n = split(run, a, " ")
+                for (i = 1; i <= n; i++)
+                    if (a[i] ~ /^RC-/ && !rc_seen) { rc_seen = 1; printf "%s\t%s\tRC\t1\n", cur, fname }
+                run = gr_id_run(line, "satisfies:")
+                n = split(run, a, " ")
+                for (i = 1; i <= n; i++)
+                    if (a[i] ~ /^REQ-/) printf "%s\t%s\tSAT\t%s\n", cur, fname, a[i]
+            }
+        ' "$_f" || gr_die "unit annotation scan failed on $_f"
+    done
+    return 0
+}
+
+# gr_unit_srs UNIT — the unit's doc_srs files, one per line. The same
+# emptiness rules gr_doc_files applies, with the unit named in the error.
+gr_unit_srs() {
+    _uv=$(cfg_get doc_srs "$1/.guardrails/config.yaml")
+    [ -n "$_uv" ] || return 0
+    if [ -d "$_uv" ]; then
+        gr_md_files "$_uv" "doc_srs of unit $1 is configured as directory"
+    elif [ -f "$_uv" ]; then
+        printf '%s\n' "$_uv"
+    else
+        gr_die "unit $1: doc_srs is configured as '$_uv', which does not exist"
+    fi
+    return 0
+}
+
+# gr_unit_req_scan UNIT — gr_req_scan over the unit's SRS. Call in a command
+# substitution with `|| exit 2` like every other lib helper that can die.
+gr_unit_req_scan() {
+    _rs_list=$(gr_unit_srs "$1") || exit 2
+    _saved_ifs=${IFS-__gr_unset__}
+    IFS='
+'
+    case $- in (*f*) _rs_f=1 ;; (*) _rs_f=0 ;; esac
+    set -f
+    # shellcheck disable=SC2086
+    gr_req_scan $_rs_list
+    _rs_st=$?
+    [ "$_rs_f" -eq 1 ] || set +f
+    if [ "$_saved_ifs" = "__gr_unset__" ]; then unset IFS; else IFS=$_saved_ifs; fi
+    return $_rs_st
+}
+
+# gr_exported_reqs UNIT — "REQ-id<TAB>file" for every exported REQ of UNIT.
+# THE definition of the export surface: check-units.sh --exports prints it and
+# the consumer's resolver reads it, so the report and the gate are one
+# computation (obligation exports-mode-matches-resolution).
+gr_exported_reqs() {
+    _ex_scan=$(gr_unit_req_scan "$1") || exit 2
+    printf '%s\n' "$_ex_scan" | awk -F'\t' \
+        '$3 == "EXP" && $4 == "yes" && $1 ~ /^REQ-/ { print $1 "\t" $2 }' | sort -u
+}
+
+# gr_consumers_of UNIT — declared units whose depends_on names UNIT.
+gr_consumers_of() {
+    for _cu in $(gr_unit_list); do
+        [ "$_cu" = "$1" ] && continue
+        gr_contains "$(cfg_list depends_on "$_cu/.guardrails/config.yaml")" "$1" \
+            && printf '%s\n' "$_cu"
+    done
+    return 0
+}
+
+# gr_unit_of_path PATH — the unit claiming PATH ("apps/pump"), or
+# "not_a_unit <entry>" for a disclaimed one; status 1 for a path nobody
+# claims. Whole path components (D7's rule): docs claims docs/adr/x.md and
+# never docs-site/.
+gr_unit_of_path() {
+    for _pu in $(gr_unit_list); do
+        case "$1" in ("$_pu" | "$_pu"/*) printf '%s\n' "$_pu"; return 0 ;; esac
+    done
+    for _pd in $(gr_disclaimed_list); do
+        case "$1" in ("$_pd" | "$_pd"/*) printf 'not_a_unit %s\n' "$_pd"; return 0 ;; esac
+    done
+    return 1
 }
 
 # gr_id_run KEYWORD — filter: for each stdin line, print the IDs of the list

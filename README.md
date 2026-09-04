@@ -128,6 +128,7 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 | `new-id.sh PREFIX [COUNT]` | mint item IDs. Redraws a candidate that already occurs anywhere in the tree, tracked or untracked; refuses a prefix that is not declared in `id_prefixes`, and refuses to invent one at all when there is no entropy source rather than falling back to the pid and the clock |
 | `check-ids.sh [--allow-draft-files]` | no draft ID tokens (always fatal — nothing mints one any more), no draft-named ledger files unless the flag is given, no duplicate IDs, and no `MALFORMED-ID`: a line opening with a definition form whose body is not a valid ID, which no other gate can see |
 | `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items assessed in RMF; no dangling refs; no `ORPHAN-ANNOTATION` (an annotation belonging to no item); every problem report states a `status:`, and every open one an `opened:` date; open PRs listed as warnings, and failed past the configured `problem_age_days` / `problem_open_max` limits. Ends with `checked:` (items found), `problems:` (open count, oldest, and both limits — set or not) and `sources:` (document files read, then the number of configured path entries) |
+| `check-units.sh [--impact RANGE \| --exports UNIT \| --list]` | the multi-unit repository's entry point: validates `.guardrails/units.yaml` and every unit config; `UNCLAIMED-PATH`, `MISCLASSED-DEPENDENCY`/`INCOMPLETE-SEGREGATION` (the IEC 62304 5.3.5 class floor and its recorded escape), `DISCLAIMED-DRAFT`; without a manifest it proves the single-unit reading (two unit-shaped configs, or a near-missed manifest name in `.guardrails/`, are exit 2). `--impact` computes the units a change must run (touched + transitive dependents); `--exports` prints a unit's export surface from the same computation the consumer's verdicts resolve against; `--list` enumerates units |
 | `check-review.sh [--branch NAME]` | the change under merge has a verification record that declares it and that this change wrote (`MISSING-RECORD`, `STALE-RECORD`), that record names a `reviewer:`, a `verdict:` and what was `reproduced:` (`INCOMPLETE-RECORD`), and every `**finding-N**:` the reviewer raised carries a `disposition:` (`UNDISPOSED-FINDING`, plus `MALFORMED-FINDING` and `ORPHAN-DISPOSITION` for the headers and annotations that would otherwise detach one). Ends with `checked:` (records read, records for this change, findings, and whether provenance was checked). Run on the base branch it exits **2**, never 0 — there is no change under review there |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified. `--setup` instead *proves the project can produce a verifiable signature*: every setting present (`user.signingkey`, `commit.gpgsign`, `user.email`, and the format's trust root — not `gpg.format`, whose unset value IS git's documented `openpgp` default), each missing one named on its own line, then a real signed commit made in a throwaway repository and read back at `%G?` = `G`. `ratchet` will not complete until it passes |
 | `finish-merge.sh BRANCH` | the guarded half of the merge command the user runs. Four guards, all proved before anything is removed: the signature verifies under `--strict`; `git diff --quiet HEAD BRANCH` proves the squash captured everything the change branch held; no registered worktree lies *inside* the one about to go, because a nested task worktree is invisible to the outer one's `git status` and would be deleted silently, work and all; and `git worktree remove` runs *without* `--force`, so git's own refusal of a dirty worktree is the last guard and the first destructive act. Only then the worktree goes and the branch is force-deleted. Any refusal leaves both intact — the signed commit always survives |
@@ -158,6 +159,24 @@ every block is reported as `ORPHAN-ANNOTATION` rather than dropped —
 `status:`, `traces:` and `satisfies:` only, in the documents where each is
 block-parsed, at column one, and scoped to the prefix whose gate reads it. This
 rule too has one definition, shared by all five gates that need it.
+
+### Monorepos
+
+The manifest is opt-in. `.guardrails/units.yaml` at the repository root
+declares the units and the dependency edges between them; without one nothing
+changes — every gate reads the single root config exactly as it always has,
+and `check-units.sh` proves that reading rather than assuming it.
+
+With a manifest, a unit's run is scoped: each gate runs with
+`GR_CONFIG=<unit>/.guardrails/config.yaml`, reading that unit's ledgers plus
+its declared dependencies' **exported** REQs (`exported: yes` on the block) as
+foreign definitions — resolvable, but defined elsewhere. A reference past that
+surface is the consumer's mistake and convicts in the consumer's own
+standalone run: `NON-EXPORTED-REF` for a dependency's unexported item,
+`UNDECLARED-DEPENDENCY` for any other unit's, and `UNMET-EXPECTATION` for an
+`expects:` no provider has yet satisfied with an exported REQ. The full design
+— vocabulary, the class floor, expectations and their aging — is
+`docs/plans/2026-09-03-units-architecture.md`.
 
 ### The review artefact
 

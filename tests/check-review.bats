@@ -754,3 +754,41 @@ REC
     [[ "$output" == *"set to nothing"* ]] || { echo "$output"; false; }
     [[ "$output" == *doc_verification* ]] || { echo "$output"; false; }
 }
+
+# --- The unit manifest (T9): the review record is repository-level ----------
+
+@test "check-review: review-record-is-repository-level — no unit config, manifest validated, root records read" {
+    make_units_fixture
+    make_change_worktree units-change
+    write_record rec units-change
+    commit_all record
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"records"* ]]     # the existing checked: summary
+}
+
+@test "check-review: a manifest repo with a broken manifest is exit 2 here too" {
+    make_units_fixture
+    printf 'unitz:\n  - x\n' >> .guardrails/units.yaml
+    # Committed, or the change worktree below would check out the CLEAN
+    # manifest from HEAD and this test would exercise nothing.
+    commit_all broken-manifest
+    make_change_worktree units-change
+    write_record rec units-change
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 2 ]
+    # The exit 2 must come from the manifest validator, not from the absent
+    # root config: pre-manifest, "config not found" also exited 2 here, and
+    # that green would have proven nothing.
+    [[ "$output" == *"unknown manifest key"* ]]
+}
+
+@test "check-review: a manifest repo missing docs/verification is exit 2 naming the rule" {
+    make_units_fixture
+    git rm -rq docs/verification 2>/dev/null || rm -rf docs/verification
+    commit_all no-vdir
+    make_change_worktree units-change
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"docs/verification"* ]]
+}

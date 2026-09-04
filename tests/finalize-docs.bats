@@ -180,3 +180,23 @@ EOF
     [ -f docs/requirements/DRAFT-feature-notes.md ]
     git diff --quiet
 }
+
+# --- The unit manifest (T9): finalize runs per touched unit ------------------
+
+@test "finalize-docs: finalize-runs-per-touched-unit — GR_CONFIG scopes the rename to one unit" {
+    make_units_fixture
+    printf '# pump draft\n' > apps/pump/docs/requirements/DRAFT-my-change-notes.md
+    printf '# hal draft\n' > platform/hal/docs/requirements/DRAFT-my-change-notes.md
+    commit_all drafts
+    GR_CONFIG=apps/pump/.guardrails/config.yaml run sh .guardrails/scripts/finalize-docs.sh
+    [ "$status" -eq 0 ]
+    [ ! -e apps/pump/docs/requirements/DRAFT-my-change-notes.md ]
+    [ -e platform/hal/docs/requirements/DRAFT-my-change-notes.md ]
+}
+
+@test "finalize-docs: a manifest repo without GR_CONFIG is exit 2 naming the remedy" {
+    make_units_fixture
+    run sh .guardrails/scripts/finalize-docs.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"multi-unit repository"* ]]
+}

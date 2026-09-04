@@ -1,0 +1,37 @@
+# guardrails unit manifest — .guardrails/units.yaml at the repository root.
+# Its PRESENCE switches the repository to multi-unit mode; delete it and
+# every script behaves exactly as a single-unit repository. Written by
+# /ratchet; validated before any gate runs (same flat grammar as
+# config.yaml: `key:` at column one, two-space `- item` lists, LF/CRLF, no
+# BOM, every key set once).
+#
+# Exactly two keys, both lists:
+#
+#   * `units:` (required, at least one entry) — each entry a repository-
+#     relative directory holding its own valid .guardrails/config.yaml. A
+#     unit is one IEC 62304 software system: its own class, ledgers, tests.
+#   * `not_a_unit:` (optional) — directories deliberately OUTSIDE compliance.
+#     This list is what distinguishes "not yet ratcheted" (loud:
+#     UNCLAIMED-PATH) from "deliberately outside" (recorded here, reviewable).
+#     Draft tokens and DRAFT-named files under these paths still convict
+#     (DISCLAIMED-DRAFT): parked work is not disclaimed work.
+#
+# Entry rules, each refused at exit 2: literal directory paths only (no
+# globs, no trailing slash, never `.` or anything leaving the repository, no
+# whitespace); no path listed twice; no entry nested inside another — one
+# file, one scope. Matching is by whole path components: `docs` claims
+# docs/adr/x.md and never docs-site/. Files directly at the repository root,
+# and this directory itself, are implicitly outside every unit.
+#
+# With a manifest present there is NO root .guardrails/config.yaml — two
+# authorities over one tree is refused. Each unit's own config carries its
+# class, its documents (all inside the unit's subtree), its depends_on: and
+# — where a lower-class provider is argued safe — its segregated_from:.
+#
+# units:
+#   - platform/hal
+#   - packages/pump
+# not_a_unit:
+#   - docs
+#   - tools
+#   - packages/legacy-ui   # migrating, 2026-Q4

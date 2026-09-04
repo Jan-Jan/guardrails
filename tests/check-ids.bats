@@ -125,7 +125,11 @@ EOF
     calls_check_ids=1
     calls_check_review=0
     calls_check_signing=0
-    calls_check_trace=2
+    # 3 since the scoped ids_defined branch (units change): each pathspec arm
+    # builds its pattern through the constructor, which is the reuse the pin
+    # exists to encourage.
+    calls_check_units=0
+    calls_check_trace=3
     calls_finalize_docs=0
     calls_finish_merge=0
     calls_lib=0
@@ -134,6 +138,7 @@ EOF
     forms_check_ids=0
     forms_check_review=0
     forms_check_signing=0
+    forms_check_units=0
     forms_check_trace=0
     forms_finalize_docs=0
     forms_finish_merge=0
@@ -146,10 +151,13 @@ EOF
     body_check_ids=0
     body_check_review=0
     body_check_signing=0
+    body_check_units=0
     body_check_trace=7
     body_finalize_docs=0
     body_finish_merge=0
-    body_lib=2
+    # 3 since gr_req_scan (units change): its awk takes body="$GR_ID_BODY"
+    # rather than pasting the shape — the reuse this pin exists to encourage.
+    body_lib=3
     body_new_id=0
 
     # The two shared definitions added 2026-08-22, pinned for the same reason
@@ -160,6 +168,7 @@ EOF
     loose_check_ids=1
     loose_check_review=0
     loose_check_signing=0
+    loose_check_units=0
     loose_check_trace=0
     loose_finalize_docs=0
     loose_finish_merge=0
@@ -169,10 +178,13 @@ EOF
     block_check_ids=0
     block_check_review=1
     block_check_signing=0
+    block_check_units=0
     block_check_trace=5
     block_finalize_docs=0
     block_finish_merge=0
-    block_lib=0
+    # 1 since gr_req_scan (units change): its awk composes the shared
+    # GR_AWK_ITEM_BLOCK rather than growing a sixth opinion about blocks.
+    block_lib=1
     block_new_id=0
 
     # GR_AWK_FRONT_MATTER, added 2026-08-23 and pinned for the reason above.
@@ -184,6 +196,7 @@ EOF
     fm_check_ids=0
     fm_check_review=1
     fm_check_signing=0
+    fm_check_units=0
     fm_check_trace=1
     fm_finalize_docs=0
     fm_finish_merge=0
@@ -197,7 +210,10 @@ EOF
     civil_check_ids=0
     civil_check_review=0
     civil_check_signing=0
-    civil_check_trace=2
+    # 3 since the expectation-age computation (units change) — the same shared
+    # date arithmetic, third reader.
+    civil_check_units=0
+    civil_check_trace=3
     civil_finalize_docs=0
     civil_finish_merge=0
     civil_lib=0
@@ -272,7 +288,7 @@ EOF
             false
         }
     done
-    [ "$seen" -eq 8 ] || { echo "expected 8 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 9 ] || { echo "expected 9 scripts, scanned $seen"; false; }
 
     # And the constructor and the body each exist exactly once, so the counts
     # above are counts of uses of something real rather than of a name nothing
@@ -295,10 +311,11 @@ EOF
     # The emptiness rule has one definition and two readers (gr_doc_files and
     # check-review.sh); a hand-copy in either is what this counts.
     [ "$(grep -c '^gr_md_files() {' scripts/lib.sh)" -eq 1 ]
-    # Two call sites in lib.sh (the definition line and gr_doc_files) and one
-    # in check-review.sh. A third reader spelling the rule out by hand moves
+    # Three call sites in lib.sh (the definition line, gr_doc_files, and —
+    # since the units change — the per-unit SRS reader) and one in
+    # check-review.sh. A further reader spelling the rule out by hand moves
     # neither count, which is why the poison tests exist alongside these pins.
-    [ "$(grep -c 'gr_md_files ' scripts/lib.sh)" -eq 2 ]
+    [ "$(grep -c 'gr_md_files ' scripts/lib.sh)" -eq 3 ]
     [ "$(grep -c 'gr_md_files ' scripts/check-review.sh)" -eq 1 ]
 }
 
@@ -313,7 +330,7 @@ EOF
         seen=$((seen + 1))
         sh -n "$f" || { echo "does not parse: $f"; false; }
     done
-    [ "$seen" -eq 8 ] || { echo "expected 8 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 9 ] || { echo "expected 9 scripts, scanned $seen"; false; }
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {
@@ -735,4 +752,59 @@ EOF
     commit_all asterisk-in-body
     run sh .guardrails/scripts/check-ids.sh
     [[ "$output" != *"MALFORMED-ID"* ]]
+}
+
+# --- T5: check-ids under scope ----------------------------------------------
+
+# verifies: obligation duplicate-id-stays-tree-wide / disclaimed-prose-is-not-malformed (engagement precondition)
+@test "check-ids: a manifest repo without GR_CONFIG is exit 2 naming the remedy" {
+    make_units_fixture
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"multi-unit repository"* ]]
+}
+
+# verifies: obligation duplicate-id-stays-tree-wide (scoped drafts narrow to the unit)
+@test "check-ids: a sibling's draft file and draft token are not this unit's finding" {
+    make_units_fixture
+    printf '# draft\nREQ-DRAFT-other-change-1\n' > platform/hal/docs/requirements/DRAFT-other-change-notes.md
+    commit_all sibling-draft
+    unit_run check-ids.sh apps/pump
+    [ "$status" -eq 0 ]
+    unit_run check-ids.sh platform/hal
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DRAFT-ID"* ]] || false
+    [[ "$output" == *"DRAFT-FILE"* ]]
+}
+
+# verifies: obligation disclaimed-prose-is-not-malformed (scoped half)
+@test "check-ids: disclaimed-prose-is-not-malformed — a scoped run never reads a disclaimed path" {
+    make_units_fixture
+    printf '**REQ-abcdef**: legacy prose in definition shape.\n' >> legacy/notes.md
+    commit_all legacy-prose
+    unit_run check-ids.sh apps/pump
+    [ "$status" -eq 0 ]
+}
+
+# verifies: obligation duplicate-id-stays-tree-wide
+@test "check-ids: duplicate-id-stays-tree-wide — a cross-unit duplicate convicts from either unit" {
+    make_units_fixture
+    printf '\n**REQ-h4m2p9**: a colliding definition.\n' >> apps/pump/docs/requirements/0001-01-01-base.md
+    commit_all dup
+    unit_run check-ids.sh apps/pump
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]] || false
+    unit_run check-ids.sh platform/hal
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]]
+}
+
+# verifies: obligation duplicate-id-stays-tree-wide (disclaimed path included)
+@test "check-ids: duplicate-id-stays-tree-wide — a duplicate under a disclaimed path still convicts" {
+    make_units_fixture
+    printf '**REQ-h4m2p9**: stale copy of the interface contract.\n' >> legacy/notes.md
+    commit_all legacy-dup
+    unit_run check-ids.sh platform/hal
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]]
 }

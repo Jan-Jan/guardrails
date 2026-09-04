@@ -289,3 +289,129 @@ STUB
     chmod +x "$_bin/date"
     echo "$_bin"
 }
+
+# Writes UNIT's .guardrails/config.yaml. Extra args are depends_on entries.
+write_unit_config() {
+    _u="$1"; shift
+    mkdir -p "$_u/.guardrails"
+    {
+        cat <<EOF
+guardrails_version: 0.1.0
+safety_class: B
+id_prefixes: REQ HAZ RC SDD LLR PR
+doc_srs: $_u/docs/requirements
+doc_rmf: $_u/docs/risk
+doc_sad: $_u/docs/architecture
+doc_soup: $_u/docs/architecture/soup.md
+doc_problems: $_u/docs/problems
+strict_paths:
+  - $_u/src
+test_paths:
+  - $_u/tests
+verify_commands:
+  - make test
+expectation_age_days: 90
+expectation_open_max: 10
+EOF
+        if [ $# -gt 0 ]; then
+            echo "depends_on:"
+            for _d in "$@"; do echo "  - $_d"; done
+        fi
+    } > "$_u/.guardrails/config.yaml"
+}
+
+# make_unit UNIT [DEPS...] — directories, config, the ratchet-shaped README
+# files (a configured directory always holds at least one *.md).
+make_unit() {
+    _u="$1"
+    mkdir -p "$_u/docs/requirements" "$_u/docs/risk" "$_u/docs/architecture" \
+             "$_u/docs/problems" "$_u/src" "$_u/tests"
+    write_unit_config "$@"
+    printf '# SOUP Inventory\n' > "$_u/docs/architecture/soup.md"
+    printf '# Requirements ledger\n' > "$_u/docs/requirements/README.md"
+    printf '# Risk management file\n' > "$_u/docs/risk/README.md"
+    printf '# Software architecture\n' > "$_u/docs/architecture/README.md"
+    printf '# Problem reports\n' > "$_u/docs/problems/README.md"
+    : > "$_u/src/.gitkeep"
+}
+
+# write_unit_items UNIT REQ HAZ RC SDD LLR — one fully traced item set, the
+# per-unit copy of the base fixture's ledgers. IDs are passed in so two units
+# never collide.
+write_unit_items() {
+    _u="$1"
+    cat > "$_u/docs/requirements/0001-01-01-base.md" <<EOF
+# SRS — $_u
+
+**$2**: The software shall limit the dose. (implements: $4)
+EOF
+    cat > "$_u/docs/risk/0001-01-01-base.md" <<EOF
+# RMF — $_u
+
+**$3**: Overdose delivered to patient.
+
+**$4**: Software limits dose to configured maximum. mitigates: $3
+EOF
+    cat > "$_u/docs/architecture/0001-01-01-base.md" <<EOF
+# SAD — $_u
+
+**$5**: Dose limiter module. traces: $2
+
+**$6**: Clamp requested dose to the configured maximum. satisfies: $2
+EOF
+    printf '# verifies: %s\ntrue\n' "$6" > "$_u/tests/test_a.sh"
+}
+
+# The canonical two-unit fixture: provider platform/hal (exports REQ-h4m2p9),
+# consumer apps/pump (depends_on hal, references the export from its SAD),
+# a disclaimed legacy/ and docs/, root README. Green under every gate.
+# Leaves the shell cd'd into $REPO.
+#
+# A DISTINCT directory from make_fixture_repo's: setup() has already built
+# $BATS_TEST_TMPDIR/repo with a ROOT config, which gr_check_units refuses
+# alongside a manifest, so this fixture replaces it rather than building on it.
+make_units_fixture() {
+    REPO="$BATS_TEST_TMPDIR/units-repo"
+    mkdir -p "$REPO"
+    cd "$REPO"
+    git init -q -b main --template=
+    git config user.name test
+    git config user.email test@example.com
+    git config commit.gpgsign false
+    mkdir -p .guardrails/scripts docs/verification legacy
+    cp "$BATS_TEST_DIRNAME"/../scripts/*.sh .guardrails/scripts/ 2>/dev/null || true
+    # check-review reads this directory at the REPOSITORY level in a manifest
+    # repo (architecture item 9, task T9); tracked non-empty so worktrees
+    # carry it and gr_md_files has its one *.md
+    printf '# verification records\n' > docs/verification/README.md
+    cat > .guardrails/units.yaml <<'EOF'
+units:
+  - platform/hal
+  - apps/pump
+not_a_unit:
+  - legacy
+  - docs
+EOF
+    printf '# repo-level docs\n' > docs/README.md
+    printf '# migration leftovers\n' > legacy/notes.md
+    printf '# monorepo fixture\n' > README.md
+    make_unit platform/hal
+    make_unit apps/pump platform/hal
+    write_unit_items platform/hal REQ-h4m2p9 HAZ-h2b6c3 RC-h3d8f4 SDD-h5g2j7 LLR-h6k9m3
+    write_unit_items apps/pump   REQ-p2m4k7 HAZ-p3v8n2 RC-p4q7t3 SDD-p5w2x8 LLR-p6r3z9
+    # hal exports its interface REQ (annotation inside the block: nothing
+    # closes a block but a heading or a bold-colon line)
+    printf 'exported: yes\n' >> platform/hal/docs/requirements/0001-01-01-base.md
+    # pump consumes the export: a reference that must resolve via the foreign
+    # set, and the live wire the export-removal chain later cuts
+    printf '\nThe pump consumes the HAL flow-rate contract (REQ-h4m2p9).\n' \
+        >> apps/pump/docs/architecture/0001-01-01-base.md
+    git add -A
+    git commit -qm units-fixture
+}
+
+# Convenience: run a script scoped to one unit of the current fixture.
+unit_run() {
+    _s="$1"; _u="$2"; shift 2
+    GR_CONFIG="$_u/.guardrails/config.yaml" run sh ".guardrails/scripts/$_s" "$@"
+}

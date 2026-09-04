@@ -136,3 +136,24 @@ problem_open_max: 10
 # Uncomment and adapt to enable the coverage gate:
 # coverage_command:
 #   - make coverage
+
+# Expectation triage limits (multi-unit repositories; docs/plans/
+# 2026-09-03-units-architecture.md). An expectation is a consumer REQ carrying
+# `expects: <unit>` — work owed by a declared dependency. Non-RC-linked ones
+# age against these, exactly as problem reports age against the limits above;
+# an expectation that implements a risk control fails every run regardless.
+#
+# Shipped SET for the reason the problem limits are: an enforcement mechanism
+# that defaults to off does not answer the finding it exists for. Ninety, not
+# thirty: an expectation is another team's backlog, and a budget teams cannot
+# meet teaches them not to record expectations. The values are policy; one
+# line changes either; every scoped run prints them, set or not.
+expectation_age_days: 90
+expectation_open_max: 10
+
+# Multi-unit keys, meaningful only when .guardrails/units.yaml exists —
+# see templates/units.yaml. Both are LIST keys.
+# depends_on:
+#   - platform/hal
+# segregated_from:
+#   - platform/hal (RC-k3n8p2)
