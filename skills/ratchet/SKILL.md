@@ -27,6 +27,47 @@ git rev-list --count HEAD 2>/dev/null   # missing repo or tiny history → likel
 ls src lib app AGENTS.md docs 2>/dev/null
 ```
 
+Then, for any repository that is not obviously one program, ask (one
+question, recommend an answer): **one system in many packages, or many systems
+in one repository?** Packages that version, release and take risk
+together are one system — a single-unit project gets no manifest and the
+rest of this skill reads exactly as before. Separately compliant systems
+sharing a repository get the units interview (step 1b) before any file is
+copied, because the answer decides where every config lives.
+
+## Step 1b: The units interview (multi-unit repositories only)
+
+D9 (docs/plans/2026-08-26-monorepo-support.md): `/ratchet`
+declares the facts; the rules are not configurable. Ask one question at a
+time, recommend
+an answer, and write each fact where it lives:
+
+| Ask | Write to |
+|---|---|
+| What are the units? (each a relative directory) | `units:` in `.guardrails/units.yaml` |
+| What is outside compliance, and why? | `not_a_unit:` in the manifest; the why as a `#` comment beside the entry |
+| What is each unit's safety class? | `safety_class:` in that unit's config — the step 4 interview, repeated per unit |
+| What does each unit depend on? | `depends_on:` in the consumer unit's config — each edge triggers the dependency assessment (`grill-requirements`, "Declaring a dependency") |
+| Is any dependency segregated, and under which control? | `segregated_from:` in the consumer unit's config, citing the control or ADR — `check-units.sh` convicts an uncited entry as INCOMPLETE-SEGREGATION |
+
+It does **not** ask whether the class floor applies, whether a unit may see
+another's internals, or which units run at merge — those are D4, D5 and D6,
+and every configurable version of them is a gate that did not run while
+nothing in the output said so.
+
+Adoption is a tooth ordering, not a package. Tooth one — mandatory — is the
+manifest, the per-unit configs and the disclaimers: a unit with an
+empty `depends_on:` is a freestanding guardrails project that happens to
+share a repository, and a manifest naming one unit with everything else disclaimed
+is a valid, passing first tooth on a repository of twelve packages. Declare
+edges (`depends_on:`, exports, expectations) later, when the coupling bites;
+until an edge exists those gates have nothing to read, so "not yet adopted"
+is visible in the manifest instead of being a switched-off gate.
+
+After writing, run `.guardrails/scripts/check-units.sh` — it validates the
+manifest and every unit's config in one pass, and its findings
+(UNCLAIMED-PATH above all) are the worklist for the disclaimers question.
+
 ## Step 2 (greenfield): Scaffold
 
 1. `git init` if not a repo (any default branch name works — the scripts
@@ -34,8 +75,18 @@ ls src lib app AGENTS.md docs 2>/dev/null
    commit if there is none (a worktree needs a base).
 2. Create a worktree for the scaffold work (use the `worktree-discipline`
    skill — ratchet practices what it preaches).
-3. Copy in, from the guardrails repo:
-   - `templates/config.yaml` → `.guardrails/config.yaml`
+3. Copy in, from the guardrails repo — the destination depends on step 1b:
+   - single unit: `templates/config.yaml` → `.guardrails/config.yaml`
+   - multi-unit: `templates/units.yaml` → `.guardrails/units.yaml`, filled in
+     from the interview, and `templates/config.yaml` →
+     `<unit>/.guardrails/config.yaml` for **each** unit (adjust each copy's
+     `doc_*` paths and `verify_commands` to that unit). There is
+     **no root .guardrails/config.yaml** in a manifest repository — two
+     authorities over one tree is exit 2 at every gate. Scripts stay at the
+     root: `.guardrails/scripts/` serves every unit. The doc skeletons below
+     are copied **per unit** (into `<unit>/docs/...`); `docs/verification/`,
+     `docs/plans/`, `docs/adr/` and the interface glossary `docs/CONTEXT.md`
+     stay at the repository root.
    - `scripts/*.sh` → `.guardrails/scripts/` (keep executable bits)
    - `templates/srs.md` → `docs/requirements/README.md`
    - `templates/rmf.md` → `docs/risk/README.md`
@@ -328,7 +379,9 @@ Never overwrite. Sequence:
    scripts), merge the managed block into AGENTS.md, add missing doc
    skeletons, and extend `.gitignore` to exclude worktree directories
    (`.worktrees/`, `.claude/worktrees/`) and `*.bak`. Do NOT migrate
-   existing docs in this change.
+   existing docs in this change. On a multi-unit repository the first tooth
+   installs the manifest and per-unit configs from step 1b instead of a root
+   config.
    - AGENTS.md merging: if `<!-- guardrails:begin -->` exists, replace only
      the block between the markers (script updates re-use this). Otherwise
      append the whole block from `templates/AGENTS-block.md`, leaving existing
@@ -363,6 +416,10 @@ Ask one question at a time; recommend an answer for each:
 If the user is unsure, walk through their intended use, foreseeable misuse,
 and existing hardware safeguards before classifying. When in doubt between
 two classes, the higher class governs until justified otherwise.
+
+In a multi-unit repository, repeat this interview per unit and
+record each class in that unit's config — the per-unit class is the input
+to the class floor (D5), and this is the interview most likely to be skipped.
 
 ## Step 5: Human setup checklist
 

@@ -50,6 +50,15 @@ inventory file.
    - Segregation between items of different classes must be explicit: state
      the mechanism (process boundary, address space, hardware) and why it is
      adequate — a Class C item's failure modes must not reach through it.
+     In a multi-unit repository this statement has a home with teeth: a
+     cross-unit dependency is declared in the consumer's `depends_on:`, and
+     depending on a lower-class unit requires `segregated_from:` in the
+     consumer's config, citing the control or ADR that carries the mechanism
+     — `check-units.sh` convicts an uncited entry (INCOMPLETE-SEGREGATION)
+     and an uncovered class gap (MISCLASSED-DEPENDENCY). And the edge itself
+     is a decision: run the "Declaring a dependency" interview
+     (`grill-requirements`) before drawing it — a dependency on the diagram
+     without that assessment is an unassessed supplier.
 5. **SOUP inventory:** every third-party component the software depends on
    goes in `soup.md` — exact version, role, the requirements it supports,
    known anomalies relevant to safety. Adding/upgrading SOUP is a design

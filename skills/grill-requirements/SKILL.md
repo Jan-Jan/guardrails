@@ -81,10 +81,42 @@ file that defines them** — definitions never move. On single-file projects
   `(implements: RC-…)`. If the discussion surfaces a new hazard or control,
   switch to the `analyze-risks` skill, then come back.
 
+## Declaring a dependency (multi-unit repositories)
+
+`depends_on:` is a decision, not a config line. Before an edge lands in the
+consumer's config, walk the provider's artefacts with the user, one question
+at a time (D10):
+
+- its export surface — `.guardrails/scripts/check-units.sh --exports <provider>`
+  lists every exported REQ with its defining file: is the behavior you need
+  on it?
+- its RMF — does its risk analysis consider this use, or does your use case
+  sit outside every analyzed situation?
+- its ADRs — a recorded decision may foreclose your requirement;
+- its open problem reports — the known anomalies of a supplied component;
+- transitively its SOUP — your dependency's dependencies are yours.
+
+A gap found here is a requirement, so it gets requirement machinery: write a
+consumer REQ carrying `expects: <unit>` on its own line (the unit must be a
+declared dependency). Carry `opened: YYYY-MM-DD` in the same item block, on
+its own line — an expectation without a usable date is INCOMPLETE-EXPECTATION
+at the consumer's own gate. The expectation is **met** when the provider
+defines an exported REQ carrying `satisfies:` naming your REQ; until then the
+consumer's run reports UNMET-EXPECTATION and the provider's run reports how
+many open expectations stand against it — the prompt lands on the team that
+owes the work. Never model the gap as a problem report in the provider's
+ledger: a need is not an anomaly.
+
 ## Maintain the glossary inline
 
 `docs/CONTEXT.md` is the project glossary — definitions only, no
-implementation detail.
+implementation detail. In a multi-unit repository, write to the unit's own
+`docs/CONTEXT.md` by default; the root glossary owns interface terms.
+Escalate a term to the root glossary the moment it appears in an exported REQ or an `expects:` item.
+A term defined in a unit glossary AND at root with different meanings is
+challenged, exactly like any other conflict. Two units disagreeing internally is not a conflict
+at all — "dose" in an infusion unit and in a reporting unit are different
+concepts, legitimately.
 
 - When the user uses a term that conflicts with the glossary, call it out
   immediately: "CONTEXT.md defines 'dose' as X, you seem to mean Y — which?"

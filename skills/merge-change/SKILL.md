@@ -24,6 +24,33 @@ change branch — never across changes. Two open changes race on the base branch
 on the duplicate scan in step 4, and on the verification record, and every one
 of those races surfaces here rather than where it was created.
 
+## Multi-unit repositories
+
+When `.guardrails/units.yaml` exists, the sequence below runs **per unit
+over the impact set**, and the impact set is computed, not judged:
+
+```sh
+.guardrails/scripts/check-units.sh --impact "$BASE..HEAD"
+```
+
+One `<unit>\t<touched|dependent>` line per unit — consume it mechanically,
+never hand-pick the unit list. The mode exits 2 on a changed path claimed by
+no unit (fix default mode's UNCLAIMED-PATH first; a partial impact set would
+read as complete), and maps a change under the root `.guardrails/` to every unit.
+Then, wherever the sequence says to run the gates or the suite:
+
+- run `check-units.sh` with no flag once — the repository-level gates;
+- run `check-trace.sh`, `check-ids.sh` and that unit's `verify_commands`
+  with `GR_CONFIG=<unit>/.guardrails/config.yaml`, for **every unit in the impact set**
+  (dependents included — that is what the set is for);
+- run `finalize-docs.sh` (step 3) once per touched unit, `GR_CONFIG`
+  pointing at each — a dependent has no drafts to rename;
+- `check-review.sh` is repository-level and runs exactly once, unchanged.
+
+The record at 6b names the units touched, and the impact set beside its
+`branch:` line, so the evidence says which units' gates the verdict covers.
+One branch, one squash, one record — D6 — however many units ran.
+
 ## The sequence
 
 Halt on any failure. Deciding what to fix is yours; writing the fix is
@@ -83,7 +110,9 @@ after the finding — anything that does not repeat.
    after this merge every ID the base defines is in the tree its in-tree
    duplicate scan already reads. Skip the fetch and that stops being true.
 2. **Dispatch the verification suite** the way `verify-before-merge` describes
-   — a fresh subagent runs every `verify_commands` entry in the worktree, logs
+   — a fresh subagent runs every `verify_commands` entry in the worktree
+   (per unit over the impact set in a multi-unit repository — see
+   "Multi-unit repositories"), logs
    the raw output outside the tree, and returns the **gate summary**. Don't
    re-run it in your own context. Conflict fallout and integration breakage
    stop the merge right here, read from the summary's pass/fail counts.
@@ -260,6 +289,8 @@ after the finding — anything that does not repeat.
      end-to-end failure never reproduced" is an honest, passing record; the
      field exists so that the absence of evidence is a visible omission rather
      than an optional act of honesty.
+
+   In a multi-unit repository the record also names the units touched, and the impact set.
 
    Each finding from 6a gets a block with its disposition:
 

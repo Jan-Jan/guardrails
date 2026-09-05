@@ -522,3 +522,135 @@
     [ "$status" -ne 0 ]
     [ -z "$output" ]
 }
+
+@test "ratchet-asks-one-system-or-many: mode detection includes the units question" {
+    # verifies: D9 (docs/plans/2026-08-26-monorepo-support.md)
+    # Without this question a twelve-package repository gets a root config and
+    # every gate silently reads one unit's facts as the whole tree's.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'one system in many packages, or many systems' "$skill"
+    grep -q 'a single-unit project gets no manifest' "$skill"
+}
+
+@test "ratchet-units-interview-writes-facts-not-rules: the D9 line is drawn in the skill" {
+    # verifies: D9
+    # The interview writes units:, not_a_unit:, depends_on:, segregated_from:,
+    # safety_class — and must SAY it does not ask about the rules, or the next
+    # editor adds the enforcement knob D9 rejects by name.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'declares the facts; the rules are not configurable' "$skill"
+    grep -q 'not_a_unit:' "$skill"
+    grep -q 'segregated_from:' "$skill"
+    grep -q 'whether the class floor applies' "$skill"
+}
+
+@test "ratchet-manifest-repo-has-no-root-config: scaffold branches on the manifest" {
+    # verifies: D2/D9; exclusivity implemented in gr_check_units (0a35669)
+    # Copying templates/config.yaml to the root of a manifest repository is
+    # exit 2 at the next gate — the scaffold step must say which file goes
+    # where in each mode, or ratchet scaffolds a refused shape.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'templates/units.yaml' "$skill"
+    grep -q 'no root .guardrails/config.yaml' "$skill"
+    grep -q '<unit>/.guardrails/config.yaml' "$skill"
+}
+
+@test "ratchet-tooth-one-is-manifest-and-disclaimers: adoption order is stated" {
+    # verifies: D9 (tooth ordering, confirmed 2026-08-31)
+    # Without the ordering, adoption on a large repo reads as all-or-nothing
+    # and the honest first tooth (manifest + disclaimers, no edges) is missed.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'a tooth ordering, not a package' "$skill"
+    grep -q 'empty `depends_on:` is a freestanding guardrails project' "$skill"
+}
+
+@test "ratchet-per-unit-class-interview: step 4 repeats per unit" {
+    # verifies: D5/D9 — the per-unit class is the input to the class floor,
+    # and the interview most likely to be skipped.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'repeat this interview per unit' "$skill"
+    grep -q "record each class in that unit's config" "$skill"
+}
+
+@test "merge-consumes-impact-mechanically: the skill names the mode and forbids hand-picking" {
+    # verifies: D6/D12; --impact semantics quoted from scripts/check-units.sh
+    # The composed-chain obligations test the chain THROUGH this mode; a
+    # hand-judged unit list is the false green the mode exists to prevent.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'check-units.sh --impact' "$skill"
+    grep -q 'never hand-pick the unit list' "$skill"
+    grep -q 'maps a change under the root `.guardrails/` to every unit' "$skill"
+}
+
+@test "merge-runs-impact-set-gates: per-unit runs are spelled out" {
+    # verifies: D6 — gates and verify_commands of every unit in the impact
+    # set, plus the repository-level check-units.sh run.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'GR_CONFIG=<unit>/.guardrails/config.yaml' "$skill"
+    grep -q 'every unit in the impact set' "$skill"
+    grep -q 'check-units.sh` with no flag' "$skill"
+}
+
+@test "merge-finalizes-touched-units-only: the finalize loop is scoped" {
+    # verifies: architecture item 6 — finalize-docs.sh is unit-scoped; drafts
+    # sit in touched units by the paths-inside-the-unit rule, so dependents
+    # have nothing to rename.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'once per touched unit' "$skill"
+}
+
+@test "merge-record-names-units: the verification record carries the impact set" {
+    # verifies: D6 — one record per change; the record names the units.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'units touched, and the impact set' "$skill"
+    grep -q 'the record also names the units touched' "$skill"
+}
+
+@test "grill-dependency-assessment-interview: the provider's artefacts are consulted by name" {
+    # verifies: D10 — adopted as skill guidance, rejected as mechanism; the
+    # consultation list is the decision's own: exports, RMF, ADRs, open
+    # problem reports, SOUP.
+    skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
+    grep -q 'check-units.sh --exports' "$skill"
+    grep -q 'does its risk analysis consider this use' "$skill"
+    grep -q 'open problem reports' "$skill"
+    grep -q 'transitively its SOUP' "$skill"
+}
+
+@test "grill-gap-becomes-expectation: expects: grammar with the met condition" {
+    # verifies: D10/D11 — the gap is a requirement; met = provider's exported
+    # REQ carrying satisfies:.
+    skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
+    grep -q 'expects: <unit>' "$skill"
+    grep -q 'UNMET-EXPECTATION' "$skill"
+    grep -q 'exported REQ carrying `satisfies:' "$skill"
+    grep -q 'opened: YYYY-MM-DD' "$skill"
+    grep -q 'INCOMPLETE-EXPECTATION' "$skill"
+}
+
+@test "grill-glossary-escalates-interface-terms: unit default, root escalation, conflict rule" {
+    # verifies: D13 — a skill rule for the interviews, not a check.
+    skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
+    grep -q 'the root glossary owns interface terms' "$skill"
+    grep -q 'the moment it appears in an exported REQ or an `expects:` item' "$skill"
+    grep -q 'Two units disagreeing internally is not a conflict' "$skill"
+}
+
+@test "design-depends-on-is-a-decision: the design skill routes the edge through the assessment" {
+    # verifies: D10 — the consultation belongs to grill-requirements AND
+    # design-architecture; a dependency drawn on the diagram without the
+    # interview is an unassessed supplier.
+    skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
+    grep -q 'Declaring a dependency' "$skill"
+    grep -q 'an unassessed supplier' "$skill"
+}
+
+@test "design-segregation-cites-a-control: segregated_from: names its mechanism" {
+    # verifies: D5 + architecture — check-units.sh convicts an uncited entry
+    # (INCOMPLETE-SEGREGATION) and an uncovered class gap
+    # (MISCLASSED-DEPENDENCY); the skill must say where the citation lives.
+    skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
+    grep -q 'segregated_from:' "$skill"
+    grep -q 'INCOMPLETE-SEGREGATION' "$skill"
+    grep -q 'MISCLASSED-DEPENDENCY' "$skill"
+}
