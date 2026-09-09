@@ -17,7 +17,7 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 - `(implements: RC-...)` is required when the requirement realizes a risk
   control from the risk management file.
 - A requirement with no parent in system needs is marked `satisfies: derived`
-  and must be assessed in the risk ledger.
+  and must be assessed in the risk ledger, where an `assesses:` line names it.
 - Mint the ID when you write the item: run
   `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The token
   is random and is allocated against nothing, so two worktrees and two GitHub

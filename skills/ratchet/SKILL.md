@@ -302,6 +302,24 @@ manifest and every unit's config in one pass, and its findings
 >    name (`docs/problems/YYYY-MM-DD-slug.md`) is the honest answer when the
 >    real date is not recorded.
 >
+> **Derived assessments are now declared, and this DOES touch the existing
+> ledger.** `UNANALYZED-DERIVED` no longer passes a derived REQ/LLR whose ID
+> merely appears in the RMF; it requires a line carrying `assesses: <IDs>`
+> in the RMF files. Every derived item goes red at the first run after the
+> upgrade until the passage that assesses it carries the annotation. The cost
+> is bounded by the count of derived items — one project measured 26 items
+> across 11 risk files in about an hour, several assessments covering a group
+> — and the gate's line names the remedy. Put `assesses:` on the assessment,
+> never on a table row or a passing mention: that is the failure the change
+> exists to detect, and one of those 26 was exactly that.
+>
+> **`finalize-docs.sh` now rewrites references to the files it renames**,
+> across the ledger directories and the SOUP file, printing each rewrite, and
+> `check-trace.sh` reports `DANGLING-FILE` for a `DRAFT-*.md` reference in
+> those files that names no existing file. Links left dangling by earlier
+> merges go red at the first run; fix each by writing the merged file's dated
+> name. Plans and verification records are neither rewritten nor scanned.
+>
 > The two limits, `problem_age_days` and `problem_open_max`, are separate.
 > They ship set in `templates/config.yaml` but an existing config does not
 > gain them by upgrading the scripts — add them deliberately, with the numbers

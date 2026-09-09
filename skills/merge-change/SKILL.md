@@ -119,7 +119,16 @@ after the finding — anything that does not repeat.
 3. **Finalize the draft doc files:**
    `.guardrails/scripts/finalize-docs.sh` (preview with `--dry-run` first).
    This renames any `DRAFT-<branch>-<slug>.md` ledger file to
-   `<merge-date>-<slug>.md`. Commit the renames:
+   `<merge-date>-<slug>.md`. It then rewrites every root-relative path and
+   every bare name that refers to a renamed file across the ledger
+   directories and the SOUP file and prints one `rewrote FILE: old -> new`
+   line each; read those lines — a rewrite edits prose somebody else wrote. A
+   `left FILE: …` line means two drafts shared a bare name and the reference
+   must be written as a path by hand. A relative link such as
+   `../risk/DRAFT-x.md` is not rewritten; step 5 reports it as
+   `DANGLING-FILE` and you write the dated name by hand. The same holds for
+   a name wrapped in emphasis (`_DRAFT-x.md_`) or glued to a longer word.
+   Plans and verification records are never rewritten. Commit the renames:
    `git add -A && git -c commit.gpgsign=false commit -m "chore: finalize ledger files"`.
 
    There are no IDs to finalize. Every item was given its ID by `new-id.sh`

@@ -20,7 +20,7 @@ the high-level REQs), written under the software item they belong to:
 
 - Every design item must trace to at least one requirement.
 - Every LLR satisfies a REQ or is marked derived; derived LLRs must be
-  assessed in the risk ledger.
+  assessed in the risk ledger, where an `assesses:` line names them.
 - Tests verify LLRs where they exist; the parent REQ is covered
   transitively.
 - Class C items require LLRs (interfaces, algorithms, error behavior,

@@ -57,9 +57,12 @@ under analysis, walk the ISO 14971 chain explicitly:
 not system needs. For each one, assess: does it introduce a new hazard,
 affect an existing hazardous situation, or change a risk control's
 effectiveness? Record the assessment in the RMF under "Derived requirements
-assessment", naming the ID explicitly — `check-trace.sh` fails
-UNANALYZED-DERIVED on any derived item the RMF never mentions. "No hazard
-impact because <reason>" is a valid assessment; silence is not.
+assessment", and declare the items it covers on a line of its own —
+`assesses: REQ-…, LLR-…`. `check-trace.sh` fails UNANALYZED-DERIVED on any
+derived item no `assesses:` line names; the ID appearing in a table or a
+sentence does not count, because that is exactly what an author produces
+without assessing anything. "No hazard impact because <reason>" is a valid
+assessment; silence is not.
 
 ## Class awareness
 

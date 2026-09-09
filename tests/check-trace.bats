@@ -110,7 +110,7 @@ EOF
 @test "check-trace: derived LLR mentioned in RMF is not UNSATISFIED" {
     printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
-    printf '\nDerived requirements assessment: LLR-002 introduces no new hazard.\n' >> docs/risk/0001-01-01-base.md
+    printf '\nassesses: LLR-002\nIntroduces no new hazard.\n' >> docs/risk/0001-01-01-base.md
     commit_all derived
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -189,7 +189,7 @@ EOF
 @test "check-trace: longer-ID mention in RMF does not cover a derived LLR" {
     printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
-    printf '\nLLR-0020 has no hazard impact.\n' >> docs/risk/0001-01-01-base.md
+    printf '\nassesses: LLR-0020\nNo hazard impact.\n' >> docs/risk/0001-01-01-base.md
     commit_all substring
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
@@ -234,7 +234,7 @@ EOF
 @test "check-trace: derived assessment in any rmf-directory file counts" {
     printf '**LLR-002**: Debounce sensor input. satisfies: derived\n' > docs/architecture/2026-02-02-x.md
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
-    printf 'Derived requirements assessment: LLR-002 no hazard impact.\n' > docs/risk/2026-02-02-derived.md
+    printf 'assesses: LLR-002\nNo hazard impact.\n' > docs/risk/2026-02-02-derived.md
     commit_all derived-cross
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -1117,7 +1117,7 @@ EOF
     token_fixture
     printf '\n**LLR-q7w4zb**: A derived helper. satisfies: derived\n' \
         >> docs/architecture/0001-01-01-base.md
-    printf '\nLLR-q7w4zb assessed: no new hazard.\n' >> docs/risk/0001-01-01-base.md
+    printf '\nassesses: LLR-q7w4zb\nNo new hazard.\n' >> docs/risk/0001-01-01-base.md
     printf '# verifies: LLR-q7w4zb\ntrue\n' > tests/test_b.sh
     commit_all derived-ok
     run sh .guardrails/scripts/check-trace.sh
@@ -1136,7 +1136,7 @@ EOF
     token_fixture
     printf '\n**LLR-q7w4zb**: A derived helper. satisfies: derived\n' \
         >> docs/architecture/0001-01-01-base.md
-    printf '\nLLR-q7w4zbq assessed: a different item entirely.\n' \
+    printf '\nassesses: LLR-q7w4zbq\nA different item entirely.\n' \
         >> docs/risk/0001-01-01-base.md
     printf '# verifies: LLR-q7w4zb\ntrue\n' > tests/test_b.sh
     commit_all derived-prefix
@@ -1467,6 +1467,128 @@ LEDGER
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
     [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+@test "check-trace: a derived REQ named only in passing in the RMF is unassessed" {
+    # verifies: PR-n274s7 — the ID is what an author produces anyway; a scope
+    # note naming it is a mention, not an assessment.
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    printf '\n## Scope\n\nThis file covers REQ-001 and REQ-002.\n' >> docs/risk/0001-01-01-base.md
+    commit_all derived-mention
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a derived LLR named only in a verification-table row is unassessed" {
+    # verifies: PR-n274s7
+    printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    printf '\n| Item | Verified by |\n|---|---|\n| LLR-002 | tests/test_b.sh |\n' >> docs/risk/0001-01-01-base.md
+    commit_all derived-table
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an assesses: line accepts a derived REQ and a derived LLR" {
+    # verifies: PR-n274s7 — the boundary from the other side: a later
+    # tightening cannot pass by rejecting everything.
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: REQ-002, LLR-002\ntrue\n' > tests/test_b.sh
+    printf '\n## Derived requirements assessment\n\nassesses: REQ-002, LLR-002\nNeither adds a hazard: the retry is bounded and the debounce is read-only.\n' \
+        >> docs/risk/0001-01-01-base.md
+    commit_all derived-assessed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an assesses: run for one item does not clear a second it mentions" {
+    # verifies: PR-n274s7 — the run ends at the first character that is not
+    # an ID, comma or space, so the parenthetical credits nothing.
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: REQ-002, LLR-002\ntrue\n' > tests/test_b.sh
+    printf '\nassesses: REQ-002 (LLR-002 is a separate concern)\n' >> docs/risk/0001-01-01-base.md
+    commit_all derived-partial
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an assesses: line outside the RMF files counts for nothing" {
+    # verifies: PR-n274s7
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    printf '\nassesses: REQ-002\n' >> docs/architecture/0001-01-01-base.md
+    commit_all derived-elsewhere
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a ledger reference to a draft file that does not exist is DANGLING-FILE" {
+    # verifies: PR-58zsvf — the case finalize's rewrite cannot reach: the
+    # draft was renamed by another change's merge, or lives in another unit.
+    printf '\nHazards: docs/risk/DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all dangling-file
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    # The message is pinned, not just the site: the two arms were split so
+    # each says where it looked (review findings 19, 22, 23), and without an
+    # assertion on the text an edit that swapped the arms' wording — or
+    # dropped this arm's `_why` — would keep every test green.
+    [[ "$output" == *"DANGLING-FILE docs/risk/DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"*"found neither at the repository root nor beside the file naming it"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a reference to a draft file that exists is the in-flight state and passes" {
+    # verifies: PR-58zsvf — resolve, never ban: convicting an existing draft
+    # would fire on every worktree doing this correctly.
+    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-alarms.md
+    printf '\nHazards: docs/risk/DRAFT-feature-alarms.md, also DRAFT-feature-alarms.md.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all in-flight
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a bare draft basename resolves against every ledger directory" {
+    # verifies: PR-58zsvf
+    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-alarms.md
+    printf '\nSee DRAFT-feature-alarms.md.\n' >> docs/architecture/0001-01-01-base.md
+    commit_all bare-resolves
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a dangling draft reference outside the ledgers is prose" {
+    # verifies: PR-58zsvf — D3: strict_paths and plans narrate history and
+    # are not resolved; the scope is exactly the files finalize rewrites.
+    printf 'Created as DRAFT-feature-x.md, finalized at merge.\n' > src/NOTES.md
+    commit_all prose-ref
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: the grammar placeholder DRAFT-<branch>-<slug>.md is not a reference" {
+    # verifies: PR-58zsvf — the ledger READMEs shipped by ratchet carry it.
+    printf '\nfrom your worktree DRAFT-<branch>-<slug>.md, renamed at merge\n' >> docs/risk/0001-01-01-base.md
+    commit_all placeholder
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
 }
 
 @test "poisoning GR_AWK_ITEM_BLOCK changes every block gate's verdict" {
@@ -3032,4 +3154,37 @@ ORPHAN
     [ "$status" -eq 1 ]
     [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0002-01-01-orphan.md:3 (exported: belongs to no item)"* ]] || false
     [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0002-01-01-orphan.md:4 (expects: belongs to no item)"* ]]
+}
+
+@test "check-trace: a relative link to a draft that exists resolves from the referencing file" {
+    # verifies: PR-58zsvf — review finding 4: the one link form a markdown
+    # renderer follows must not be convicted while the file is there.
+    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-a.md
+    printf '\nSee [hazards](../risk/DRAFT-feature-a.md).\n' >> docs/requirements/0001-01-01-base.md
+    commit_all relative-link
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a glued prefix is not a path, so the bare name resolves" {
+    # verifies: PR-58zsvf — review finding 14: the scan pattern requires every
+    # path component to end in "/", so xDRAFT-… yields the bare name.
+    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-a.md
+    printf '\nGlued: xDRAFT-feature-a.md.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all glued-prefix
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a bare draft name found in no ledger directory says where it looked" {
+    # verifies: PR-58zsvf — review finding 19: a bare name resolves against
+    # THIS config's ledger directories, and the message must not claim the
+    # file does not exist anywhere.
+    printf '\nSee DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all bare-dangling
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"DANGLING-FILE DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"*"found in none of this config's ledger directories"* ]] || { echo "$output"; false; }
 }

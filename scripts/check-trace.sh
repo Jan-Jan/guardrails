@@ -12,9 +12,13 @@
 #   UNTRACED-DESIGN ID       — SDD whose block has no `traces:` REQ reference
 #   UNSATISFIED-LLR ID       — LLR whose block has no `satisfies:` naming a
 #                              REQ and is not marked `satisfies: derived`
-#   UNANALYZED-DERIVED ID    — REQ/LLR marked derived, never mentioned in RMF
+#   UNANALYZED-DERIVED ID    — REQ/LLR marked derived that no `assesses:`
+#                              line in the RMF names
 #   DANGLING-REF ID          — ID referenced in docs/strict/test paths but
 #                              defined nowhere
+#   DANGLING-FILE FILE       — a `DRAFT-<name>.md` ledger file (name
+#                              characters [A-Za-z0-9_.-]) named in a doc_*
+#                              file, by path or bare name, that does not exist
 #   MISPLACED-ITEM ID        — item defined outside the document configured
 #                              for its prefix
 #   ORPHAN-ANNOTATION FILE:LINE — a status:/opened:/traces:/satisfies:
@@ -74,7 +78,7 @@
 #     ID finalization are keyed on the whole prefix list, so it is checked,
 #     just not by a gate of its own.
 #
-# Annotation rule: for verifies:/mitigates:/implements:/satisfies:/traces:,
+# Annotation rule: for verifies:/mitigates:/implements:/satisfies:/traces:/assesses:,
 # only the ID list immediately following the FIRST occurrence of the keyword
 # counts. The run ends at the first character that is not an ID, comma or
 # space, so `verifies: REQ-001 (was REQ-042)` credits REQ-001 alone. The rule
@@ -442,10 +446,10 @@ done
 #     test_paths, so an item misfiled into ANOTHER ledger still has its
 #     reference IDs read — by that gate, not by its own;
 #   * and a HAZ block carries no annotation of its own that a gate parses, but
-#     moving it out of the RMF still blinds one: UNANALYZED-DERIVED is a
-#     free-text grep over $rmf_files, so a derived item assessed inside a HAZ
-#     block stops being assessed when that block leaves. It fails RED, so no
-#     false green — but the loss is real.
+#     moving it out of the RMF still blinds one: UNANALYZED-DERIVED reads
+#     `assesses:` lines over $rmf_files, so a derived item assessed inside a
+#     HAZ block stops being assessed when that block leaves. It fails RED, so
+#     no false green — but the loss is real.
 #
 # What is true for all six is the rule itself: an item belongs in the files
 # its key resolves to. The exceptions above are stated where there is room for
@@ -581,15 +585,31 @@ $(LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ITEM_BLOCK"'
         cur != "" && /satisfies:[ \t]*derived/ { print cur; cur = "" }
     ' "$f")"
 done
+# The assessment is DECLARED, not inferred. Until 2026-09-08 this was one
+# free-text `git grep` per derived ID over $rmf_files, so an ID in a
+# verification table, a scope note or a parenthetical read as an assessment.
+# The ID is exactly what an author produces anyway — a derived item is
+# normally named in the same file's verification table — so the gate could
+# not tell the failure it exists to detect from compliance. Measured on one
+# downstream project: 26 derived items, 25 genuinely assessed, one credited
+# on a parenthetical inside a blockquote (PR-n274s7).
+#
+# `assesses:` is read line-wise by ids_matching through GR_AWK_ID_RUN, like
+# mitigates: and implements:. The run ends at the first character that is not
+# an ID, comma or space, so an assessment of one item cannot clear a second
+# it names in passing. It is NOT in the ORPHAN-ANNOTATION list: an assessment
+# is prose under a heading, not an item block, and a column-one `assesses:`
+# belonging to no item is the normal case.
+#
+# Nothing here judges the assessment. It requires the author to say which
+# items a passage assesses — the standard every other annotation holds.
+# shellcheck disable=SC2086
+assessed="$(ids_matching 'assesses:' REQ $rmf_files)
+$(ids_matching 'assesses:' LLR $rmf_files)"
 for id in $derived_ids; do
-    # word-ish match: the ID must not be a prefix of a longer ID in the RMF
-    # shellcheck disable=SC2086
-    if [ -n "$rmf_files" ] && git grep -qE --untracked -- "${id}(${GR_ID_TAIL}|\$)" $rmf_files 2>/dev/null; then
-        :
-    else
-        echo "UNANALYZED-DERIVED $id (derived item not assessed in the RMF)"
-        fail=1
-    fi
+    gr_contains "$assessed" "$id" && continue
+    echo "UNANALYZED-DERIVED $id (no 'assesses:' line in the RMF names it)"
+    fail=1
 done
 
 # --- DANGLING-REF: every referenced ID must be defined somewhere ------------
@@ -661,6 +681,78 @@ $(ids_defined "$pfx")"
         else
             echo "DANGLING-REF $id (referenced but never defined)"
         fi
+        fail=1
+    done
+fi
+
+# --- DANGLING-FILE: a draft ledger file named in a ledger must exist --------
+# finalize-docs.sh rewrites references to the files it renames, over exactly
+# these files. What it cannot reach is convicted here: a reference held in
+# another worktree when the draft's own change merged and renamed it, or a
+# reference in another unit's ledger, which that unit's finalize never
+# scanned. Resolve, never ban — a reference to a draft that EXISTS is the
+# in-flight state of every unmerged change, and a gate on the prefix alone
+# would fire on every worktree doing this correctly.
+#
+# Scope is the rewrite's scope and not strict_paths (D3, 2026-09-08): plans
+# and verification records narrate the rename, and "created as DRAFT-x.md"
+# is a true sentence that must stay true. The token must look like a real
+# file name, so the grammar placeholder `DRAFT-<branch>-<slug>.md` in the
+# shipped ledger READMEs matches nothing. A path-shaped reference resolves
+# from the repository root and then from the referencing file's own
+# directory, so the relative link a markdown renderer actually follows is not
+# convicted while its target exists (review finding 4). Each arm's message
+# names the places it looked rather than asserting the file exists nowhere:
+# in a manifest repository a path written relative to another unit's root
+# resolves against neither root, and "does not exist" would be false of it
+# (findings 19 and 22). A bare basename resolves against every ledger
+# directory, because a bare name is how authors cite a sibling ledger.
+#
+# The token class is the ledger grammar's — letters, digits, underscore, dot,
+# hyphen — so a draft named outside it (a + or @ in the slug) is not looked
+# for; finalize renames any DRAFT-*.md, so this is narrower than the rename,
+# deliberately: widening it to any non-space character makes prose match
+# (review finding 18). A bare name resolves against THIS config's ledger
+# directories: in a manifest repository a bare reference to another unit's
+# draft is reported even while that draft exists, because a bare name across
+# units is ambiguous — the path form resolves (finding 19).
+file_scope=""
+for f in $srs_files $rmf_files $sad_files $soup_files $problems_files; do
+    [ -n "$f" ] && file_scope="${file_scope}${file_scope:+
+}$f"
+done
+doc_dirs=""
+for _key in doc_srs doc_rmf doc_sad doc_problems; do
+    _d=$(cfg_get "$_key")
+    [ -n "$_d" ] && [ -d "$_d" ] && doc_dirs="${doc_dirs}${doc_dirs:+
+}$_d"
+done
+if [ -n "$file_scope" ]; then
+    # shellcheck disable=SC2086
+    _drefs=$(git grep -n --untracked -oE '([A-Za-z0-9_.-]+/)*DRAFT-[A-Za-z0-9_.-]+\.md' -- $file_scope)
+    _st=$?
+    [ "$_st" -le 1 ] || gr_die "draft reference scan failed (git grep exit $_st)"
+    for _dr in $_drefs; do
+        [ -n "$_dr" ] || continue
+        _dfile=${_dr%%:*}
+        _drest=${_dr#*:}
+        _dline=${_drest%%:*}
+        _dref=${_drest#*:}
+        case "$_dref" in
+            (*/*)
+                [ -e "$_dref" ] && continue
+                case "$_dfile" in (*/*) _ddir=${_dfile%/*} ;; (*) _ddir=. ;; esac
+                [ -e "$_ddir/$_dref" ] && continue
+                _why="names a draft ledger file found neither at the repository root nor beside the file naming it — after a merge, write the dated name" ;;
+            (*)
+                _found=0
+                for _d in $doc_dirs; do
+                    [ -e "$_d/$_dref" ] && { _found=1; break; }
+                done
+                [ "$_found" -eq 1 ] && continue
+                _why="names a draft ledger file found in none of this config's ledger directories — after a merge, write the dated name; across units, write the path" ;;
+        esac
+        echo "DANGLING-FILE $_dref ($_dfile:$_dline $_why)"
         fail=1
     done
 fi
@@ -843,8 +935,8 @@ fi
 # absent from the known-problem review, with the run still exiting 0.
 #
 # Scope is per keyword, and only where that keyword is BLOCK-parsed:
-# `mitigates:`, `implements:` and `verifies:` are read line-wise by
-# ids_matching, never against a block, so they cannot be orphaned. Reporting
+# `mitigates:`, `implements:`, `verifies:` and `assesses:` are read line-wise
+# by ids_matching, never against a block, so they cannot be orphaned. Reporting
 # them anyway — or reporting `status:` from the SRS, where nothing reads it —
 # would be noise, and noise is what teaches people to read past the output.
 #

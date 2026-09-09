@@ -654,3 +654,39 @@
     grep -q 'INCOMPLETE-SEGREGATION' "$skill"
     grep -q 'MISCLASSED-DEPENDENCY' "$skill"
 }
+
+@test "assesses-is-the-remedy: every place that tells an author how to assess names the annotation" {
+    # verifies: PR-n274s7 — D1: hard cut, so the remedy must be stated where
+    # the author reads, not only in the gate's message.
+    root="$BATS_TEST_DIRNAME/.."
+    grep -q 'assesses:' "$root/skills/check-traceability/SKILL.md"
+    grep -q 'assesses:' "$root/skills/analyze-risks/SKILL.md"
+    grep -q 'assesses:' "$root/skills/grill-requirements/SKILL.md"
+    grep -q 'assesses:' "$root/templates/rmf.md"
+    grep -q 'assesses:' "$root/templates/srs.md"
+    grep -q 'assesses:' "$root/templates/sad.md"
+    grep -q 'assesses:' "$root/templates/AGENTS-block.md"
+    grep -q 'assesses:' "$root/README.md"
+    ! grep -q 'never mentioned in the RMF' "$root/skills/check-traceability/SKILL.md"
+    ! grep -q 'RMF never mentions' "$root/skills/analyze-risks/SKILL.md"
+    ! grep -q 'the RMF must mention it' "$root/skills/grill-requirements/SKILL.md"
+}
+
+@test "upgrade-notes-announce-the-hard-cut: ratchet says derived assessments go red at upgrade" {
+    # verifies: PR-n274s7 — D1
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'Derived assessments are now declared' "$skill"
+    grep -q 'DANGLING-FILE' "$skill"
+}
+
+@test "merge-step-3-reports-rewrites: merge-change expects finalize to print what it rewrote" {
+    # verifies: PR-58zsvf — D2
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'rewrote' "$skill"
+    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../README.md"
+    grep -q 'reported as left' "$BATS_TEST_DIRNAME/../README.md"
+    grep -q 'root-relative' "$BATS_TEST_DIRNAME/../README.md"
+    grep -q 'root-relative' "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'relative link' "$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+}

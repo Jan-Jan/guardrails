@@ -72,8 +72,8 @@ file that defines them** — definitions never move. On single-file projects
 - **Derived requirements:** when a requirement exists only because of how
   the design turned out (no parent in system/user needs), do not invent a
   fake parent — mark it `satisfies: derived` and hand it to `analyze-risks`
-  for assessment (the RMF must mention it; `check-trace.sh` enforces this
-  as UNANALYZED-DERIVED).
+  for assessment (an `assesses:` line in the RMF must name it;
+  `check-trace.sh` enforces this as UNANALYZED-DERIVED).
 - One behavior per requirement, phrased so a test can verify it. "Fast",
   "user-friendly", "robust" are not requirements — grill until they become
   numbers or observable behavior.

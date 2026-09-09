@@ -40,7 +40,8 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 
 MC/DC beyond the class C target is optional extra credit. Requirements with
 no parent in system needs are marked `satisfies: derived` and must be
-assessed in the risk management file (UNANALYZED-DERIVED otherwise). Every
+assessed in the risk management file, on a passage carrying `assesses: <ID>`
+(UNANALYZED-DERIVED otherwise). Every
 bug becomes a problem report (`resolve-problem` skill) in the log at
 `doc_problems` (config), carrying an `opened:` date while it
 is open; open PRs are listed at each merge with their age, and past

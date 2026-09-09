@@ -18,9 +18,11 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 - Every hazard must have at least one risk control that `mitigates:` it.
 - Every risk control must be implemented by at least one requirement carrying
   `(implements: RC-...)` in the requirements ledger.
-- Derived REQ/LLR assessments live here too: name the ID and its hazard
-  impact ("no hazard impact because <reason>" is valid; silence fails
-  check-trace as UNANALYZED-DERIVED).
+- Derived REQ/LLR assessments live here too. Write the assessment under a
+  heading and declare which items it covers on a line of its own:
+  `assesses: REQ-…, LLR-…`. "No hazard impact because <reason>" is a valid
+  assessment; an ID in a table or a passing sentence is not, and check-trace
+  reports the item as UNANALYZED-DERIVED.
 - Mint the ID when you write the item: run
   `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. Never
   invent one by hand.
