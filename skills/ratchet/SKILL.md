@@ -327,6 +327,78 @@ manifest and every unit's config in one pass, and its findings
 > `problems:` summary line on every run, which is the point: an unset limit is
 > a decision that stays visible.
 >
+> **A problem report now has a third status, `accepted`, and this part of the
+> upgrade touches nothing you have already written.** It is purely additive:
+> no ledger in existence uses `accepted`, because until this version it was a
+> `MALFORMED-STATUS`, so nothing goes red on the day you upgrade and there is
+> no backfill. Three things to know:
+>
+> * **`accepted` means investigated and ruled on** — the project has decided
+>   the software is not changing. `check-trace.sh` prints it as `ACCEPTED-PR`
+>   with the ruling on the line, counts it in the `problems:` summary as
+>   `accepted N`, and exempts it from `problem_age_days` and from
+>   `problem_open_max`. It is NOT exempt from the roll-call: a decision nobody
+>   is reminded of decays back into a thing nobody remembers deciding.
+> * **`disposition:` is required on it, and that is what makes the status safe
+>   to have.** Without it, `accepted` is a one-word escape from both limits,
+>   reachable by anyone looking at a red `PROBLEM-BACKLOG`, and the gate would
+>   ship its own bypass. `accepted` with no `disposition:` — or with no
+>   `opened:` — is `INCOMPLETE-PROBLEM`. `disposition:` is the same keyword
+>   `check-review.sh` already reads on a finding block; it is read here at
+>   column one inside the item's block, first occurrence winning, like
+>   `status:` and `opened:`, and an orphaned one is `ORPHAN-ANNOTATION`.
+>   The `opened:` on an accepted item is judged as a date, exactly as an open
+>   item's is — malformed or more than a day ahead is `MALFORMED-DATE`. It is
+>   not aging against anything; the field records when the problem was RAISED,
+>   which the roll-call prints, and a date after today falsifies that on a
+>   ruled item as much as on an open one.
+> * **It is not a way to clear a backlog.** If you are reaching for it because
+>   the count is red, the honest move is a ruling with a date you can defend,
+>   or resolving the item. `resolve-problem` §4 has the form.
+>
+> The `problems:` summary line gained a field: it now reads
+> `problems: open N, accepted N, oldest …`. Any CI step or record that greps
+> for the old spelling `problems: open N, oldest` needs the new one.
+>
+> **Supersession is now checked for reciprocity, and unlike the status above,
+> this one CAN go red on a ledger you have already written.** `merge-change`
+> step 6a has always prescribed the pair — `supersedes: <old ID>` on the
+> replacement, `superseded-by: <new ID>` on the replaced item — and until this
+> version no script read either word, so any half-applied supersession already
+> in your ledgers goes red at the first run:
+>
+> * `NON-RECIPROCAL-SUPERSESSION <ID> (supersedes: … , which carries no
+>   superseded-by: …)` — and the mirror form for the other direction. **The
+>   fix is to add the missing half**, at column one inside the named item's
+>   block, never to delete the half that is there: the annotation that exists
+>   is the true one, and deleting it loses the only record that the
+>   replacement happened. Both annotations are lists, so one item may replace
+>   several predecessors.
+> * An orphaned `supersedes:` or `superseded-by:` — one at column one
+>   belonging to no item block — is `ORPHAN-ANNOTATION`, like `status:` and
+>   `traces:` before it.
+> * `MALFORMED-SUPERSESSION <ID> (supersedes: <value> — no item ID in it)`, or
+>   `(supersedes: has no value)`, for a half the reader cannot use. This is the
+>   one that may surprise a ledger written in good faith: `supersedes: the
+>   original dosing requirement` is prose, not a reference, and until this
+>   version it recorded nothing at all while the run exited 0. Give it the ID.
+> * `MALFORMED-SUPERSESSION <ID> (supersedes: <token> — not an item ID)` for
+>   ONE mistyped entry in a list that also carries good ones:
+>   `supersedes: REQ-m7dq3v, REQ-nope` recorded half the supersession and
+>   said nothing until this version. The rule is the reference-side twin of
+>   `MALFORMED-ID` — a token in list position carrying a declared prefix whose
+>   body is not an ID. Prose and a parenthetical after the list end it and are
+>   never reported: `supersedes: REQ-m7dq3v (was REQ-001)` is clean.
+> * The cost is bounded by the count of supersessions you have recorded, which
+>   for most projects is small; each line names the item and the missing half.
+>
+> **It checks reciprocity and nothing else, deliberately.** It does not sweep
+> the tree for other references to a superseded ID — an `affects:` or
+> `traces:` line may legitimately name an old ID as history, so there is no
+> unambiguous verdict there and none is invented. That sweep stays a review
+> job, and `merge-change` step 6a says so. Existence is a separate question
+> already answered by `DANGLING-REF`.
+>
 > **On macOS, `check-review.sh` has never run at all.** From the version that
 > introduced it until this one, its record scan handed `awk -v` a value
 > carrying literal newlines. The awk that ships with macOS — BWK, `awk version

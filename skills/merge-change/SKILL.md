@@ -109,6 +109,18 @@ after the finding — anything that does not repeat.
    for step 4: `check-ids.sh` has no gate against the base branch, because
    after this merge every ID the base defines is in the tree its in-tree
    duplicate scan already reads. Skip the fetch and that stops being true.
+
+   **A project may nevertheless put the remote out of scope**, and one does:
+   this toolkit's own repository (`AGENTS.md` non-negotiable 5) forbids an agent
+   to fetch or push at all, because the fetch blocks on a hardware key only the
+   user can touch. That is a deliberate trade, not a loophole, and it is only
+   available to a project that can state why the lost coverage does not matter
+   to it — there, that IDs are random and minted against nothing, so two
+   branches cannot collide by construction and the scan was covering a vanishing
+   case. **Do not adopt it by analogy.** With sequential IDs, or several people
+   merging to a shared remote, the fetch is load-bearing exactly as written
+   above. A project that puts the remote out of scope says so in its own
+   AGENTS.md, with its own reason, and says it in the verification record too.
 2. **Dispatch the verification suite** the way `verify-before-merge` describes
    — a fresh subagent runs every `verify_commands` entry in the worktree
    (per unit over the impact set in a multi-unit repository — see
@@ -198,6 +210,35 @@ after the finding — anything that does not repeat.
      `verifies: <old ID>, <new ID>`. `superseded-by:` exempts nothing: the old
      item keeps its definition, so `check-trace.sh` keeps demanding a test for
      it, and the dual annotation is what keeps MISSING-TEST clean for both.
+
+   **The pair is now enforced, and only the pair.** `check-trace.sh` reports
+   `NON-RECIPROCAL-SUPERSESSION` when `supersedes: <old ID>` on the
+   replacement is not answered by `superseded-by: <new ID>` on the replaced
+   item, or the reverse — read at column one inside the item's block, in every
+   ledger, and an orphaned half is `ORPHAN-ANNOTATION`. Both annotations are
+   lists, so an item may replace more than one predecessor, and a second
+   `supersedes:` line in the same block adds to the first rather than being
+   ignored by it.
+
+   A half whose value carries no readable ID is `MALFORMED-SUPERSESSION`, not
+   silence. `supersedes: the old requirement`, a typo, or the keyword with
+   nothing after it would otherwise record no supersession at all — a
+   half-applied supersession passing green, which is the case this gate exists
+   to remove. So is ONE mistyped entry in a list that also carries good ones:
+   `supersedes: REQ-m7dq3v, REQ-nope` reports
+   `(supersedes: REQ-nope — not an item ID)` rather than recording half the
+   list. Prose and a parenthetical after the list end it and stay clean —
+   `supersedes: REQ-m7dq3v (was REQ-001)` and
+   `supersedes: REQ-m7dq3v — the original wording` are both correct.
+
+   What the gate does **not** check, and the reviewer therefore still does by
+   hand: **every other site that names the superseded ID.** An `affects:`,
+   `traces:` or verification-table row may legitimately name an old ID as
+   history, so there is no unambiguous verdict to give and none is invented.
+   Budget for that sweep — on the first downstream use of this form, six sites
+   were half-applied; reciprocity accounts for five of them, and the sixth was
+   a reference the gate cannot judge. Existence is a third question and
+   already `DANGLING-REF`'s: an ID that was never defined is reported there.
 
    **Findings come back ready to file.** The reviewer returns each one in the
    shape step 6b's record already wants —
@@ -329,11 +370,23 @@ after the finding — anything that does not repeat.
 
    ```sh
    # in the change worktree, before the squash is staged
-   git worktree list
+   sh .guardrails/scripts/finish-merge.sh --check <change-branch>
    ```
 
-   Read the list for paths inside the change worktree: none may still be
-   registered there. A worktree registered anywhere else is not this step's
+   This is guard 4 itself, asked in advance. It exits 0 with `nothing is
+   registered inside <path>`, or 1 naming every worktree that lies inside the
+   change worktree — and there is a third answer to read carefully: exit 0 with
+   `no worktree is registered for <branch>, so nothing was inspected`, which is
+   not a pass. It means no worktree was found for that branch at all, so guard 4
+   had nothing to look at. From the change worktree, where one IS registered,
+   that answer means you named the wrong branch. It removes nothing and deletes nothing, and it runs from
+   the change worktree, which the rest of the script refuses. **It proves guard
+   4 and nothing else.** Guards 1 and 2 both read the squash commit, which does
+   not exist yet at this step, so neither can be preflighted; guard 3 *is* the
+   removal, and cannot be proved without doing it. A green answer here says
+   only that guard 4 will not be what refuses step 8.
+
+   A worktree registered anywhere else is not this step's
    business — another change's, a piece of tooling, the primary checkout
    itself — and guard 4 never mentions it either, because removing the change
    worktree does not touch it. A path inside is a removal that was skipped or
@@ -397,6 +450,13 @@ after the finding — anything that does not repeat.
    worktree and deletes the branch. **Cleanup happens
    only after the signature check passes** — that is the script's first guard,
    not a step anyone may take on their own judgment.
+
+   Exactly one of those four is knowable before the squash exists, and step 6d
+   has already asked it: `finish-merge.sh --check <branch>` answers guard 4 on
+   its own, from the change worktree, removing nothing. The other three cannot
+   be preflighted — two of them read the squash commit, and the third is the
+   removal itself — so a green `--check` narrows what step 8 can refuse but
+   does not promise it will not.
 
    If signing fails (no key configured), **stop**: point to the ratchet setup
    checklist. There is no unsigned fallback, ever.

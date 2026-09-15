@@ -2114,6 +2114,369 @@ POISON
         || { echo "the orphan scan kept its own front-matter rule: $output"; false; }
 }
 
+# --- NON-RECIPROCAL-SUPERSESSION: the pair merge-change prescribes ----------
+# merge-change step 6a prescribes `supersedes:` on the replacement and
+# `superseded-by:` on the replaced item, and until this gate no script read
+# either word: a half-applied supersession was found by a human reading every
+# site that named the old ID, or not at all.
+#
+# Reciprocity is the half a gate can prove. These pin THAT and only that — a
+# tree-wide sweep for stale references to a superseded ID is a separate
+# question (an `affects:` line may name an old ID as history), and existence
+# is already DANGLING-REF's job.
+
+# verifies: PR-zt5c2v
+@test "check-trace: supersedes: with no matching superseded-by: is reported" {
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-m7dq3v\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\ntrue\n' > tests/test_sup.sh
+    commit_all half-applied-supersedes
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-m7dq3v, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: superseded-by: with no matching supersedes: is reported" {
+    # The other direction, and it is not the same test: the replaced item may
+    # be annotated by an author who never touched the replacement's block.
+    printf '\n**REQ-k2vt8n**: The software shall alarm on an occlusion within two seconds.\n\n**REQ-r5jw4h**: The software shall alarm on an occlusion.\nsuperseded-by: REQ-k2vt8n\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-k2vt8n\n# verifies: REQ-r5jw4h\ntrue\n' > tests/test_sup.sh
+    commit_all half-applied-superseded-by
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-r5jw4h (superseded-by: REQ-k2vt8n, which carries no supersedes: REQ-r5jw4h)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a reciprocal supersession pair is silent" {
+    # `superseded-by:` exempts nothing, so both items keep their tests — the
+    # supersession itself is the only thing under examination here.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all reciprocal-pair
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"NON-RECIPROCAL-SUPERSESSION"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: supersession is read across ledgers, not only the SRS" {
+    # A problem report supersedes another as readily as a requirement does, and
+    # the reader opens on every prefix rather than on REQ alone.
+    printf '**PR-p3xz6b**: Crash on an empty dose field, diagnosed.\nopened: %s\nstatus: resolved\nsupersedes: PR-q8fn5d\n\n**PR-q8fn5d**: Crash on an empty dose field.\nopened: %s\nstatus: resolved\n' \
+        "$(days_ago 2)" "$(days_ago 9)" > docs/problems/0001-01-01-base.md
+    commit_all supersession-in-problems
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION PR-p3xz6b (supersedes: PR-q8fn5d, which carries no superseded-by: PR-p3xz6b)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: an orphaned supersedes: is reported" {
+    # Block-parsed now, so the backstop must cover it: otherwise a supersession
+    # belonging to no item is read, matched and dropped in silence, and the
+    # item it was meant for reads as never superseded.
+    printf '# Notes\n\nsupersedes: REQ-001\n' > docs/requirements/2026-01-02-notes.md
+    commit_all orphan-supersedes
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"(supersedes: belongs to no item)"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: an orphaned superseded-by: is reported" {
+    printf '# Notes\n\nsuperseded-by: REQ-001\n' > docs/requirements/2026-01-02-notes.md
+    commit_all orphan-superseded-by
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"(superseded-by: belongs to no item)"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: supersedes: naming two predecessors is judged per predecessor" {
+    # The annotation is a LIST, like every other one here, and one applied half
+    # must not answer for the other: the downstream case that motivated this
+    # gate was five correct sites and one missing, not all-or-nothing.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-m7dq3v, REQ-k2vt8n\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\nsuperseded-by: REQ-s4pr2k\n\n**REQ-k2vt8n**: The software shall bound the infusion rate.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\n# verifies: REQ-k2vt8n\ntrue\n' > tests/test_sup.sh
+    commit_all two-predecessors
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-k2vt8n, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" != *"supersedes: REQ-m7dq3v"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a supersedes: value carrying no ID is reported, not dropped" {
+    # A run with no readable ID in it recorded NO KEY, so
+    # NON-RECIPROCAL-SUPERSESSION could not fire, and ORPHAN-ANNOTATION could
+    # not either — that backstop sees only lines OUTSIDE a block. A
+    # supersession annotated with prose, a typo, or nothing therefore read as
+    # no supersession at all: a half-applied supersession passing green, which
+    # is the exact case this gate was built to remove. Found by the
+    # independent field review.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: the old rate requirement\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-prose
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-s4pr2k (supersedes: the old rate requirement — no item ID in it)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a supersedes: with no value at all is reported" {
+    # The empty value, which elsewhere in this file "counts as absent" — but
+    # absent is precisely the false green here, so it is reported instead.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes:\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-empty
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-s4pr2k (supersedes: has no value)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a superseded-by: value carrying no ID is reported too" {
+    # The other direction, and it is not the same code path: the two keywords
+    # are read by two separate rules, and a fix applied to one of them leaves
+    # the other silent.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: whatever replaced it\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all superseded-by-prose
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p (superseded-by: whatever replaced it — no item ID in it)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a supersedes: list mixing a valid ID with an over-long one is reported" {
+    # THE HALF-SILENT CASE, found by the independent field review. gr_id_run
+    # DISCARDS REQ-a3k9z2x — a seven-character body is not an ID, and
+    # crediting the six characters it opens with would name an item nobody
+    # wrote — so the run came back non-empty, sup_run found a readable ID and
+    # said nothing, and ONE HALF of a two-predecessor supersession was recorded
+    # while the other was absent. Exit 0, on the exact mistake this gate exists
+    # to catch: a mistyped ID in a list, not an unreadable line.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-m7dq3v, REQ-a3k9z2x\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\nsuperseded-by: REQ-s4pr2k\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-overlong-token
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-s4pr2k (supersedes: REQ-a3k9z2x — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a supersedes: list mixing a valid ID with a too-short one is reported" {
+    # The other spelling of the same silence, and NOT the same path through
+    # gr_id_run: an over-long body is matched and then discarded, while
+    # REQ-nope never matches at all and simply ENDS the run. Both left the run
+    # non-empty; both passed green.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-m7dq3v, REQ-nope\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\nsuperseded-by: REQ-s4pr2k\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-short-token
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-s4pr2k (supersedes: REQ-nope — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: prose after a supersedes: ID is not a malformed ID" {
+    # THE REGRESSION GUARD on the rule above, and the reason the rule is not
+    # "report whatever gr_id_run discarded". The annotation ends at the first
+    # thing that is not an ID, a comma or a space, and everything after it is
+    # commentary — the toolkit-wide rule that also makes
+    # `verifies: REQ-001 (was REQ-042)` credit REQ-001 alone. A gate that
+    # convicted this would be unusable on the ledgers already written.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p — the original dosing requirement\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-trailing-prose
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a parenthetical after a supersedes: ID is not a malformed ID" {
+    # The established form, spelled out in gr_id_run itself. A parenthetical
+    # naming the ID this one replaces is history, not a second list entry, and
+    # the run has already ended at the parenthesis.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p (was REQ-001)\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-parenthetical
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a superseded-by: list mixing a valid ID with an over-long one is reported" {
+    # The other direction, read by a separate rule: a fix applied to one
+    # keyword leaves the other silent, which is how this scan was built and how
+    # it must stay tested.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s, REQ-a3k9z2x\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all superseded-by-overlong-token
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p (superseded-by: REQ-a3k9z2x — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a superseded-by: list mixing a valid ID with a too-short one is reported" {
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s, REQ-nope\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all superseded-by-short-token
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p (superseded-by: REQ-nope — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: prose after a superseded-by: ID is not a malformed ID" {
+    # The regression guard in the second direction. Both keywords share the
+    # rule, and both must be proven not to convict a correctly annotated
+    # ledger.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s — the clamping rewrite\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all superseded-by-trailing-prose
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a supersedes: list mixing a valid ID with a truncated prefix is reported" {
+    # FINDING-12, and it is finding-8 recurring inside its own fix. The loose
+    # form demanded at least one body character, so a prefix truncated to its
+    # hyphen matched NOTHING and simply ended the walk: `REQ-m7dq3v` was
+    # recorded, the second entry vanished, and the run came back non-empty so
+    # the all-empty backstop never fired either. Exit 0, in total silence, on
+    # half a supersession — while the SAME token ALONE was reported.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-m7dq3v, REQ-\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\nsuperseded-by: REQ-s4pr2k\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-truncated-prefix
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-s4pr2k (supersedes: REQ- — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a superseded-by: list mixing a valid ID with a truncated prefix is reported" {
+    # The second keyword, tested separately for the same reason the over-long
+    # case is: the two directions are read by two rules, and a fix landed on
+    # one leaves the other silent.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s, REQ-\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all superseded-by-truncated-prefix
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p (superseded-by: REQ- — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a truncated prefix at the head of a supersedes: list is reported" {
+    # HEAD POSITION, not tail, and it is a different path: gr_id_run cannot
+    # match at position one either, so the whole run comes back EMPTY and the
+    # valid ID behind the truncation is dropped with it. The reader has to be
+    # told which token is wrong, not handed the whole value.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-, REQ-m7dq3v\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\nsuperseded-by: REQ-s4pr2k\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-truncated-prefix-head
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-s4pr2k (supersedes: REQ- — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: a lone truncated prefix is reported exactly once" {
+    # THE DOUBLE-REPORT GUARD. Widening the loose form to reach a truncated
+    # prefix puts `supersedes: REQ-` inside BOTH paths — the walk now convicts
+    # the token, and the all-empty backstop still sees an empty run. sup_run
+    # returns as soon as the walk has spoken, so the reader gets ONE line
+    # naming the token that is wrong, not two naming the same annotation.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\ntrue\n' > tests/test_sup.sh
+    commit_all supersedes-lone-truncated-prefix
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    n=$(printf '%s\n' "$output" | grep -c 'MALFORMED-SUPERSESSION REQ-s4pr2k')
+    [ "$n" -eq 1 ] || { echo "reported $n times: $output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-s4pr2k (supersedes: REQ- — not an item ID)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: two supersedes: lines in one block are both judged" {
+    # ACCUMULATION, and it is the documented departure from the first-wins
+    # rule every other keyword in this scan uses: the annotation is a LIST,
+    # and a second such line in the same block ADDS to it.
+    #
+    # `supersedes: naming two predecessors` above cannot pin that — it puts
+    # both IDs on ONE line, which gr_id_run returns whole under either policy.
+    # Restore the `!seen` guard and that test stays green while the second
+    # annotation is dropped in silence. This one reddens: both predecessors
+    # are unreciprocated, and first-wins reports only the first.
+    printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-m7dq3v\nsupersedes: REQ-k2vt8n\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\n\n**REQ-k2vt8n**: The software shall bound the infusion rate.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\n# verifies: REQ-k2vt8n\ntrue\n' > tests/test_sup.sh
+    commit_all two-supersedes-lines
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-m7dq3v, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+        || { echo "the first line was dropped: $output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-k2vt8n, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+        || { echo "the second supersedes: line was dropped: $output"; false; }
+}
+
+# verifies: PR-zt5c2v
+@test "check-trace: an affects: line naming a superseded ID is not a finding" {
+    # THE SCOPE BOUNDARY, and it is deliberate. An `affects:` line may name an
+    # old ID as history, so there is no unambiguous verdict to give and the
+    # gate gives none: reciprocity is the half that is checkable, and the
+    # tree-wide reference sweep stays a review job (merge-change step 6a).
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '**PR-p3xz6b**: Rate clamp was off by one, against the old wording.\naffects: REQ-w9hk3p\nopened: %s\nstatus: resolved\n' \
+        "$(days_ago 4)" > docs/problems/0001-01-01-base.md
+    commit_all stale-reference-not-swept
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"NON-RECIPROCAL-SUPERSESSION"* ]] || { echo "$output"; false; }
+}
+
 # --- Problem-report triage: practice-feedback finding 09a -------------------
 # The roll-call has to be complete before it is worth pricing higher. These
 # pin the reader; the limits that act on it are further down.
@@ -2440,14 +2803,14 @@ POISON
     commit_all summary-unset
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"problems: open 1, oldest 7 days; limits age none, open none"* ]] \
+    [[ "$output" == *"problems: open 1, accepted 0, oldest 7 days; limits age none, open none"* ]] \
         || { echo "$output"; false; }
 
     printf 'problem_age_days: 3\nproblem_open_max: 9\n' >> .guardrails/config.yaml
     commit_all summary-set
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"problems: open 1, oldest 7 days; limits age 3, open 9"* ]] \
+    [[ "$output" == *"problems: open 1, accepted 0, oldest 7 days; limits age 3, open 9"* ]] \
         || { echo "$output"; false; }
 }
 
@@ -2457,7 +2820,7 @@ POISON
     commit_all summary-empty
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"problems: open 0, oldest n/a;"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 0, accepted 0, oldest n/a;"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an undatable open item counts toward the backlog limit" {
@@ -2472,6 +2835,147 @@ POISON
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"PROBLEM-BACKLOG (2 open problem reports, limit 1)"* ]] || { echo "$output"; false; }
+}
+
+# --- status: accepted — a problem the project investigated and ruled on -----
+
+# verifies: PR-4fwfjp
+@test "check-trace: an accepted problem with a disposition: is not stale and not counted open" {
+    # The age is absurd on purpose: with problem_age_days set, the exemption is
+    # the only thing standing between this item and STALE-PROBLEM.
+    printf 'problem_age_days: 30\n' >> .guardrails/config.yaml
+    printf '**PR-a4c7k2**: Cold-cache startup takes eleven seconds.\nopened: 2020-01-01\nstatus: accepted\ndisposition: ruled on 2026-09-07 — the cost exceeds the risk\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all accepted-not-stale
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"ACCEPTED-PR PR-a4c7k2"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"STALE-PROBLEM"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 0, accepted 1"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: an accepted problem with no disposition: is INCOMPLETE-PROBLEM" {
+    # Without this, `accepted` is a one-word escape from both limits and the
+    # gate ships its own bypass. The ruling is the price of the exemption.
+    printf '**PR-b3f8m5**: Log rotation misses the final file.\nopened: %s\nstatus: accepted\n' "$(days_ago 3)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all accepted-no-disposition
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-b3f8m5 (accepted, no disposition:)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: an accepted problem with no opened: is INCOMPLETE-PROBLEM" {
+    # An accepted item still has a date and still appears in the roll-call, so
+    # the field that makes the roll-call readable is still required.
+    printf '**PR-g8m4r2**: Retry duplicates one audit line.\nstatus: accepted\ndisposition: ruled on 2026-09-07, reasons in the review record\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all accepted-no-opened
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-g8m4r2 (accepted, no opened:)"* ]] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: an accepted problem's opened: is judged as a date" {
+    # The field was required and never read: the accepted branch returned
+    # before gr_date_ok, so `status: accepted` with 2020-13-45 passed at exit
+    # 0 while the identical value on an OPEN item was MALFORMED-DATE. Found by
+    # the independent field review.
+    printf '**PR-a4c7k2**: Cold-cache startup takes eleven seconds.\nopened: 2020-13-45\nstatus: accepted\ndisposition: ruled on 2026-09-07 — the cost exceeds the risk\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all accepted-bad-date
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-DATE PR-a4c7k2"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"not a YYYY-MM-DD calendar date"* ]] \
+        || { echo "rejected for the wrong reason: $output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: an accepted problem's opened: cannot be in the future" {
+    # An accepted item ages against nothing, so this is not the false-green
+    # argument the open branch makes: the date is the record of WHEN the
+    # problem was raised, and a date after today falsifies that record on a
+    # ruled item exactly as it does on an open one. The same one day of
+    # tolerance applies, for the same timezone reason — there is nothing to
+    # clamp here, since no age is computed.
+    printf '**PR-a4c7k2**: Cold-cache startup takes eleven seconds.\nopened: %s\nstatus: accepted\ndisposition: ruled on 2026-09-07 — the cost exceeds the risk\n' "$(days_ago -2)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all accepted-future-date
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-DATE PR-a4c7k2"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"future"* ]] || { echo "$output"; false; }
+
+    # One day ahead is a timezone disagreement about "today", not an error.
+    printf '**PR-a4c7k2**: Cold-cache startup takes eleven seconds.\nopened: %s\nstatus: accepted\ndisposition: ruled on 2026-09-07 — the cost exceeds the risk\n' "$(days_ago -1)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all accepted-tomorrow
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"ACCEPTED-PR PR-a4c7k2"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: the ACCEPTED-PR roll-call line carries the date" {
+    # `opened:` is required on an accepted item because "an accepted item
+    # still has a date, and the roll-call reports it" — which the roll-call
+    # did not do, contradicting both that justification and the template.
+    # The item is old enough that the exemption is still what keeps it green.
+    printf 'problem_age_days: 30\n' >> .guardrails/config.yaml
+    _opd=$(days_ago 400)
+    printf '**PR-a4c7k2**: Cold-cache startup takes eleven seconds.\nopened: %s\nstatus: accepted\ndisposition: ruled on 2026-09-07 — the cost exceeds the risk\n' "$_opd" \
+        > docs/problems/0001-01-01-base.md
+    commit_all accepted-rollcall-date
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"ACCEPTED-PR PR-a4c7k2 (opened: $_opd, accepted: ruled on 2026-09-07 — the cost exceeds the risk)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" != *"STALE-PROBLEM"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: an accepted problem does not count toward problem_open_max" {
+    # A project that triages honestly must not reach the ceiling faster than
+    # one that quietly drops things.
+    printf 'problem_age_days: 90\nproblem_open_max: 1\n' >> .guardrails/config.yaml
+    write_pr PR-d5h9n4 open "$(days_ago 1)"
+    printf '**PR-e6j2p7**: Duplicate audit line on retry.\nopened: %s\nstatus: accepted\ndisposition: accepted 2026-09-07, reasons in the review record\n' "$(days_ago 9)" \
+        > docs/problems/2026-01-02-second.md
+    commit_all accepted-not-in-backlog
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"PROBLEM-BACKLOG"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 1, accepted 1,"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: an unrecognised status still names the three it accepts" {
+    printf '**PR-f7k3q8**: Crash on empty dose input.\nopened: %s\nstatus: wontfix\n' "$(days_ago 1)" \
+        > docs/problems/0001-01-01-base.md
+    commit_all wontfix-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"expected open, accepted or resolved"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-4fwfjp
+@test "check-trace: an orphaned disposition: in a problem ledger is reported" {
+    # Block-parsed now, so the backstop must cover it: otherwise an orphaned
+    # ruling is read, matched and dropped while the item above it reads as
+    # undisposed.
+    printf '# Notes\n\ndisposition: nobody has ruled on this\n\n**PR-001**: Crash.\nstatus: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all orphan-disposition
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"(disposition: belongs to no item)"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an owner: outside any item is inert, not an orphan" {
@@ -2694,7 +3198,7 @@ POISON
     commit_all oldest-today
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"problems: open 1, oldest 0 days;"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 1, accepted 0, oldest 0 days;"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: the first opened: in a block wins" {
@@ -2805,7 +3309,7 @@ POISON
     commit_all undated-summary
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"problems: open 2, oldest 3 days (1 with no usable date);"* ]] \
+    [[ "$output" == *"problems: open 2, accepted 0, oldest 3 days (1 with no usable date);"* ]] \
         || { echo "$output"; false; }
 }
 
@@ -2880,7 +3384,7 @@ POISON
     commit_all refused-date-counted
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"problems: open 1, oldest n/a (1 with no usable date);"* ]] \
+    [[ "$output" == *"problems: open 1, accepted 0, oldest n/a (1 with no usable date);"* ]] \
         || { echo "$output"; false; }
 }
 

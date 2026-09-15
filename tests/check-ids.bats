@@ -152,7 +152,12 @@ EOF
     body_check_review=0
     body_check_signing=0
     body_check_units=0
-    body_check_trace=7
+    # 8 since the supersession scan (PR-zt5c2v): its awk takes
+    # body="$GR_ID_BODY" rather than pasting the shape — the reuse this pin
+    # exists to encourage, so the count moves up and the pin keeps its teeth.
+    # Worth noting where this reddened: nothing in check-trace.bats,
+    # portability.bats or skills.bats sees it, so only the full suite does.
+    body_check_trace=8
     body_finalize_docs=0
     body_finish_merge=0
     # 3 since gr_req_scan (units change): its awk takes body="$GR_ID_BODY"
@@ -179,7 +184,10 @@ EOF
     block_check_review=1
     block_check_signing=0
     block_check_units=0
-    block_check_trace=5
+    # 6 since the supersession scan (PR-zt5c2v): it reads item blocks through
+    # the shared fragment rather than forming a sixth opinion about where an
+    # item ends, which is the whole point of pinning this.
+    block_check_trace=6
     block_finalize_docs=0
     block_finish_merge=0
     # 1 since gr_req_scan (units change): its awk composes the shared

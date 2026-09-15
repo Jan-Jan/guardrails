@@ -49,8 +49,9 @@ Recording first is the discipline: if investigation dead-ends, the open PR
 survives and shows up at every merge (`check-trace.sh` prints
 `UNRESOLVED-PR` warnings until it's resolved, with the item's age
 on the line). Past the project's `problem_age_days` or `problem_open_max`
-the warning becomes a failure — resolve it or raise the limit deliberately,
-but do not leave it to rot.
+the warning becomes a failure — resolve it, rule on it (`status: accepted`
+with a `disposition:`, §4), or raise the limit deliberately, but do not leave
+it to rot.
 
 ## 2. Investigate systematically
 
@@ -85,6 +86,46 @@ problem resolved in a change that doesn't contain its fix.
 Then the normal gate: `check-traceability`, `verify-before-merge`,
 `merge-change`.
 
+### When the ruling is "we are not fixing this"
+
+A problem that was investigated and deliberately not fixed is **not** the same
+as a problem nobody has got to. It goes to `status: accepted`, with a
+`disposition:` line carrying the ruling and the date it was made:
+
+```
+  **PR-NNNNNN**: <observable symptom, one sentence>.
+  affects: <REQ/RC/SDD/LLR IDs implicated>.
+  opened: <the date it was recorded, YYYY-MM-DD>
+  status: accepted
+  disposition: ruled on <YYYY-MM-DD> — <why the software is not changing>
+```
+
+(Indented and `NNNNNN`, for the same two reasons as the item form above.)
+
+That is the *decided* / *forgotten* distinction, and it is the whole point of
+the status. An accepted item stops aging — it is exempt from
+`problem_age_days` and does not count toward `problem_open_max`, because
+neither limit measures anything about a decision, and a project that triages
+honestly should not hit the ceiling faster than one that quietly drops things.
+It stays in the roll-call: `check-trace.sh` prints `ACCEPTED-PR` with the
+ruling at every merge, and the `problems:` summary counts it as `accepted N`.
+A decision nobody is reminded of decays back into a thing nobody remembers
+deciding.
+
+**`disposition:` is required, and refusing `accepted` without one is what
+makes the status safe.** Without it, `accepted` is a one-word escape from both
+limits — reachable by an author staring at a red `PROBLEM-BACKLOG` — and the
+gate would ship its own bypass. `check-trace.sh` reports
+`INCOMPLETE-PROBLEM … (accepted, no disposition:)`, and the same for an
+accepted item with no `opened:`. So this is not a way out of a backlog: it is
+a way to record a ruling you can defend, and the ruling is the price.
+
+`accepted` is not `resolved`. Use `resolved` only when the merging change
+contains a fix; use `accepted` when there is no fix and there is a reason
+(IEC 62304 6.2 treats a documented decision not to change the software as a
+resolution outcome in its own right). If the ruling later changes, put the
+item back to `open` and resolve it under §3.
+
 ## Red flags
 
 | Thought | Reality |
@@ -93,3 +134,4 @@ Then the normal gate: `check-traceability`, `verify-before-merge`,
 | "Fix now, log later" | Later never comes. Record first. |
 | "Close the PR, fix ships next week" | Resolved means the merging change contains the fix. |
 | "The test would just duplicate the fix" | The failing reproduction is the evidence the fix works. |
+| "Mark it accepted, the backlog is red" | `accepted` needs a `disposition:` — a ruling you can defend, with a date. No ruling, no exemption. |

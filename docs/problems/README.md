@@ -12,8 +12,9 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
   **PR-NNNNNN**: <observable symptom, one sentence>.
   affects: <REQ/RC/SDD/LLR IDs implicated>.
   opened: YYYY-MM-DD
-  status: open|resolved
+  status: open|accepted|resolved
   <when resolved: one line — root cause + fix reference (reproducing test)>
+  <when accepted: disposition: <the ruling and its date>>
 
 - Record the problem BEFORE investigating (resolve-problem skill).
 - EVERY item needs a `status:`, and every OPEN item an `opened:` date.
@@ -28,6 +29,34 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
   on it would redden every ledger already written for no gain. Adopting this
   on an existing ledger is a backfill of the items still open, and
   check-trace.sh names each one.
+- `status: accepted` is for a problem the project INVESTIGATED and ruled on:
+  it will not be fixed, and that is a decision, not neglect. It needs BOTH an
+  `opened:` and a `disposition:` — the ruling and the date it was made, read
+  at column one inside the item's block like the other two:
+
+      **PR-NNNNNN**: <observable symptom, one sentence>.
+      affects: <REQ/RC/SDD/LLR IDs implicated>.
+      opened: YYYY-MM-DD
+      status: accepted
+      disposition: ruled on YYYY-MM-DD — <why the software is not changing>
+
+  `disposition:` is not optional and is what makes the status safe. An
+  accepted item is exempt from `problem_age_days` and does not count toward
+  `problem_open_max`; without a required ruling, `accepted` would be a
+  one-word escape from both, reachable by anyone looking at a red
+  `PROBLEM-BACKLOG`. `accepted` with no `disposition:` is reported
+  INCOMPLETE-PROBLEM, and so is `accepted` with no `opened:`. That `opened:`
+  is judged as a date exactly as an open item's is: a malformed or future one
+  is MALFORMED-DATE, because the field records when the problem was RAISED and
+  a date after today falsifies that on a ruled item as much as on an open one.
+- An accepted item is NOT exempt from the roll-call: it is printed as an
+  ACCEPTED-PR line at every merge, with its date and its ruling, and counted in
+  the `problems:` summary as `accepted N`. A decision nobody is reminded of
+  decays back into a thing nobody remembers deciding.
+- A `disposition:` that belongs to no item block is reported
+  ORPHAN-ANNOTATION, for the same reason an orphaned `opened:` is: it would
+  otherwise be read, matched and dropped while the item above it reads as
+  undisposed.
 - There is no owner field: authorship is already answered by `git blame` on
   the ledger line, and problems are not personally owned — anyone may
   resolve them — so a name in the grammar only added a failure mode (a

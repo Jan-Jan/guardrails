@@ -39,7 +39,31 @@ the same violation.
 4. **Verify GREEN:** run it; all other tests still pass; output pristine.
 5. **REFACTOR:** duplication, names, helpers — behavior unchanged, tests
    stay green.
-6. **Commit** (unsigned is fine in the worktree) and take the next test.
+6. **Did you change a line a mutation script quotes?** Every
+   `docs/verification/*.mutations/M*.sh` embeds a line of the script it mutates
+   as a literal `old = '''…'''` and asserts `s.count(old) == 1`, so editing a
+   quoted line leaves a mutation that can no longer apply — a past change's
+   evidence, silently unreproducible. Nothing in the suite catches it:
+   `portability.bats` reads that directory only for `sed -i` spellings. One
+   grep per changed output line, from the repository root:
+
+   ```sh
+   grep -rn 'the exact line you changed' docs/verification/*.mutations/
+   ```
+
+   A hit is not a reason to leave the line alone. Re-cut the anchor to the new
+   text — the precedent is `bb7eee5`, which amended *earlier* changes'
+   mutations for the same reason, because these scripts are kept runnable
+   rather than frozen with the change that wrote them — and then **prove the
+   re-cut anchor applies AND still kills tests**. An anchor that applies and
+   kills nothing means the tests never covered that mutation, which is a
+   finding of its own, not a green.
+
+   Most changes edit no such line and this costs one grep. It earns its place
+   because the failure is invisible: the mutation is not run by any gate, so
+   nothing goes red at the time, and the loss shows up only when someone tries
+   to reproduce the old verification and cannot.
+7. **Commit** (unsigned is fine in the worktree) and take the next test.
 
 ## Delegation
 

@@ -176,7 +176,11 @@
     s_at=$(grep -n '^7\. \*\*Squash onto the base branch' "$skill" | head -n 1 | cut -d: -f1)
     [ -n "$d_at" ]
     [ -n "$s_at" ]
-    sed -n "${d_at},${s_at}p" "$skill" | grep -q 'git worktree list'
+    # Re-aimed 2026-09-10 (PR-k77dzn): the structural check is now a command
+    # with a verdict, `finish-merge.sh --check`, rather than a raw
+    # `git worktree list` the author reads by eye. What this pin protects is
+    # that 6d still checks the registry at all — not which spelling it uses.
+    sed -n "${d_at},${s_at}p" "$skill" | grep -q 'finish-merge.sh --check'
     # worktree-discipline cross-references the removal's home, so it follows it
     # there rather than leaving the two skills to drift.
     wd="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
@@ -256,7 +260,10 @@
     s_at=$(grep -n '^7\. \*\*Squash onto the base branch' "$skill" | head -n 1 | cut -d: -f1)
     [ -n "$d_at" ]
     [ -n "$s_at" ]
-    sed -n "${d_at},${s_at}p" "$skill" | grep -q 'Read the list for paths inside the change worktree'
+    # The "read the list by eye" sentence went with the raw `git worktree list`
+    # it described (PR-k77dzn); `--check` applies the containment criterion
+    # itself. The criterion sentence below is what this pin is actually for,
+    # and it stays — it is the half a command cannot state.
     sed -n "${d_at},${s_at}p" "$skill" | grep -q 'A worktree registered anywhere else is not this step'
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
@@ -689,4 +696,21 @@
     grep -q 'root-relative' "$BATS_TEST_DIRNAME/../README.md"
     grep -q 'root-relative' "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'relative link' "$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+}
+
+@test "develop-change: the loop greps the mutation anchors for a changed line" {
+    # verifies: PR-dr7k7k
+    # Was annotated PR-4fwfjp, which is the `status: accepted` item and says
+    # nothing about mutation anchors: this test asserts an obligation that
+    # belonged to no item at all until PR-dr7k7k was written for it.
+    # A mutation script embeds a line of the script it mutates as a literal
+    # `old = '''…'''` and asserts one match, so a change that edits a quoted
+    # line leaves a mutation that cannot apply. No gate catches it —
+    # portability.bats reads that directory only for `sed -i` spellings — so
+    # the obligation lives in the TDD loop or nowhere.
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    grep -q 'mutations' "$skill"
+    # Re-cutting is the prescribed answer, and re-cutting without re-proving is
+    # the failure it invites: an anchor can match again and kill nothing.
+    grep -q 'kills tests' "$skill"
 }

@@ -36,6 +36,39 @@ reference implementation of its own process.
 4. **One change at a time.** A change is carried to its signed squash before
    the next is opened. Parallelism lives inside a change, across tasks whose
    file sets do not intersect — never across changes.
+5. **The local repository is the whole world. Never consult `origin`.** No
+   `git fetch`, no `git push`, no reading `origin/<branch>` as though it were
+   authoritative. Local `main` is the base branch, full stop: it is what a
+   change branches from, what `merge-change` step 1 merges in, and what the
+   signed squash lands on. Pushing is the user's, done when they choose, and
+   an agent that fetches on their behalf blocks on a hardware key that only
+   they can touch.
+
+   **This overrides `merge-change` step 1's fetch**, and the override does cost
+   something — say what, rather than claiming it is free. That step is written
+   for shared repositories, and it is right about the mechanism: step 4's
+   `DUPLICATE-ID` scan sees exactly the IDs in the merged tree, so a base merged
+   from a local ref while `origin` is ahead gives it a smaller set to check.
+   Skipping the fetch does make step 4 prove less.
+
+   What makes that acceptable **here** is not the scan but the ID scheme:
+   `check-ids.sh`'s own header records that IDs are minted at item-creation time
+   and allocated against nothing, so "two branches cannot mint the same one by
+   construction", and the base merge covers only "the vanishing case where
+   random draws collide" — six characters from the 31-symbol alphabet
+   `GR_ID_ANY` defines: 23 letters with the confusable ones dropped, plus 8
+   digits. The residual risk is that collision going unseen until the other
+   branch merges locally, where this same scan catches it. This rule also forbids agent
+   pushes, so nothing an agent does here reaches a shared history unreviewed.
+
+   That reasoning holds for a single-maintainer repository with random IDs. It
+   does **not** generalise: a project with sequential IDs, or several people
+   merging to a shared remote, should keep step 1's fetch and is why the skill
+   still mandates it.
+
+   Say so plainly in the verification record — "base merged from local `main`
+   at `<commit>`, per AGENTS.md non-negotiable 5" — so a later reader knows
+   the remote was out of scope by policy rather than skipped by accident.
 
 ## Rules
 

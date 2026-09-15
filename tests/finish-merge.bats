@@ -551,3 +551,193 @@ STUB
         || { echo "the refusal did not name the nested worktree: $output"; false; }
     assert_nothing_removed
 }
+
+# --- --check: guard 4 proved before the signing touch ------------------------
+#
+# Guard 4 is fully knowable before the squash commit exists, but every guard in
+# this script ran only as the chained tail of the signed commit — so a refusal
+# was discovered AFTER the hardware-key touch merge-change step 7 hands to the
+# user. `--check` proves guard 4 and nothing else: guards 1 and 2 both read the
+# squash commit, which does not exist at the point this mode is for, and guard
+# 3 is `git worktree remove` itself and cannot be proved without doing it.
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check reports a nested worktree and removes nothing" {
+    setup_ssh_signing
+    ignore_worktrees_dir
+    make_squashed_change
+    nested=$(nest_task_worktree)
+    printf 'uncommitted\n' > "$nested/NEW.txt"
+
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"a registered worktree lies inside"* ]] \
+        || { echo "expected the SINGULAR nesting verdict, got: $output"; false; }
+    [[ "$output" == *"$nested"* ]] \
+        || { echo "the verdict did not name the nested worktree: $output"; false; }
+
+    # Removed nothing, deleted nothing — the mode is a question, not an act.
+    [ -f "$nested/NEW.txt" ] \
+        || { echo "the nested worktree's work was destroyed by a CHECK"; false; }
+    assert_nothing_removed
+    branch_exists my-change-t1 || { echo "the task branch was deleted"; false; }
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check exits 0 when nothing is nested" {
+    setup_ssh_signing
+    ignore_worktrees_dir
+    make_squashed_change
+
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" == *"nothing is registered inside"* ]] \
+        || { echo "expected the clean verdict, got: $output"; false; }
+    assert_nothing_removed
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check runs from the change worktree, before any squash" {
+    # The test that matters most. This mode is for merge-change step 6d — in
+    # the change worktree, before the squash is staged — which is exactly the
+    # state the linked-worktree refusal and guards 1 and 2 make impossible.
+    # `gr_base_branch` reads the FIRST worktree in the porcelain listing, the
+    # primary checkout, so it still answers correctly from in here.
+    make_change_worktree
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" == *"nothing is registered inside"* ]] \
+        || { echo "expected the clean verdict, got: $output"; false; }
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check refuses the base branch" {
+    # A usage error, not a verdict: naming the base branch here would report on
+    # the primary checkout and read as a green light for a cleanup that would
+    # delete the base branch.
+    setup_ssh_signing
+    make_squashed_change
+    run sh .guardrails/scripts/finish-merge.sh --check main
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    # The exit code alone is satisfied by "unknown argument: --check", so the
+    # refusal this test claims to cover is named as well.
+    [[ "$output" == *"is the base branch"* ]] \
+        || { echo "expected the base-branch refusal, got: $output"; false; }
+    assert_nothing_removed
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check never removes, even with everything green" {
+    # Everything the real run needs is in place — signed squash, clean
+    # worktree, nothing nested — and the check still removes nothing. A mode
+    # that cleaned up on a green answer would be the script, not a preflight.
+    setup_ssh_signing
+    make_squashed_change
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    run git worktree list
+    [[ "$output" == *"$CHANGE_WT"* ]] \
+        || { echo "the change worktree was unregistered by a check: $output"; false; }
+    assert_nothing_removed
+}
+
+# verifies: PR-k77dzn
+# The preflight's value is telling the operator what step 8 would say, so it
+# must not say it in a different number. Guard 4 switches singular/plural on an
+# embedded newline; this proves --check switches with it. The singular
+# direction is asserted by the nested-worktree test above.
+@test "finish-merge: --check reports two nested worktrees in the plural, naming both" {
+    setup_ssh_signing
+    ignore_worktrees_dir
+    make_squashed_change
+    first=$(nest_task_worktree my-change-t1)
+    second=$(nest_task_worktree my-change-t2)
+
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"registered worktrees lie inside"* ]] \
+        || { echo "expected the PLURAL nesting verdict, got: $output"; false; }
+    [[ "$output" == *"$first"* ]] \
+        || { echo "the verdict did not name the first worktree: $output"; false; }
+    [[ "$output" == *"$second"* ]] \
+        || { echo "the verdict did not name the second worktree: $output"; false; }
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check with no registered worktree says nothing was inspected" {
+    # The third green this mode can print, and the one that proves NOTHING. A
+    # branch that exists but has no worktree registered leaves guard 4 with
+    # nothing to refuse, which is a true statement and an exit 0 the removal
+    # mode agrees with — it tolerates an already-gone worktree and still
+    # deletes the branch. What the wording must not do is read like the clean
+    # verdict beside it: `nothing is registered inside <path>` is a scan that
+    # ran; this is a scan that never had a path to run against.
+    setup_ssh_signing
+    make_squashed_change
+    git worktree remove "$BATS_TEST_TMPDIR/wt"
+
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" == *"nothing was inspected"* ]] \
+        || { echo "the verdict did not say nothing was inspected: $output"; false; }
+    [[ "$output" == *"check the branch name"* ]] \
+        || { echo "the verdict did not name the likely cause: $output"; false; }
+    # Not the clean verdict. That one means a scan ran and found nothing, and
+    # an operator who reads this as that one carries an unproved guard 4 into
+    # the key touch this mode exists to save.
+    [[ "$output" != *"nothing is registered inside"* ]] \
+        || { echo "an uninspected branch printed the CLEAN verdict: $output"; false; }
+    branch_exists my-change || { echo "the branch was deleted by a check"; false; }
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check refuses a failing git worktree list, it does not report a clean tree" {
+    # The preflight reads the registry itself, so it owns this false green
+    # separately from the removal mode's copy of it (covered by the test near
+    # the top of this file). A scan that ERRORS finds nothing, and "found
+    # nothing" is exactly what a clean tree looks like: without the status
+    # check `$wt_list` is empty, `$wt` comes back empty with it, and this mode
+    # prints a green verdict about a change worktree it never looked at — the
+    # operator then spends the key touch and meets guard 4 anyway.
+    make_change_worktree
+    cd "$REPO"
+    bin=$(make_failing_worktree_list)
+    PATH="$bin:$PATH" run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -ne 0 ] || { echo "expected a refusal, got 0: $output"; false; }
+    [[ "$output" == *"git worktree list failed"* ]] \
+        || { echo "expected the registry refusal, got: $output"; false; }
+    assert_nothing_removed
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: --check refuses a failing awk, it does not report a clean tree" {
+    # The same false green through the other tool: the worktree path is
+    # derived through awk, and an awk that dies leaves the substitution empty
+    # — indistinguishable, without the status check, from a branch whose
+    # worktree is genuinely unregistered. The mode would then print a verdict
+    # about a path it never derived.
+    make_change_worktree
+    cd "$REPO"
+    bin=$(make_failing_awk)
+    PATH="$bin:$PATH" run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -ne 0 ] || { echo "expected a refusal, got 0: $output"; false; }
+    [[ "$output" == *"could not be derived"* ]] \
+        || { echo "expected the derivation refusal, got: $output"; false; }
+    assert_nothing_removed
+}
+
+# verifies: PR-k77dzn
+@test "finish-merge: -n is --check" {
+    # The short spelling is documented in the header and nowhere else — not
+    # even in the `usage:` strings, which spell only `[--check]` — so a test is
+    # the only thing standing between it and a silent removal. Proved from
+    # INSIDE the change worktree, where both ways of getting `-n` wrong are
+    # exit 2 and neither can be mistaken for this: an unparsed `-n` falls to
+    # the `-*` arm as `unknown argument: -n`, and a `-n` that failed to turn
+    # the mode on reaches the linked-worktree refusal.
+    make_change_worktree
+    run sh .guardrails/scripts/finish-merge.sh -n my-change
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [[ "$output" == *"nothing is registered inside"* ]] \
+        || { echo "expected the clean verdict, got: $output"; false; }
+}
