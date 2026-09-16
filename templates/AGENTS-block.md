@@ -38,17 +38,16 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 | **B** | statement | required (normal + abnormal per REQ/LLR) | per-item where complex | one reviewer |
 | **C** | statement + decision | required | required per SDD item | thorough |
 
-MC/DC beyond the class C target is optional extra credit. Requirements with
-no parent in system needs are marked `satisfies: derived` and must be
-assessed in the risk management file, on a passage carrying `assesses: <ID>`
-(UNANALYZED-DERIVED otherwise). Every
-bug becomes a problem report (`resolve-problem` skill) in the log at
-`doc_problems` (config), carrying an `opened:` date while it
-is open; open PRs are listed at each merge with their age, and past
-the config's `problem_age_days` or `problem_open_max` the list stops being a
-warning and fails the merge. The coverage gate runs the config's `coverage_command`
-when one is configured — projects without one document why in their setup
-notes.
+MC/DC beyond the class C target is optional. Requirements with no parent in
+system needs are marked `satisfies: derived` and must be assessed in the risk
+management file, on a passage that contains `assesses: <ID>`
+(UNANALYZED-DERIVED otherwise). Every bug becomes a problem report
+(`resolve-problem` skill) in the log at `doc_problems` (config), with an
+`opened:` date while it is open; open PRs are listed at each merge with their
+age, and past the config's `problem_age_days` or `problem_open_max` the list
+stops being a warning and fails the merge. The coverage gate runs the config's
+`coverage_command` when one is configured — projects without one document why
+in their setup notes.
 
 ## Workflow map
 
@@ -65,6 +64,27 @@ notes.
 | Check traceability | `check-traceability` |
 | Confirm work is done | `verify-before-merge` |
 | Integrate to the base branch | `merge-change` |
+
+## Writing: prose, names and messages
+
+Write dry, technical prose. Say what something is. This applies to everything
+written: messages to the user, documentation, strings in code, identifiers,
+and commit messages.
+
+- No metaphor, no anthropomorphism, no wordplay, no balanced contrast. A file
+  exists in a directory; it does not sit there. A gate rejects a commit; it
+  does not refuse one.
+- Active voice. Cut filler. Do not editorialize.
+- Replace these words: carries -> contains, lands -> is merged, survives ->
+  remains, says -> states, holds -> contains, refuses -> rejects,
+  load-bearing -> critical, ran -> was run.
+- Do not match existing style when it disagrees with these rules.
+
+In code, additionally:
+
+- No single-character names. No code golf.
+- Name in concrete terms, and do not use the past participle: write
+  `write_timestamp`, not `written_at`.
 
 ## Check scripts (run from repo root)
 

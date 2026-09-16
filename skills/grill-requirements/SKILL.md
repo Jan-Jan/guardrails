@@ -5,7 +5,7 @@ description: Relentless one-question-at-a-time interview to define or refine sof
 
 # Grill Requirements
 
-**Announce at start:** "Using the grill-requirements skill to pin down requirements."
+**Announce at start:** "Using the grill-requirements skill to define requirements."
 
 Interview the user relentlessly about the capability until you reach shared
 understanding, writing requirements down as they crystallize. Requirements
@@ -45,24 +45,25 @@ file that defines them** — definitions never move. On single-file projects
 - **Supersession is recorded, never silent.** A new requirement may supersede
   an old one — that is normal; performing it by deletion is not. The
   superseded item keeps its place in the file that defines it and gains
-  `superseded-by: <new ID>`; the new item carries `supersedes: <old ID>`.
+  `superseded-by: <new ID>`; the new item contains `supersedes: <old ID>`.
   Because the old item stays where it is, `check-trace.sh` still resolves
   every reference to it and the ledger still reads as a history.
 - **The supersession annotations are annotations, not exemptions.** The
-  superseded item keeps its definition, so it keeps demanding a test:
-  `check-trace.sh`'s MISSING-TEST gate walks every defined item and knows
-  nothing about `superseded-by:`. Satisfy both items with the one test that
+  superseded item keeps its definition, so a test is still required for it:
+  `check-trace.sh`'s MISSING-TEST gate walks every defined item and does not
+  read `superseded-by:`. Satisfy both items with the one test that
   already exists — **the test that verified the superseded item gains the new
   ID alongside the old**: `verifies: <old ID>, <new ID>`. MISSING-TEST is then
-  clean for both, the history survives, and no gate has to change.
+  clean for both, the history remains, and no gate has to change.
 - **Superseding is not retiring.** Supersede when the behavior still exists in
   some form — a rewording, a narrowing, a replacement — so one test can
   honestly verify both IDs. Behavior that is genuinely gone is a *retirement*,
   a different operation this skill does not cover today: with no
-  `superseded-by:` exemption in `check-trace.sh`, a retired item still demands
+  `superseded-by:` exemption in `check-trace.sh`, a retired item still requires
   a test for behavior that no longer exists. Teaching the gate that exemption
-  is a separate change with its own tests. Until it lands, put a retirement to
-  the user as its own decision rather than dressing it as a supersession.
+  is a separate change with its own tests. Until that change is merged, put a
+  retirement to the user as its own decision rather than recording it as a
+  supersession.
 - REQ items are **high-level requirements**: system-observable behavior,
   written from outside the software. The "how", per software item, belongs
   to low-level requirements (LLRs) in the SAD (`design-architecture`).
@@ -71,7 +72,7 @@ file that defines them** — definitions never move. On single-file projects
   write it (see `worktree-discipline`). Never invent one by hand.
 - **Derived requirements:** when a requirement exists only because of how
   the design turned out (no parent in system/user needs), do not invent a
-  fake parent — mark it `satisfies: derived` and hand it to `analyze-risks`
+  fake parent — mark it `satisfies: derived` and send it to `analyze-risks`
   for assessment (an `assesses:` line in the RMF must name it;
   `check-trace.sh` enforces this as UNANALYZED-DERIVED).
 - One behavior per requirement, phrased so a test can verify it. "Fast",
@@ -83,29 +84,29 @@ file that defines them** — definitions never move. On single-file projects
 
 ## Declaring a dependency (multi-unit repositories)
 
-`depends_on:` is a decision, not a config line. Before an edge lands in the
+`depends_on:` is a decision, not a config line. Before an edge is added to the
 consumer's config, walk the provider's artefacts with the user, one question
 at a time (D10):
 
 - its export surface — `.guardrails/scripts/check-units.sh --exports <provider>`
   lists every exported REQ with its defining file: is the behavior you need
   on it?
-- its RMF — does its risk analysis consider this use, or does your use case
-  sit outside every analyzed situation?
+- its RMF — does its risk analysis consider this use, or is your use case
+  outside every analyzed situation?
 - its ADRs — a recorded decision may foreclose your requirement;
 - its open problem reports — the known anomalies of a supplied component;
 - transitively its SOUP — your dependency's dependencies are yours.
 
 A gap found here is a requirement, so it gets requirement machinery: write a
-consumer REQ carrying `expects: <unit>` on its own line (the unit must be a
-declared dependency). Carry `opened: YYYY-MM-DD` in the same item block, on
+consumer REQ with `expects: <unit>` on its own line (the unit must be a
+declared dependency). Include `opened: YYYY-MM-DD` in the same item block, on
 its own line — an expectation without a usable date is INCOMPLETE-EXPECTATION
 at the consumer's own gate. The expectation is **met** when the provider
-defines an exported REQ carrying `satisfies:` naming your REQ; until then the
+defines an exported REQ with `satisfies:` naming your REQ; until then the
 consumer's run reports UNMET-EXPECTATION and the provider's run reports how
-many open expectations stand against it — the prompt lands on the team that
-owes the work. Never model the gap as a problem report in the provider's
-ledger: a need is not an anomaly.
+many open expectations are outstanding against it — the prompt reaches the
+team that owes the work. Never model the gap as a problem report in the
+provider's ledger: a need is not an anomaly.
 
 ## Maintain the glossary inline
 
@@ -143,7 +144,7 @@ ledger (`doc_sad`) and answer three questions. It returns the answers with
 1. **Does an existing software item already own this behavior?** Then this is
    an amendment to that item's LLRs, not a new item.
 2. **Does the requirement as worded force a structure the SAD forbids?**
-   Segregation boundaries are the usual casualty.
+   Segregation boundaries are the most common conflict.
 3. **Does satisfying it need a new software item, or new SOUP?**
 
 On a contradiction, say so and hand off to `design-architecture`. **Never edit
@@ -156,14 +157,15 @@ the three-part test above.
 Read `safety_class` from `.guardrails/config.yaml`. For Class B and C, push
 harder on failure behavior: for every capability ask "what must happen when
 this fails?" — those answers become requirements too. For Class C, also grill
-the boundaries between software items (they feed `design-architecture`).
+the boundaries between software items (they are inputs to
+`design-architecture`).
 
 ## Done when
 
 - The user confirms shared understanding (ask explicitly).
 - Every overlap, ambiguity or contradiction the probes surfaced is
   resolved with the user — superseded items annotated both ways and their
-  test carrying both IDs, SAD contradictions handed to
+  test annotated with both IDs, SAD contradictions handed to
   `design-architecture`. An unresolved overlap means the interview is not
   done.
 - Every new/changed REQ is a draft-ID item in the SRS, testable as written.

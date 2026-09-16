@@ -7,8 +7,9 @@ description: Write a bite-sized, trace-aware implementation plan for a change in
 
 **Announce at start:** "Using the plan-change skill to write the implementation plan."
 
-Write the plan for an engineer with zero context and questionable taste:
-exact paths, complete code in steps, exact commands with expected output.
+Write the plan for an engineer with no context, whose judgment you cannot
+rely on: exact paths, complete code in steps, exact commands with expected
+output.
 Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
 
 ## Preconditions
@@ -33,7 +34,7 @@ Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
 
 - Each task = smallest unit with its own test cycle: write failing test →
   see it fail → minimal implementation → see it pass → commit.
-- **Every task lists its trace IDs.** The tests written in the task carry
+- **Every task lists its trace IDs.** The tests written in the task contain
   `verifies: <IDs>` annotations — put the exact annotation text in the plan.
 - **Every task states its files and its parallelism.** Head each task with the
   exact paths it touches and whether it may run alongside another:
@@ -61,7 +62,7 @@ Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
 1. Every ID in **Implements:** has at least one task whose test verifies it.
 2. Every task's code steps show real code, real commands, expected output.
 3. Names/signatures used across tasks are consistent.
-4. Every task carries **Files touched:** and **Parallel:**, and no two tasks
+4. Every task states **Files touched:** and **Parallel:**, and no two tasks
    marked parallel name the same file.
 
 ## Execution

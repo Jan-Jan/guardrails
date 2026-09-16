@@ -1,6 +1,6 @@
 ---
 name: design-architecture
-description: Create or evolve the IEC 62304 software architecture - SDD items traced to requirements, SOUP inventory, safety-class segregation, ADRs for real trade-offs. Use after requirements exist and before planning implementation of structural changes.
+description: Create or evolve the IEC 62304 software architecture - SDD items traced to requirements, SOUP inventory, safety-class segregation, ADRs for real trade-offs. Use after requirements exist and before planning implementation of structural changes, or when a problem report's root cause turns out to be the design itself.
 ---
 
 # Design Architecture
@@ -49,14 +49,14 @@ inventory file.
      transitively (`check-trace.sh` understands this).
    - Segregation between items of different classes must be explicit: state
      the mechanism (process boundary, address space, hardware) and why it is
-     adequate — a Class C item's failure modes must not reach through it.
-     In a multi-unit repository this statement has a home with teeth: a
+     adequate — a Class C item's failure modes must not propagate through
+     it. In a multi-unit repository a check enforces this statement: a
      cross-unit dependency is declared in the consumer's `depends_on:`, and
      depending on a lower-class unit requires `segregated_from:` in the
-     consumer's config, citing the control or ADR that carries the mechanism
-     — `check-units.sh` convicts an uncited entry (INCOMPLETE-SEGREGATION)
-     and an uncovered class gap (MISCLASSED-DEPENDENCY). And the edge itself
-     is a decision: run the "Declaring a dependency" interview
+     consumer's config, citing the control or ADR that states the mechanism
+     — `check-units.sh` rejects an uncited entry (INCOMPLETE-SEGREGATION)
+     and an uncovered class gap (MISCLASSED-DEPENDENCY). The edge itself is
+     also a decision: run the "Declaring a dependency" interview
      (`grill-requirements`) before drawing it — a dependency on the diagram
      without that assessment is an unassessed supplier.
 5. **SOUP inventory:** every third-party component the software depends on

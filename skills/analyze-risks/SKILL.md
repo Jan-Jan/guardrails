@@ -45,10 +45,10 @@ under analysis, walk the ISO 14971 chain explicitly:
 - A new item gets its ID from `.guardrails/scripts/new-id.sh HAZ` (or `RC`)
   as you write it. Never invent one by hand.
 - Every HAZ needs ≥1 RC mitigating it. Every RC needs ≥1 requirement
-  `(implements: RC-…)` in the SRS — hand each software control to
-  `grill-requirements` to become a testable requirement. Controls outside
-  software (hardware interlocks, labeling) are recorded in the RMF with a
-  note that implementation lies outside this codebase.
+  `(implements: RC-…)` in the SRS — send each software control to
+  `grill-requirements`, which turns it into a testable requirement. Controls
+  outside software (hardware interlocks, labeling) are recorded in the RMF
+  with a note that the implementation is outside this codebase.
 
 ## Derived-requirements intake
 
@@ -59,8 +59,8 @@ affect an existing hazardous situation, or change a risk control's
 effectiveness? Record the assessment in the RMF under "Derived requirements
 assessment", and declare the items it covers on a line of its own —
 `assesses: REQ-…, LLR-…`. `check-trace.sh` fails UNANALYZED-DERIVED on any
-derived item no `assesses:` line names; the ID appearing in a table or a
-sentence does not count, because that is exactly what an author produces
+derived item that no `assesses:` line declares; the ID appearing in a table
+or a sentence does not count, because that is exactly what an author produces
 without assessing anything. "No hazard impact because <reason>" is a valid
 assessment; silence is not.
 
@@ -68,7 +68,7 @@ assessment; silence is not.
 
 The severity answers here justify the project's IEC 62304 class
 (`safety_class` in config). If analysis reveals harm potential above what the
-current class assumes (e.g. S3 in a Class B project), stop and flag it: the
+current class assumes (e.g. S3 in a Class B project), stop and report it: the
 classification, not just the RMF, must change (rerun the `ratchet`
 safety-class interview and record an ADR).
 

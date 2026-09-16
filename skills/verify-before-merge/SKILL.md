@@ -17,7 +17,7 @@ pass", "I'm confident", and passing-from-memory don't count.
 — your harness's subagent mechanism (e.g. an `Agent` or `Task` tool, a
 `/subagent` command) — into the change worktree to run every check below. Test
 logs, type-checker noise and coverage tables are exactly the material that
-crowds out the plan and the trace, and none of it has to sit in the main
+crowds out the plan and the trace, and none of it has to be in the main
 context to be evidence.
 
 The subagent:
@@ -27,22 +27,22 @@ The subagent:
   `$TMPDIR/<branch>-gate.log`);
 - returns the **gate summary** — nothing else. No diffs, no pasted logs.
 
-The log lives outside the tree for two concrete reasons. Step 7 below requires
+The log is kept outside the tree for two concrete reasons. Step 7 below requires
 a clean `git status`, and an untracked log fails the gate that produced it. And
 a test log quotes item IDs in test names, so a log under `docs/` is read by
 `check-ids.sh` and `check-trace.sh`, where a line shaped like an item
 definition becomes a duplicate ID or a dangling reference. Evidence that breaks
 the gates is not evidence.
 
-The **gate summary** has a fixed shape, and it carries an answer for every
+The **gate summary** has a fixed shape, and it contains an answer for every
 check the subagent owns:
 
 - per-command result with pass/fail/skip counts (checks 1, 2, 3);
 - suite totals;
 - coverage figures, where `coverage_command` is configured, judged against the
-  class target, with any shortfall named as a shortfall (check 5);
-- the **Implements map** (check 4): for every ID the plan says the change
-  **Implements**, the `verifies:` test that carries it — and, listed
+  class target, with any shortfall reported as a shortfall (check 5);
+- the **Implements map** (check 4): for every ID the plan states the change
+  **Implements**, the `verifies:` test that contains it — and, listed
   explicitly, every Implements ID for which no such test was found;
 - robustness coverage (check 6): for each Implements ID, whether a normal-case
   test and an abnormal-input test are both present;
@@ -61,6 +61,9 @@ other half is yours: you answer it from the dispatch reports once the summary
 is back. Check 5's other half is the user's: only they can accept a documented
 coverage gap, which is why `develop-change` names it a deliberate stop.
 
+Check 8 is not split — it is wholly yours, which is why the gate summary above
+has no line for it.
+
 1. Every command in `verify_commands` (`.guardrails/config.yaml`) — full
    test suite, type checks, linters. Zero failures, pristine output.
 2. `.guardrails/scripts/check-trace.sh` — clean.
@@ -71,12 +74,12 @@ coverage gap, which is why `develop-change` names it a deliberate stop.
    token is a failure at this gate and at every other one.
 4. The change's own claims — split between the two parties who can answer,
    because neither half is the check on its own:
-   - **the subagent's half:** every ID the plan says it **Implements** has a
+   - **the subagent's half:** every ID the plan states it **Implements** has a
      `verifies:` test present in the change worktree, and the gate summary
-     names which test carries which ID;
+     names which test verifies which ID;
    - **your half:** each of those tests was watched failing for the right
      reason before it passed. Read that from the `red -> green:` lines of the
-     dispatch reports you hold (`develop-change`). The gate subagent watched
+     dispatch reports you have (`develop-change`). The gate subagent watched
      nothing fail, so it cannot attest to this, and a green run cannot imply
      it.
 
@@ -87,13 +90,18 @@ coverage gap, which is why `develop-change` names it a deliberate stop.
 5. **Coverage gate** — if `coverage_command` is configured, run it and judge
    the report against the class target: **A** none required · **B**
    statement coverage · **C** statement + decision coverage (MC/DC beyond
-   that is optional extra credit). A shortfall is a failure unless the user
-   explicitly accepts a documented gap (record the acceptance in the
-   verification record).
+   that is optional). A shortfall is a failure unless the user explicitly
+   accepts a documented gap (record the acceptance in the verification
+   record).
 6. **Robustness completeness** (class B/C) — every Implements: ID has both
    normal-case and abnormal-input tests, per `develop-change`'s robustness
    rule.
 7. `git status` — no uncommitted work, no stray files.
+8. **The deslop pass was run** and the dispatcher fixed its findings
+   (`develop-change`). The subagent cannot answer this at all: the tree records
+   no difference between a diff the pass reviewed and a diff nobody reviewed.
+   The dispatcher answers it from the pass's report, the way it answers check
+   4's other half from the dispatch reports.
 
 `check-review.sh` is deliberately NOT in this list. The verification record it
 reads does not exist yet — `merge-change` step 6b writes it, after the
@@ -104,22 +112,23 @@ every change for a record it is not yet time to write.
 
 The tail of a command's output goes into the gate summary whether the command
 exited 0 or not, and the verdict is read from the reported pass/fail counts,
-never from the status code. Say why, because the shortcut is tempting: a zero
-status proves the runner ran, not that the tests passed. Storybook-style test
-runners, some integration harnesses, and anything wrapped in a script that
-forgets `set -e` report failures and exit 0 anyway.
+never from the status code. State the reason, because the shortcut is
+tempting: a zero status proves that the runner executed, not that the tests
+passed. Storybook-style test runners, some integration harnesses, and
+anything wrapped in a script without `set -e` report failures and exit 0
+anyway.
 
 So "exit 0, therefore green" is not a gate result. A command that reports no
-counts at all is a finding to chase — not a pass to assume.
+counts at all is a finding to investigate, not a pass to assume.
 
 ## Rules
 
 - Any failure: stop. Deciding what to fix is yours; writing the fix is
   dispatched like any other task — into its own task worktree at
   `.worktrees/<change-branch>-<tag>`, nested inside the change worktree and
-  named in the dispatch prompt (`worktree-discipline` step 1) — and it lands on
-  the change branch, never on the base branch. Then dispatch the whole gate
-  again — partial passes don't carry over.
+  named in the dispatch prompt (`worktree-discipline` step 1) — and it is
+  merged onto the change branch, never onto the base branch. Then dispatch the
+  whole gate again; results from a partial pass do not count.
 - The subagent reports; it does not fix. Findings come back to you: you decide
   what to change, the fix is dispatched the same way — its own nested task
   worktree, merged onto the change branch, never onto the base branch — and the
@@ -134,8 +143,8 @@ counts at all is a finding to chase — not a pass to assume.
 
 Only a fully green gate authorizes `merge-change`. Quote the gate summary in
 your completion report and cite the log path — the merge commit's `Verified:`
-line lists exactly what ran. Don't re-run the commands yourself to see the
-output with your own eyes; the summary is the report.
+line lists exactly what was run. Don't re-run the commands yourself to see the
+output; the summary is the report.
 
 Then answer your half of check 4 before you call the gate green: match the
 Implements IDs the summary's Implements map names against the `red -> green:`
@@ -144,11 +153,11 @@ one is covered. A green summary is not a green gate until that half is
 answered.
 
 Those `red -> green:` lines are conversation, and the conversation is not
-durable. Carry them into the verification record `merge-change` step 6b
-writes, so the evidence for the iron law outlives this conversation.
+durable. Copy them into the verification record `merge-change` step 6b
+writes, so the evidence for the iron law remains after this conversation ends.
 
-The log dies with the change worktree, and that is fine — the durable evidence
-is the verification record `merge-change` step 6b writes: totals, per-command
-results, coverage summary, verdict. Anything that record needs from the gate
-must therefore be in the gate summary. If a figure is missing, ask the
-subagent for it rather than running the command again.
+The log is deleted with the change worktree, and that is fine — the durable
+evidence is the verification record `merge-change` step 6b writes: totals,
+per-command results, coverage summary, verdict. Anything that record needs
+from the gate must therefore be in the gate summary. If a figure is missing,
+ask the subagent for it rather than running the command again.

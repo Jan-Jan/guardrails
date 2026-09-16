@@ -14,7 +14,7 @@ reference implementation of its own process.
    `.worktrees/<change-branch>-<tag>` where the dispatch has no task number
    (`worktree-discipline` step 1 gives both forms and the tags that go in the
    second; `merge-change`'s sequence header is where a fix dispatch's tag is
-   required to be unique, and says why) — and the dispatcher
+   required to be unique, and states why) — and the dispatcher
    names that path in the dispatch prompt, because a subagent here is
    pinned to the change worktree's subtree, so a worktree anywhere else is
    created successfully and is then unusable (`worktree-discipline` step 1).
@@ -33,16 +33,16 @@ reference implementation of its own process.
    Dispatch it rather than running it in your own context: a subagent runs the
    gate and returns the gate summary (`verify-before-merge`). The verdict comes
    from the reported pass/fail counts — exit 0 is not a pass.
-4. **One change at a time.** A change is carried to its signed squash before
+4. **One change at a time.** A change reaches its signed squash before
    the next is opened. Parallelism lives inside a change, across tasks whose
    file sets do not intersect — never across changes.
 5. **The local repository is the whole world. Never consult `origin`.** No
    `git fetch`, no `git push`, no reading `origin/<branch>` as though it were
    authoritative. Local `main` is the base branch, full stop: it is what a
    change branches from, what `merge-change` step 1 merges in, and what the
-   signed squash lands on. Pushing is the user's, done when they choose, and
-   an agent that fetches on their behalf blocks on a hardware key that only
-   they can touch.
+   signed squash is merged onto. Pushing is the user's, done when they
+   choose, and an agent that fetches on their behalf blocks on a hardware key
+   that only they can touch.
 
    **This overrides `merge-change` step 1's fetch**, and the override does cost
    something — say what, rather than claiming it is free. That step is written
@@ -61,7 +61,7 @@ reference implementation of its own process.
    branch merges locally, where this same scan catches it. This rule also forbids agent
    pushes, so nothing an agent does here reaches a shared history unreviewed.
 
-   That reasoning holds for a single-maintainer repository with random IDs. It
+   That reasoning applies to a single-maintainer repository with random IDs. It
    does **not** generalise: a project with sequential IDs, or several people
    merging to a shared remote, should keep step 1's fetch and is why the skill
    still mandates it.
@@ -69,6 +69,27 @@ reference implementation of its own process.
    Say so plainly in the verification record — "base merged from local `main`
    at `<commit>`, per AGENTS.md non-negotiable 5" — so a later reader knows
    the remote was out of scope by policy rather than skipped by accident.
+
+## Writing: prose, names and messages
+
+Write dry, technical prose. Say what something is. This applies to everything
+written: messages to the user, documentation, strings in code, identifiers,
+and commit messages.
+
+- No metaphor, no anthropomorphism, no wordplay, no balanced contrast. A file
+  exists in a directory; it does not sit there. A gate rejects a commit; it
+  does not refuse one.
+- Active voice. Cut filler. Do not editorialize.
+- Replace these words: carries -> contains, lands -> is merged, survives ->
+  remains, says -> states, holds -> contains, refuses -> rejects,
+  load-bearing -> critical, ran -> was run.
+- Do not match existing style when it disagrees with these rules.
+
+In code, additionally:
+
+- No single-character names. No code golf.
+- Name in concrete terms, and do not use the past participle: write
+  `write_timestamp`, not `written_at`.
 
 ## Rules
 
@@ -79,18 +100,18 @@ reference implementation of its own process.
 - **Supported awk implementations: gawk, mawk, busybox awk, and BWK awk** (the
   `/usr/bin/awk` that ships with macOS, `awk version 20200816`). BWK awk is the
   strictest of the four and is the default on a stock macOS box, so a change
-  measured only on gawk is not measured. Specifically: **a value carrying a
+  measured only on gawk is not measured. Specifically: **a value that contains a
   literal newline must never reach `awk -v`** — BWK awk exits 2 before the
   program runs (`awk: newline in string ... at source line 1`), which is a gate
   that does not run rather than a gate that answers wrong. Flatten at the point
   of use. `tests/portability.bats` runs every script under a stub awk that
   reproduces this on any platform.
 - The same caution applies to `date`: BSD `date` has no `-d`, and its `-v`
-  adjustment carries its own sign, so a relative date needs both spellings
+  adjustment has its own sign, so a relative date needs both spellings
   (`tests/helpers.bash:days_ago`).
 - Every `case` pattern in executable shell opens with a leading `(` — the
   POSIX-optional spelling. bash 3.2 (macOS `/bin/sh`, forever) cannot parse a
-  pattern's unbalanced `)` inside `$(...)`, and whether a `case` sits inside a
+  pattern's unbalanced `)` inside `$(...)`, and whether a `case` is inside a
   command substitution is not decidable by a line scan, so the uniform form is
   the rule everywhere. `tests/portability.bats` enforces this.
 - **Verifying an OpenPGP signature needs a WRITABLE `~/.gnupg`.** gpg opens
@@ -99,14 +120,15 @@ reference implementation of its own process.
   mounts `~/.gnupg` read-only, can verify nothing: gpg exits
   `Fatal: can't open ... Operation not permitted`, git reports `%G?` as `N`,
   and a perfectly good commit reads as unsigned. Measured 2026-09-01 on macOS:
-  the same file opens `O_RDONLY` and is refused `O_RDWR`, with correct
-  ownership, mode `drwx------`, no ACLs and no flags — and the refusal survives
-  disabling the agent's own sandbox, so it is the host application's TCC grant
-  rather than the sandbox layer. To check a signature from such a shell, copy
-  `pubring.kbx` and `trustdb.gpg` somewhere writable and point `GNUPGHOME` at
-  the copy; `check-signing.sh --strict` then exits 0. It also exits 0 unaided
-  in a terminal the user launched themselves, which is why `merge-change`
-  step 7 hands the signed commit to the user instead of running it here.
+  the same file opens `O_RDONLY` and is denied `O_RDWR`, with correct
+  ownership, mode `drwx------`, no ACLs and no flags — and the denial remains
+  after disabling the agent's own sandbox, so it is the host application's TCC
+  grant rather than the sandbox layer. To check a signature from such a shell,
+  copy `pubring.kbx` and `trustdb.gpg` somewhere writable and point
+  `GNUPGHOME` at the copy; `check-signing.sh --strict` then exits 0. It also
+  exits 0 unaided in a terminal the user launched themselves, which is why
+  `merge-change` step 7 hands the signed commit to the user instead of running
+  it here.
 - Every behavior change to a script requires a bats test in `tests/`.
 - Skills live at `skills/<name>/SKILL.md` with `name` and `description`
   frontmatter. Skills are self-contained — they must not reference superpowers
