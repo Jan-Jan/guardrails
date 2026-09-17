@@ -77,7 +77,7 @@ and commit messages.
 - Active voice. Cut filler. Do not editorialize.
 - Replace these words: carries -> contains, lands -> is merged, survives ->
   remains, says -> states, holds -> contains, refuses -> rejects,
-  load-bearing -> critical, ran -> was run.
+  load-bearing -> critical, ran -> was run, sits -> is in.
 - Do not match existing style when it disagrees with these rules.
 
 In code, additionally:

@@ -11,7 +11,7 @@
 #
 # Every hand-maintained version of these figures in this project's history has
 # been wrong at least once — stale after tests were added, counted against a
-# partial run, or carried forward from a different change. Paste this output
+# partial run, or copied forward from a different change. Paste this output
 # into the verification record verbatim, and re-run it after the last commit
 # that touches scripts/ or tests/. Keep it in ONE document: two copies of a
 # derived figure is the failure this script exists to end.
@@ -110,23 +110,23 @@ _plan=$(sed -n 's/^1\.\.\([0-9][0-9]*\)$/\1/p' "$work/run.txt" | head -n 1)
 # single test. Count the result lines to prove it FINISHED. Without this a run
 # killed part-way — OOM, a CI timeout, an impatient operator — leaves its
 # unrun tests absent from the pass list, where they are booked as going red:
-# the figures improve and nothing says the run was truncated.
-_ran=$(grep -Ec '^(ok|not ok) ' "$work/run.txt" || true)
-[ "${_ran:-0}" -eq "$_plan" ] || {
-    echo "evidence: base run planned $_plan tests but emitted ${_ran:-0} results — it did not finish" >&2
+# the figures improve and nothing states the run was truncated.
+_emitted=$(grep -Ec '^(ok|not ok) ' "$work/run.txt" || true)
+[ "${_emitted:-0}" -eq "$_plan" ] || {
+    echo "evidence: base run planned $_plan tests but emitted ${_emitted:-0} results — it did not finish" >&2
     exit 2
 }
 
-# Counting results proves the run finished; it does not prove it ran THESE
-# tests. Compare the emitted names against the submitted ones, or a run that
+# Counting results proves the run finished; it does not prove THESE tests were
+# run. Compare the emitted names against the submitted ones, or a run that
 # emitted the right number of lines for the wrong tests — or a `# skip`
 # suffix on a name — silently books those tests as going red.
 sed -n 's/^ok [0-9][0-9]* //p; s/^not ok [0-9][0-9]* //p' "$work/run.txt" \
-    | sed 's/ # skip.*$//' | sort > "$work/ran.txt"
+    | sed 's/ # skip.*$//' | sort > "$work/emitted.txt"
 grep -h '^@test' $_files | sed 's/^@test "//; s/" {$//' | sort > "$work/measured.txt"
-if ! cmp -s "$work/ran.txt" "$work/measured.txt"; then
+if ! cmp -s "$work/emitted.txt" "$work/measured.txt"; then
     echo "evidence: the base run did not report the tests it was given" >&2
-    comm -3 "$work/measured.txt" "$work/ran.txt" | sed 's/^/  /' >&2
+    comm -3 "$work/measured.txt" "$work/emitted.txt" | sed 's/^/  /' >&2
     exit 2
 fi
 

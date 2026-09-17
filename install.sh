@@ -6,7 +6,7 @@
 # Installs the guardrails skills into the agent's skills directory
 # (default: ~/.claude/skills, override with CLAUDE_SKILLS_DIR).
 # Symlinks by default so `git pull` updates them; --copy for a static copy.
-# Refuses to clobber anything that isn't a symlink it would replace.
+# Rejects anything that is not a symlink it would replace.
 set -eu
 
 mode=link

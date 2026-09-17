@@ -3,8 +3,8 @@
 This directory is a per-change ledger: each merged change contributes one
 dated file, `YYYY-MM-DD-<slug>.md` (merge date, assigned by `merge-change`
 from your worktree's `DRAFT-<branch>-<slug>.md`). **Edit existing items in
-the file that defines them.** This README holds the project-wide
-acceptability matrix; the dated files hold hazards, controls, derived
+the file that defines them.** This README contains the project-wide
+acceptability matrix; the dated files contain hazards, controls, derived
 assessments, and residual-risk statements.
 
 <!--
@@ -16,7 +16,7 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
   **RC-NNNNNN**: <risk control measure>. mitigates: HAZ-NNNNNN
 
 - Every hazard must have at least one risk control that `mitigates:` it.
-- Every risk control must be implemented by at least one requirement carrying
+- Every risk control must be implemented by at least one requirement containing
   `(implements: RC-...)` in the requirements ledger.
 - Derived REQ/LLR assessments live here too. Write the assessment under a
   heading and declare which items it covers on a line of its own:

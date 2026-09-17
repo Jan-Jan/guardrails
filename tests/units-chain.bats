@@ -39,7 +39,7 @@ EOF
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 0 ]
     [[ "$output" != *"UNMET-EXPECTATION"* ]] || false
-    # the provider withdraws the export that carried the satisfies: — delete
+    # the provider withdraws the export that contained the satisfies: — delete
     # the LAST exported: line (REQ-h8s3t2's; REQ-h4m2p9's is the first). awk,
     # not sed: the GNU and BSD spellings of a block-relative address disagree.
     awk 'NR==FNR { if ($0=="exported: yes") last=FNR; next }

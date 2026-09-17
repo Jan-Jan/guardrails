@@ -347,7 +347,7 @@ EOF
 
 @test "check-trace: prints how many items of each prefix were checked" {
     # The whole summary line, matched exactly, with the prefixes deliberately
-    # holding different counts: asserting substrings like "REQ 3" would still
+    # given different counts: asserting substrings like "REQ 3" would still
     # pass if the loop reported one prefix's count under every prefix's name.
     cat >> docs/requirements/0001-01-01-base.md <<'EOF'
 
@@ -371,7 +371,7 @@ EOF
 @test "check-trace: reports how many source files each gate read" {
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    # docs/requirements holds the ratchet README plus the fixture ledger file
+    # docs/requirements contains the ratchet README plus the fixture ledger file
     [[ "$output" == *"sources: srs 2,"* ]]
     [[ "$output" == *"tests 1"* ]]
 }
@@ -382,7 +382,7 @@ EOF
     run sh .guardrails/scripts/check-trace.sh
     # REQ-001 is still referenced from the SAD and the tests, so this run
     # legitimately fails on DANGLING-REF. The point of the test is the
-    # denominator: the summary says REQ 0 instead of leaving a zero-item run
+    # denominator: the summary states REQ 0 instead of leaving a zero-item run
     # indistinguishable from a full one.
     [ "$status" -eq 1 ]
     [[ "$output" == *"REQ 0"* ]]
@@ -392,7 +392,7 @@ EOF
 # --- Config shapes that would silently disable a gate ----------------------
 # Each of these produced a confident exit 0 over an unchecked hazard.
 
-@test "check-trace: a ledger directory holding no *.md is an error, not an empty document" {
+@test "check-trace: a ledger directory containing no *.md is an error, not an empty document" {
     rm -f docs/risk/*.md
     commit_all no-rmf-files
     run sh .guardrails/scripts/check-trace.sh
@@ -509,7 +509,7 @@ EOF
 @test "check-trace: an unrelated later traces: does not credit an SDD block" {
     # The SDD block must end at the next definition line or heading, the same
     # rule parse_llr_file uses. Without a terminator an annotation far below
-    # credited an SDD that carries none of its own.
+    # credited an SDD that contains none of its own.
     cat >> docs/architecture/0001-01-01-base.md <<'EOF'
 
 **SDD-002**: Logging module, no trace of its own.
@@ -524,7 +524,7 @@ EOF
 }
 
 @test "check-trace: a configured directory that is empty matches no file" {
-    # An empty directory exists but holds nothing to scan; passing it would
+    # An empty directory exists but contains nothing to scan; passing it would
     # report `strict 1` for a source that read nothing.
     rm -f src/.gitkeep
     commit_all empty-src
@@ -701,7 +701,7 @@ EOF
 }
 
 @test "check-trace: RC declared without doc_rmf is rejected, not left unplaceable" {
-    # This test asserted the OPPOSITE until the placement gate landed, and the
+    # This test asserted the OPPOSITE until the placement gate existed, and the
     # reversal is a premise change rather than an oscillation. Before the gate,
     # nothing read where an RC was defined — UNIMPLEMENTED-CONTROL reads
     # doc_srs — so requiring doc_rmf would have rejected a retrofit that had
@@ -711,7 +711,8 @@ EOF
     # MISPLACED-ITEM now reads doc_rmf to decide whether each control is
     # defined where its gates can see it. Unconfigured, that gate is not
     # skipped: it condemns every control in the project, once each, naming a
-    # key the config never set. One error before any gate runs says it better.
+    # key the config never set. One error before any gate runs is the better
+    # report.
     cat > .guardrails/config.yaml <<'EOF'
 guardrails_version: 0.1.0
 safety_class: B
@@ -838,7 +839,7 @@ EOF
     #
     # Read from the INDEX (`git ls-files -s`), not from HEAD and not from the
     # working tree. The accident this exists to catch — an `awk > tmp && mv`
-    # carrying 0644 across — reaches the index at `git add`, and HEAD only one
+    # copying 0644 across — reaches the index at `git add`, and HEAD only one
     # commit later; a working-tree check would also pass silently on a
     # mode-ignoring filesystem. With nothing staged the index equals HEAD, so
     # this is strictly earlier, never later.
@@ -867,7 +868,7 @@ EOF
 
 @test "check-trace: an item in a non-md file inside its doc directory is reported" {
     # "Outside doc_srs" means outside what gr_doc_files resolves — its *.md
-    # files one level deep — not outside the directory. A .txt sitting right
+    # files one level deep — not outside the directory. A .txt directly
     # in the ledger is not among them either, so the message must not tell the
     # operator to move a file that is already where they would move it.
     printf '**REQ-002**: in a .txt inside the ledger directory\n' > docs/requirements/srs.txt
@@ -929,7 +930,7 @@ EOF
         >> docs/architecture/0001-01-01-base.md
     printf '\n  **SDD-002**: An indented design item.\n' \
         >> docs/architecture/0001-01-01-base.md
-    # Its own file, with a heading first: appended to the base SRS it would land
+    # Its own file, with a heading first: appended to the base SRS it would be
     # inside REQ-001's still-open block, and `satisfies: derived` would be
     # credited to REQ-001 — which is correct block behaviour, and would have
     # made this assertion pass for a reason that has nothing to do with
@@ -999,7 +1000,7 @@ MD
 }
 
 @test "check-trace: items in a ledger under .guardrails/ are counted, not silently zero" {
-    # AC5. ids_defined carried the tree-wide exclusion while gr_doc_files, which
+    # AC5. ids_defined applied the tree-wide exclusion while gr_doc_files, which
     # builds the file list from the config, did not. One script, two opinions
     # about which files exist: the summary read `sources: srs 2` beside
     # `checked: REQ 0`, and every REQ gate became a no-op that still exited 0.
@@ -1194,8 +1195,8 @@ EOF
     # The vocabulary's behavioural pin, and the companion to "poisoning
     # gr_def_re". A textual count of call sites is defeated by a differently
     # spelled copy, so widen the definition instead and require every scan to
-    # follow: each fixture below is invisible while a body must carry a digit
-    # and visible once any alphanumeric body will do. A gate still holding its
+    # follow: each fixture below is invisible while a body must contain a digit
+    # and visible once any alphanumeric body will do. A gate still using its
     # own [0-9]{3,} stays quiet at both ends.
     printf '\n**REQ-abcdef**: a body with no digit.\n' >> docs/requirements/0001-01-01-base.md
     printf '\n**SDD-abcdef**: a design item with no traces.\n' \
@@ -1209,7 +1210,7 @@ EOF
 
     run sh .guardrails/scripts/check-trace.sh
     # `**PR-abcdef**` is not an item at this end, so its `status: open` belongs
-    # to nothing and ORPHAN-ANNOTATION says so. That is the gate working, and
+    # to nothing and ORPHAN-ANNOTATION reports it. That is the gate working, and
     # it is why the baseline is 1 rather than 0.
     [ "$status" -eq 1 ] || { echo "baseline wrong: $output"; false; }
     [[ "$output" == *"ORPHAN-ANNOTATION"* ]] \
@@ -1232,7 +1233,7 @@ EOF
     [[ "$output" == *"DANGLING-REF RC-wxyzab"* ]] \
         || { echo "the reference harvest kept its own body: $output"; false; }
     # And the other direction: once PR-abcdef IS an item, its status line is
-    # attributed and the orphan disappears. A block rule holding its own body
+    # attributed and the orphan disappears. A block rule with its own body
     # would leave it orphaned at both ends.
     [[ "$output" != *"ORPHAN-ANNOTATION"* ]] \
         || { echo "the block rule kept its own body: $output"; false; }
@@ -1543,7 +1544,7 @@ LEDGER
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     # The message is pinned, not just the site: the two arms were split so
-    # each says where it looked (review findings 19, 22, 23), and without an
+    # each states where it looked (review findings 19, 22, 23), and without an
     # assertion on the text an edit that swapped the arms' wording — or
     # dropped this arm's `_why` — would keep every test green.
     [[ "$output" == *"DANGLING-FILE docs/risk/DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"*"found neither at the repository root nor beside the file naming it"* ]] \
@@ -1583,7 +1584,7 @@ LEDGER
 }
 
 @test "check-trace: the grammar placeholder DRAFT-<branch>-<slug>.md is not a reference" {
-    # verifies: PR-58zsvf — the ledger READMEs shipped by ratchet carry it.
+    # verifies: PR-58zsvf — the ledger READMEs shipped by ratchet contain it.
     printf '\nfrom your worktree DRAFT-<branch>-<slug>.md, renamed at merge\n' >> docs/risk/0001-01-01-base.md
     commit_all placeholder
     run sh .guardrails/scripts/check-trace.sh
@@ -1599,11 +1600,11 @@ LEDGER
     # definition inert instead and require all five consumers to go quiet.
     #
     # Reassigning at the END of lib.sh wins by shell rules, so every consumer
-    # that really reads the library's fragment is poisoned. One that carries its
-    # own copy of "where does an item end" keeps working, which is the failure
-    # this catches. The orphan gate moves the OTHER way — with no block ever
-    # open, every annotation belongs to nothing — so a fifth copy is caught by
-    # its silence where the first four are caught by their noise.
+    # that really reads the library's fragment is poisoned. One that contains
+    # its own copy of "where does an item end" keeps working, which is the
+    # failure this catches. The orphan gate moves the OTHER way — with no
+    # block ever open, every annotation belongs to nothing — so a fifth copy
+    # is caught by its silence where the first four are caught by their noise.
     printf '**PR-001**: Crash on empty input.\nstatus: open\n' \
         > docs/problems/0001-01-01-base.md
     printf '\n**SDD-002**: Logging module.\n' >> docs/architecture/0001-01-01-base.md
@@ -1655,7 +1656,7 @@ POISON
     [[ "$output" == *"ORPHAN-ANNOTATION"* ]] \
         || { echo "the orphan gate kept its own block rule: $output"; false; }
     # gr_kw_here is poisoned to fire on EVERY line, so a gate reading the
-    # library reports lines carrying no keyword at all. A faithful stub would
+    # library reports lines containing no keyword at all. A faithful stub would
     # let check-trace.sh keep a private `index($0, kw) == 1` with the suite
     # green, which is the drift the whole fragment exists to prevent.
     [[ "$output" == *"(status: belongs to no item)"* ]] \
@@ -1752,11 +1753,11 @@ CFG
 }
 
 
-# --- the close must be everything main closed that carries a colon ---------
+# --- the close must be everything main closed that contains a colon --------
 # Review round 2. The close set was a strict SUBSET of the pre-change rule for
 # every non-definition line, so every shape it missed was a regression, not a
 # gap. Three more were found on the first day. The discriminator is the COLON
-# adjoining the closing asterisks — the line from the original report carries
+# adjoining the closing asterisks — the line from the original report has
 # none — and NOT whitespace, which was untested and bought nothing: deleting
 # the whitespace exclusion reddened no test and left the reported defect fixed.
 
@@ -1858,7 +1859,7 @@ SAD
     [ "$status" -eq 1 ]
 }
 
-# --- the close is EVERY bold line carrying a colon -------------------------
+# --- the close is EVERY bold line containing a colon ------------------------
 # Review round 3. Rounds 1-3 each hand-fitted the pattern to the shapes the
 # previous round demonstrated, and each time the class stayed open. The suite
 # could not tell the shipped regex from the rule it claimed to implement:
@@ -2043,7 +2044,7 @@ SAD
 @test "check-trace: a UTF-8 BOM does not defeat the front-matter skip" {
     # lib.sh already knows a BOM makes a column-one scan miss its first line —
     # gr_check_config rejects one in config.yaml for exactly that reason. The
-    # lesson had not been carried across, so a BOM turned a title-page
+    # lesson had not been applied here, so a BOM turned a title-page
     # `status: draft` into a hard failure on a correct ledger.
     printf '\xef\xbb\xbf---\nstatus: draft\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all bom-front-matter
@@ -2054,7 +2055,7 @@ SAD
 
 @test "check-trace: a definition form inside a closing line opens no block" {
     # gr_block_opens is consulted only on lines that CLOSE, so an unanchored
-    # opening pattern is invisible unless the closing line also carries a
+    # opening pattern is invisible unless the closing line also contains a
     # definition form somewhere in it. This is that line.
     printf '**PR-001**: Crash on empty dose input.\nstatus: resolved\n\n**Note**: see **PR-b4m8p3**: for the duplicate\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all def-inside-closing-line
@@ -2133,7 +2134,7 @@ POISON
     commit_all half-applied-supersedes
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-m7dq3v, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-m7dq3v, which contains no superseded-by: REQ-s4pr2k)"* ]] \
         || { echo "$output"; false; }
 }
 
@@ -2147,7 +2148,7 @@ POISON
     commit_all half-applied-superseded-by
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-r5jw4h (superseded-by: REQ-k2vt8n, which carries no supersedes: REQ-r5jw4h)"* ]] \
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-r5jw4h (superseded-by: REQ-k2vt8n, which contains no supersedes: REQ-r5jw4h)"* ]] \
         || { echo "$output"; false; }
 }
 
@@ -2173,7 +2174,7 @@ POISON
     commit_all supersession-in-problems
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION PR-p3xz6b (supersedes: PR-q8fn5d, which carries no superseded-by: PR-p3xz6b)"* ]] \
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION PR-p3xz6b (supersedes: PR-q8fn5d, which contains no superseded-by: PR-p3xz6b)"* ]] \
         || { echo "$output"; false; }
 }
 
@@ -2209,13 +2210,13 @@ POISON
     commit_all two-predecessors
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-k2vt8n, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-k2vt8n, which contains no superseded-by: REQ-s4pr2k)"* ]] \
         || { echo "$output"; false; }
     [[ "$output" != *"supersedes: REQ-m7dq3v"* ]] || { echo "$output"; false; }
 }
 
 # verifies: PR-zt5c2v
-@test "check-trace: a supersedes: value carrying no ID is reported, not dropped" {
+@test "check-trace: a supersedes: value containing no ID is reported, not dropped" {
     # A run with no readable ID in it recorded NO KEY, so
     # NON-RECIPROCAL-SUPERSESSION could not fire, and ORPHAN-ANNOTATION could
     # not either — that backstop sees only lines OUTSIDE a block. A
@@ -2248,7 +2249,7 @@ POISON
 }
 
 # verifies: PR-zt5c2v
-@test "check-trace: a superseded-by: value carrying no ID is reported too" {
+@test "check-trace: a superseded-by: value containing no ID is reported too" {
     # The other direction, and it is not the same code path: the two keywords
     # are read by two separate rules, and a fix applied to one of them leaves
     # the other silent.
@@ -2268,9 +2269,9 @@ POISON
     # DISCARDS REQ-a3k9z2x — a seven-character body is not an ID, and
     # crediting the six characters it opens with would name an item nobody
     # wrote — so the run came back non-empty, sup_run found a readable ID and
-    # said nothing, and ONE HALF of a two-predecessor supersession was recorded
-    # while the other was absent. Exit 0, on the exact mistake this gate exists
-    # to catch: a mistyped ID in a list, not an unreadable line.
+    # reported nothing, and ONE HALF of a two-predecessor supersession was
+    # recorded while the other was absent. Exit 0, on the exact mistake this
+    # gate exists to catch: a mistyped ID in a list, not an unreadable line.
     printf '\n**REQ-s4pr2k**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-m7dq3v, REQ-a3k9z2x\n\n**REQ-m7dq3v**: The software shall limit the infusion rate.\nsuperseded-by: REQ-s4pr2k\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-s4pr2k\n# verifies: REQ-m7dq3v\ntrue\n' > tests/test_sup.sh
@@ -2390,7 +2391,7 @@ POISON
 # verifies: PR-zt5c2v
 @test "check-trace: a superseded-by: list mixing a valid ID with a truncated prefix is reported" {
     # The second keyword, tested separately for the same reason the over-long
-    # case is: the two directions are read by two rules, and a fix landed on
+    # case is: the two directions are read by two rules, and a fix applied to
     # one leaves the other silent.
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s, REQ-\n' \
         >> docs/requirements/0001-01-01-base.md
@@ -2454,9 +2455,9 @@ POISON
     commit_all two-supersedes-lines
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-m7dq3v, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-m7dq3v, which contains no superseded-by: REQ-s4pr2k)"* ]] \
         || { echo "the first line was dropped: $output"; false; }
-    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-k2vt8n, which carries no superseded-by: REQ-s4pr2k)"* ]] \
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-s4pr2k (supersedes: REQ-k2vt8n, which contains no superseded-by: REQ-s4pr2k)"* ]] \
         || { echo "the second supersedes: line was dropped: $output"; false; }
 }
 
@@ -2484,7 +2485,7 @@ POISON
 @test "check-trace: an item with no status: line is reported, not read as resolved" {
     # verifies: practice-feedback finding 09a (D1)
     # Measured on sightings-app: one item of 159 (PR-028) records its state in
-    # prose bullets and carries no status: line. Every gate run since it was
+    # prose bullets and contains no status: line. Every gate run since it was
     # written has read it as resolved.
     printf '**PR-001**: Crash on empty dose input.\naffects: REQ-001\n' \
         > docs/problems/0001-01-01-base.md
@@ -2504,7 +2505,7 @@ POISON
     # The item is otherwise COMPLETE on purpose. The first version left out
     # opened: as well, so INCOMPLETE-PROBLEM fired whatever the
     # status rule did and the test passed without constraining it — a mutation
-    # restoring the old anywhere-on-the-line reader survived it untouched.
+    # restoring the old anywhere-on-the-line reader passed it untouched.
     # Here only the status rule can decide the verdict.
     printf '**PR-001**: Crash on empty dose input.\nopened: %s\n  status: open\n' "$(days_ago 5)" \
         > docs/problems/0001-01-01-base.md
@@ -2569,7 +2570,7 @@ POISON
 
 @test "check-trace: a leftover owner: line inside an item is inert" {
     # verifies: PR-dudg35
-    # Backward compatibility: ledgers written under the old grammar carry
+    # Backward compatibility: ledgers written under the old grammar contain
     # owner: lines, full and empty alike. Both are prose now — the run is
     # the same as if they were absent, and no output mentions them.
     printf '**PR-001**: Crash.\nowner: jvdv\nopened: %s\nstatus: open\n\n**PR-p9r5wx**: Also crash.\nowner:\nopened: %s\nstatus: open\n' "$(days_ago 2)" "$(days_ago 2)" \
@@ -2623,12 +2624,12 @@ POISON
     # `MALFORMED-DATE || INCOMPLETE-PROBLEM (no opened:)` so that the empty
     # value could share the loop — a disjunction no input could distinguish,
     # which left the empty-value rule unpinned on all eight. The independent
-    # review's mutation of that rule survived the whole suite. The empty value
+    # review's mutation of that rule passed the whole suite. The empty value
     # now has its own test below.
     #
     # 2026-00-10 and 2026-08-00 are here because a zero component is a
     # plausible typo and the calendar test is the only thing that rejects it:
-    # a mutation dropping the `m < 1 || d < 1` half of gr_date_valid survived
+    # a mutation dropping the `m < 1 || d < 1` half of gr_date_valid passed
     # the list without them.
     for bad in 2026-13-01 2026-02-30 2023-02-29 2026-00-10 2026-08-00 24-08-01 2026-08-1 2026-1a-01 yesterday 2026/08/01; do
         printf '**PR-001**: Crash.\nopened: %s\nstatus: open\n' "$bad" \
@@ -2669,7 +2670,7 @@ POISON
     # 1900, and not 2100, deliberately. The first version used 2100, which is
     # in the FUTURE: dropping the century rule made the date valid, the future
     # rule then reported MALFORMED-DATE anyway, and the test passed while
-    # constraining nothing — a mutation removing the century rule survived it.
+    # constraining nothing — a mutation removing the century rule passed it.
     # A past date leaves only the calendar rule able to reject it.
     printf '**PR-001**: Crash.\nopened: 1900-02-29\nstatus: open\n' \
         > docs/problems/0001-01-01-base.md
@@ -2826,7 +2827,7 @@ POISON
 @test "check-trace: an undatable open item counts toward the backlog limit" {
     # verifies: practice-feedback finding 09a (D2, D6)
     # It is already failing for the missing field. It must not ALSO be missing
-    # from the count, or a ledger could hold its backlog down by omission.
+    # from the count, or a ledger could keep its backlog low by omission.
     printf 'problem_open_max: 1\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
     printf '**PR-p9r5wx**: Undated.\nstatus: open\n' \
@@ -2922,7 +2923,7 @@ POISON
 }
 
 # verifies: PR-4fwfjp
-@test "check-trace: the ACCEPTED-PR roll-call line carries the date" {
+@test "check-trace: the ACCEPTED-PR roll-call line contains the date" {
     # `opened:` is required on an accepted item because "an accepted item
     # still has a date, and the roll-call reports it" — which the roll-call
     # did not do, contradicting both that justification and the template.
@@ -3092,7 +3093,7 @@ POISON
     # verifies: practice-feedback finding 09a (D5)
     # The shell check tests the shape and the awk guard tests the calendar.
     # Only the pair rejects 2026-13-45, and a mutation that removes just one
-    # of them survives — which is why both are exercised here.
+    # of them passes — which is why both are exercised here.
     write_pr PR-001 open "$(days_ago 4)"
     commit_all date-stub-shaped
     mkdir -p "$BATS_TEST_TMPDIR/fakebin2"
@@ -3155,7 +3156,7 @@ POISON
     # day falls at the END. Every other test in this file uses a date near
     # today, which is never in January or February, so the shift itself went
     # unexercised — a mutation that applied the March branch to every month
-    # survived the whole suite. `date` is stubbed so the arithmetic, not the
+    # passed the whole suite. `date` is stubbed so the arithmetic, not the
     # calendar the tests happen to run on, decides the answer.
     mkdir -p "$BATS_TEST_TMPDIR/febbin"
     printf '#!/bin/sh\necho 2026-03-01\n' > "$BATS_TEST_TMPDIR/febbin/date"
@@ -3203,7 +3204,7 @@ POISON
 
 @test "check-trace: the first opened: in a block wins" {
     # verifies: practice-feedback finding 09a (D1), PR-dudg35
-    # The review's mutation making the LAST occurrence win survived the whole
+    # The review's mutation making the LAST occurrence win passed the whole
     # suite once. templates/problems.md states the rule, so it was documented
     # and unenforced — the pairing this toolkit exists to end.
     printf '**PR-001**: Crash.\nopened: %s\nopened: 1999-01-01\nstatus: open\n' "$(days_ago 6)" \
@@ -3218,7 +3219,7 @@ POISON
     # verifies: practice-feedback finding 09a (D5), PR-dudg35
     # days_from_civil's `- int(yoe / 100)` term. Every dated fixture lives in
     # 2024-2026, so the term was never exercised and a mutation deleting it
-    # survived: 1999-01-01 to 2001-01-01 is 731 days, and 728 without it. This
+    # passed: 1999-01-01 to 2001-01-01 is 731 days, and 728 without it. This
     # is a different rule from the leap-CENTURY rule in gr_date_valid.
     mkdir -p "$BATS_TEST_TMPDIR/centbin"
     printf '#!/bin/sh\necho 2001-01-01\n' > "$BATS_TEST_TMPDIR/centbin/date"
@@ -3233,8 +3234,8 @@ POISON
 
 @test "check-trace: a BOM in front of the first item does not hide it" {
     # verifies: practice-feedback finding 09a (D1), PR-dudg35
-    # A BOM sits in front of column one and hides it from every match. The
-    # strip was carried across from check_orphans and nothing pinned it.
+    # A BOM is in front of column one and hides it from every match. The
+    # strip was copied from check_orphans and nothing pinned it.
     #
     # It leaves a known divergence, stated rather than hidden: `ids_defined`
     # greps for an anchored definition and does NOT tolerate a BOM, so the
@@ -3260,7 +3261,7 @@ POISON
         > docs/problems/0001-01-01-base.md
     commit_all one-day-ahead
     run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "one day ahead was refused: $output"; false; }
+    [ "$status" -eq 0 ] || { echo "one day ahead was rejected: $output"; false; }
     [[ "$output" == *"(open 0 days)"* ]] || { echo "$output"; false; }
 
     printf '**PR-001**: Crash.\nopened: %s\nstatus: open\n' "$(days_ago -2)" \
@@ -3296,7 +3297,7 @@ POISON
     [ "$status" -eq 2 ] || { echo "$output"; false; }
     [[ "$output" == *"problem_age_days must be"* ]] || { echo "$output"; false; }
     [[ "$output" != *"DANGLING-REF"* ]] \
-        || { echo "gates ran before the config was settled: $output"; false; }
+        || { echo "gates were run before the config was settled: $output"; false; }
 }
 
 @test "check-trace: the summary counts undated open items apart from the oldest" {
@@ -3350,7 +3351,7 @@ POISON
     # The other side of the bound above: a header block with a key on line 2
     # is still a header block, and a `status: draft` in it is a title-page
     # field, not an orphan. Without this the fix would trade one false green
-    # for a false red on every document that carries front matter.
+    # for a false red on every document that contains front matter.
     printf -- '---\nstatus: draft\nauthor: docs team\ntitle: Problem reports\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' \
         > docs/problems/0001-01-01-base.md
     commit_all real-front-matter-kept
@@ -3362,26 +3363,26 @@ POISON
 @test "check-trace: a limit at the shell's integer range is accepted" {
     # verifies: practice-feedback finding 09a (D6)
     # INDEPENDENT REVIEW, second pass, N5. The first repair fixed nine digits
-    # and refused 1000000000 with the untrue explanation that it was too large
-    # to compare. Loosening that constant to eighteen digits survived the whole
+    # and rejected 1000000000 with the untrue explanation that it was too large
+    # to compare. Loosening that constant to eighteen digits passed the whole
     # suite, so the boundary was unpinned in both directions. The rule now asks
     # the shell, and both ends are pinned here.
     printf 'problem_open_max: 1000000000\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
     commit_all big-but-comparable
     run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "a comparable limit was refused: $output"; false; }
+    [ "$status" -eq 0 ] || { echo "a comparable limit was rejected: $output"; false; }
     [[ "$output" == *"limits age none, open 1000000000"* ]] || { echo "$output"; false; }
 }
 
-@test "check-trace: an item with a refused date is counted as having no usable date" {
+@test "check-trace: an item with a rejected date is counted as having no usable date" {
     # verifies: practice-feedback finding 09a (D6)
     # INDEPENDENT REVIEW, second pass, N6. The count is of items whose age is
     # unknown, which includes a date that was read and REJECTED — not only one
     # that is absent. The word had to become true of both.
     printf '**PR-001**: Crash.\nopened: 2026-13-01\nstatus: open\n' \
         > docs/problems/0001-01-01-base.md
-    commit_all refused-date-counted
+    commit_all rejected-date-counted
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"problems: open 1, accepted 0, oldest n/a (1 with no usable date);"* ]] \
@@ -3618,11 +3619,11 @@ EOF
 # verifies: engagement rule (architecture item 2) — byte-exact manifest name
 @test "check-trace: a UNITS.YAML near-miss leaves the run in single-unit mode on any filesystem" {
     # setup()'s fixture is the green single-unit shape; the near-miss manifest
-    # must not flip this run into a scoped or refusing mode — on APFS the old
+    # must not flip this run into a scoped or rejecting mode — on APFS the old
     # `-f` test also matched UNITS.YAML and engaged off a manifest that
     # officially does not exist. check-units.sh separately convicts the
-    # near-miss NAME at exit 2 (near-miss-manifest-name-is-exit-2 holds that
-    # door); this run stays exactly what a single-unit repository gets.
+    # near-miss NAME at exit 2 (near-miss-manifest-name-is-exit-2 covers that
+    # case); this run stays exactly what a single-unit repository gets.
     printf 'units:\n  - pkg/a\n' > .guardrails/UNITS.YAML
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
@@ -3682,7 +3683,7 @@ ORPHAN
     [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
 }
 
-@test "check-trace: a bare draft name found in no ledger directory says where it looked" {
+@test "check-trace: a bare draft name found in no ledger directory states where it looked" {
     # verifies: PR-58zsvf — review finding 19: a bare name resolves against
     # THIS config's ledger directories, and the message must not claim the
     # file does not exist anywhere.

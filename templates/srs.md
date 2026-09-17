@@ -23,7 +23,7 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
   is random and is allocated against nothing, so two worktrees and two GitHub
   PRs never contend for it. Never invent one by hand — the digit rule and the
   alphabet are what keep an ID from matching ordinary English.
-- Every requirement must be verified by at least one test carrying a
+- Every requirement must be verified by at least one test containing a
   `verifies:` annotation (directly, or transitively via a tested LLR).
 - IDs in the examples above use `NNNNNN` as a placeholder, and the examples
   are indented. Both matter. A real ID here would be a reference to an item

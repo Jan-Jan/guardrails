@@ -94,7 +94,7 @@ EOF
 }
 
 @test "check-ids: an ID inside the excluded tooling dir is not a duplicate" {
-    # The fixture sits in .guardrails/scripts/ because that — not the whole
+    # The fixture is in .guardrails/scripts/ because that — not the whole
     # .guardrails/ tree — is what the scans exclude. A project file one level
     # up is scanned, and the test below asserts that.
     printf '**REQ-a3k9z2**: an item inside the tooling dir.\n' > .guardrails/scripts/notes.md
@@ -166,10 +166,10 @@ EOF
     body_new_id=0
 
     # The two shared definitions added 2026-08-22, pinned for the same reason
-    # the three above are. gr_def_re_loose says which lines OPEN in definition
-    # shape whatever their body, and GR_AWK_ITEM_BLOCK says where an item block
-    # starts and ends. Five gates read the second one; a sixth opinion about
-    # where an item ends is precisely the defect that change fixed.
+    # the three above are. gr_def_re_loose states which lines OPEN in definition
+    # shape whatever their body, and GR_AWK_ITEM_BLOCK states where an item
+    # block starts and ends. Five gates read the second one; a sixth opinion
+    # about where an item ends is precisely the defect that change fixed.
     loose_check_ids=1
     loose_check_review=0
     loose_check_signing=0
@@ -230,7 +230,7 @@ EOF
     forms() {
         # Fold the digit-class spellings together, then drop backslashes and
         # both quotes — in separate passes, because a single `tr -d` argument
-        # holding a backslash has it read as an escape introducer.
+        # containing a backslash has it read as an escape introducer.
         sed -e 's/\[\[:digit:\]\]/[0-9]/g' -e 's/\[0123456789\]/[0-9]/g' \
             -e 's/\[abcdefghjkmnpqrstuvwxyz[^]]*\]/[0-9]/g' "$1" \
             | tr -d "\\\\" | tr -d "\"'" \
@@ -342,21 +342,21 @@ EOF
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {
-    # The behavioural half of AC5 of change D, and the only half that has ever
-    # held. Three rounds of review defeated text-based checks: a copy in another
+    # The behavioural half of AC5 of change D, and the only half ever proved.
+    # Three rounds of review defeated text-based checks: a copy in another
     # quoting style, a copy spelled [[:digit:]], a copy split across lines, a
     # copy spelled [-][0-9], a call whose result is discarded on the next line,
-    # and a gr_def_re redefined inside the script itself. None of those survives
+    # and a gr_def_re redefined inside the script itself. None of those defeats
     # this.
     #
     # Redefining at the END of lib.sh wins over the original by shell rules, so
     # every caller that really goes through lib.sh's constructor is poisoned.
-    # A script carrying its own copy — or calling the real one and ignoring it —
-    # keeps working, and that is exactly what this test then catches.
+    # A script containing its own copy — or calling the real one and ignoring
+    # it — keeps working, and that is exactly what this test then catches.
     printf '\n**PR-a3k9z2**: an item defined here.\nstatus: open\n' >> docs/problems/README.md
     printf '**PR-a3k9z2**: the same ID defined a second time.\nstatus: open\n' \
         > docs/problems/dup.md
-    # check-trace refuses to run when a configured test_paths entry matches no
+    # check-trace rejects the run when a configured test_paths entry matches no
     # file, so this fixture needs one before its counts can be compared.
     printf 'true\n' > tests/test_a.sh
     commit_all items
@@ -377,7 +377,7 @@ EOF
     [[ "$output" != *"DUPLICATE-ID"* ]] || { echo "check-ids has its own copy: $output"; false; }
     # And the other side of the same constructor: with nothing matching as a
     # definition, every definition-shaped line becomes a malformed one. A
-    # MALFORMED-ID gate holding its own idea of a valid ID would stay quiet.
+    # MALFORMED-ID gate with its own idea of a valid ID would stay quiet.
     [[ "$output" == *"MALFORMED-ID"*"PR-a3k9z2"* ]] \
         || { echo "the malformed gate has its own copy: $output"; false; }
 
@@ -388,7 +388,7 @@ EOF
 
 @test "check-ids: a stock install does not report its own tooling" {
     # AC9. The exclusion narrowed in this change exists only so the installed
-    # scripts — whose comments carry `REQ-DRAFT-b-1` and definition-form
+    # scripts — whose comments contain `REQ-DRAFT-b-1` and definition-form
     # examples — do not trip the gates they implement. That is the criterion
     # the narrowing trades against, so assert it rather than assume it.
     #
@@ -424,7 +424,7 @@ EOF
 
 @test "check-ids: a misspelled config key is an error here too" {
     # The general form of the same gap: any shape gr_check_config exists to
-    # refuse was refused by two of the three gates.
+    # reject was rejected by two of the three gates.
     sed -i.bak 's/^strict_paths:/strict-paths:/' .guardrails/config.yaml \
         && rm -f .guardrails/config.yaml.bak
     commit_all misspelled-key
@@ -439,13 +439,13 @@ EOF
     # at a textual guard were each bypassed — by a single-quoted copy, by a
     # comment that preserved the count, by a shadowing definition. So prove the
     # single source of truth behaviourally: move the exclusion onto src/, and
-    # require every scan to follow it there. A call site still holding its own
+    # require every scan to follow it there. A call site still with its own
     # literal pathspec would not move, and would fail here.
     #
     # check-ids.sh has three such sites — the draft scan, MALFORMED-ID and the
     # duplicate scan — and each has its own observable below. It had four until
     # MALFORMED-ID's two passes were collapsed into one composed scan; the
-    # count here said four for a while afterwards. Independent review, S8.
+    # count here stated four for a while afterwards. Independent review, S8.
     printf '**REQ-001**: a second definition of the fixture item.\n**REQ-b4m7q3**: an item outside its ledger.\n**REQ-abcdef**: a body that is not an ID.\n**REQ-DRAFT-x-1**: a draft.\n' \
         > src/notes.md
     # check-trace.sh runs below, and this file's fixture leaves tests/ empty.
@@ -467,7 +467,7 @@ EOF
     # pathspec argument, not a list — so the move is visible from both ends:
     # src/ becomes invisible and .guardrails/scripts/ becomes visible, and the
     # tooling starts reporting the draft token in its own comments. A scan
-    # holding its own literal pathspec would move at neither end.
+    # with its own literal pathspec would move at neither end.
     run sh .guardrails/scripts/check-ids.sh
     [[ "$output" != *"DRAFT-ID src/notes.md"* ]] \
         || { echo "check-ids still scans src: $output"; false; }
@@ -564,7 +564,7 @@ EOF
     [[ "$output" == *"DRAFT-ID"* ]]
 }
 
-@test "check-ids: the draft failure says what to run instead" {
+@test "check-ids: the draft failure states what to run instead" {
     # Nothing mints a draft any more, so the message has to hand the reader
     # the replacement rather than leave them looking for a finalize step.
     #
@@ -602,15 +602,15 @@ EOF
     [[ "$output" == *"DRAFT-FILE"* ]]
 }
 
-@test "check-ids: --allow-drafts is gone, and is refused rather than ignored" {
+@test "check-ids: --allow-drafts is gone, and is rejected rather than ignored" {
     # A flag that silently does nothing is a gate the caller believes they
-    # relaxed. Refuse it so the skills and any CI that still passes it break
+    # relaxed. Reject it so the skills and any CI that still passes it break
     # loudly at the upgrade.
     run sh .guardrails/scripts/check-ids.sh --allow-drafts
     [ "$status" -eq 2 ]
 }
 
-@test "check-ids: --base is gone, and is refused rather than ignored" {
+@test "check-ids: --base is gone, and is rejected rather than ignored" {
     run sh .guardrails/scripts/check-ids.sh --base main
     [ "$status" -eq 2 ]
 }
@@ -687,7 +687,7 @@ EOF
     # duplicate-vs-base half went with the sequential scheme.
     #
     # Fault injection rather than a poisoned pattern: a `git` earlier on PATH
-    # that fails the one scan carrying -oE, which in this script is the
+    # that fails the one scan containing -oE, which in this script is the
     # duplicate scan alone.
     real_git=$(command -v git)
     mkdir -p "$BATS_TEST_TMPDIR/bin"
@@ -715,7 +715,7 @@ EOF
     [[ "$output" == *"duplicate scan failed"* ]] || { echo "$output"; false; }
 }
 
-@test "check-ids: the MALFORMED-ID failure says what to run instead" {
+@test "check-ids: the MALFORMED-ID failure states what to run instead" {
     # Independent review, S13. DRAFT-ID's guidance is pinned by a test and by
     # mutation M24; MALFORMED-ID's was pinned by neither, and M42 dropped all
     # three of its guidance lines while reddening only the location assertion.

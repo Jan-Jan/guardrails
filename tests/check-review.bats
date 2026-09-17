@@ -61,7 +61,7 @@ setup() { make_fixture_repo; }
     # OPEN the script, so a status-only assertion here passes with no script at
     # all — a test that proves the absence of the thing it is testing.
     #
-    # And the WHOLE message, not the word "detached": both guards below say
+    # And the WHOLE message, not the word "detached": both guards below state
     # "detached", so a substring assertion cannot tell them apart. Mutation M04
     # deleted this guard and the suite stayed green, because a detached HEAD in
     # a single checkout also makes gr_base_branch print nothing and the SECOND
@@ -113,7 +113,7 @@ setup() { make_fixture_repo; }
     [[ "$output" == *"no verification records"* ]]
 }
 
-@test "check-review: an invalid config is refused before any record is read" {
+@test "check-review: an invalid config is rejected before any record is read" {
     make_change_worktree my-change
     write_record mine my-change
     printf 'no_such_key: x\n' >> .guardrails/config.yaml
@@ -123,7 +123,7 @@ setup() { make_fixture_repo; }
     [[ "$output" == *"unknown config key"* ]]
 }
 
-@test "check-review: an unknown argument is refused, not ignored" {
+@test "check-review: an unknown argument is rejected, not ignored" {
     make_change_worktree my-change
     write_record mine my-change
     commit_all records
@@ -145,7 +145,7 @@ setup() { make_fixture_repo; }
     [[ "$output" == *"MISSING-RECORD other-branch"* ]]
 }
 
-@test "check-review: --branch with no value is refused" {
+@test "check-review: --branch with no value is rejected" {
     write_record mine my-change
     commit_all records
     run sh .guardrails/scripts/check-review.sh --branch
@@ -156,7 +156,7 @@ setup() { make_fixture_repo; }
 # --- INCOMPLETE-RECORD ------------------------------------------------------
 # `branch:` is not in this set. It is the SELECTOR — a record that does not
 # declare a branch is not this change's record, and its absence is reported as
-# MISSING-RECORD above. The three below are what the record must say once it
+# MISSING-RECORD above. The three below are what the record must state once it
 # has been found.
 
 @test "check-review: a record with no reviewer: fails" {
@@ -356,7 +356,7 @@ setup() { make_fixture_repo; }
 }
 
 @test "check-review: a record with no findings at all passes" {
-    # A review that raised nothing is legal. `verdict:` is what says so.
+    # A review that raised nothing is legal, and `verdict:` states that.
     make_change_worktree my-change
     write_record mine my-change
     commit_all records
@@ -502,7 +502,7 @@ POISON
 # Review round 1, finding B1. The gate reported a PASS for a change with no
 # record at all, because a record for a different change quoted `branch:` in a
 # fenced block. Two independent answers: a record claims the FIRST branch it
-# carries and no other, and the record must be one this change wrote.
+# contains and no other, and the record must be one this change wrote.
 
 @test "check-review: a branch: inside a fenced code block does not select the record" {
     make_change_worktree my-change
@@ -524,7 +524,7 @@ REC
     [[ "$output" == *"MISSING-RECORD my-change"* ]] || { echo "$output"; false; }
 }
 
-@test "check-review: the record claims the first branch it carries, not the last" {
+@test "check-review: the record claims the first branch it contains, not the last" {
     make_change_worktree my-change
     write_record mine my-change
     printf '\nbranch: some-other-change\n' >> docs/verification/2026-01-01-mine.md
@@ -559,7 +559,7 @@ REC
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-@test "check-review: --branch says in the summary that provenance was not checked" {
+@test "check-review: --branch states in the summary that provenance was not checked" {
     write_record old some-branch
     commit_all records
     run sh .guardrails/scripts/check-review.sh --branch some-branch
@@ -572,7 +572,7 @@ REC
     [[ "$output" != *"NOT checked"* ]]
 }
 
-@test "check-review: --branch naming the base branch is refused" {
+@test "check-review: --branch naming the base branch is rejected" {
     # D6 applies whether the branch was detected or named: the base branch is
     # not a change under review, and answering about it would be a green tick
     # on a question nobody asked.
@@ -683,7 +683,7 @@ REC
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-@test "check-review: a finding label carrying a non-UTF-8 byte is reported" {
+@test "check-review: a finding label containing a non-UTF-8 byte is reported" {
     # Review round 1, finding B3. The first version asked a regex with a
     # negated bracket expression, and gawk in a multibyte locale does not match
     # an invalid byte sequence with one — so a latin-1 label failed OPEN at
@@ -699,10 +699,10 @@ REC
     [[ "$output" == *"MALFORMED-FINDING"* ]] || { echo "$output"; false; }
 }
 
-# --- bytes the record may legitimately carry -------------------------------
+# --- bytes the record may legitimately contain -------------------------------
 # Review round 1, finding B6: the gate inherited check-trace.sh's BOM and CR
-# handling without check-trace.sh's tests for it. Both lines survived deletion
-# against the whole suite.
+# handling without check-trace.sh's tests for it. Deleting either line
+# reddened no test in the whole suite.
 
 @test "check-review: a record saved with CRLF line endings satisfies the gate" {
     make_change_worktree my-change
@@ -740,14 +740,14 @@ REC
     [[ "$output" == *"no reviewer:"* ]] || { echo "$output"; false; }
 }
 
-@test "check-review: an empty doc_verification value is refused, not defaulted" {
+@test "check-review: an empty doc_verification value is rejected, not defaulted" {
     make_change_worktree my-change
     write_record mine my-change
     printf 'doc_verification:\n' >> .guardrails/config.yaml
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
-    # gr_check_config now refuses ANY key set to nothing, so this arrives at
+    # gr_check_config now rejects ANY key set to nothing, so this arrives at
     # the general diagnosis rather than gr_verification_dir's own — which
     # lib.bats still exercises directly, since a library function has to be
     # safe when called without the validator in front of it.

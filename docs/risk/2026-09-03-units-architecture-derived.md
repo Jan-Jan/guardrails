@@ -10,7 +10,7 @@ guardrails toolkit itself, so harm is indirect — a false green here lets a
 defect ship from a downstream regulated project. Severity is rated at the
 worst credible downstream consumer (a Class C device); probability is rated
 for the toolkit's own failure mode. This repository is not yet self-hosted
-(docs/plans/2026-08-22-ratchet-gap-analysis.md), so items carry descriptive
+(docs/plans/2026-08-22-ratchet-gap-analysis.md), so items contain descriptive
 labels, not minted HAZ/RC tokens.
 
 ## Derived decisions assessment
@@ -80,7 +80,7 @@ onto single-unit repositories.
 **Control (decision):** a near-miss manifest scan in `check-units.sh`
 default mode, running exactly when no `.guardrails/units.yaml` exists and
 scanning exactly the manifest's own directory — the root `.guardrails/`,
-where the mistyped manifest actually lands and where no other tool's file
+where the mistyped manifest is actually written and where no other tool's file
 legitimately lives. A file there in the near-miss class (`units.yml`,
 `unit.yaml`, case variants of `units.yaml`) **whose content is
 manifest-shaped** — a top-level `units:` or `not_a_unit:` key — convicts
@@ -96,7 +96,7 @@ narrowness twin **near-miss-without-manifest-content-passes** (a
 `.guardrails/units.yml` with no manifest-shaped key convicts nothing, and
 a manifest-shaped `units.yml` outside `.guardrails/` convicts nothing).
 
-**What the control breaks:** a repo carrying a *disused* manifest-shaped
+**What the control breaks:** a repo containing a *disused* manifest-shaped
 `units.yml` (e.g. an abandoned migration attempt) must delete or rename it
 before check-units.sh passes — loud by design; the remedy is one `git mv`.
 
@@ -107,7 +107,7 @@ left unscanned deliberately, because the root is where third-party files
 of that name live), still passes silently with at most one unit config
 present. Accepted: such a file is
 indistinguishable from prose without guessing, the window closes the
-moment a second unit config lands (the stray-configs scan), and the
+moment a second unit config is added (the stray-configs scan), and the
 migration path `/ratchet` will own (D9 facts interview) writes the
 manifest itself rather than leaving the filename to hand-typing.
 
@@ -133,7 +133,7 @@ blocking every unit's merge until the parked draft is finalized or
 deleted: a disclaimed path is never a legitimate home for work in flight,
 so cross-unit blocking is the point, not a cost. `MALFORMED-ID` is
 deliberately **not** scanned there: disclaimed directories legitimately
-hold legacy prose in definition shape, and convicting an archive line by
+contain legacy prose in definition shape, and convicting an archive line by
 line drives teams to widen patterns — the failure mode the gates exist to
 prevent. The narrowness is itself gated. Named test obligations on
 `check-units.sh`: **disclaimed-draft-convicts-at-repo-level** (a draft
@@ -159,7 +159,7 @@ never runs it has disengaged the machinery wholesale, which is assessment
 
 All three derived decisions are assessed: none invalidates a merged
 decision; the architecture's classification table, engagement rule and
-scan-scope choices stand as designed, each now carrying a control. The
+scan-scope choices stand as designed, each now containing a control. The
 controls add one finding token (`DISCLAIMED-DRAFT`, exit 1,
 `check-units.sh`) and five named test obligations
 (**disclaimed-definition-names-its-path**,
@@ -167,8 +167,8 @@ controls add one finding token (`DISCLAIMED-DRAFT`, exit 1,
 **near-miss-without-manifest-content-passes**,
 **disclaimed-draft-convicts-at-repo-level**,
 **disclaimed-prose-is-not-malformed**), binding on the unit machinery's
-bats suite wherever each conviction lands, alongside the architecture's
+bats suite wherever each conviction occurs, alongside the architecture's
 own obligations — `plan-change` inherits them as requirements, not
-suggestions. The architecture document is amended in place to carry the
+suggestions. The architecture document is amended in place to contain the
 token, the near-miss scan, and the obligations. REQ/RC minting awaits
 self-hosting (docs/plans/2026-08-22-ratchet-gap-analysis.md), as before.

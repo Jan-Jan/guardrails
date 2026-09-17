@@ -17,7 +17,7 @@ passes `UNANALYZED-DERIVED`, so an item named only in a verification table, a
 scope note or a passing parenthetical reads as assessed with the run at exit 0.
 affects: scripts/check-trace.sh, the `UNANALYZED-DERIVED` gate (one free-text
 `git grep` per derived ID over `$rmf_files`); templates/rmf.md, templates/srs.md,
-templates/sad.md and templates/AGENTS-block.md, which say "assessed" for a gate
+templates/sad.md and templates/AGENTS-block.md, which state "assessed" for a gate
 that enforces "mentioned"; skills/analyze-risks and skills/check-traceability,
 which tell the author to name the ID and nothing more.
 opened: 2026-09-08
@@ -40,7 +40,7 @@ resolves item IDs only; skills/merge-change step 3, which commits the renames
 as a complete finalize.
 opened: 2026-09-08
 status: resolved
-Root cause: the rename loop was the whole script; the mapping it held was
+Root cause: the rename loop was the whole script; the mapping it built was
 discarded. Fixed twice over: finalize-docs.sh rewrites path and unambiguous
 bare references across the ledger directories and the SOUP file, printing each,
 and check-trace.sh's DANGLING-FILE resolves any draft reference left in that

@@ -27,7 +27,7 @@
 #                              pattern-widening (disclaimed-prose-is-not-
 #                              malformed).
 #
-# Without a manifest, default mode exits 0 — AFTER refusing (exit 2) the two
+# Without a manifest, default mode exits 0 — AFTER rejecting (exit 2) the two
 # shapes that make "single-unit repository" a false reading: two or more
 # unit-shaped configs with no manifest (a unit outside compliance at exit 0),
 # and a near-miss manifest name in .guardrails/ with manifest-shaped content
@@ -105,7 +105,7 @@ $(printf '%s\n' "$strays" | sed 's/^/  /')
 
     # The near-miss scan (risk assessment 2, 2026-09-03): only the manifest's
     # own directory, only the near-miss name class, only manifest-shaped
-    # content. All three narrowings are load-bearing — see the assessment for
+    # content. All three narrowings are critical — see the assessment for
     # what each one leaves as accepted residual.
     set +f          # the script's one glob: `set -f` above would leave it
                     # a literal `.guardrails/*` and the scan silently dead
@@ -186,7 +186,7 @@ case "$mode" in
         case "$p" in
             (.guardrails/*)
                 # The manifest or the installed scripts changed: every unit's
-                # gates ran under the old tool, so every unit is in the blast
+                # gates were run under the old tool, so every unit is in the blast
                 # radius. The safe direction is to run them all.
                 touched="$units"
                 continue ;;
@@ -204,7 +204,7 @@ case "$mode" in
     done
     # Transitive closure over reverse depends_on (D12): a unit whose
     # dependency chain reaches a touched unit ships that unit's changed
-    # object code, whatever the intermediate contracts say.
+    # object code, whatever the intermediate contracts state.
     impact="$touched"
     grew=1
     while [ "$grew" -eq 1 ]; do
@@ -264,7 +264,7 @@ fi
 # UNCLAIMED-PATH-exempt, so without this scan a draft parked there is scanned
 # by NO gate). The conviction lives at the repository level, where it blocks
 # every merge. .guardrails/scripts/ is carved out for the same reason
-# GR_SCAN_EXCLUDE exists: the installed scripts legitimately carry
+# GR_SCAN_EXCLUDE exists: the installed scripts legitimately contain
 # draft-shaped tokens in their comments.
 
 # scan_drafts PATHSPEC... — convict both draft halves under the pathspecs,
@@ -330,7 +330,7 @@ for c in $units; do
                     echo "INCOMPLETE-SEGREGATION $c: '$s' (cited control $s_cite is defined nowhere)"
                     fail=1
                 else
-                    # disclaimed-definitions-do-not-resolve holds here too: a
+                    # disclaimed-definitions-do-not-resolve applies here too: a
                     # definition living only under a not_a_unit: path is one
                     # no gate governs. Root-level and unit files both count —
                     # the RMF lives somewhere; only disclaimed paths do not.
@@ -369,7 +369,7 @@ for c in $units; do
             case "${end#*:}" in
                 (A|B|C) ;;
                 (*) gr_die \
-"safety_class is '${end#*:}' on unit ${end%%:*}, which sits on a dependency
+"safety_class is '${end#*:}' on unit ${end%%:*}, which is on a dependency
   edge ($c -> $p). The class floor cannot be computed from a placeholder —
   run the ratchet safety-class interview for that unit first." ;;
             esac

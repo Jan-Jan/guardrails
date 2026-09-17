@@ -15,18 +15,18 @@ inside the command substitution), tests/portability.bats (the gate this adds)
 — no item ID exists to name, see the note above.
 opened: 2026-09-02
 status: resolved
-Root cause: bash 3.2's `$(...)` parser cannot carry a case pattern's
+Root cause: bash 3.2's `$(...)` parser cannot parse a case pattern's
 unbalanced `)`, and the nested-worktree guard put one there; the POSIX-optional
 leading `(` is the documented escape. Fix: every case pattern in executable
 shell now opens with `(` — a mechanical 78-line sweep — gated permanently by
 `tests/portability.bats` "every case pattern in executable shell opens with a
 parenthesis" (verifies: PR-vh6cud), which was watched red before the sweep;
 the independent review then found that scan blind to one-line `case`
-statements, so it was reworked into a segment scanner and the five surviving
+statements, so it was reworked into a segment scanner and the five remaining
 one-liners swept.
 Collision, recorded at integration: the same defect was independently found
 and resolved as **PR-xyu6en** (docs/problems/2026-09-02-hardware-key-retrofit.md)
-in the retrofit change that reached the base branch first — its fix carries
+in the retrofit change that reached the base branch first — its fix contains
 the three guard-4 parens with an explanatory comment, kept verbatim on the
 merge. What this report resolves beyond it is the class, not the instance:
 the tree-wide sweep and the segment-scanner gate that stop the next parenless

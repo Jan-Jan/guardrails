@@ -33,7 +33,7 @@ caller_pwd=$(pwd -P)
 . "$(dirname "$0")/lib.sh"
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
 # substitution, and under dash `cd ""` returns 0 and stays put — so outside a
-# git repository the script carried on in the caller's directory with a
+# git repository the script continued in the caller's directory with a
 # relative config path. The status has to be taken from the substitution.
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
@@ -47,8 +47,8 @@ fi
 
 # Unit selection (architecture item 7). In a manifest repository an ID must
 # be minted against SOME unit's config — the gates that will ever check the
-# item are that unit's. Inside a unit, the caller's cwd says which; --unit
-# says it explicitly; nothing else is inferred, because a wrong guess mints
+# item are that unit's. Inside a unit, the caller's cwd states which; --unit
+# states it explicitly; nothing else is inferred, because a wrong guess mints
 # an ID whose gates are another unit's.
 if gr_units_present; then
     gr_check_units
@@ -59,8 +59,8 @@ if gr_units_present; then
   Declared units: $(gr_unit_list | tr '\n' ' ')"
         if [ -n "$gr_config_env" ] && [ "$gr_config_env" != "$unit_arg/.guardrails/config.yaml" ]; then
             gr_die \
-"--unit $unit_arg and GR_CONFIG=$gr_config_env disagree — refusing to guess
-  which one you meant. Drop one of the two."
+"--unit $unit_arg and GR_CONFIG=$gr_config_env disagree — rejected rather than
+  guessing which one you meant. Drop one of the two."
         fi
         unit="$unit_arg"
     elif [ -n "$gr_config_env" ]; then
@@ -84,7 +84,7 @@ fi
 
 # A misspelled key, a BOM, a prefix whose gates are unconfigured: every one of
 # them makes some gate skip in silence, and an ID minted into such a project is
-# an ID nothing will ever check. Refuse before handing one out.
+# an ID nothing will ever check. Reject before handing one out.
 gr_check_config
 
 prefix="${1:-}"
@@ -111,17 +111,17 @@ alphabet=$(printf '%s' "$GR_ID_ANY" | tr -d '[]')
 digits=$(printf '%s' "$GR_ID_DIGIT" | tr -d '[]')
 
 urandom="${GR_ID_URANDOM:-/dev/urandom}"
-# A FIFO is refused outright rather than read. The bounded read below cannot
+# A FIFO is rejected outright rather than read. The bounded read below cannot
 # help there: the shell blocks in open() on a FIFO with no writer, before dd
 # runs at all, and a FIFO with an idle writer blocks in read(). Neither is a
 # plausible entropy source, and both hang the merge step that calls this.
 [ ! -p "$urandom" ] || gr_die \
-"$urandom is a FIFO — refusing to read it for randomness.
+"$urandom is a FIFO — rejected rather than read for randomness.
   Reading it would block until something writes, which for a merge step means
   hanging rather than failing. Point GR_ID_URANDOM at a character device or a
   regular file."
 [ -r "$urandom" ] || gr_die \
-"no entropy source at $urandom — refusing to mint an ID.
+"no entropy source at $urandom — no ID is minted.
   The obvious fallback, the pid and the clock, is a predictable generator
   wearing a random one's clothes: two agents starting in the same second would
   draw the same token by construction. Set GR_ID_URANDOM if the device lives
@@ -151,7 +151,7 @@ draw() {
     # here, because one dd is still one blocking read(). That is the documented
     # behaviour of such a device and not something to work around without a
     # portable timeout; it is recorded as a gap in the verification record. A
-    # FIFO, the other blocking case, is refused above.
+    # FIFO, the other blocking case, is rejected above.
     #
     # One 4 KiB
     # block yields ~496 usable characters over the shipped 31-symbol alphabet,
@@ -170,7 +170,7 @@ while [ "$n" -lt "$count" ]; do
     attempt=0
     # Whether ANY draw was a well-formed token. Without it the give-up message
     # below asserted a cause it could not know: a source that yields nothing
-    # usable and a tree that holds every candidate are the same "100 attempts"
+    # usable and a tree that contains every candidate are the same "100 attempts"
     # from inside the loop, and the message named only the second.
     drew=0
     while [ "$attempt" -lt 100 ]; do
@@ -208,7 +208,7 @@ while [ "$n" -lt "$count" ]; do
     fi
     [ -n "$id" ] || gr_die \
 "could not mint a free $prefix ID in 100 attempts: every well-formed candidate
-  was already present in the tree. Either it holds an implausible share of the
+  was already present in the tree. Either it contains an implausible share of the
   token space, or GR_ID_FORCE_TOKEN is set to a token that is already taken."
     minted="${minted}${id}
 "

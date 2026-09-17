@@ -91,8 +91,8 @@ EOF
 
 @test "finalize: a rename that fails aborts instead of reporting success" {
     # The rename loop must not run in a pipeline subshell: gr_die there would
-    # exit only the subshell and the script would carry on to exit 0, claiming
-    # success after refusing to do the rename. Two doc keys pointing at the
+    # exit only the subshell and the script would continue to exit 0, claiming
+    # success after rejecting the rename. Two doc keys pointing at the
     # same directory plan the same source file twice, so the second rename has
     # nothing left to move.
     sed -i.bak 's|^doc_rmf:.*|doc_rmf: docs/requirements|' .guardrails/config.yaml \
@@ -119,8 +119,8 @@ EOF
 
 @test "finalize: a draft ledger name with whitespace fails before anything is rewritten" {
     # The rename records are space-joined pairs, so such a name would be split
-    # at the wrong point, and the failure would land partway through the rename
-    # loop with some ledgers moved and some not. Refuse during planning.
+    # at the wrong point, and the failure would occur partway through the rename
+    # loop with some ledgers moved and some not. Reject during planning.
     printf '**REQ-a3k9z2**: draft requirement.\n' > 'docs/requirements/DRAFT-my notes.md'
     printf '# verifies: REQ-a3k9z2\ntrue\n' > tests/test_x.sh
     commit_all spacey
@@ -167,7 +167,7 @@ EOF
     # Independent review, S7. Moving the --dry-run exit above the print loop
     # left all twelve tests in this file green, while the script's own header
     # promises one "before -> after" line per rename and merge-change step 3
-    # says to preview with it. The print half of the deleted
+    # requires previewing with it. The print half of the deleted
     # "--dry-run prints mapping and changes nothing" had no successor.
     printf '**REQ-a3k9z2**: a requirement.\n' > docs/requirements/DRAFT-feature-notes.md
     commit_all draft-file
@@ -340,7 +340,7 @@ EOF
 }
 
 @test "finalize: --dry-run previews exactly the rewrites the real run makes" {
-    # verifies: PR-58zsvf — review finding 2. A file holding only the path form
+    # verifies: PR-58zsvf — review finding 2. A file containing only the path form
     # is one rewrite, not two, in both modes.
     printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
     printf '\nSee docs/requirements/DRAFT-feature-x.md.\n' >> docs/risk/README.md

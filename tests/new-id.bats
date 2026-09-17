@@ -25,7 +25,7 @@ token_re() {
     done
 }
 
-@test "new-id: every minted token carries a digit" {
+@test "new-id: every minted token contains a digit" {
     # The digit is what keeps REQ-argued from being an ID. A generator that
     # drew from the full alphabet without the redraw would pass every other
     # test in this file: one token in six has no digit at all.
@@ -52,20 +52,20 @@ token_re() {
     [ "$a" != "$b" ]
 }
 
-@test "new-id: refuses a prefix that is not declared in id_prefixes" {
+@test "new-id: rejects a prefix that is not declared in id_prefixes" {
     run .guardrails/scripts/new-id.sh XYZ
     [ "$status" -eq 2 ]
     [[ "$output" == *"not declared in id_prefixes"* ]]
 }
 
-@test "new-id: refuses a count that is not a positive integer" {
+@test "new-id: rejects a count that is not a positive integer" {
     for n in 0 -3 two 1x; do
         run .guardrails/scripts/new-id.sh REQ "$n"
         [ "$status" -eq 2 ]
     done
 }
 
-@test "new-id: refuses an unknown argument rather than ignoring it" {
+@test "new-id: rejects an unknown argument rather than ignoring it" {
     run .guardrails/scripts/new-id.sh REQ 2 --wat
     [ "$status" -eq 2 ]
 }
@@ -114,13 +114,13 @@ token_re() {
     [ "$status" -eq 2 ]
 }
 
-@test "new-id: refuses to invent an ID when there is no entropy source" {
+@test "new-id: does not invent an ID when there is no entropy source" {
     # The tempting fallback — $$ and the clock — is a predictable generator
     # wearing a random one's clothes, and two agents starting together would
     # collide by construction. Fail instead.
     GR_ID_URANDOM=/nonexistent run .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]
-    # The [ -r ] message specifically, not just the word "entropy". Both refusal
+    # The [ -r ] message specifically, not just the word "entropy". Both rejection
     # paths in this script mention entropy, so the loose assertion left the
     # guard undetectable: deleting it and letting the draw fail instead still
     # exits 2 with a message that matches. Mutation M13 reddened nothing.
@@ -162,7 +162,7 @@ token_re() {
     # and `tr < src | dd count=6` waited forever for six usable bytes that
     # never came. The bounded read fixes the sources that RETURN without
     # yielding anything usable; a source that blocks instead is a separate
-    # case — a FIFO is refused outright (below), and a starved /dev/random
+    # case — a FIFO is rejected outright (below), and a starved /dev/random
     # still waits, which is recorded as a gap rather than claimed fixed.
     run timeout 30 env GR_ID_URANDOM=/dev/zero .guardrails/scripts/new-id.sh REQ
     [ "$status" -ne 124 ] || { echo "new-id.sh hung"; false; }
@@ -202,8 +202,8 @@ token_re() {
     done
 }
 
-@test "new-id: a FIFO is refused rather than read" {
-    # The other blocking case, and the one worth refusing: the shell blocks in
+@test "new-id: a FIFO is rejected rather than read" {
+    # The other blocking case, and the one worth rejecting: the shell blocks in
     # open() on a FIFO with no writer, before dd runs at all, so no amount of
     # bounding the read helps. Confirming review pass.
     mkfifo "$BATS_TEST_TMPDIR/fifo"
@@ -222,7 +222,7 @@ token_re() {
     [[ "$output" =~ ^REQ-[abcdefghjkmnpqrstuvwxyz23456789]{6}$ ]]
 }
 
-@test "new-id: new-id-outside-unit-requires-flag — at the root it refuses and lists the units" {
+@test "new-id: new-id-outside-unit-requires-flag — at the root it rejects the request and lists the units" {
     make_units_fixture
     run sh .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]

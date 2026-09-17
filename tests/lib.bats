@@ -3,7 +3,7 @@ load helpers
 setup() { make_fixture_repo; }
 
 # A minimal valid two-unit manifest repo, built by hand: no root config.
-# T3's shared fixture will sit above this; these tests construct by hand so
+# T3's shared fixture will be above this; these tests construct by hand so
 # the validator is tested below the fixture that later depends on it.
 make_manifest_repo() {
     # setup() has already run make_fixture_repo; calling it again would
@@ -142,7 +142,7 @@ EOF
     [ -z "$output" ]
 }
 
-@test "gr_doc_files dies when a configured directory holds no *.md" {
+@test "gr_doc_files dies when a configured directory contains no *.md" {
     rm -f docs/risk/*.md
     run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_rmf'
     [ "$status" -eq 2 ]
@@ -313,7 +313,7 @@ EOF
 }
 
 @test "gr_def_re rejects an all-letter body — REQ-argued is prose, not an ID" {
-    # The whole reason a token must carry a digit: six letters of the
+    # The whole reason a token must contain a digit: six letters of the
     # unambiguous alphabet is also an ordinary English word.
     run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "**REQ-argued**: a thing" | grep -qE "$(gr_def_re REQ)"'
     [ "$status" -eq 1 ]
@@ -491,7 +491,7 @@ EOF
     [[ "$output" == *accepted* ]]
 }
 
-@test "gr_limit reads a whole number, refuses anything else, and is empty when unset" {
+@test "gr_limit reads a whole number, rejects anything else, and is empty when unset" {
     run sh -c '. .guardrails/scripts/lib.sh && gr_limit problem_age_days && echo "[$?]"'
     [ "$status" -eq 0 ]
     [ "$output" = "[0]" ] || { echo "unset limit was not empty: $output"; false; }
@@ -507,7 +507,7 @@ EOF
     [[ "$output" == *"empty value"* ]]
 }
 
-@test "gr_check_config refuses a key set to nothing, whichever key it is" {
+@test "gr_check_config rejects a key set to nothing, whichever key it is" {
     # One `#` in front of one strict_paths item read as an empty list, every
     # traceability scan then walked no paths, and a merge over an undefined-ID
     # reference went from exit 1 to exit 0. The rule had been arriving one key
@@ -547,7 +547,7 @@ EOF
     [[ "$output" == *"cannot open it"* ]] || { echo "$output"; false; }
 }
 
-@test "gr_check_config refuses a config whose lines end with bare carriage returns" {
+@test "gr_check_config rejects a config whose lines end with bare carriage returns" {
     # A \r-only file is ONE awk record, so every scan accepts it whole and the
     # verdict arrives from an unrelated check naming a cause that is not the
     # cause — the same shape as the unreadable config above, at the one line
@@ -604,8 +604,8 @@ EOF
     # `strict_paths:  # only these` yielded the value `# only these` because
     # the post-colon blanks were stripped before gr_clean could see the
     # whitespace its ` #` rule needs — so the form rule read a list key as a
-    # scalar and refused the config from every gate. The config file's own
-    # rule says a trailing ` # comment` is stripped for EVERY key.
+    # scalar and rejected the config from every gate. The config file's own
+    # rule states a trailing ` # comment` is stripped for EVERY key.
     printf 'true\n' > tests/test_a.sh
     sed -i.bak 's|^strict_paths:$|strict_paths:  # only these are enforced|' \
         .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
@@ -624,7 +624,7 @@ EOF
     [[ "$output" == *"strict 1"* ]] || { echo "$output"; false; }
 }
 
-@test "gr_check_config refuses a list key written as a scalar" {
+@test "gr_check_config rejects a list key written as a scalar" {
     # `strict_paths: src` breaks no rule the config file states — `id_prefixes:
     # REQ HAZ RC` two lines above is a space-separated scalar — and cfg_list,
     # which is what reads it, finds no items. Every traceability scan then
@@ -646,7 +646,7 @@ PY
     [[ "$output" != *"strict 0"* ]] || { echo "it scanned nothing and said so: $output"; false; }
 }
 
-@test "gr_check_config refuses a scalar key written as a list" {
+@test "gr_check_config rejects a scalar key written as a list" {
     # The mirror. gr_doc_files reads doc_soup with cfg_get, finds nothing, and
     # returns an empty file list at status 0 — the shape its own header calls
     # forbidden — so the document is scanned by nobody.
@@ -666,9 +666,9 @@ PY
 
 @test "every script stops outside a git repository, at gr_root" {
     # `cd "$(gr_root)" || exit 2` does not fail closed under dash. The fix
-    # landed in all seven scripts and the evidence in one of them, so a
-    # mutation reverting the other six survived the whole suite. This asks
-    # every script the same question.
+    # was merged into all seven scripts and the evidence in one of them, so a
+    # mutation reverting the other six was not detected by the whole suite.
+    # This asks every script the same question.
     # Run under DASH specifically. `cd ""` returns 0 under dash and 1 under
     # bash, so on a bash-as-/bin/sh platform the old form exits at the `||`
     # and this test passes with the defect present — for every script. dash is
@@ -691,21 +691,21 @@ PY
         # EXACTLY the one diagnosis and nothing after it. Asserting the absence
         # of "config not found" is not enough: check-signing.sh never reads the
         # config, so that string cannot appear either way and the assertion was
-        # vacuous for it — it carried on and printed git's own errors instead.
+        # vacuous for it — it continued and printed git's own errors instead.
         [ "$output" = "guardrails: not inside a git repository" ] \
-            || { echo "$(basename "$f") carried on past gr_root:"; echo "$output"; false; }
+            || { echo "$(basename "$f") continued past gr_root:"; echo "$output"; false; }
     done
     # Pinned, so a script added later without the guard reddens here rather
     # than being quietly excluded from the question.
-    [ "$n" -eq 8 ] || { echo "expected 8 scripts, ran $n"; false; }
-    [ "$shell" = dash ] || skip "no dash present: this ran under $shell and cannot discriminate"
+    [ "$n" -eq 8 ] || { echo "expected 8 scripts, got $n"; false; }
+    [ "$shell" = dash ] || skip "no dash present: this was run under $shell and cannot discriminate"
 }
 
-@test "gr_verification_dir refuses a doc_verification set to nothing" {
+@test "gr_verification_dir rejects a doc_verification set to nothing" {
     # gr_check_config's general rule shadows this branch on every production
     # path, so it is reachable only through a direct call — and without one it
-    # was unkillable code, which is the thing this toolkit says it does not
-    # keep. A library function has to be safe called on its own.
+    # was unkillable code, which is what this toolkit states it does not keep.
+    # A library function has to be safe called on its own.
     mkdir -p docs/verification
     printf '# rec\n' > docs/verification/2026-01-01-x.md
     printf 'doc_verification:\n' >> .guardrails/config.yaml
@@ -733,7 +733,7 @@ PY
 @test "gr_prefixes does not let the directory listing decide what a prefix is" {
     # Word splitting drags pathname expansion along with it. Without `set -f`
     # around the split, an id_prefixes entry containing a glob character means
-    # one thing in a repository whose root happens to hold a matching name and
+    # one thing in a repository whose root contains a matching name and
     # another everywhere else: the same config, two verdicts, decided by an
     # unrelated file. Here `ADR*` would silently become the valid prefix `ADRx`.
     mkdir ADRx
@@ -745,7 +745,7 @@ PY
     [[ "$output" != *ADRx* ]] || { echo "the directory named the prefix: $output"; false; }
 }
 
-@test "gr_check_config refuses a list key that names nothing at all" {
+@test "gr_check_config rejects a list key that names nothing at all" {
     # Absent is the same gate-off as empty, and the emptiness message used to
     # RECOMMEND it. strict_paths is the whole of the source scan's scope: with
     # no entries a reference to an ID nobody defined is never looked for.
@@ -760,11 +760,11 @@ PY
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
     [[ "$output" == *"strict_paths names no path"* ]] || { echo "$output"; false; }
-    # The exit-0 no-scan state is what this refuses; it must not be reachable.
+    # The exit-0 no-scan state is what this rejects; it must not be reachable.
     [[ "$output" != *"strict 0"* ]] || { echo "it scanned nothing and passed: $output"; false; }
 }
 
-@test "gr_check_config refuses a list item with nothing after its dash" {
+@test "gr_check_config rejects a list item with nothing after its dash" {
     # No test covered this rule at all: deleting it left the whole suite green.
     printf 'true\n' > tests/test_a.sh
     printf '  - \n' >> .guardrails/config.yaml
@@ -784,8 +784,8 @@ PY
     [[ "$output" == *strict_paths* ]] || { echo "$output"; false; }
 }
 
-@test "gr_check_config refuses an item that is itself a comment" {
-    # `  - # make test` survives as the literal string `# make test`, which the
+@test "gr_check_config rejects an item that is itself a comment" {
+    # `  - # make test` remains the literal string `# make test`, which the
     # shell reads as a comment: the step runs nothing and reports success.
     printf 'true\n' > tests/test_a.sh
     python3 - <<'PY'
@@ -798,7 +798,7 @@ PY
     [[ "$output" == *"commented-out item"* ]] || { echo "$output"; false; }
 
     # A `#` that is not at the start of the value is a value, not a comment.
-    # `^[ \t]*#` would refuse this one: in a grep bracket expression `\t` is
+    # `^[ \t]*#` would reject this one: in a grep bracket expression `\t` is
     # the set {space, backslash, t}.
     python3 - <<'PY'
 p = '.guardrails/config.yaml'
@@ -815,7 +815,7 @@ PY
     # value containing `\c` truncates the message and discards the remedy;
     # one containing `\t` is shown with a tab the operator's file does not have.
     # The malformed-line diagnosis quotes the offending line verbatim, which is
-    # the one message here that carries arbitrary operator text.
+    # the one message here that contains arbitrary operator text.
     printf 'true\n' > tests/test_a.sh
     printf 'this line is not a key \\cREMEDY-GONE\n' >> .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
@@ -824,7 +824,7 @@ PY
 
     # Explicitly under dash where one exists: bash's echo does not process
     # these escapes without xpg_echo, so on a bash-as-/bin/sh platform the
-    # assertion above holds against `echo` too and proves nothing.
+    # assertion above passes against `echo` too and proves nothing.
     if command -v dash > /dev/null 2>&1; then
         run dash -c '. .guardrails/scripts/lib.sh && gr_check_config'
         [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
@@ -853,7 +853,7 @@ PY
 @test "coverage_command is a list key, and the bucket is pinned" {
     # Nothing reads this key yet, so its bucket is decided by the template's
     # form alone — which means nothing would notice it being wrong. A key in
-    # the wrong bucket is a false refusal for the form that works, or a false
+    # the wrong bucket is a false rejection for the form that works, or a false
     # green for the form that does not.
     printf 'true\n' > tests/test_a.sh
     printf 'coverage_command:\n  - make coverage\n' >> .guardrails/config.yaml
@@ -895,7 +895,7 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-# verifies: architecture item 8 — a list key written as a scalar is refused,
+# verifies: architecture item 8 — a list key written as a scalar is rejected,
 # not read as empty
 @test "gr_check_config rejects depends_on written in scalar form" {
     printf 'depends_on: platform/hal\n' >> .guardrails/config.yaml
@@ -1055,8 +1055,8 @@ EOF
     [ "$output" = "[]" ]
 }
 
-# verifies: engagement rule — root config refused in a manifest repo
-@test "gr_unit_engage refuses the default config path in a manifest repo, naming the remedy" {
+# verifies: engagement rule — root config rejected in a manifest repo
+@test "gr_unit_engage rejects the default config path in a manifest repo, naming the remedy" {
     make_units_fixture
     run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage'
     [ "$status" -eq 2 ]
@@ -1065,8 +1065,8 @@ EOF
     [[ "$output" == *"GR_CONFIG"* ]]
 }
 
-# verifies: engagement rule — undeclared config refused
-@test "gr_unit_engage refuses a GR_CONFIG that is not a declared unit's" {
+# verifies: engagement rule — undeclared config rejected
+@test "gr_unit_engage rejects a GR_CONFIG that is not a declared unit's" {
     make_units_fixture
     mkdir -p vendor/thing/.guardrails
     cp apps/pump/.guardrails/config.yaml vendor/thing/.guardrails/
@@ -1146,9 +1146,10 @@ EOF
 @test "lib: UNITS.YAML on a case-insensitive filesystem never engages gr_units_present" {
     # On APFS (case-insensitive by default) `[ -f .guardrails/units.yaml ]` is
     # also satisfied by UNITS.YAML — a manifest that officially does not exist
-    # (check-units.sh refuses the near-miss name at exit 2). On a
+    # (check-units.sh rejects the near-miss name at exit 2). On a
     # case-SENSITIVE filesystem -f never matches the near-miss at all, so
-    # "not-engaged" holds on both; only the APFS half exercises the byte rule.
+    # "not-engaged" is the outcome on both; only the APFS half exercises the
+    # byte rule.
     printf 'units:\n  - pkg/a\n' > .guardrails/UNITS.YAML
     run sh -c '. .guardrails/scripts/lib.sh && gr_units_present && echo engaged || echo not-engaged'
     [ "$status" -eq 0 ]

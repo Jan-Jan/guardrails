@@ -72,7 +72,7 @@ break_the_verifier() {
     [[ "$output" == *"UNSIGNED"* ]]
 }
 
-@test "check-signing: a failed verdict carries the verifier's own reason" {
+@test "check-signing: a failed verdict contains the verifier's own reason" {
     # verifies: PR-whkz8m
     # `git log --format=%G?` returns a letter and throws the verifier's output
     # away — measured, zero bytes on stderr. Before this, the script filled the
@@ -91,8 +91,8 @@ break_the_verifier() {
 @test "check-signing: a verifier that cannot run is not called a forgery" {
     # verifies: PR-74gcqg
     # %G? is `B` both for a signature that was checked and rejected and for a
-    # verifier that never ran. Saying "bad, expired, or revoked" of the second
-    # accuses the signer of something the tool did not measure.
+    # verifier that was never run. Stating "bad, expired, or revoked" of the
+    # second accuses the signer of something the tool did not measure.
     setup_ssh_signing
     signed_commit a
     break_the_verifier
@@ -106,22 +106,22 @@ break_the_verifier() {
 }
 
 @test "check-signing: a rejected signature still fails without --strict" {
-    # Deliberately carries NO `verifies:` annotation, and that is the finding
+    # Deliberately contains NO `verifies:` annotation, and that is the finding
     # rather than an oversight. It was green on its first run, before the
     # script was touched, and could not have been otherwise: the old `B` branch
     # already failed in both modes with no `WARN-` prefix, so both assertions
-    # held against it. It therefore verifies nothing about PR-74gcqg — the test
+    # passed against it. It therefore verifies nothing about PR-74gcqg — the test
     # above does, and that one was watched failing. Annotating it anyway would
     # put a `verifies:` line behind no red->green attestation, which is the one
     # thing `develop-change`'s iron law forbids. What it IS is a pin: the
     # wording changed, the verdict must not, and the tolerant mode must not
-    # start passing a signature the verifier refused.
+    # start passing a signature the verifier rejected.
     setup_ssh_signing
     signed_commit a
     break_the_verifier
     run sh .guardrails/scripts/check-signing.sh
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
-    [[ "$output" != *"WARN-"* ]] || { echo "tolerated a refusal: $output"; false; }
+    [[ "$output" != *"WARN-"* ]] || { echo "tolerated a rejection: $output"; false; }
 }
 
 @test "check-signing: the verifier's reason is reported once, under its verdict" {
@@ -150,19 +150,19 @@ break_the_verifier() {
     fi
 }
 
-@test "check-signing: an untrusted signature carries the verifier's reason too" {
+@test "check-signing: an untrusted signature contains the verifier's reason too" {
     # verifies: PR-whkz8m
     # The third of the three places the reason is printed, and the only one no
     # test reached. Measured, because this change exists to stop a tool
     # asserting a cause nobody read: of the other two PR-52rnrn tests, the
-    # broken-verifier one lands in `B|X|Y|R` (%G? = B) and the reported-once
+    # broken-verifier one is in `B|X|Y|R` (%G? = B) and the reported-once
     # one in `*)` (%G? = N). Deleting verifier_reason from the U|E branch left
     # the whole suite green.
     #
     # A signers file that is PRESENT and READABLE — so the environment guard
     # does not fire — naming a DIFFERENT key: the signature verifies
     # cryptographically and no principal owns it. Measured 2026-09-02, that is
-    # %G? = U, and git verify-commit says "No principal matched." Without the
+    # %G? = U, and git verify-commit states "No principal matched." Without the
     # reason, "signature present but did not verify" is a verdict with no cause
     # attached, and the cause here is not the one the old guessed remedy named.
     setup_ssh_signing
@@ -172,7 +172,7 @@ break_the_verifier() {
         "$(cut -d' ' -f1-2 < "$BATS_TEST_TMPDIR/other_key.pub")" \
         > "$BATS_TEST_TMPDIR/allowed_signers"
     [ "$(git log -1 --format='%G?' 2>/dev/null)" = U ] \
-        || { echo "fixture no longer lands in U|E: $(git log -1 --format='%G?')"; false; }
+        || { echo "fixture no longer produces U|E: $(git log -1 --format='%G?')"; false; }
     run sh .guardrails/scripts/check-signing.sh --strict
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" == *"UNVERIFIED"* ]] || { echo "$output"; false; }
@@ -290,7 +290,7 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup fails when the key cannot sign" {
-    # Configuration being present says nothing about whether the key can sign.
+    # Configuration being present states nothing about whether the key can sign.
     setup_proved_signing
     git config user.signingkey "$BATS_TEST_TMPDIR/absent_key"
     run sh .guardrails/scripts/check-signing.sh --setup
@@ -300,7 +300,7 @@ setup_proved_signing() {
 
 @test "check-signing: --setup fails when the signature does not verify" {
     # The signers file lists a key that is not the one doing the signing — the
-    # shape a project lands in when a committer's key is rotated and the trust
+    # shape a project is in when a committer's key is rotated and the trust
     # root is not. Signing succeeds; verification is what fails.
     setup_proved_signing
     ssh-keygen -t ed25519 -N '' -f "$BATS_TEST_TMPDIR/other_key" -q
@@ -356,7 +356,7 @@ setup_proved_signing() {
         || { echo "still reports the default as missing: $output"; false; }
 }
 
-@test "check-signing: --setup carries a real format into the proof, not an empty one" {
+@test "check-signing: --setup passes a real format into the proof, not an empty one" {
     # verifies: PR-mtmr7h
     # The half of the fix no test reached. `_fmt` is written into the throwaway
     # repository, and `git config gpg.format ""` is REJECTED by git rather than
@@ -394,7 +394,7 @@ setup_proved_signing() {
 @test "check-signing: --setup names a missing ssh trust root" {
     # This is the state a project is in with no gpg.ssh.allowedSignersFile:
     # it signs perfectly well and nothing can verify what it signed, which is
-    # the WARN-UNVERIFIED the default mode passes and the merge gate refuses.
+    # the WARN-UNVERIFIED the default mode passes and the merge gate rejects.
     setup_proved_signing
     git config --unset gpg.ssh.allowedSignersFile
     run sh .guardrails/scripts/check-signing.sh --setup
@@ -416,7 +416,7 @@ setup_proved_signing() {
 @test "check-signing: --setup names a missing user.email" {
     # An ssh signature verifies against the committer's address. Without one
     # git guesses from the host, no signers file lists the guess, and the
-    # project's commits are unverifiable for a reason nothing about keys says.
+    # project's commits are unverifiable for a reason that is not about keys.
     setup_proved_signing
     git config --unset user.email
     run sh .guardrails/scripts/check-signing.sh --setup

@@ -6,7 +6,7 @@ REQ/SDD/LLR ledger of its own yet. When the ledgers arrive, these lines get
 the IDs.
 
 **PR-ac96zf**: The ratchet setup checklist requires recording the
-qualification suite result at install time but never says where or how the
+qualification suite result at install time but never states where or how the
 suite runs, so a `/ratchet` run in a target project is left to improvise —
 up to and including installing bats into the target project or running the
 guardrails suite there.
@@ -23,5 +23,5 @@ so nothing forbade producing it in the target project or installing bats to
 do so. The item now states the procedure: run `<guardrails>/tests/run-tests.sh`
 exactly once upstream, record the outcome (version, commit, pass/fail), and
 record `suite not run at install time: <reason>` when the run cannot complete.
-Reproduced by `tests/skills.bats:ratchet: tool qualification says how and
+Reproduced by `tests/skills.bats:ratchet: tool qualification states how and
 where the suite runs`, which was red before the paragraph existed.

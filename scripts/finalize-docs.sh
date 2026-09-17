@@ -23,8 +23,8 @@
 # a change writes its own file so that parallel worktrees never touch one, and
 # the merge date cannot be known until the merge.
 #
-# This script was called finalize-ids.sh until the token scheme landed. It was
-# renamed rather than left holding a name for work it no longer does.
+# This script was called finalize-ids.sh until the token scheme was merged. It was
+# renamed rather than left with a name for work it no longer does.
 #
 # Exit codes: 0 success, 2 usage/environment error.
 # A die during the rewrite pass leaves the renames done (staged for a tracked
@@ -37,7 +37,7 @@ set -u
 . "$(dirname "$0")/lib.sh"
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
 # substitution, and under dash `cd ""` returns 0 and stays put — so outside a
-# git repository the script carried on in the caller's directory with a
+# git repository the script continued in the caller's directory with a
 # relative config path. The status has to be taken from the substitution.
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
@@ -54,7 +54,7 @@ done
 # Unit-scoped by nature: this renames drafts inside ONE config's doc_*
 # directories. merge-change runs it once per touched unit of the impact set,
 # GR_CONFIG pointing at each (architecture item 9) — so in a manifest
-# repository a bare invocation must refuse rather than rename nothing and
+# repository a bare invocation must fail rather than rename nothing and
 # report success.
 gr_unit_engage
 
@@ -168,8 +168,8 @@ rewrite_refs() {
 }
 
 # Path-shaped references first, for every pair; bare basenames second, for
-# the unambiguous pairs only; then one `left` line per FILE that still holds a
-# bare form of an ambiguous name (finding 3) — a file holding only the path
+# the unambiguous pairs only; then one `left` line per FILE that still contains a
+# bare form of an ambiguous name (finding 3) — a file containing only the path
 # form was rewritten by the first pass and has nothing left in it.
 run_rewrites() {
     for line in $renames; do
@@ -199,7 +199,7 @@ run_rewrites() {
 }
 
 # The lists below are newline-separated; split on newlines alone so a path
-# containing a space survives intact. The `renames` record is a space-joined
+# containing a space remains intact. The `renames` record is a space-joined
 # "source target" pair split with ${x%% *} regardless of IFS — which is why a
 # draft ledger file name containing whitespace is rejected outright during
 # planning, before anything is renamed, rather than corrupting the rename.
@@ -250,7 +250,7 @@ done
 # verification records narrate the rename ("created as DRAFT-x.md, finalized
 # to 2026-09-04-x.md"), and rewriting those sentences turns a true statement
 # into a false one. check-trace.sh's DANGLING-FILE reads the same scope, so
-# what this pass cannot reach (a reference held in another worktree, or in
+# what this pass cannot reach (a reference in another worktree, or in
 # another unit's ledger) is convicted at that change's own merge.
 #
 # Every rewrite is printed. A rename is mechanical; a rewrite edits prose
@@ -312,8 +312,8 @@ done
 #
 # A plain `for` loop, NOT `printf … | while`: a pipeline runs its loop body in
 # a subshell, where the gr_die below would exit that subshell only and the
-# script would carry on to `exit 0` — reporting success after refusing to do
-# the rename.
+# script would continue to `exit 0` — reporting success after rejecting the
+# rename.
 for line in $renames; do
     [ -n "$line" ] || continue
     f=${line%% *}
@@ -323,7 +323,7 @@ for line in $renames; do
         gr_die "rename failed: $f -> $target"
 done
 
-# Recompute: the renamed files are the ones most likely to hold a sibling
+# Recompute: the renamed files are the ones most likely to contain a sibling
 # reference, and they did not exist under these names a moment ago.
 # gr_doc_files enumerates a ledger by glob, and pathname expansion has been
 # off since the planning comment above, so it is switched on for exactly this

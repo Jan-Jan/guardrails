@@ -4,14 +4,14 @@
 #
 # bats itself keeps every $BATS_TEST_TMPDIR until the whole run exits, and each
 # fixture here is a real git repository — about 120 inodes, most of them under
-# .git. One full-suite run therefore holds roughly sixty thousand inodes for
-# its entire duration, and /tmp is a tmpfs with a fixed inode budget. Three
-# overlapping runs exhaust it.
+# .git. One full-suite run therefore occupies roughly sixty thousand inodes
+# for its entire duration, and /tmp is a tmpfs with a fixed inode budget.
+# Three overlapping runs exhaust it.
 #
 # That is not a tidiness problem, it is an EVIDENCE problem: past the budget a
 # redirect fails with ENOSPC, bats reports `not ok … teardown_suite` and
 # short-counts the plan, and a mutation runner that treats any failure as a
-# kill scores a surviving mutant as dead. A run killed that way also never
+# kill scores a live mutant as dead. A run killed that way also never
 # reaches bats' own cleanup, so its directory leaks and the next run starts
 # closer to the wall.
 #
@@ -112,8 +112,8 @@ EOF
 # either.
 # A NEGATIVE count means the future, and the clock-skew tests need it. GNU
 # date reads `-d "-1 days ago"` and answers with tomorrow; BSD date is handed
-# `-v--1d`, cannot parse the doubled sign, and refuses — so the sign is folded
-# into the adjustment here rather than spelled twice.
+# `-v--1d`, cannot parse the doubled sign, and rejects it — so the sign is
+# folded into the adjustment here rather than spelled twice.
 days_ago() {
     date -d "$1 days ago" +%Y-%m-%d 2>/dev/null && return 0
     case "$1" in
@@ -124,8 +124,8 @@ days_ago() {
         || { echo "no usable date(1) for relative dates" >&2; return 1; }
 }
 
-# A problem-report item carrying every field the gate requires, appended to the
-# problems ledger. Callers drop or corrupt one field at a time to test it.
+# A problem-report item containing every field the gate requires, appended to
+# the problems ledger. Callers drop or corrupt one field at a time to test it.
 #   write_pr [ID] [STATUS] [OPENED]
 write_pr() {
     cat >> docs/problems/0001-01-01-base.md <<EOF
@@ -138,8 +138,8 @@ EOF
 }
 
 # Creates a stub `awk` and echoes the directory to put on PATH. The stub is
-# the real awk in every respect but one: it refuses a `-v` assignment whose
-# value carries a LITERAL newline, exiting 2 with the message the real one
+# the real awk in every respect but one: it rejects a `-v` assignment whose
+# value contains a LITERAL newline, exiting 2 with the message the real one
 # gives, before the program runs.
 #
 # That is exactly what macOS's BWK awk ("awk version 20200816", the one that
@@ -163,9 +163,9 @@ make_strict_awk() {
     cat > "$_bin/awk" <<EOF
 #!/bin/sh
 # Every route a value takes into awk's variable space, because real BWK awk
-# refuses a literal newline in all of them: \`-v k=v\` as two words, \`-vk=v\` as
-# one, and a bare \`k=v\` OPERAND after the program. A stub watching only \`-v\`
-# would pass a defect of the same class straight through.
+# rejects a literal newline in all of them: \`-v k=v\` as two words, \`-vk=v\`
+# as one, and a bare \`k=v\` OPERAND after the program. A stub watching only
+# \`-v\` would pass a defect of the same class straight through.
 #
 # The options are walked rather than pattern-matched across the whole argument
 # list, because the PROGRAM text is not an assignment however much it looks
@@ -224,8 +224,8 @@ del_first_line() {
 }
 
 # Creates a stub `date` and echoes the directory to put on PATH. The stub is
-# BSD date on the one point that matters here: it refuses `-d`, and its `-v`
-# adjustment carries its own sign, so `-v--1d` is an error rather than
+# BSD date on the one point that matters here: it rejects `-d`, and its `-v`
+# adjustment contains its own sign, so `-v--1d` is an error rather than
 # tomorrow. Everything else passes through to the real date.
 #
 # The awk class got make_strict_awk so that a GNU box sees BWK behaviour. This
@@ -240,13 +240,13 @@ make_bsd_date() {
                    return 1 ;;
     esac
     # Does the real date understand GNU's `-d`? The stub has to know, because
-    # ACCEPTING `-v` is not the same as being able to CARRY OUT `-v`.
+    # ACCEPTING `-v` is not the same as being able to APPLY `-v`.
     #
     # The first version validated the adjustment and then handed it to the real
     # date unchanged, which works only where the real date is already BSD —
     # that is, everywhere except the GNU box the stub exists for. There,
     # `date -v-3d` reached a date with no `-v` at all, so a VALID adjustment
-    # was refused: the stub reproduced BSD's rejections and none of its
+    # was rejected: the stub reproduced BSD's rejections and none of its
     # successes. Both tests using it failed, and the failure read as a defect
     # in `days_ago` rather than in the instrument measuring it.
     #
@@ -321,7 +321,7 @@ EOF
 }
 
 # make_unit UNIT [DEPS...] — directories, config, the ratchet-shaped README
-# files (a configured directory always holds at least one *.md).
+# files (a configured directory always contains at least one *.md).
 make_unit() {
     _u="$1"
     mkdir -p "$_u/docs/requirements" "$_u/docs/risk" "$_u/docs/architecture" \
@@ -368,7 +368,7 @@ EOF
 # Leaves the shell cd'd into $REPO.
 #
 # A DISTINCT directory from make_fixture_repo's: setup() has already built
-# $BATS_TEST_TMPDIR/repo with a ROOT config, which gr_check_units refuses
+# $BATS_TEST_TMPDIR/repo with a ROOT config, which gr_check_units rejects
 # alongside a manifest, so this fixture replaces it rather than building on it.
 make_units_fixture() {
     REPO="$BATS_TEST_TMPDIR/units-repo"
@@ -382,7 +382,7 @@ make_units_fixture() {
     cp "$BATS_TEST_DIRNAME"/../scripts/*.sh .guardrails/scripts/ 2>/dev/null || true
     # check-review reads this directory at the REPOSITORY level in a manifest
     # repo (architecture item 9, task T9); tracked non-empty so worktrees
-    # carry it and gr_md_files has its one *.md
+    # contain it and gr_md_files has its one *.md
     printf '# verification records\n' > docs/verification/README.md
     cat > .guardrails/units.yaml <<'EOF'
 units:

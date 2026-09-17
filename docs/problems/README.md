@@ -64,7 +64,7 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
 - An item with no readable `status:` is reported INCOMPLETE-PROBLEM. It is
   not merely unlabelled — before that check it read as RESOLVED and was
   absent from every merge's known-problem list.
-- Open PRs are printed as UNRESOLVED-PR warnings at every merge, carrying
+- Open PRs are printed as UNRESOLVED-PR warnings at every merge, containing
   their age so the list can be triaged. The warning itself never
   blocks; what blocks is an item older than `problem_age_days`, a backlog
   larger than `problem_open_max`, or a missing field. Both limits are set in

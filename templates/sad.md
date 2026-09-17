@@ -4,7 +4,7 @@ This directory is a per-change ledger: each merged change contributes one
 dated file, `YYYY-MM-DD-<slug>.md` (merge date, assigned by `merge-change`
 from your worktree's `DRAFT-<branch>-<slug>.md`). **Edit existing items in
 the file that defines them.** Use this README's Overview section for the
-system-wide decomposition picture; `soup.md` (single file) holds the SOUP
+system-wide decomposition picture; `soup.md` (single file) contains the SOUP
 inventory.
 
 <!--

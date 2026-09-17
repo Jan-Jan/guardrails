@@ -18,8 +18,8 @@
 #
 # Every non-passing verdict is followed by the verifier's own output, indented
 # under it. `git log --format=%G?` answers with one letter and discards what
-# the verifier said, so the reason is asked for separately rather than guessed
-# at.
+# the verifier stated, so this script asks for the reason separately rather
+# than guessing at it.
 #
 # --setup answers a different question: not "is this history signed" but "can
 # this project sign at all", which is what a merge gate depends on before there
@@ -31,7 +31,7 @@
 #
 # A trust root that is configured and present but that the process lacks
 # permission to read — a chmod'd signers file, an unreadable ~/.gnupg — is
-# exit 2 in EVERY mode, never UNVERIFIED/UNREADABLE at exit 1: exit 1 says
+# exit 2 in EVERY mode, never UNVERIFIED/UNREADABLE at exit 1: exit 1 states
 # "the project is wrong", and there only the environment is.
 #
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
@@ -40,7 +40,7 @@ set -u
 . "$(dirname "$0")/lib.sh"
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
 # substitution, and under dash `cd ""` returns 0 and stays put — so outside a
-# git repository the script carried on in the caller's directory with a
+# git repository the script continued in the caller's directory with a
 # relative config path. The status has to be taken from the substitution.
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
@@ -69,7 +69,7 @@ if [ "$setup" -eq 1 ]; then
     strict=1
 fi
 
-# What the verifier itself said, indented, or nothing if it said nothing.
+# What the verifier itself stated, indented, or nothing if it stated nothing.
 #
 # `git log --format=%G?` answers with ONE LETTER and discards the verifier's
 # output: measured 2026-09-01, a gpg dying on an unwritable trustdb reaches
@@ -87,14 +87,14 @@ fi
 verifier_reason() {
     # stderr to the pipe, THEN stdout to /dev/null: the other order sends both
     # to /dev/null and this function reports, in silence, that the verifier
-    # said nothing.
+    # stated nothing.
     git verify-commit "$1" 2>&1 >/dev/null | sed 's/^/    /'
 }
 
 # Environment guard: a trust root that is CONFIGURED AND PRESENT but that this
 # process lacks permission to read. That state produces the same %G? = U/E as
 # a genuinely untrusted signature, and reporting it as UNVERIFIED at exit 1
-# says "the project is wrong" when only the environment is — the operator then
+# states "the project is wrong" when only the environment is — the operator then
 # goes hunting in the project's configuration, which is exactly where the
 # repair is not. Exit 2 is the environment verdict, and it is reserved for the
 # permission-denied shape: a configured path that does not EXIST stays exit 1,
@@ -138,7 +138,7 @@ trust_root_env_guard() {
 check_commits() {
     _fail=0
     for c in $1; do
-        # `%G?` is asked for the verdict letter only; whatever git wants to say
+        # `%G?` is asked for the verdict letter only; whatever git states
         # about how it got there is collected deliberately by verifier_reason
         # instead, where it is indented under the verdict it explains and where
         # OpenPGP and ssh behave alike — git leaks its own diagnostic here for
@@ -194,9 +194,9 @@ check_commits() {
 # Two halves, in this order. First the configuration is read and every missing
 # piece is NAMED — the caller is a human about to fix them, and one verdict
 # covering four separate gaps costs three more runs than it needs to. Then, and
-# only when nothing is missing, the rest is PROVED: settings being present says
-# nothing about whether the key can sign or the signature verifies, and only a
-# real signature answers that.
+# only when nothing is missing, the rest is PROVED: the presence of settings
+# states nothing about whether the key can sign or the signature verifies, and
+# only a real signature answers that.
 #
 # The proof is made in a throwaway repository. A signed commit in the project
 # would dirty the very tree the merge guards inspect. No history is read here
@@ -308,7 +308,7 @@ run_setup() {
     # takes below.
     trap 'rm -rf "$_tmp"' EXIT
 
-    # Every git command from here has to land in the throwaway repository. An
+    # Every git command from here has to run in the throwaway repository. An
     # inherited GIT_DIR points at the project and would send them all there —
     # including the commit.
     unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
@@ -318,7 +318,7 @@ run_setup() {
 
     # Written into the throwaway repository's own config rather than passed per
     # command: the verification above is reused verbatim, and it reads a plain
-    # `git log` that carries no overrides. Nothing is inherited from the
+    # `git log` that contains no overrides. Nothing is inherited from the
     # project's repository either, so every setting the signature depends on
     # has to be restated here.
     git config user.name "${_name:-guardrails}"

@@ -23,7 +23,7 @@ setup_ssh_signing() {
 
 # The state merge-change hands the script at step 7: a change branch with work
 # on it, its linked worktree still registered, and a signed squash of that work
-# sitting on the base branch in the primary checkout. Leaves the shell in the
+# on the base branch in the primary checkout. Leaves the shell in the
 # primary checkout, which is where the script must run.
 #
 # Pass `unsigned` to leave the squash commit unsigned — the state guard 1 is
@@ -56,7 +56,7 @@ make_squashed_change() {
 branch_exists() { git show-ref --verify --quiet "refs/heads/$1"; }
 
 # A guard that fires must leave the change exactly as it found it. Asserted
-# after every refusal rather than only after the first, because the ordering
+# after every rejection rather than only after the first, because the ordering
 # rule (S7) is what makes the whole command safe to re-run.
 assert_nothing_removed() {
     _wt=${1:-${CHANGE_WT:-$BATS_TEST_TMPDIR/wt}}
@@ -66,7 +66,7 @@ assert_nothing_removed() {
 
 # `.worktrees/` ignored, in the BASE commit. Both halves matter. Ignored, so
 # the change worktree's own `git status` stays clean with a nested worktree
-# sitting in it — that invisibility is the whole hazard. In the base commit, so
+# inside it — that invisibility is the whole hazard. In the base commit, so
 # the squash captures it and guard 2 still sees identical trees.
 ignore_worktrees_dir() {
     printf '.worktrees/\n' > "$REPO/.gitignore"
@@ -84,7 +84,7 @@ ignore_worktrees_dir() {
 # Echoes THE PATH GIT REPORTS, not the path handed to `git worktree add`. Those
 # are not always the same string: git records the working tree's physical path,
 # with symlinks resolved, and the script prints what `git worktree list
-# --porcelain` records. On macOS `TMPDIR` sits under `/var`, a symlink to
+# --porcelain` records. On macOS `TMPDIR` is under `/var`, a symlink to
 # `/private/var`, so a fixture asserting on its own spelling of
 # `$BATS_TEST_TMPDIR/...` compares against a path the script will never print
 # and fails on a platform AGENTS.md declares first-class. Asking git for the
@@ -112,7 +112,8 @@ nest_task_worktree() {
 # `git worktree list --porcelain`, with identical arguments. gr_base_branch runs
 # first and is the only other caller in this script's path — check-signing.sh
 # has none — so the second call is the one under test. If that ever stops being
-# true the tests below go RED rather than quietly passing on the wrong refusal:
+# true the tests below go RED rather than quietly passing on the wrong
+# rejection:
 # each asserts the exact message of the guard it covers, and gr_base_branch's
 # failure produces a different one.
 make_failing_worktree_list() {
@@ -169,7 +170,7 @@ STUB
     echo "$_bin"
 }
 
-@test "finish-merge: a failing git worktree list refuses instead of deleting the branch" {
+@test "finish-merge: a failing git worktree list rejects instead of deleting the branch" {
     # verifies: PR-n57ayn
     # The registry is read ONCE and its status taken on its own line, because
     # guard 4 and the removal both read it and neither may confuse "git failed"
@@ -183,21 +184,21 @@ STUB
     # found: green on arrival, and mutation-checked on its own by deleting the
     # `|| gr_die`. What the mutant showed is worth recording, because it
     # decides what this test may assert: with the check gone the script runs on
-    # to `git branch -D`, and GIT refuses it — "cannot delete branch used by
-    # worktree" — so the branch survives by accident, not by any guard. An
+    # to `git branch -D`, and GIT rejects it — "cannot delete branch used by
+    # worktree" — so the branch remains by accident, not by any guard. An
     # assertion on the branch alone would therefore have passed the mutant.
-    # The refusal's IDENTITY is what kills it, and it is asserted below.
+    # The rejection's IDENTITY is what kills it, and it is asserted below.
     setup_ssh_signing
     make_squashed_change
     bin=$(make_failing_worktree_list)
     PATH="$bin:$PATH" run sh .guardrails/scripts/finish-merge.sh my-change
-    [ "$status" -ne 0 ] || { echo "expected a refusal, got 0: $output"; false; }
+    [ "$status" -ne 0 ] || { echo "expected a rejection, got 0: $output"; false; }
     [[ "$output" == *"git worktree list failed"* ]] \
-        || { echo "expected the registry refusal, got: $output"; false; }
+        || { echo "expected the registry rejection, got: $output"; false; }
     assert_nothing_removed
 }
 
-@test "finish-merge: a failing awk refuses instead of deleting the branch" {
+@test "finish-merge: a failing awk rejects instead of deleting the branch" {
     # verifies: PR-n57ayn
     # The worktree path is derived through awk, and an awk that dies leaves the
     # substitution empty — indistinguishable, without the status check, from a
@@ -207,16 +208,16 @@ STUB
     #
     # Same provenance as the test above: written after the check it covers,
     # green on arrival, mutation-checked on its own by deleting the `|| gr_die`
-    # — and killed the same way, by the refusal's identity rather than by the
-    # branch's survival, which git's own "used by worktree" refusal supplies
+    # — and killed the same way, by the rejection's identity rather than by the
+    # branch's survival, which git's own "used by worktree" rejection supplies
     # here whatever this script does.
     setup_ssh_signing
     make_squashed_change
     bin=$(make_failing_awk)
     PATH="$bin:$PATH" run sh .guardrails/scripts/finish-merge.sh my-change
-    [ "$status" -ne 0 ] || { echo "expected a refusal, got 0: $output"; false; }
+    [ "$status" -ne 0 ] || { echo "expected a rejection, got 0: $output"; false; }
     [[ "$output" == *"could not be derived"* ]] \
-        || { echo "expected the derivation refusal, got: $output"; false; }
+        || { echo "expected the derivation rejection, got: $output"; false; }
     assert_nothing_removed
 }
 
@@ -226,7 +227,7 @@ STUB
     run sh .guardrails/scripts/finish-merge.sh my-change
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
     [ ! -d "$BATS_TEST_TMPDIR/wt" ] || { echo "worktree still on disk"; false; }
-    ! branch_exists my-change || { echo "branch survived"; false; }
+    ! branch_exists my-change || { echo "branch still exists"; false; }
 }
 
 @test "finish-merge: an unsigned HEAD fails with the worktree and branch intact" {
@@ -253,10 +254,10 @@ STUB
     assert_nothing_removed
 }
 
-@test "finish-merge: a change branch holding work the squash missed fails" {
+@test "finish-merge: a change branch containing work the squash missed fails" {
     # merge-change step 1 has already merged the base branch into the change
     # branch, so a correct squash leaves the two trees IDENTICAL. A difference
-    # means something did not land — an unstaged file, a partial `git add`, a
+    # means something is missing — an unstaged file, a partial `git add`, a
     # base that moved — and it is exactly the difference `git branch -D` would
     # destroy.
     setup_ssh_signing
@@ -272,21 +273,22 @@ STUB
 
 @test "finish-merge: a dirty worktree fails with the branch intact" {
     # Guard 3 is not reimplemented here: `git worktree remove` WITHOUT --force
-    # refuses a worktree carrying modified or untracked files, and that refusal
-    # is the guard. What this test pins is that the refusal stops the script —
+    # rejects a worktree containing modified or untracked files, and that
+    # rejection is the guard. What this test pins is that the rejection stops the
+    # script —
     # the branch must not be deleted after a removal that did not happen.
     setup_ssh_signing
     make_squashed_change
     printf 'uncommitted\n' > "$BATS_TEST_TMPDIR/wt/src/scratch.txt"
     run sh .guardrails/scripts/finish-merge.sh my-change
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
-    # Assert guard 3's OWN refusal, not merely a non-zero exit. Swallow the
+    # Assert guard 3's OWN rejection, not merely a non-zero exit. Swallow the
     # `|| gr_refuse` after `git worktree remove` and the script still exits 1 —
-    # but for the wrong reason, because git then refuses to delete a branch
-    # that is still checked out, and it says so in a different voice. Exit
+    # but for the wrong reason, because git then rejects deleting a branch
+    # that is still checked out, and it reports that in a different message. Exit
     # status alone cannot tell the guard from the accident.
-    [[ "$output" == *"git refused to remove the worktree"* ]] \
-        || { echo "expected guard 3's refusal, got: $output"; false; }
+    [[ "$output" == *"git rejected the removal of the worktree"* ]] \
+        || { echo "expected guard 3's rejection, got: $output"; false; }
     assert_nothing_removed
 }
 
@@ -300,13 +302,13 @@ STUB
     run sh .guardrails/scripts/finish-merge.sh my-change
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
     [[ "$output" == *"no worktree"* ]] || { echo "$output"; false; }
-    ! branch_exists my-change || { echo "branch survived"; false; }
+    ! branch_exists my-change || { echo "branch still exists"; false; }
 }
 
-@test "finish-merge: refuses to run from a linked worktree" {
+@test "finish-merge: rejects a run from a linked worktree" {
     # HEAD must be the squash commit this script is verifying. In a linked
     # worktree HEAD is the CHANGE branch's tip, so guard 1 would check the
-    # wrong commit — and, worse, could pass on it. Refuse before any guard
+    # wrong commit — and, worse, could pass on it. Reject before any guard
     # runs rather than let a guard answer about the wrong HEAD.
     setup_ssh_signing
     make_squashed_change
@@ -317,7 +319,7 @@ STUB
     assert_nothing_removed
 }
 
-@test "finish-merge: refuses when the primary checkout is not on a base branch" {
+@test "finish-merge: rejects a primary checkout that is not on a base branch" {
     # gr_base_branch reports whatever the PRIMARY checkout has checked out, so
     # inside the primary checkout "on some other branch" is unreachable by
     # construction — every branch there is its own base. The reachable shape of
@@ -332,7 +334,7 @@ STUB
     assert_nothing_removed
 }
 
-@test "finish-merge: refuses a branch that does not exist" {
+@test "finish-merge: rejects a branch that does not exist" {
     # A typo'd branch name must not read as "nothing left to clean up, all
     # guards vacuously satisfied" — guard 2 in particular would then be
     # comparing HEAD against a ref that is not there.
@@ -343,7 +345,7 @@ STUB
     assert_nothing_removed
 }
 
-@test "finish-merge: refuses the base branch as the change branch" {
+@test "finish-merge: rejects the base branch as the change branch" {
     # `git diff --quiet HEAD main` on the base branch is trivially satisfied,
     # so without this the script would sail through every guard and delete the
     # base branch.
@@ -376,10 +378,10 @@ STUB
     branch_exists other-change || { echo "other-change was deleted"; false; }
 }
 
-@test "finish-merge: derives the worktree path under an awk that refuses a newline in -v" {
+@test "finish-merge: derives the worktree path under an awk that rejects a newline in -v" {
     # This script reaches an awk gate, and portability.bats' sweep is a fixed
     # list that does not include it — so the defect class it guards (a value
-    # carrying a literal newline reaching `awk -v`) is swept here instead.
+    # containing a literal newline reaching `awk -v`) is swept here instead.
     # macOS's BWK awk exits 2 before the program runs, which is not a wrong
     # answer a behavioural test would catch: the worktree path would come back
     # empty and the script would report "no worktree was registered" while
@@ -397,13 +399,13 @@ STUB
 @test "finish-merge: a worktree nested inside the change worktree fails with everything intact" {
     # verifies: PR-n57ayn
     # Guard 3 delegates to `git worktree remove` without --force, and that
-    # refusal cannot see a NESTED worktree: `.worktrees/` is gitignored, so the
-    # change worktree's own `git status` is clean, and git removes the outer
-    # worktree — files and all — at exit 0. Measured before this guard existed,
-    # in a scratch repository and in this fixture alike: the nested worktree's
-    # uncommitted work was deleted, its registration left `prunable`, and its
-    # task branch orphaned. Nesting is what worktree-discipline now mandates,
-    # so this change created the hazard and this guard closes it.
+    # rejection does not detect a NESTED worktree: `.worktrees/` is gitignored,
+    # so the change worktree's own `git status` is clean, and git removes the
+    # outer worktree — files and all — at exit 0. Measured before this guard
+    # existed, in a scratch repository and in this fixture alike: the nested
+    # worktree's uncommitted work was deleted, its registration left `prunable`,
+    # and its task branch orphaned. Nesting is what worktree-discipline now
+    # mandates, so this change created the hazard and this guard closes it.
     setup_ssh_signing
     ignore_worktrees_dir
     make_squashed_change
@@ -418,14 +420,14 @@ STUB
 
     run sh .guardrails/scripts/finish-merge.sh my-change
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
-    # Assert this guard's OWN refusal, and the offending path in it, not merely
-    # a non-zero exit: the next thing the user does is go and look at that
-    # worktree, so the message has to say which one. A test pinning the exit
-    # code alone survives deletion of the guard it claims to cover.
+    # Assert this guard's OWN rejection, and the offending path in it, not
+    # merely a non-zero exit: the next thing the user does is go and look at that
+    # worktree, so the message has to name which one. A test pinning the exit
+    # code alone stays green when the guard it claims to cover is deleted.
     [[ "$output" == *"a registered worktree lies inside"* ]] \
-        || { echo "expected the nesting refusal, got: $output"; false; }
+        || { echo "expected the nesting rejection, got: $output"; false; }
     [[ "$output" == *"$nested"* ]] \
-        || { echo "the refusal did not name the nested worktree: $output"; false; }
+        || { echo "the rejection did not name the nested worktree: $output"; false; }
 
     [ -f "$nested/NEW.txt" ] \
         || { echo "the nested worktree's uncommitted work was destroyed"; false; }
@@ -433,7 +435,7 @@ STUB
     branch_exists my-change-t1 || { echo "the task branch was orphaned"; false; }
 }
 
-@test "finish-merge: a nested worktree is refused even when it holds nothing uncommitted" {
+@test "finish-merge: a nested worktree is rejected even when it contains nothing uncommitted" {
     # verifies: PR-n57ayn
     # The guard is CONTAINMENT, not dirtiness. A clean nested worktree is
     # destroyed just as silently — its directory deleted under a registration
@@ -448,9 +450,9 @@ STUB
     run sh .guardrails/scripts/finish-merge.sh my-change
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" == *"a registered worktree lies inside"* ]] \
-        || { echo "expected the nesting refusal, got: $output"; false; }
+        || { echo "expected the nesting rejection, got: $output"; false; }
     [[ "$output" == *"$nested"* ]] \
-        || { echo "the refusal did not name the nested worktree: $output"; false; }
+        || { echo "the rejection did not name the nested worktree: $output"; false; }
     assert_nothing_removed
 }
 
@@ -461,9 +463,9 @@ STUB
     # `.../w<TAB>op/`. Nothing then matched, `$nested` came back empty, and the
     # guard PASSED — after which guard 3 removed the change worktree with the
     # nested one inside it, uncommitted work and all, at exit 0. Every other
-    # refusal in this script fails closed and merely withholds cleanup; this
-    # one lost work, silently, which is why the prefix test carries no escape
-    # layer at all any more.
+    # rejection in this script fails closed and merely withholds cleanup; this
+    # one lost work, silently, which is why the prefix test has no escape layer
+    # at all any more.
     setup_ssh_signing
     ignore_worktrees_dir
     make_squashed_change signed "$BATS_TEST_TMPDIR"'/w\top'
@@ -475,9 +477,9 @@ STUB
         || { echo "the nested worktree's uncommitted work was destroyed"; false; }
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" == *"lies inside"* ]] \
-        || { echo "expected the nesting refusal, got: $output"; false; }
+        || { echo "expected the nesting rejection, got: $output"; false; }
     [[ "$output" == *"$nested"* ]] \
-        || { echo "the refusal did not name the nested worktree: $output"; false; }
+        || { echo "the rejection did not name the nested worktree: $output"; false; }
     assert_nothing_removed
 }
 
@@ -486,7 +488,7 @@ STUB
     # A five-way fan-out leaves five task worktrees. Reporting one and exiting
     # makes the operator run the script five times, and each round pays a full
     # `check-signing.sh --strict` — a hardware key touch per hidden worktree.
-    # The refusal lists all of them, and changes number when it does.
+    # The rejection lists all of them, and changes number when it does.
     setup_ssh_signing
     ignore_worktrees_dir
     make_squashed_change
@@ -496,21 +498,21 @@ STUB
     run sh .guardrails/scripts/finish-merge.sh my-change
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" == *"$first"* ]] \
-        || { echo "the refusal did not name $first: $output"; false; }
+        || { echo "the rejection did not name $first: $output"; false; }
     [[ "$output" == *"$second"* ]] \
-        || { echo "the refusal did not name $second: $output"; false; }
+        || { echo "the rejection did not name $second: $output"; false; }
     [[ "$output" == *"registered worktrees lie inside"* ]] \
-        || { echo "expected the plural refusal, got: $output"; false; }
+        || { echo "expected the plural rejection, got: $output"; false; }
     assert_nothing_removed
 }
 
 @test "finish-merge: a sibling whose path merely starts with the change worktree's is not nested" {
     # verifies: PR-n57ayn
     # `<wt>-sibling` starts with `<wt>` and is NOT inside it. A prefix test
-    # written without the separator would call it nested and refuse every
+    # written without the separator would call it nested and reject every
     # cleanup that had one lying beside it — guard 4 failing CLOSED, on a state
     # with nothing wrong in it. The trailing `/` is the whole difference, and
-    # nothing else in this file holds it there.
+    # nothing else in this file keeps it there.
     setup_ssh_signing
     ignore_worktrees_dir
     make_squashed_change
@@ -522,13 +524,13 @@ STUB
         || { echo "the sibling was mistaken for a nested worktree: $output"; false; }
     [ ! -d "$CHANGE_WT" ] || { echo "worktree still on disk"; false; }
     [ -d "$CHANGE_WT-sibling" ] || { echo "the sibling worktree was removed"; false; }
-    ! branch_exists my-change || { echo "branch survived"; false; }
+    ! branch_exists my-change || { echo "branch still exists"; false; }
 }
 
 @test "finish-merge: a space in the change worktree's path does not defeat the guard" {
     # verifies: PR-n57ayn
     # The prefix test walks git's porcelain output line by line, and a path
-    # with a space in it survives that walk only if the whole line is read as
+    # with a space in it comes through that walk intact only if the line is read as
     # one value. Field-splitting anywhere on the route truncates the path at
     # its first space, nothing matches the truncated prefix, and the guard
     # fails open exactly as the backslash made it.
@@ -546,16 +548,17 @@ STUB
         || { echo "the nested worktree's uncommitted work was destroyed"; false; }
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" == *"lies inside"* ]] \
-        || { echo "expected the nesting refusal, got: $output"; false; }
+        || { echo "expected the nesting rejection, got: $output"; false; }
     [[ "$output" == *"$nested"* ]] \
-        || { echo "the refusal did not name the nested worktree: $output"; false; }
+        || { echo "the rejection did not name the nested worktree: $output"; false; }
     assert_nothing_removed
 }
 
 # --- --check: guard 4 proved before the signing touch ------------------------
 #
 # Guard 4 is fully knowable before the squash commit exists, but every guard in
-# this script ran only as the chained tail of the signed commit — so a refusal
+# this script was run only as the chained tail of the signed commit — so a
+# rejection
 # was discovered AFTER the hardware-key touch merge-change step 7 hands to the
 # user. `--check` proves guard 4 and nothing else: guards 1 and 2 both read the
 # squash commit, which does not exist at the point this mode is for, and guard
@@ -600,7 +603,7 @@ STUB
 @test "finish-merge: --check runs from the change worktree, before any squash" {
     # The test that matters most. This mode is for merge-change step 6d — in
     # the change worktree, before the squash is staged — which is exactly the
-    # state the linked-worktree refusal and guards 1 and 2 make impossible.
+    # state the linked-worktree rejection and guards 1 and 2 make impossible.
     # `gr_base_branch` reads the FIRST worktree in the porcelain listing, the
     # primary checkout, so it still answers correctly from in here.
     make_change_worktree
@@ -611,7 +614,7 @@ STUB
 }
 
 # verifies: PR-k77dzn
-@test "finish-merge: --check refuses the base branch" {
+@test "finish-merge: --check rejects the base branch" {
     # A usage error, not a verdict: naming the base branch here would report on
     # the primary checkout and read as a green light for a cleanup that would
     # delete the base branch.
@@ -620,9 +623,9 @@ STUB
     run sh .guardrails/scripts/finish-merge.sh --check main
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
     # The exit code alone is satisfied by "unknown argument: --check", so the
-    # refusal this test claims to cover is named as well.
+    # rejection this test claims to cover is named as well.
     [[ "$output" == *"is the base branch"* ]] \
-        || { echo "expected the base-branch refusal, got: $output"; false; }
+        || { echo "expected the base-branch rejection, got: $output"; false; }
     assert_nothing_removed
 }
 
@@ -642,8 +645,8 @@ STUB
 }
 
 # verifies: PR-k77dzn
-# The preflight's value is telling the operator what step 8 would say, so it
-# must not say it in a different number. Guard 4 switches singular/plural on an
+# The preflight's value is telling the operator what step 8 would state, so it
+# must not state it in a different number. Guard 4 switches singular/plural on an
 # embedded newline; this proves --check switches with it. The singular
 # direction is asserted by the nested-worktree test above.
 @test "finish-merge: --check reports two nested worktrees in the plural, naming both" {
@@ -664,14 +667,14 @@ STUB
 }
 
 # verifies: PR-k77dzn
-@test "finish-merge: --check with no registered worktree says nothing was inspected" {
+@test "finish-merge: --check with no registered worktree states nothing was inspected" {
     # The third green this mode can print, and the one that proves NOTHING. A
     # branch that exists but has no worktree registered leaves guard 4 with
-    # nothing to refuse, which is a true statement and an exit 0 the removal
+    # nothing to reject, which is a true statement and an exit 0 the removal
     # mode agrees with — it tolerates an already-gone worktree and still
     # deletes the branch. What the wording must not do is read like the clean
     # verdict beside it: `nothing is registered inside <path>` is a scan that
-    # ran; this is a scan that never had a path to run against.
+    # was run; this is a scan that never had a path to run against.
     setup_ssh_signing
     make_squashed_change
     git worktree remove "$BATS_TEST_TMPDIR/wt"
@@ -679,11 +682,11 @@ STUB
     run sh .guardrails/scripts/finish-merge.sh --check my-change
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
     [[ "$output" == *"nothing was inspected"* ]] \
-        || { echo "the verdict did not say nothing was inspected: $output"; false; }
+        || { echo "the verdict did not state nothing was inspected: $output"; false; }
     [[ "$output" == *"check the branch name"* ]] \
         || { echo "the verdict did not name the likely cause: $output"; false; }
-    # Not the clean verdict. That one means a scan ran and found nothing, and
-    # an operator who reads this as that one carries an unproved guard 4 into
+    # Not the clean verdict. That one means a scan was run and found nothing,
+    # and an operator who reads this as that one takes an unproved guard 4 into
     # the key touch this mode exists to save.
     [[ "$output" != *"nothing is registered inside"* ]] \
         || { echo "an uninspected branch printed the CLEAN verdict: $output"; false; }
@@ -691,7 +694,7 @@ STUB
 }
 
 # verifies: PR-k77dzn
-@test "finish-merge: --check refuses a failing git worktree list, it does not report a clean tree" {
+@test "finish-merge: --check rejects a failing git worktree list, it does not report a clean tree" {
     # The preflight reads the registry itself, so it owns this false green
     # separately from the removal mode's copy of it (covered by the test near
     # the top of this file). A scan that ERRORS finds nothing, and "found
@@ -703,14 +706,14 @@ STUB
     cd "$REPO"
     bin=$(make_failing_worktree_list)
     PATH="$bin:$PATH" run sh .guardrails/scripts/finish-merge.sh --check my-change
-    [ "$status" -ne 0 ] || { echo "expected a refusal, got 0: $output"; false; }
+    [ "$status" -ne 0 ] || { echo "expected a rejection, got 0: $output"; false; }
     [[ "$output" == *"git worktree list failed"* ]] \
-        || { echo "expected the registry refusal, got: $output"; false; }
+        || { echo "expected the registry rejection, got: $output"; false; }
     assert_nothing_removed
 }
 
 # verifies: PR-k77dzn
-@test "finish-merge: --check refuses a failing awk, it does not report a clean tree" {
+@test "finish-merge: --check rejects a failing awk, it does not report a clean tree" {
     # The same false green through the other tool: the worktree path is
     # derived through awk, and an awk that dies leaves the substitution empty
     # — indistinguishable, without the status check, from a branch whose
@@ -720,9 +723,9 @@ STUB
     cd "$REPO"
     bin=$(make_failing_awk)
     PATH="$bin:$PATH" run sh .guardrails/scripts/finish-merge.sh --check my-change
-    [ "$status" -ne 0 ] || { echo "expected a refusal, got 0: $output"; false; }
+    [ "$status" -ne 0 ] || { echo "expected a rejection, got 0: $output"; false; }
     [[ "$output" == *"could not be derived"* ]] \
-        || { echo "expected the derivation refusal, got: $output"; false; }
+        || { echo "expected the derivation rejection, got: $output"; false; }
     assert_nothing_removed
 }
 
@@ -734,7 +737,7 @@ STUB
     # INSIDE the change worktree, where both ways of getting `-n` wrong are
     # exit 2 and neither can be mistaken for this: an unparsed `-n` falls to
     # the `-*` arm as `unknown argument: -n`, and a `-n` that failed to turn
-    # the mode on reaches the linked-worktree refusal.
+    # the mode on reaches the linked-worktree rejection.
     make_change_worktree
     run sh .guardrails/scripts/finish-merge.sh -n my-change
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }

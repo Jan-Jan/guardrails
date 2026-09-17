@@ -2,6 +2,163 @@
 # a skill instruction that quietly loses a critical phrase fails here
 # rather than in some target project months later.
 
+# The word table the writing scan reads. Each key is a word the replace list in
+# templates/AGENTS-block.md names; the rest of the line is the forms the scan
+# reads for it.
+#
+# This function body is the one region the scan exempts in this file. The scan
+# opens the region at the declaration line below and closes it at the next line
+# that is exactly a closing brace, so the rest of this file is scanned. The
+# paragraph on how the forms were narrowed is inside the body, because it has
+# to state the forms it excludes.
+gr_writing_table() {
+    # The forms are narrowed by hand against this tree until every correct
+    # English use stops matching, and that judgment cannot be derived from the
+    # replace list. The bare `hold` is in: its one correct use in this tree is
+    # the idiom `when all three hold`, which the exemption list drops by its
+    # full phrasing.
+    #
+    # The bare `say` is out, and it is the one form deliberately left
+    # unscanned. The scan matches whole words, so `grep -Eiw say` also matches
+    # inside the noun `say-so`, and the parenthetical `say` meaning "for
+    # example" has no entry on the shipped replace list. With `say` scanned
+    # both are unwritable, and the tree was edited to fit the scan rather than
+    # the scan to fit the rule: one `say-so` and four parentheticals were
+    # deleted to keep this file green. `says`, `said` and `saying` stay in,
+    # because `states` replaces each of them, and the imperative `say so` —
+    # six uses in this tree — then needs no exemption at all.
+    #
+    # `run` is out and `ran` is in. `sat` is out because it is an awk variable
+    # in check-trace.sh and produces seven false reports.
+    cat <<'TABLE'
+carries carry carries carried carrying
+lands land lands landed landing
+holds hold holds held holding
+survives survive survives survived surviving
+says says said saying
+refuses refuse refuses refused refusing refusal
+ran ran
+load-bearing load-bearing
+sits sit sits sitting
+TABLE
+}
+
+gr_writing_forms() {
+    gr_writing_table | cut -d' ' -f2- | tr ' ' '\n' | sort -u | paste -sd'|' -
+}
+
+gr_writing_keys() {
+    gr_writing_table | cut -d' ' -f1 | sort
+}
+
+gr_writing_paths() {
+    echo 'skills AGENTS.md README.md templates install.sh scripts tests docs/problems docs/risk docs/adr'
+}
+
+# The phrases the scan removes from a line before it matches, one per line:
+# the path the removal is addressed to, a `|`, then the phrase. `*` addresses
+# every path.
+#
+# Two of them quote git's own output, which is reproduced verbatim in
+# skills/worktree-discipline/SKILL.md. Each removal is addressed to the paths
+# that must spell the wording out — that skill, and this file, which cannot
+# remove a phrase without writing it. Unaddressed, the removal was applied to
+# the concatenated stream and exempted the wording in every file in scope.
+#
+# The rest are English idioms, dropped by full phrasing so that a second use
+# of the word on the same line is still reported. Every line here is removed
+# from itself, which is why the list can name the phrases in plain text.
+gr_writing_exemptions() {
+    cat <<'EXEMPT'
+skills/worktree-discipline/SKILL.md|refusing to update checked out branch
+skills/worktree-discipline/SKILL.md|refusing to fetch into branch
+tests/skills.bats|refusing to update checked out branch
+tests/skills.bats|refusing to fetch into branch
+*|says so
+*|said so
+*|when all three hold
+EXEMPT
+}
+
+# The exemption list compiled to one sed script. Each letter of a phrase
+# becomes a bracketed pair, because the scan's grep ignores case and an
+# exemption that does not would leave an upper-case use reported — which is
+# how `SAID SO` in check-review.sh was rewritten into non-English to keep this
+# file green. sed's own case-insensitivity flag is not POSIX.
+gr_writing_exempt_script() {
+    gr_writing_exemptions | awk -F'[|]' '
+        function quoted(character) {
+            if (index("\\.[]^$*/", character) > 0) { return "\\" character }
+            return character
+        }
+        function literal(text,   position, out) {
+            out = ""
+            for (position = 1; position <= length(text); position++) {
+                out = out quoted(substr(text, position, 1))
+            }
+            return out
+        }
+        function anycase(text,   position, character, lower, upper, out) {
+            out = ""
+            for (position = 1; position <= length(text); position++) {
+                character = substr(text, position, 1)
+                lower = tolower(character)
+                upper = toupper(character)
+                if (lower != upper) { out = out "[" lower upper "]" }
+                else { out = out quoted(character) }
+            }
+            return out
+        }
+        $1 == "*" { printf "s/%s//g\n", anycase($2); next }
+        { printf "/^%s:/ s/%s//g\n", literal($1), anycase($2) }
+    '
+}
+
+# The scan itself. The files to scan are the arguments; the sites it reports
+# come back on stdout as `path:line:text`, and the exit status is grep's, so a
+# caller can tell no match (1) from a scan that did not run (2).
+#
+# Every test that asserts anything about the scan calls this one function, so
+# the exempt regions, the exemption list and the grep flags are on one path.
+# Built separately, a canary proves only itself: dropping `-i` here or adding
+# a word to the exemption list left every test green over a scan that had
+# stopped reporting that word.
+# The pattern that closes a writing-section exemption, named once. The scan
+# and the guard that reports an exemption reaching end of file both read it
+# here. Kept apart, the guard matched its own copy rather than the scan's, and
+# a one-character edit to the scan widened the exemption to end of file with
+# the guard still green.
+gr_writing_section_closer() {
+    echo '^## '
+}
+
+gr_writing_scan() {
+    gr_scan_banned=$(gr_writing_forms)
+    gr_scan_script=$(gr_writing_exempt_script)
+    gr_scan_closer=$(gr_writing_section_closer)
+
+    # A sed script that cannot compile makes the whole pipeline produce nothing,
+    # and grep then exits 1 — indistinguishable from a clean tree. Compile it
+    # once against no input and fail loudly instead.
+    if ! printf '' | sed -e "$gr_scan_script" >/dev/null 2>&1; then
+        echo 'the exemption list does not compile to a usable sed script' >&2
+        return 2
+    fi
+
+    for gr_scan_file in "$@"; do
+        awk -v file="$gr_scan_file" -v closer="$gr_scan_closer" '
+            /^## Writing: prose, names and messages$/ { section = 1; next }
+            section && $0 ~ closer { section = 0 }
+            /^gr_writing_table\(\) \{$/ { table = 1; next }
+            table && /^\}$/ { table = 0; next }
+            section || table { next }
+            { print file ":" NR ":" $0 }
+        ' "$gr_scan_file"
+    done \
+        | sed -e "$gr_scan_script" \
+        | grep -Eiw "$gr_scan_banned"
+}
+
 @test "ratchet: tool qualification states how and where the suite runs" {
     # verifies: PR-ac96zf
     # The step-5 checklist item asks the installer to record the suite result
@@ -544,7 +701,7 @@
 @test "ratchet-units-interview-writes-facts-not-rules: the D9 line is stated in the skill" {
     # verifies: D9
     # The interview writes units:, not_a_unit:, depends_on:, segregated_from:,
-    # safety_class — and must SAY it does not ask about the rules, or the next
+    # safety_class — and must STATE it does not ask about the rules, or the next
     # editor adds the enforcement knob D9 rejects by name.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'declares the facts; the rules are not configurable' "$skill"
@@ -556,7 +713,7 @@
 @test "ratchet-manifest-repo-has-no-root-config: scaffold branches on the manifest" {
     # verifies: D2/D9; exclusivity implemented in gr_check_units (0a35669)
     # Copying templates/config.yaml to the root of a manifest repository is
-    # exit 2 at the next gate — the scaffold step must say which file goes
+    # exit 2 at the next gate — the scaffold step must state which file goes
     # where in each mode, or ratchet scaffolds a rejected shape.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'templates/units.yaml' "$skill"
@@ -602,7 +759,7 @@
 
 @test "merge-finalizes-touched-units-only: the finalize loop is scoped" {
     # verifies: architecture item 6 — finalize-docs.sh is unit-scoped; drafts
-    # sit in touched units by the paths-inside-the-unit rule, so dependents
+    # are in touched units by the paths-inside-the-unit rule, so dependents
     # have nothing to rename.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'once per touched unit' "$skill"
@@ -657,7 +814,7 @@
 @test "design-segregation-cites-a-control: segregated_from: names its mechanism" {
     # verifies: D5 + architecture — check-units.sh convicts an uncited entry
     # (INCOMPLETE-SEGREGATION) and an uncovered class gap
-    # (MISCLASSED-DEPENDENCY); the skill must say where the citation lives.
+    # (MISCLASSED-DEPENDENCY); the skill must state where the citation lives.
     skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
     grep -q 'segregated_from:' "$skill"
     grep -q 'INCOMPLETE-SEGREGATION' "$skill"
@@ -706,9 +863,13 @@
     # the current skill prose was written under instructions of that shape.
     # The explicit list is the part that works, so the list itself is what
     # this test pins.
+    # The replace list's membership is pinned by the agreement test below,
+    # which compares every word the block names against the scan's word table.
+    # Naming one of those words here as well would put the vocabulary in this
+    # file outside the one region the scan exempts.
     block="$BATS_TEST_DIRNAME/../templates/AGENTS-block.md"
     grep -q 'Write dry, technical prose' "$block"
-    grep -q 'load-bearing' "$block"
+    grep -q 'Replace these words' "$block"
     grep -qi 'no metaphor' "$block"
     grep -q 'Do not match existing style' "$block"
 }
@@ -753,7 +914,7 @@
 @test "clanker: the deslop pass is not deferred to the merge review" {
     # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md)
     # merge-change reruns from step 1 on any finding, so a naming nit raised
-    # at 6a costs a full merge-sequence restart. The skill has to say why the
+    # at 6a costs a full merge-sequence restart. The skill has to state why the
     # pass is here, or a later editor moves it to the review that already
     # reads the whole diff.
     #
@@ -819,62 +980,271 @@
     grep -q 'Record it in the gap analysis' "$skill"
 }
 
-@test "clanker: no skill body contains the replaced vocabulary" {
-    # verifies: D2 (docs/plans/2026-09-14-clanker-adoption.md)
-    # T5 swept the 11 skill bodies once and added no test, so until this scan
-    # existed the sweep was a one-time edit. D2's second sentence — the rule
-    # also binds new writing — was enforced by nothing, and the next edit to
-    # any skill could reintroduce the register with no gate to report it.
-    #
-    # Scope is skills/*/SKILL.md only. AGENTS.md and
-    # templates/AGENTS-block.md both print the replace list itself, so a scan
-    # of either reports its own rule text on every run.
-    #
-    # The word forms are the AGENTS.md replace list plus inflections, each
-    # form narrowed until the current swept tree produces zero matches. A form
-    # with a correct use in this tree is dropped rather than exempted:
-    # `hold` is out and `holds`, `held`, `holding` are in, because `when all
-    # three hold` is correct English; `say` is out and `says`, `said`,
-    # `saying` are in, because the rule targets an inanimate subject that
-    # `states` something, while the imperative `say so` and the noun `say-so`
-    # are correct and appear in six places; `run` is out and `ran` is in.
-    banned='carry|carries|carried|carrying'
-    banned="$banned|land|lands|landed|landing"
-    banned="$banned|holds|held|holding"
-    banned="$banned|survive|survives|survived|surviving"
-    banned="$banned|says|said|saying"
-    banned="$banned|refuse|refuses|refused|refusing|refusal"
-    banned="$banned|ran|load-bearing"
-
-    # Three exemptions: two messages git prints and one `check-trace.sh`
-    # prints, each quoted verbatim in the prose. Each is removed by its full
-    # quoted wording rather than by dropping the word from the scan, so a
-    # second use of that word on the same line is still reported.
+@test "clanker: the word table and the shipped replace list name the same words" {
+    # verifies: D4 (docs/plans/2026-09-16-scan-scope.md)
+    # The predecessor's list was a hand copy of the shipped rule with nothing
+    # connecting the two, so a word added to the rule reached no scan. The
+    # comparison is bidirectional by construction: a shipped word with no table
+    # entry fails, and a table entry with no shipped word behind it fails.
     cd "$BATS_TEST_DIRNAME/.." || return 1
 
-    # The scan reports what it reads, and a scan that reads nothing reports
-    # nothing. `found` is empty either way, and the `|| true` that keeps a
-    # no-match `grep` from failing the test also hides a glob that matched no
-    # file at all — so count the files the scan read before trusting its
-    # silence. A floor rather than an exact number: adding a skill must not
-    # have to edit this test, and the failure being guarded against is the
-    # scan losing files, not the tree gaining them.
-    scanned=$(grep -n '' skills/*/SKILL.md 2>/dev/null | cut -d: -f1 | sort -u | wc -l | tr -d '[:space:]')
-    if [ "$scanned" -lt 11 ]; then
-        printf 'the scan read %s skill bodies, expected at least 11\n' "$scanned"
+    shipped=$(
+        awk '/^- Replace these words:/ { f = 1; line = $0; next }
+             f && /^  / { line = line " " $0; next }
+             f { exit }
+             END { print line }' templates/AGENTS-block.md \
+            | grep -Eo '[a-z-]+ ->' | sed 's/ ->$//' | sort
+    )
+    if [ -z "$shipped" ]; then
+        echo 'no replace list was found in templates/AGENTS-block.md'
         return 1
     fi
 
-    found=$(
-        grep -n '' skills/*/SKILL.md \
-            | sed -e 's/refusing to update checked out branch//g' \
-                  -e 's/refusing to fetch into branch//g' \
-                  -e 's/which carries no superseded-by//g' \
-            | grep -Eiw "$banned"
+    keys=$(gr_writing_keys)
+    if [ "$shipped" != "$keys" ]; then
+        printf 'the shipped replace list and the scan table disagree\nshipped:\n%s\ntable:\n%s\n' \
+            "$shipped" "$keys"
+        return 1
+    fi
+
+    # This repository states the same rule in its own AGENTS.md, and only the
+    # shipped block was parsed above. The two are one rule stated twice, so a
+    # word added to either and not the other is a divergence no other check
+    # reads: adopters and this tree would then follow different lists.
+    local_list=$(
+        awk '/^- Replace these words:/ { f = 1; line = $0; next }
+             f && /^  / { line = line " " $0; next }
+             f { exit }
+             END { print line }' AGENTS.md \
+            | grep -Eo '[a-z-]+ ->' | sed 's/ ->$//' | sort
+    )
+    if [ "$local_list" != "$shipped" ]; then
+        printf 'AGENTS.md and the shipped block name different words\nAGENTS.md:\n%s\nblock:\n%s\n' \
+            "$local_list" "$shipped"
+        return 1
+    fi
+}
+
+@test "clanker: every word-table key is among the forms the scan reads for it" {
+    # verifies: D4 (docs/plans/2026-09-16-scan-scope.md)
+    # The form columns are inside the one region the scan exempts from itself,
+    # and the agreement test above compares column 1 only. A review replaced
+    # every form column with a word that occurs nowhere in this tree, planted
+    # the replaced vocabulary in a script, and both tests stayed green over a
+    # scan that read for nothing. The key is the word the shipped rule replaces,
+    # so it is one of its own forms, and requiring that pins each row to its
+    # own subject.
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+    bad=$(
+        gr_writing_table | while read -r key forms; do
+            case " $forms " in
+                (*" $key "*) ;;
+                (*) printf '%s -> %s\n' "$key" "$forms" ;;
+            esac
+        done
+    )
+    if [ -n "$bad" ]; then
+        printf 'word-table rows whose key is not among their own forms:\n%s\n' "$bad"
+        return 1
+    fi
+}
+
+@test "clanker: the scan's own grep reports every form in the word table" {
+    # verifies: D4 (docs/plans/2026-09-16-scan-scope.md)
+    # The scan is one `grep -Eiw` over an alternation built from the forms,
+    # behind the sed that applies the exemption list. A form the alternation
+    # cannot match — a stray space, a regex metacharacter, an empty column —
+    # or a form a new exemption removes narrows the scan below what the table
+    # states, and nothing else reports it.
+    #
+    # This calls gr_writing_scan, the same function the scan test below calls,
+    # so the grep flags and the exemption list are on this path too. A canary
+    # with a grep of its own proved only itself: dropping `-i` from the scan,
+    # or exempting a word outright, left every test green.
+    #
+    # Each form goes in twice, lower case and upper case, because the rules
+    # bind a word at the start of a sentence and in a shouted comment as much
+    # as mid-line. Without the upper-case half, `grep -Eiw` could become
+    # `grep -Ew` with every test still green.
+    #
+    # The canary is scanned by a relative name from its own directory, so the
+    # reported `path:line:text` splits on a colon whatever the temporary
+    # directory is named.
+    cd "$BATS_TEST_TMPDIR" || return 1
+    gr_writing_table | cut -d' ' -f2- | tr ' ' '\n' | LC_ALL=C sort -u > writing-lower
+    tr '[:lower:]' '[:upper:]' < writing-lower > writing-upper
+    cat writing-lower writing-upper | LC_ALL=C sort -u > writing-forms
+    want=$(wc -l < writing-forms | tr -d '[:space:]')
+    if [ "$want" -eq 0 ]; then
+        echo 'the word table names no forms at all, so the scan reads for nothing'
+        return 1
+    fi
+
+    # A floor on the number of form spellings, against the table being reduced
+    # to its keys. Every other check here compares the table against itself, so
+    # a table whose every row repeats its key is self-consistent, and the scan
+    # then reads no inflection at all while every test stays green. The shipped
+    # replace list names one word per rule and cannot supply the inflections, so
+    # no external source pins them, and a floor is what remains. Raise it when a
+    # row is added; lowering it is the edit this guard exists to expose.
+    if [ "$want" -lt 58 ]; then
+        printf 'the word table names %s form spellings, expected at least 58\n' "$want"
+        return 1
+    fi
+
+    scan_status=0
+    reported=$(gr_writing_scan writing-forms) || scan_status=$?
+    if [ "$scan_status" -gt 1 ]; then
+        printf 'the scan exited %s over the form canary without running; its alternation is:\n%s\n' \
+            "$scan_status" "$(gr_writing_forms)"
+        return 1
+    fi
+
+    # comm, not a count: an exit status of 2 and a clean match both yield no
+    # output, and a bare count named no form at all when the alternation was
+    # invalid.
+    printf '%s\n' "$reported" | cut -d: -f3- | LC_ALL=C sort -u > writing-reported
+    unread=$(LC_ALL=C comm -23 writing-forms writing-reported)
+    if [ -n "$unread" ]; then
+        printf 'the scan does not read %s of the %s form spellings in the word table:\n%s\n' \
+            "$(printf '%s\n' "$unread" | wc -l | tr -d '[:space:]')" "$want" "$unread"
+        return 1
+    fi
+}
+
+@test "clanker: every tracked file is in the scan's scope or named out of it" {
+    # verifies: D1 (docs/plans/2026-09-16-scan-scope.md)
+    # D1 states that the in-scope pathspec and the out-of-scope list together
+    # name every tracked path, and nothing checked it. A review cut the
+    # pathspec to three elements and added a tracked file outside it, and the
+    # scan stayed green over a fraction of the tree both times. Pin the scope
+    # by its complement: what the pathspec does not match must be exactly the
+    # merged records, LICENSE and .gitignore.
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+    unaccounted=$(
+        comm -23 \
+            <(git ls-files | LC_ALL=C sort) \
+            <(git ls-files -- $(gr_writing_paths) | LC_ALL=C sort) \
+            | grep -Ev '^(docs/plans/|docs/verification/|LICENSE$|\.gitignore$)'
     ) || true
+    if [ -n "$unaccounted" ]; then
+        printf 'tracked files in neither the scan pathspec nor the out-of-scope list:\n%s\n' \
+            "$unaccounted"
+        return 1
+    fi
+}
+
+@test "clanker: no file in scope contains the replaced vocabulary" {
+    # verifies: D1, D2, D3 (docs/plans/2026-09-16-scan-scope.md)
+    # Scope is every tracked file the rules bind. docs/plans and
+    # docs/verification are out permanently: they are merged evidence, and
+    # editing a record to match a later tree falsifies what it proved.
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+
+    # A pathspec that matches nothing makes an empty scan indistinguishable
+    # from a clean tree. Check each element rather than counting files, so a
+    # path that moves is reported by name.
+    for p in $(gr_writing_paths); do
+        if ! git ls-files -- "$p" | grep -q .; then
+            printf 'pathspec element %s matched no tracked file\n' "$p"
+            return 1
+        fi
+    done
+
+    # D2 exempts one named region per file, and an exemption that matches more
+    # than it should is the failure with no symptom. Count openers, not files:
+    # a second `## Writing: prose, names and messages` heading appended to
+    # AGENTS.md opens a second exempt region and leaves the file count at 2.
+    md=$(git grep -cE '^## Writing: prose, names and messages$' -- $(gr_writing_paths) \
+        | cut -d: -f2- | awk '{ n += $1 } END { print n + 0 }')
+    if [ "$md" -ne 2 ]; then
+        printf 'the writing-section opener occurs %s times, expected 2\n' "$md"
+        return 1
+    fi
+    tbl=$(git grep -cE '^gr_writing_table\(\) \{$' -- $(gr_writing_paths) \
+        | cut -d: -f2- | awk '{ n += $1 } END { print n + 0 }')
+    if [ "$tbl" -ne 1 ]; then
+        printf 'the word-table opener occurs %s times, expected 1\n' "$tbl"
+        return 1
+    fi
+
+    # The markdown region closes at the next `## ` heading, so demoting that
+    # heading one level runs the exemption to end of file and the rest of the
+    # document goes unscanned. Require every opener to have a closer.
+    # The exemption list removes a phrase before the scan reads the line, so a
+    # phrase added here is a banned use the scan stops reporting, anywhere in
+    # scope. The canary cannot see it: it feeds one form per line and every
+    # exemption is a phrase. Pin the count, so adding one is an edit in two
+    # places and shows up in the diff as a changed expectation.
+    exempt_count=$(gr_writing_exemptions | grep -c '|')
+    if [ "$exempt_count" -ne 7 ]; then
+        printf 'the scan has %s exemptions, expected 7\n' "$exempt_count"
+        return 1
+    fi
+
+    unclosed=$(
+        git grep -lE '^## Writing: prose, names and messages$' -- $(gr_writing_paths) \
+            | while IFS= read -r f; do
+                awk -v F="$f" -v closer="$(gr_writing_section_closer)" '
+                    /^## Writing: prose, names and messages$/ { open = NR; next }
+                    open && $0 ~ closer { open = 0 }
+                    END { if (open) print F ":" open }
+                ' "$f"
+            done
+    )
+    if [ -n "$unclosed" ]; then
+        printf 'a writing-section exemption reaches end of file, opened at:\n%s\n' \
+            "$unclosed"
+        return 1
+    fi
+
+    # Both exempt regions are bounded, not merely closed. A region that closes
+    # somewhere is not enough: indent the word table's closing brace and the
+    # region runs on to the next one, taking every line between out of the scan
+    # while the file still parses and every test stays green. Demote the heading
+    # that closes a writing section and it does the same. The lengths are 30 and
+    # 21 lines today; the bounds are those plus a little room to edit the text.
+    oversize=$(
+        {
+            git grep -lE '^gr_writing_table\(\) \{$' -- $(gr_writing_paths) \
+                | while IFS= read -r f; do
+                    awk -v F="$f" '
+                        /^gr_writing_table\(\) \{$/ { open = NR; next }
+                        open && /^[A-Za-z_][A-Za-z0-9_]*\(\) \{$/ {
+                            print F ":" NR ": word table swallows " $0
+                        }
+                        open && /^\}$/ { if (NR - open > 45) print F ":" open ": word table, " NR - open " lines"; open = 0 }
+                        END { if (open) print F ":" open ": word table, reaches end of file" }
+                    ' "$f"
+                done
+            git grep -lE '^## Writing: prose, names and messages$' -- $(gr_writing_paths) \
+                | while IFS= read -r f; do
+                    awk -v F="$f" -v closer="$(gr_writing_section_closer)" '
+                        /^## Writing: prose, names and messages$/ { open = NR; next }
+                        open && $0 ~ closer { if (NR - open > 35) print F ":" open ": writing section, " NR - open " lines"; open = 0 }
+                        END { if (open) print F ":" open ": writing section, reaches end of file" }
+                    ' "$f"
+                done
+        }
+    )
+    if [ -n "$oversize" ]; then
+        printf 'an exempt region is longer than its bound or never closes:\n%s\n' \
+            "$oversize"
+        return 1
+    fi
+
+    # The scan is gr_writing_scan, which the form canary above also calls, so
+    # a change to its flags, its exempt regions or its exemption list is
+    # reported by one of the two.
+    scan_status=0
+    found=$(gr_writing_scan $(git ls-files -- $(gr_writing_paths))) || scan_status=$?
+    if [ "$scan_status" -gt 1 ]; then
+        printf 'the scan exited %s over the tree without running\n' "$scan_status"
+        return 1
+    fi
 
     if [ -n "$found" ]; then
-        printf 'replaced vocabulary in skill bodies:\n%s\n' "$found"
+        printf 'replaced vocabulary in files the rules bind:\n%s\n' "$found"
         return 1
     fi
 }

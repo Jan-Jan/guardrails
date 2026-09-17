@@ -26,8 +26,8 @@ this was recorded it was a false green — `check-signing.sh` printing
 `WARN-UNVERIFIED` and exiting 0. b7fbd7f then added `finish-merge.sh`, which
 runs `check-signing.sh --strict` unconditionally before it removes anything.
 Measured on 860dce4: `--strict` exits 1, `UNVERIFIED`. So the false green is
-gone and a hard stop has replaced it: the signed commit still lands, and the
-worktree and branch cleanup will refuse until an `allowed_signers` file exists
+gone and a hard stop has replaced it: the signed commit is still merged, and
+the worktree and branch cleanup is rejected until an `allowed_signers` file exists
 or the GPG trustdb is readable. That is the right trade — it withholds cleanup,
 never the merge — but it means this item now blocks the tail of every merge on
 this machine rather than passing quietly.
@@ -47,7 +47,7 @@ that is an accepted gap in the history, not a fixed one.
 
 FOUND WHILE MEASURING THIS, and fixed elsewhere: the closure above is the
 disposition of this item. What measuring it turned up was a separate defect in
-the tool, carried by PR-74gcqg and PR-mtmr7h in
+the tool, recorded by PR-74gcqg and PR-mtmr7h in
 docs/problems/2026-09-03-signing-diagnosis.md — `check-signing.sh` printed one
 identical `UNVERIFIED` line whatever the cause and appended the ssh trust-root
 remedy to all of them, because `git log --format=%G?` returns a letter and
@@ -61,14 +61,14 @@ signature ... [ultimate]", and what defeats them is that gpg opens
 own words under every non-passing verdict, so the next reader of an
 `UNVERIFIED` gets the cause instead of a guess.
 
-The unverifiable ssh history that this closure accepts as a gap is carried,
+The unverifiable ssh history that this closure accepts as a gap is recorded,
 as a gap, by PR-r8q9m7 in the same file — not to reopen it, but because
 nothing in the toolkit ever inspects history at all.
 
 
 **PR-tbn6q7**: The repository-local commit identity was lost at some point
 before 2026-08-27, so a commit was authored from the global
-`jan-jan@parity.io` and GitHub refused the push with `GH007`.
+`jan-jan@parity.io` and GitHub rejected the push with `GH007`.
 affects: .git/config — not a tracked artefact, which is the difficulty; no
 gate in the toolkit reads the author identity of the commit it is about to
 make.
@@ -98,7 +98,7 @@ all the same shape — a mutation whose target has moved on:
 
 * six target `scripts/finalize-ids.sh`, deleted in c672c9f and replaced by
   `finalize-docs.sh`;
-* six carry a python patch whose `assert old in s` anchor no longer matches the
+* six contain a python patch whose `assert old in s` anchor no longer matches the
   source it edits;
 * six patch the `owner:` handling in `check-trace.sh` that 860dce4 removed —
   `AssertionError: mutation did not apply: 0 matches`. These six were live when

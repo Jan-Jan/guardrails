@@ -12,7 +12,7 @@
 # be hidden behind a wrapper. Its second half is this script, because an `&&`
 # chain cannot guard anything, and what follows is `git branch -D` on a branch
 # git does not consider merged — a squash leaves no merge base, so `-d` would
-# refuse and `-D` is the only spelling available. Nothing in a chain stands
+# reject it and `-D` is the only spelling available. Nothing in a chain stands
 # between a subtly incomplete squash and unrecoverable work; this does.
 #
 # Four guards, all proved before anything is removed:
@@ -23,20 +23,21 @@
 #   2. `git diff --quiet HEAD <branch>` — merge-change step 1 already merged the
 #      base branch into the change branch, so a correct squash leaves the two
 #      trees identical. A difference is work the squash did not capture.
-#   3. `git worktree remove` WITHOUT --force — git's own refusal of a dirty
+#   3. `git worktree remove` WITHOUT --force — git's own rejection of a dirty
 #      worktree is the guard.
 #   4. No registered worktree lies INSIDE the one about to be removed. Numbered
 #      last because it was added last; proved before guard 3, because guard 3's
 #      removal is the destructive act it exists to prevent. Guard 3 delegates to
-#      git, and git's refusal cannot see a nested worktree: task worktrees live
-#      at `.worktrees/<change-branch>-t<N>` inside the change worktree, that
-#      directory is gitignored, so the change worktree's `git status` is clean
-#      and the removal takes the nested worktree's uncommitted work with it at
-#      exit 0 — leaving a `prunable` registration and an orphan branch behind.
+#      git, and git's own check does not detect a nested worktree: task
+#      worktrees are at `.worktrees/<change-branch>-t<N>` inside the change
+#      worktree, that directory is gitignored, so the change worktree's `git
+#      status` is clean and the removal takes the nested worktree's uncommitted
+#      work with it at exit 0 — leaving a `prunable` registration and an orphan
+#      branch behind.
 #
 # A failing guard exits non-zero having removed nothing and deleted nothing. The
-# signed commit always survives; only cleanup is refused, which is a safe thing
-# to refuse. The fix is to run this script again ON ITS OWN — re-running the
+# signed commit always remains; only cleanup is rejected, which is a safe thing
+# to reject. The fix is to run this script again ON ITS OWN — re-running the
 # whole compound cannot double-commit (the squash is no longer staged, so
 # `git commit` fails and `&&` short-circuits), but it wastes a key touch.
 #
@@ -44,15 +45,15 @@
 #
 # `--check` (`-n`) answers guard 4 AND NOTHING ELSE, before the squash exists
 # and from anywhere in the repository — including the change worktree, where
-# the rest of this script refuses to run. It removes nothing and deletes
+# the rest of this script will not run. It removes nothing and deletes
 # nothing. Guards 1 and 2 both read the squash commit, so neither can be
 # preflighted at all; guard 3 IS the removal and cannot be proved without
 # doing it. Guard 4 is the one that is fully knowable in advance, and it is
-# also the one whose refusal used to cost a wasted key touch to discover.
+# also the one whose rejection used to cost a wasted key touch to discover.
 #
 # Exit codes: 0 cleaned up (or, with --check, guard 4 would pass — or had
-# nothing to inspect, which the verdict says in those words), 1 a guard refused
-# (or would refuse), 2 usage/environment error.
+# nothing to inspect, which the verdict states in those words), 1 a guard
+# rejected (or would reject), 2 usage/environment error.
 set -u
 
 gr_script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 2
@@ -63,8 +64,8 @@ gr_script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 2
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
 
-# A guard refused. Exit 1, not 2: the environment is fine and the signed commit
-# is already on the base branch — what is refused is only the cleanup.
+# A guard rejected the cleanup. Exit 1, not 2: the environment is fine and the
+# signed commit is already on the base branch — only the cleanup is rejected.
 gr_refuse() {
     printf '%s\n' "guardrails: $*" >&2
     exit 1
@@ -80,14 +81,14 @@ gr_refuse() {
 # arrives as `w<TAB>op/`. A change worktree whose path contained a backslash
 # therefore made the prefix test match nothing, the result come back empty, and
 # guard 4 PASS — after which guard 3 removed the change worktree and took the
-# nested worktree's uncommitted work with it, at exit 0. Every other refusal in
+# nested worktree's uncommitted work with it, at exit 0. Every other rejection in
 # this script fails CLOSED and merely withholds cleanup; this is the one whose
 # failure loses work, so it is built out of constructs that have no escape
 # layer to get wrong: `read -r` on whole lines, `${x#...}` for the prefix
 # strip, and a `case` pattern whose variable half is quoted and therefore
 # literal.
 #
-# The leading `(` on each pattern is load-bearing, not style: callers use this
+# The leading `(` on each pattern is critical, not style: callers use this
 # inside a $(...) command substitution, and bash 3.2 — macOS's /bin/sh —
 # mis-parses an unparenthesised pattern's closing `)` as the substitution's
 # own, failing the WHOLE SCRIPT at parse time (`syntax error near unexpected
@@ -95,14 +96,14 @@ gr_refuse() {
 # that shell makes it mandatory here.
 #
 # The matches are PRINTED, not accumulated in a variable: a `while read` fed by
-# a pipe runs in a subshell, so an assignment inside it would not survive the
-# loop, and a command substitution is how the answer escapes. `printf` cannot
-# fail on a string already in memory.
+# a pipe runs in a subshell, so an assignment inside it would not remain after
+# the loop, and a command substitution is how the result reaches the caller.
+# `printf` cannot fail on a string already in memory.
 #
 # The comparison is a prefix test on the paths git RECORDS, not on anything
 # resolved afresh: both sides come out of the same `git worktree list`, so they
 # are already spelled alike whatever the platform did to symlinks. The trailing
-# `/` is load-bearing — without it a sibling at `<wt>-sibling`, which is not
+# `/` is critical — without it a sibling at `<wt>-sibling`, which is not
 # inside anything, would be reported as nested.
 gr_nested_worktrees() {
     printf '%s\n' "$wt_list" | while IFS= read -r gr_line; do
@@ -144,8 +145,8 @@ done
 [ -n "$branch" ] || gr_die "no change branch named
   usage: finish-merge.sh [--check] <change-branch>"
 
-# --check — the preflight, placed HERE, before the linked-worktree refusal
-# below, because that refusal is exactly what makes this mode impossible where
+# --check — the preflight, placed HERE, before the linked-worktree rejection
+# below, because that rejection is exactly what makes this mode impossible where
 # it is wanted: merge-change step 6d, in the change worktree, before the squash
 # is staged.
 #
@@ -155,7 +156,7 @@ done
 # guards would have to invent two verdicts. Guard 3 is `git worktree remove`
 # itself and cannot be proved without doing it.
 #
-# Exit 1 means guard 4 WOULD refuse, so the operator learns it now instead of
+# Exit 1 means guard 4 WOULD reject, so the operator learns it now instead of
 # after a hardware-key touch. Exit 0 means it would not.
 if [ "$check_only" -eq 1 ]; then
     # gr_base_branch reads the FIRST worktree in `git worktree list
@@ -180,25 +181,25 @@ if [ "$check_only" -eq 1 ]; then
 
     if [ -z "$wt" ]; then
         # Exit 0, and the exit code is not the interesting part: guard 4
-        # genuinely has nothing to refuse here, the removal mode below tolerates
+        # genuinely has nothing to reject here, the removal mode below tolerates
         # an already-gone worktree and still deletes the branch, and a preflight
-        # that refused what the guard it previews would allow would be a
+        # that rejected what the guard it previews would allow would be a
         # different check wearing this one's name.
         #
         # The WORDING is the interesting part. This is the one verdict in this
-        # mode that inspected nothing — there was no path to scan — and it sits
-        # next to a green that means a scan ran and came back empty. Read as
+        # mode that inspected nothing — there was no path to scan — and it is
+        # next to a green that means a scan was run and came back empty. Read as
         # that one, it costs exactly what this mode exists to save: the operator
-        # carries an unproved guard 4 through the hardware-key touch and meets
-        # its refusal at step 8 anyway. So it says what it did not do, and names
+        # takes an unproved guard 4 through the hardware-key touch and meets its
+        # rejection at step 8 anyway. So it states what it did not do, and names
         # the reason an operator at step 6d is most likely looking at it —
         # that step runs INSIDE the change worktree, where a registration always
         # exists, so no registration means the branch named is not that one. A
         # misspelt branch cannot reach here at all: `git show-ref` above already
-        # refused it.
+        # rejected it.
         echo "finish-merge --check: no worktree is registered for $branch, so nothing was inspected"
         printf '%s\n' \
-"  Guard 4 has nothing to refuse, but nothing was proved about a change
+"  Guard 4 has nothing to reject, but nothing was proved about a change
   worktree either. Step 6d runs inside the change worktree, where one IS
   registered — if that is where you are, check the branch name."
         exit 0
@@ -211,7 +212,7 @@ if [ "$check_only" -eq 1 ]; then
         # arrives with none at all and two or more arrive with one between
         # them. Worth the four lines because this mode's entire value is
         # telling the operator in advance what step 8 would tell them later,
-        # and a preflight that says it in a different number reads as a
+        # and a preflight that states it in a different number reads as a
         # different finding.
         gr_nl='
 '
@@ -222,7 +223,7 @@ if [ "$check_only" -eq 1 ]; then
         printf '%s\n' "guardrails: $gr_lead:" >&2
         printf '%s\n' "$nested" >&2
         printf '%s\n' \
-"  Guard 4 will refuse cleanup AFTER the signed squash, which costs a key touch
+"  Guard 4 will reject cleanup AFTER the signed squash, which costs a key touch
   to learn. Deal with each of them now — merge or abandon the branch, then
   \`git worktree remove\` the path — and run this again." >&2
         exit 1
@@ -240,7 +241,7 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
     gr_die \
 "this is a linked worktree, and HEAD here is not the squash commit.
   Run this from the primary checkout, on the base branch, after the signed
-  squash has landed there."
+  squash has been merged there."
 fi
 
 # The base branch, and HEAD must be on it. Both halves are needed: an empty
@@ -250,8 +251,8 @@ fi
 base=$(gr_base_branch)
 [ -n "$base" ] || gr_die \
 "the base branch cannot be determined (this checkout is detached).
-  Check out the base branch — the one the signed squash landed on — and run
-  this again."
+  Check out the base branch — the one the signed squash was merged onto — and
+  run this again."
 
 current=$(git branch --show-current 2>/dev/null)
 [ "$current" = "$base" ] || gr_die \
@@ -263,7 +264,7 @@ current=$(git branch --show-current 2>/dev/null)
 # a guard failure — nothing has been proved or disproved about a squash — so
 # both exit 2.
 #
-# Naming the base branch is refused because `git diff --quiet HEAD $base` on
+# Naming the base branch is rejected because `git diff --quiet HEAD $base` on
 # the base branch is trivially satisfied: every guard would pass, vacuously,
 # and the base branch would be deleted.
 [ "$branch" != "$base" ] || gr_die \
@@ -272,10 +273,10 @@ current=$(git branch --show-current 2>/dev/null)
 git show-ref --verify --quiet "refs/heads/$branch" || gr_die \
 "no such branch: $branch. Nothing was removed and nothing was deleted."
 
-# Guard 1 — HEAD carries a signature that verifies. Delegated WHOLE to the
+# Guard 1 — HEAD contains a signature that verifies. Delegated WHOLE to the
 # sibling gate rather than reimplemented: one definition of "signed", in the
 # script whose job that is. --strict is unconditional, for the reason the
-# header gives; the refusal below names the configuration that fixes it.
+# header gives; the rejection below names the configuration that fixes it.
 sh "$gr_script_dir/check-signing.sh" --strict || gr_refuse \
 "HEAD's signature did not pass check-signing.sh --strict, so nothing was removed.
   The squash commit itself is unaffected. Fix the signature (or the signing
@@ -284,7 +285,7 @@ sh "$gr_script_dir/check-signing.sh" --strict || gr_refuse \
 # Guard 2 — the squash actually captured the change. merge-change step 1 has
 # already merged the base branch into the change branch, so a correct squash
 # leaves the base branch's tree IDENTICAL to the change branch's. A difference
-# means something did not land: an unstaged file, a partial `git add`, or a
+# means something is missing: an unstaged file, a partial `git add`, or a
 # base that moved between step 1 and the squash. This is the only check
 # standing between an incomplete squash and `-D` destroying the difference.
 git diff --quiet HEAD "$branch" || gr_refuse \
@@ -309,10 +310,10 @@ wt_list=$(git worktree list --porcelain) || gr_die \
 # The worktree path is DERIVED, never taken from the caller (D4). A pasted path
 # is a chance to remove the wrong directory, and the branch name is already in
 # the command merge-change prints. `$0` is used whole rather than a field, so a
-# path containing spaces survives; a branch name can contain neither a newline
-# nor a backslash (git check-ref-format forbids both), so nothing that `awk -v`
-# would mangle reaches it here. Guard 4's prefix test cannot make that argument
-# about a PATH, which is why it is written without awk at all.
+# path containing spaces remains intact; a branch name can contain neither a
+# newline nor a backslash (git check-ref-format forbids both), so nothing that
+# `awk -v` would mangle reaches it here. Guard 4's prefix test cannot make that
+# argument about a PATH, which is why it is written without awk at all.
 wt=$(printf '%s\n' "$wt_list" | awk -v want="branch refs/heads/$branch" '
     /^worktree / { path = substr($0, 10) }
     $0 == want { print path; exit }
@@ -320,11 +321,11 @@ wt=$(printf '%s\n' "$wt_list" | awk -v want="branch refs/heads/$branch" '
 "the worktree path for $branch could not be derived. Nothing was removed and
   $branch was NOT deleted."
 
-# Guard 3 — the worktree holds nothing uncommitted. NOT reimplemented: this is
-# `git worktree remove` without --force, and git's own refusal of a worktree
-# carrying modified or untracked files is the guard. The removal is therefore
-# both the last guard and the first destructive act, which is why the branch
-# deletion comes strictly after it.
+# Guard 3 — the worktree contains nothing uncommitted. NOT reimplemented: this
+# is `git worktree remove` without --force, and git's own rejection of a
+# worktree containing modified or untracked files is the guard. The removal is
+# therefore both the last guard and the first destructive act, which is why the
+# branch deletion comes strictly after it.
 #
 # No worktree registered for the branch is not an error: the harness may have
 # removed it already. Tolerant about what is already gone, strict about what it
@@ -367,14 +368,14 @@ $nested
   Removing $wt would delete $gr_them registered — uncommitted work gone,
   registrations left prunable, branches orphaned. Guard 3 cannot see this: a
   nested worktree is invisible to the outer one's \`git status\`, so
-  \`git worktree remove\` does not refuse it. Nothing was removed and $branch
+  \`git worktree remove\` does not reject it. Nothing was removed and $branch
   was NOT deleted. $gr_deal — merge or abandon the branch, then
   \`git worktree remove\` the path — and run this script again on its own."
     fi
 
     git worktree remove "$wt" || gr_refuse \
-"git refused to remove the worktree at $wt, so $branch was NOT deleted.
-  A worktree carrying modified or untracked files is refused on purpose:
+"git rejected the removal of the worktree at $wt, so $branch was NOT deleted.
+  A worktree containing modified or untracked files is rejected on purpose:
   --force is not passed, and nothing here overrides that. Deal with what is
   in it, then run this script again on its own."
     removed="worktree removed: $wt"

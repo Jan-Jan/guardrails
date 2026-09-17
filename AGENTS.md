@@ -45,7 +45,7 @@ reference implementation of its own process.
    that only they can touch.
 
    **This overrides `merge-change` step 1's fetch**, and the override does cost
-   something — say what, rather than claiming it is free. That step is written
+   something — state what, rather than claiming it is free. That step is written
    for shared repositories, and it is right about the mechanism: step 4's
    `DUPLICATE-ID` scan sees exactly the IDs in the merged tree, so a base merged
    from a local ref while `origin` is ahead gives it a smaller set to check.
@@ -82,7 +82,7 @@ and commit messages.
 - Active voice. Cut filler. Do not editorialize.
 - Replace these words: carries -> contains, lands -> is merged, survives ->
   remains, says -> states, holds -> contains, refuses -> rejects,
-  load-bearing -> critical, ran -> was run.
+  load-bearing -> critical, ran -> was run, sits -> is in.
 - Do not match existing style when it disagrees with these rules.
 
 In code, additionally:

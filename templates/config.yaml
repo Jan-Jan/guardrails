@@ -12,7 +12,7 @@
 #     it is a list key, comment its `  - items` out too, or they are orphaned
 #     and rejected. Never misspell one;
 #   * list items are indented (`  - src`), never at column zero, and each one
-#     carries a value — `  - ` with nothing after it is dropped by every reader,
+#     contains a value — `  - ` with nothing after it is dropped by every reader,
 #     so the list that takes effect is shorter than the one written;
 #   * a key is written in ITS OWN FORM. A LIST key takes indented `  - item`
 #     lines and nothing after its colon; a SCALAR key takes a value after its
@@ -23,9 +23,9 @@
 #     every traceability scan walks no path, and a merge over an undefined-ID
 #     reference exits 0;
 #   * a key is set ONCE. A second block is read by nobody, while YAML itself
-#     takes the last, so the file says one thing to its author and another to
+#     takes the last, so the file states one thing to its author and another to
 #     the tooling;
-#   * a key that is present carries something. Set to nothing it reads as
+#   * a key that is present contains something. Set to nothing it reads as
 #     absent to the gate that uses it, and that gate then passes having
 #     examined nothing;
 #   * line endings are LF or CRLF, never bare CR: a \r-only file is one single
@@ -54,7 +54,7 @@
 # `checked:` counts its items as zero and finalize-docs.sh renames a draft
 # ledger there just as it would anywhere else. Whether anything warns you first
 # depends on the location, on whether git tracks or ignores the file, and on
-# whether the ledger still carries its DRAFT- name: some combinations are
+# whether the ledger still contains its DRAFT- name: some combinations are
 # silent throughout, others raise a complaint that names no cause and that the
 # rename removes.
 # Do not do it. (A symlink to a directory INSIDE the repository is scanned
@@ -100,7 +100,7 @@ doc_problems: docs/problems
 # Where merge-change writes one verification record per change. THE ONLY doc_*
 # key with a default — `docs/verification`, which /ratchet creates — because
 # this key arrived after projects were already configured. The default cannot
-# hide a gate: an absent directory, or one holding no *.md, is exit 2 rather
+# hide a gate: an absent directory, or one containing no *.md, is exit 2 rather
 # than an empty scan. Set it if your records live anywhere else.
 # doc_verification: docs/verification
 
@@ -124,7 +124,7 @@ verify_commands:
 # answer is that `UNRESOLVED-PR` had become something to scroll past; an
 # enforcement mechanism that defaults to off does not answer it. The values are
 # policy, they live here, one line changes either, and check-trace.sh prints
-# both on every run — set or not — next to the backlog they hold down.
+# both on every run — set or not — next to the backlog they cap.
 #
 # A value that is not a non-negative whole number is exit 2, not "no limit": a
 # limit the reader cannot parse would be a gate disabling itself on a typo.
@@ -138,7 +138,7 @@ problem_open_max: 10
 #   - make coverage
 
 # Expectation triage limits (multi-unit repositories; docs/plans/
-# 2026-09-03-units-architecture.md). An expectation is a consumer REQ carrying
+# 2026-09-03-units-architecture.md). An expectation is a consumer REQ containing
 # `expects: <unit>` — work owed by a declared dependency. Non-RC-linked ones
 # age against these, exactly as problem reports age against the limits above;
 # an expectation that implements a risk control fails every run regardless.

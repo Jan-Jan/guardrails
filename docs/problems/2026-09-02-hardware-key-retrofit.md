@@ -47,7 +47,7 @@ false`.
 
 **PR-uavq3f**: Nothing notices when a target project's installed ledger
 READMEs go stale against the shipped grammar — the `owner:` field was removed
-upstream while a target's copy kept teaching it, so one commit carried an
+upstream while a target's copy kept teaching it, so one commit contained an
 AGENTS.md and a docs/problems/README.md contradicting each other about a
 required field, and the upstream test for the shipped side passed throughout.
 affects: skills/ratchet/SKILL.md — the upgrade path, which is where this
@@ -90,13 +90,13 @@ opened: 2026-09-01
 status: resolved
 The gate enforced the rule but the template never taught it, so reviewers
 met it as a failure instead of as guidance; the finding-grammar bullet now
-says a range opens no block and each finding gets its own header. Reproduced
+states that a range opens no block and each finding gets its own header. Reproduced
 by `tests/skills.bats: verification template warns that a range in a finding
 header opens no block`.
 
 **PR-xyu6en**: `finish-merge.sh` does not parse at all under macOS `/bin/sh`
 (bash 3.2 in sh mode): the guard-4 `case` inside a `$(...)` command
-substitution trips that shell's parser unless the patterns carry the optional
+substitution trips that shell's parser unless the patterns contain the optional
 leading `(` — `syntax error near unexpected token ';;'`, exit 2 on every
 invocation, so no merge can ever be finished on a stock Mac.
 affects: scripts/finish-merge.sh guard 4 (nested-worktree scan) — arrived on
@@ -105,7 +105,7 @@ the same route PR-mu8ybm took.
 opened: 2026-09-02
 status: resolved
 bash 3.2 mis-parses `case` patterns inside `$(...)` when they lack the
-optional leading parenthesis; the three guard-4 patterns now carry it. The
+optional leading parenthesis; the three guard-4 patterns now contain it. The
 reproducing test is the existing `tests/check-ids.bats: every script parses
 as POSIX sh`, red on macOS (11 failures, all this one cause) before the fix
 and green after; the platform-independent sweep for the class is that same
@@ -119,8 +119,9 @@ command's — the reporter nearly recorded a wrong result this way.
 affects: skills/ratchet/SKILL.md (step 5 tool-qualification item).
 opened: 2026-09-01
 status: resolved
-The item said to capture the suite's exit code but not that a pipe replaces
-`$?` with the pipe tail's status; the clause now says to capture it from the
-run itself, never through a pipe, with the redirect shape spelled out.
+The item required capturing the suite's exit code but did not state that a pipe
+replaces `$?` with the pipe tail's status; the clause now states that it is
+captured from the run itself, never through a pipe, with the redirect shape
+spelled out.
 Reproduced by `tests/skills.bats: ratchet: tool qualification warns that a
 pipe eats the suite's exit status`.

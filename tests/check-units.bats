@@ -293,7 +293,7 @@ EOF
 # design, and no unit's scoped run scans them either — so DISCLAIMED-DRAFT
 # must cover them here or a draft parked there is scanned by NO gate. The
 # negative twin is the fixture-passes test above: the installed scripts under
-# .guardrails/scripts/ carry draft-shaped tokens in comments and must convict
+# .guardrails/scripts/ contain draft-shaped tokens in comments and must convict
 # nothing (the GR_SCAN_EXCLUDE reasoning).
 
 @test "check-units: a root-level draft file and its token convict DISCLAIMED-DRAFT" {

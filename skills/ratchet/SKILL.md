@@ -132,7 +132,7 @@ manifest and every unit's config in one pass, and its findings
    a subagent creating its task worktree — it makes the untracked directory
    fail `verify-before-merge`'s clean `git status` check afterwards.
 5. **Make every configured path exist in the commit**, and every ledger
-   directory hold at least one `*.md`. `check-trace.sh` exits 2 otherwise —
+   directory contain at least one `*.md`. `check-trace.sh` exits 2 otherwise —
    that is what stops a typo'd path from silently disabling a gate. Git does
    not track empty directories, so anything that exists only on your disk is
    missing for everyone who clones the repo, and CI fails at exit 2. Two
@@ -381,7 +381,7 @@ manifest and every unit's config in one pass, and its findings
 > in your ledgers goes red at the first run:
 >
 > * `NON-RECIPROCAL-SUPERSESSION <ID> (supersedes: …,
->   which carries no superseded-by: …)` — and the mirror form for the other
+>   which contains no superseded-by: …)` — and the mirror form for the other
 >   direction. **The fix is to add the missing half**, at column one inside
 >   the named item's block, never to delete the half that is there: the
 >   annotation that exists is the true one, and deleting it loses the only
@@ -541,7 +541,7 @@ So ratchet is not complete until `check-signing.sh --setup` exits 0, and that
 includes ratchet's own scaffold change: satisfy the signing items before the
 integration in Step 2.7 / Step 3.5.
 
-For a retrofit, say this plainly and early rather than letting it be
+For a retrofit, state this plainly and early rather than letting it be
 discovered at the first merge: **an existing project must configure commit
 signing before it can finish adopting guardrails.** Ratchet cannot do it alone
 — it needs each committer's public key. If those keys are not available yet,

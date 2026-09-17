@@ -55,7 +55,7 @@ segregated_from'
 # are the per-unit keys of the monorepo machinery (docs/plans/
 # 2026-09-03-units-architecture.md item 8). In a single-unit repository they
 # are accepted and read by nothing that gates — the same status safety_class
-# held before the class floor — because a config must stay valid when a
+# had before the class floor — because a config must stay valid when a
 # repository grows a manifest.
 
 GR_KNOWN_KEYS='guardrails_version
@@ -130,7 +130,7 @@ GR_ID_BODY="(${GR_ID_TOKEN}|[0-9][0-9][0-9]+)"
 # the dangling reference it was.
 #
 # Deliberately wider than the body alphabet — `i`, `l`, `o` and the uppercase
-# letters cannot appear in a token, but a reference carrying one is still a
+# letters cannot appear in a token, but a reference containing one is still a
 # typo rather than a boundary, and reading it as a boundary would credit the
 # item it truncates to.
 GR_ID_TAIL='[^0-9A-Za-z]'
@@ -147,7 +147,7 @@ GR_ID_TAIL='[^0-9A-Za-z]'
 # the LAST occurrence on the line and credited a REQ mentioned in prose.
 #
 # GR_ID_BODY is interpolated once, here, when the library is sourced — this
-# constant carries a copy of the body from then on rather than reading the
+# constant contains a copy of the body from then on rather than reading the
 # variable at match time. That is only worth knowing when poisoning the
 # variable from outside to test a call site: this one does not follow.
 GR_AWK_ID_RUN='
@@ -186,7 +186,7 @@ function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
 # program that needs it.
 #
 # An item block OPENS at a well-formed definition for the prefix the gate
-# collects, and CLOSES at a markdown heading or at ANY BOLD LINE CARRYING A
+# collects, and CLOSES at a markdown heading or at ANY BOLD LINE CONTAINING A
 # COLON. That is the whole closing rule.
 #
 # It is stated as a SUBTRACTION, and that framing is the point. Until
@@ -198,7 +198,7 @@ function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
 # real violations in silence. One rule, four gates, both failure directions.
 #
 # The close set must therefore be everything that rule closed, MINUS the shape
-# that caused the defect, and nothing else. The defect line carries no colon;
+# that caused the defect, and nothing else. The defect line contains no colon;
 # so the colon is the subtraction, and there is no other. Three review rounds
 # were spent narrowing instead — to definition forms, then to header shapes,
 # then to a colon adjoining the closing asterisks — and each narrowing lost
@@ -214,9 +214,9 @@ function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
 # like `**Détail**:` — while mawk, busybox awk and gawk under LC_ALL=C all
 # closed it. The same tree, the same script, two verdicts, decided by the
 # operator`s locale. substr and index count bytes in every awk and every
-# locale, and they say what the sentence above says.
+# locale, so they implement the rule the sentence above states.
 #
-# The residual limit, stated exactly: a bold line carrying no ASCII colon does
+# The residual limit, stated exactly: a bold line containing no ASCII colon does
 # not close. `**Decision 7**` does not; `**Decision 7**:` does. A full-width
 # colon (U+FF1A) is not an ASCII colon and does not close. Nothing
 # distinguishes a colon-free bold line from the sentence in the original
@@ -230,10 +230,10 @@ function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
 # collects) and GR_ID_BODY. There is no closing alternation: the close is keyed
 # on no vocabulary at all, which is what makes it total. The opening pattern is
 # assembled HERE, inside awk, and never handed in ready-made with -v: awk runs
-# escape processing over a -v value, so a pattern carrying \* arrives as a bare
-# * and matches nothing at all — a gate that counts zero items and still exits
-# 0. Measured on gawk 5.3.2. Both arguments carry no backslashes of their own,
-# which is what lets them cross the -v boundary safely.
+# escape processing over a -v value, so a pattern containing \* arrives as a
+# bare * and matches nothing at all — a gate that counts zero items and still
+# exits 0. Measured on gawk 5.3.2. Both arguments contain no backslashes of
+# their own, which is what lets them cross the -v boundary safely.
 GR_AWK_ITEM_BLOCK='
 function gr_block_init(pfx_open, body) {
     GR_BLOCK_OPEN_RE = "^\\*\\*(" pfx_open ")-" body "\\*\\*:"
@@ -241,7 +241,7 @@ function gr_block_init(pfx_open, body) {
 # Does this line START a block this gate collects? The STRICT form: an item
 # whose ID cannot be read is not an item, and nothing may be collected under it.
 function gr_block_opens(line) { return (line ~ GR_BLOCK_OPEN_RE) }
-# Does this line END whatever block is open? Any bold line carrying a colon,
+# Does this line END whatever block is open? Any bold line containing a colon,
 # and any markdown heading. See the block comment above for why this is
 # substr/index rather than a regex, and why the colon is the only subtraction
 # from the pre-2026-08-22 rule.
@@ -249,7 +249,7 @@ function gr_block_closes(line) {
     if (substr(line, 1, 1) == "#") return 1
     return (substr(line, 1, 2) == "**" && index(line, ":") > 0)
 }
-# Is KW the annotation this line carries? Column one, and only column one.
+# Is KW the annotation this line contains? Column one, and only column one.
 #
 # A KNOWN ASYMMETRY, now HALF closed. The rule is that a reader must not take
 # a value from a position this backstop cannot see, because then an annotation
@@ -288,17 +288,18 @@ function gr_kw_here(line, kw) {
 # with nothing after it declares nothing, and every reader here treats it as
 # absent — an empty `opened:` is an omission wearing the shape of compliance.
 #
-# Meaningful only where gr_kw_here holds, which is why both live here: a reader
-# that takes a value from a keyword the ORPHAN-ANNOTATION backstop cannot see
-# reopens the hole that backstop was built to close. That is not hypothetical
-# — it is exactly how the PR `status:` reader drifted (see check-trace.sh).
+# Meaningful only where gr_kw_here is true, which is why both are defined here:
+# a reader that takes a value from a keyword the ORPHAN-ANNOTATION backstop does
+# not parse reopens the hole that backstop was built to close. The PR `status:`
+# reader drifted that way (see check-trace.sh).
 function gr_value(line, kw,   v) {
     v = substr(line, length(kw) + 1)
     sub(/^[ \t]+/, "", v)
     sub(/[ \t]+$/, "", v)
     return v
 }
-# The bare ID of a definition line. Meaningful only where gr_block_opens holds.
+# The bare ID of a definition line. Meaningful only where gr_block_opens is
+# true.
 function gr_block_id(line,   id) {
     id = line
     sub(/^\*\*/, "", id)
@@ -330,7 +331,7 @@ function gr_block_id(line,   id) {
 # by the whole first pass and every line number reported would name a line that
 # does not exist. An early version of the orphan scan did exactly that.
 #
-# A BOM sits in front of column one and hides it from every match here, the
+# A BOM is in front of column one and hides it from every match here, the
 # `---` delimiter included, so the caller strips it in BOTH passes.
 GR_AWK_FRONT_MATTER='
 function gr_fm_reset() { GR_FM_IN = 0; GR_FM_END = 0 }
@@ -447,7 +448,7 @@ $2
 # valid), drop a trailing ` # comment`, then drop trailing blanks.
 #
 # The comment strip requires whitespace before the `#`, so `path#anchor` and
-# `sh -c 'echo "#done"'` survive. It cannot be escaped: a value whose own
+# `sh -c 'echo "#done"'` remain. It cannot be escaped: a value whose own
 # whitespace-delimited token starts with `#` is truncated silently. That is
 # recorded in templates/config.yaml rather than worked around.
 GR_AWK_CLEAN_VALUE='
@@ -467,7 +468,7 @@ function gr_clean(v) {
 # gate that wanted them passed having examined less than it was configured to.
 #
 # gr_check_config normalises `\r` before validating each line, so such a file
-# is pronounced valid — the validator whose purpose is to refuse a config that
+# is pronounced valid — the validator whose purpose is to reject a config that
 # would silently disable a gate is what made the byte invisible. It rejects a
 # BOM outright, and CRLF was left half-supported instead.
 GR_AWK_STRIP_CR='
@@ -479,7 +480,7 @@ function gr_line(s) { sub(/\r$/, "", s); return s }
 # The post-colon blanks are stripped AFTER gr_clean, not before. Stripping them
 # first takes away the whitespace gr_clean's ` #` rule needs to see, so
 # `strict_paths:  # only these` yields the VALUE `# only these` — non-empty —
-# and the form rule below then reads a list key as a scalar and refuses the
+# and the form rule below then reads a list key as a scalar and rejects the
 # config from every gate. The rule this file states is that a trailing
 # ` # comment` is stripped for EVERY key; this is what makes that true of a key
 # whose value is otherwise empty.
@@ -541,7 +542,7 @@ gr_prefixes() {
     unset IFS
     # `set -f` with it: word splitting drags pathname expansion along, so
     # without this an `id_prefixes` entry containing a glob character means one
-    # thing in a repository whose root happens to hold a matching name and
+    # thing in a repository whose root contains a matching name and
     # another everywhere else — the same config, two verdicts, decided by an
     # unrelated directory listing.
     case $- in (*f*) _pfx_refl=1 ;; (*) _pfx_refl=0 ;; esac
@@ -578,7 +579,7 @@ gr_prefix_re() {
 # by having been typed the same way fifteen times.
 #
 # It names `.guardrails/scripts`, NOT `.guardrails`. The exclusion exists so the
-# installed scripts do not report themselves — their comments carry a literal
+# installed scripts do not report themselves — their comments contain a literal
 # `REQ-DRAFT-b-1` and definition-form examples — and the scripts are the only
 # thing under `.guardrails/` that matches any gate's pattern; config.yaml
 # matches none. Excluding the whole directory also hid the project's own files:
@@ -590,7 +591,7 @@ gr_prefix_re() {
 # complains first depends on whether git tracks or ignores the ledger, and on
 # whether the ledger has been renamed out of its DRAFT- name — the same is true
 # of .git/, gitignored paths and symlinks leaving the repository. The measured
-# matrix is in docs/verification/2026-08-20-scan-pathspec.md. A check that refused the shape
+# matrix is in docs/verification/2026-08-20-scan-pathspec.md. A check that rejected the shape
 # outright was attempted and cut; see the same record.
 #
 # A variable, not a function like gr_def_re: this is a separate `git grep`
@@ -627,11 +628,11 @@ GR_DRAFT_FILE_RE='(^|/)DRAFT-[^/]*$'
 # string is exactly how that drift started.
 #
 # POSITION is spliced in front and defaults to `^`. Pass '^\+' or '^-' to scan
-# `git diff` output, where a definition sits at line start behind a + or -, and
+# `git diff` output, where a definition is at line start behind a + or -, and
 # the empty string to match the token anywhere on a line. Do NOT express that
 # last case as '^.+': git's matcher backtracks on a leading .+ and costs tens
 # of seconds per prefix on a few hundred documents, against tenths of a second
-# for the unanchored form. The verification record carries the measurement and
+# for the unanchored form. The verification record contains the measurement and
 # the corpus commit it was taken on; a bare number here could not be re-derived
 # and drifted into three different values.
 gr_def_re() {
@@ -655,7 +656,7 @@ gr_def_re() {
 # exit 1.
 #
 # check-trace.sh does NOT use it, though two earlier designs did. A pre-flight
-# refusing such trees outright was written and cut, and the block rule closes
+# rejecting such trees outright was written and cut, and the block rule closes
 # on a header SHAPE, which is broader and keyed on no vocabulary. Kept as a
 # constructor rather than folded back inline because MALFORMED-ID is the
 # complement of gr_def_re over one anchor, and the two belong next to each
@@ -681,8 +682,8 @@ gr_base_branch() {
 # missing KEY yields nothing (the project does not use that document).
 #
 # Two cases are ERRORS, not empty lists: a key configured to a path that does
-# not exist, and a directory holding no *.md at all. Silently yielding nothing
-# there turns whole gate families into no-ops that still exit 0.
+# not exist, and a directory containing no *.md at all. Silently yielding
+# nothing there turns whole gate families into no-ops that still exit 0.
 gr_doc_files() {
     _v=$(cfg_get "$1")
     [ -n "$_v" ] || return 0
@@ -697,7 +698,7 @@ gr_doc_files() {
 }
 
 # gr_md_files DIR LABEL — the *.md files directly in DIR, one per line. A
-# directory holding none is an ERROR, never an empty list, for the reason
+# directory containing none is an ERROR, never an empty list, for the reason
 # gr_doc_files gives: a gate reading nothing is indistinguishable from a gate
 # finding nothing wrong. LABEL names the caller in that error.
 #
@@ -720,7 +721,7 @@ gr_md_files() {
     return 0
 }
 
-# gr_verification_dir — the directory holding verification records.
+# gr_verification_dir — the directory containing verification records.
 #
 # The ONE doc_* key with a default, and the exception needs its reason stated.
 # ratchet creates docs/verification/ on every project it sets up, and this key
@@ -742,14 +743,14 @@ gr_verification_dir() {
     if [ -z "$_v" ] && grep -q '^doc_verification:' "$GR_CONFIG" 2>/dev/null; then
         gr_die \
 "doc_verification is set to an empty value in $GR_CONFIG.
-  Give it the directory that holds the verification records, or remove the key
-  to use the default (docs/verification)."
+  Give it the directory that contains the verification records, or remove the
+  key to use the default (docs/verification)."
     fi
     [ -n "$_v" ] || _v=docs/verification
     [ -d "$_v" ] || gr_die \
 "doc_verification resolves to '$_v', which is not a directory.
   Verification records live there. Create it, or set doc_verification in
-  $GR_CONFIG to the directory that holds them."
+  $GR_CONFIG to the directory that contains them."
     printf '%s\n' "$_v"
 }
 
@@ -789,7 +790,7 @@ gr_limit() {
     # Asked of the shell rather than guessed at as a digit width: whatever it
     # can compare HERE it can compare at the point of use, on any shell, with
     # no constant to be wrong about. The first version fixed nine digits, which
-    # refused 1000000000 with the untrue explanation that it was too large to
+    # rejected 1000000000 with the untrue explanation that it was too large to
     # compare. awk is the other consumer (`agelim + 0`), where a value past
     # the exact-integer range would silently become a float.
     [ "$_lv" -ge 0 ] 2>/dev/null || gr_die \
@@ -823,8 +824,8 @@ gr_check_flat() {
     #
     # One gate rather than a status check on each: the checks after the first
     # would be unreachable, since the first scan already died, so they could not
-    # be tested and a mutation removing any of them would survive the suite.
-    # Unkillable code is code nobody can show works.
+    # be tested and a mutation removing any of them would not be detected by
+    # the suite. Unkillable code is code nobody can show works.
     [ -r "$_ff" ] || gr_die \
 "cannot read $_ff — it exists but this user cannot open it."
 
@@ -884,14 +885,14 @@ gr_check_flat() {
     # case reached three scans deep without a word.
     # No CR strip here: `sub(/:.*/, "")` removes everything after the colon,
     # the carriage return with it, and the match is unanchored at the end. The
-    # same idiom in the malformed-line scan above IS load-bearing, because that
+    # same idiom in the malformed-line scan above IS critical, because that
     # one judges the whole line. A copy of it here was dead code — measured
     # identical output with and without — and dead code is code nobody can show
     # works.
     _keys=$(awk '/^[A-Za-z_][A-Za-z0-9_]*:/ { sub(/:.*/, ""); print }' "$_ff")
     # DUPLICATES FIRST. Both readers take the first occurrence and stop, while
     # YAML itself takes the last, so a second block is read by nobody and the
-    # file says one thing to its author and another to the tooling. The shape
+    # file states one thing to its author and another to the tooling. The shape
     # that matters is a `verify_commands:` appended below the one already
     # there — which is what editing by appending produces: the project's real
     # suite never runs and the merge gate passes on the placeholder above it.
@@ -915,7 +916,7 @@ gr_check_flat() {
 gr_check_forms() {
     _ff="$1"; _lk="$2"; shift 2
     # A KEY THAT ITS OWN CONSUMER CANNOT READ, in three directions: set to
-    # nothing at all, set in the form the other kind of key uses, or carrying
+    # nothing at all, set in the form the other kind of key uses, or containing
     # an item with nothing after its `-`.
     #
     # The rule had been arriving one key at a time — gr_verification_dir for
@@ -939,13 +940,13 @@ gr_check_forms() {
             # the list that takes effect is shorter than the one written.
             #
             # An item that is ITSELF a comment is the neighbouring shape and
-            # worse: `  - # make test` survives as the literal string
+            # worse: `  - # make test` remains the literal string
             # `# make test`, because gr_clean's comment strip needs whitespace
             # before the `#` and the dash strip has already eaten it. The list
-            # is not short, it carries a command the shell reads as a comment —
+            # is not short, it contains a command the shell reads as a comment —
             # so the step runs nothing and reports that nothing failed. Caught
             # with `^#` and not `^[ \t]*#`: inside a grep bracket expression
-            # `\t` is the set {space, backslash, t}, which would refuse `t#x`.
+            # `\t` is the set {space, backslash, t}, which would reject `t#x`.
             cfg_list "$_k" "$_ff" | grep -q '^$' && _blank="${_blank} $_k"
             cfg_list "$_k" "$_ff" | grep -q '^#' && _commented="${_commented} $_k"
         else
@@ -957,7 +958,7 @@ gr_check_forms() {
 "config key(s) with a commented-out item in $_ff:${_commented}
   A '  - # value' item is not a comment to the reader — the '#' is stripped from
   a value only when whitespace precedes it, and the dash strip has already
-  removed that. It survives as an item whose value begins with '#', which for a
+  removed that. It remains an item whose value begins with '#', which for a
   command key means the shell reads it as a comment: the step runs nothing and
   reports that nothing failed. Comment out the whole '  - ' line, or remove it."
     [ -z "$_blank" ] || gr_die \
@@ -976,11 +977,11 @@ gr_check_forms() {
   Such a key reads as absent to the gate that uses it, and that gate then
   passes having examined nothing. GIVE IT A VALUE.
   Deleting the key is not the remedy: absent is the same gate-off as empty,
-  and for the keys that carry a gate's whole scope — strict_paths,
-  verify_commands, test_paths — deleting it is refused separately."
+  and for the keys that contain a gate's whole scope — strict_paths,
+  verify_commands, test_paths — deleting it is rejected separately."
 }
 
-# gr_check_config — refuse a config that would silently disable a gate. Every
+# gr_check_config — reject a config that would silently disable a gate. Every
 # rejection here is a shape the config READER cannot see, which is why none of
 # them could ever be reported by the gate that was meant to use the value.
 gr_check_config() {
@@ -1012,7 +1013,7 @@ gr_check_config() {
   at all and still exit 0."
 
     # TWO rules, deliberately separate, because they answer different
-    # questions and one of them changed when the placement gate landed.
+    # questions and one of them changed when the placement gate was merged.
     #
     # Rule 1 — gate inputs: documents whose absence would SILENTLY SKIP one of
     # this prefix's gates. Not always the document the prefix is defined in:
@@ -1025,7 +1026,7 @@ gr_check_config() {
     # rather than passing vacuously — so requiring those keys would forbid
     # legitimate shapes, such as a class A project with no architecture
     # document. The rule is "no gate is ever silently skipped", not "every gate
-    # has every input", and this comment must keep saying so: an earlier draft
+    # has every input", and this comment must keep stating it: an earlier draft
     # claimed the map was complete and a reviewer proved it was not.
     for _p in $_pfx; do
         case "$_p" in
@@ -1046,7 +1047,7 @@ gr_check_config() {
     # Rule 2 — definition documents: the one document MISPLACED-ITEM requires
     # each item of this prefix to be defined in. Unconfigured, that gate is not
     # skipped — it condemns every item of the prefix, correctly but once per
-    # item, naming a key the project never set. Say it once instead.
+    # item, naming a key the project never set. State it once instead.
     #
     # Only RC differs from rule 1: a risk control is defined in the RMF, while
     # the gate that reads controls reads the SRS. Every other entry is already
@@ -1070,7 +1071,8 @@ gr_check_config() {
 
     # ABSENT IS THE SAME GATE-OFF AS EMPTY, and until this rule the emptiness
     # check above actually RECOMMENDED it: "remove the key and its items
-    # entirely" turned a refusal into the exit-0 no-scan state it was refusing.
+    # entirely" turned a rejection into the exit-0 no-scan state it was
+    # rejecting.
     #
     # `strict_paths` is the whole of DANGLING-REF's source-code scope. With no
     # entries, a reference to an ID nobody defined goes from exit 1 to exit 0
@@ -1086,7 +1088,7 @@ gr_check_config() {
     # `verify_commands` has the same defect one level up — absent, the merge
     # gate runs no commands and reports that nothing failed — and is NOT
     # required here, deliberately. Nothing in this change reads it; the script
-    # that runs those commands is what should refuse to run none of them, and
+    # that runs those commands is what should reject running none of them, and
     # requiring it from a validator that never uses it would be a rule with no
     # reader behind it. Recorded rather than fixed in passing.
 
@@ -1100,8 +1102,8 @@ gr_check_config() {
 #
 # .guardrails/units.yaml declares a multi-unit repository. Its PRESENCE is the
 # whole engagement rule: absent, every script below runs exactly the code it
-# ran before the manifest existed, and the test obligation
-# no-manifest-changes-nothing holds the door.
+# used before the manifest existed, and the test obligation
+# no-manifest-changes-nothing enforces that.
 GR_UNITS='.guardrails/units.yaml'
 
 # Both manifest keys are LIST keys; there are no scalars here.
@@ -1111,7 +1113,7 @@ not_a_unit'
 # Present means the exact BYTE-NAME is in the directory listing, not merely
 # that `-f` succeeds: on a case-insensitive filesystem (macOS APFS by default)
 # `-f .guardrails/units.yaml` is also satisfied by UNITS.YAML — a manifest
-# that officially does not exist (check-units.sh refuses the near-miss name at
+# that officially does not exist (check-units.sh rejects the near-miss name at
 # exit 2), and the same tree would engage here and not on case-sensitive CI.
 # One definition for every scoped script, so no two of them can disagree about
 # whether the repository is multi-unit.
@@ -1125,7 +1127,7 @@ gr_units_present() {
 gr_unit_list()       { cfg_list units "$GR_UNITS"; }
 gr_disclaimed_list() { cfg_list not_a_unit "$GR_UNITS"; }
 
-# gr_check_units — refuse a manifest that would mis-scope a gate. Everything
+# gr_check_units — reject a manifest that would mis-scope a gate. Everything
 # here is exit 2, the environment-error class: a manifest defect is a wrong
 # SCOPE for every scan in the repository, which is worse than any finding.
 #
@@ -1172,7 +1174,7 @@ gr_check_units() {
     for _e in $_all; do
         case "$_e" in
             (*" "* | *"	"*) gr_die "manifest entry contains whitespace: '$_e' — it would read as two entries to any space-separated consumer" ;;
-            (*[\*\?\[]*)     gr_die "manifest entry carries a glob character: $_e — entries are literal directory paths, never patterns (D2 rejected discovery by convention)" ;;
+            (*[\*\?\[]*)     gr_die "manifest entry contains a glob character: $_e — entries are literal directory paths, never patterns (D2 rejected discovery by convention)" ;;
             (*/)             gr_die "manifest entry has a trailing slash: $_e" ;;
             (.)              gr_die "manifest entry names the repository root: . — the root cannot be a unit" ;;
             (/*)             gr_die "manifest entry is absolute: $_e — entries are repository-relative" ;;
@@ -1184,7 +1186,7 @@ gr_check_units() {
     # Overlap, every direction. The architecture names the unit-nesting cases;
     # the reason it gives — one file, two scopes, two verdicts — condemns a
     # disclaimed path inside a unit and a redundant nested disclaim equally,
-    # so all four directions are refused with one rule.
+    # so all four directions are rejected with one rule.
     for _a in $_all; do
         for _b in $_all; do
             [ "$_a" = "$_b" ] && continue
@@ -1307,7 +1309,7 @@ gr_unit_engage() {
 #   EXP      exported: (raw value — the consumer judges it)
 #   EXPECTS  expects:  (raw value)
 #   OPENED   opened:   (raw value)
-#   RC       the block carries implements: RC-… (value 1)
+#   RC       the block contains implements: RC-… (value 1)
 #   SAT      one line per satisfies: REQ entry (value the REQ id)
 # Column one only, first occurrence per keyword per block — the same rules
 # the PR status reader follows, so ORPHAN-ANNOTATION sees what this sees.

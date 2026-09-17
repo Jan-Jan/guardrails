@@ -26,7 +26,7 @@
 # random draws collide is caught by DUPLICATE-ID above, because merge-change
 # merges the base branch into the worktree (step 1) before running this script
 # (step 4). There is likewise no mint ceiling and so no UNANCHORED-DEF: a
-# definition form sitting in prose reserves nothing.
+# definition form in prose reserves nothing.
 #
 # Scoped runs engage only when .guardrails/units.yaml exists and GR_CONFIG
 # names a declared unit's config. Engaged, the DRAFT-ID, DRAFT-FILE and
@@ -38,7 +38,7 @@ set -u
 . "$(dirname "$0")/lib.sh"
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
 # substitution, and under dash `cd ""` returns 0 and stays put — so outside a
-# git repository the script carried on in the caller's directory with a
+# git repository the script continued in the caller's directory with a
 # relative config path. The status has to be taken from the substitution.
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
@@ -52,7 +52,7 @@ gr_unit_engage
 # This gate validated nothing about the config until change B — recorded as gap
 # 3 in docs/verification/2026-08-18-config-schema.md. It reads only
 # id_prefixes, so the omission looked harmless; it was not. Every shape
-# gr_check_config exists to refuse — a misspelled key, a key hidden behind a
+# gr_check_config exists to reject — a misspelled key, a key hidden behind a
 # BOM, a declared prefix whose gate inputs are unconfigured — was caught by the
 # traceability and finalize gates only, so a project running check-ids.sh alone
 # got no config validation at all.
@@ -62,7 +62,7 @@ allow_draft_files=0
 while [ $# -gt 0 ]; do
     case "$1" in
         (--allow-draft-files) allow_draft_files=1 ;;
-        # --allow-drafts and --base are refused, not ignored. Both named a gate
+        # --allow-drafts and --base are rejected, not ignored. Both named a gate
         # that no longer exists, and a flag accepted in silence is a check the
         # caller believes they configured. Failing here is what makes a stale
         # CI line or an un-upgraded skill visible at the upgrade.
@@ -141,7 +141,7 @@ fi
 #
 # One scan, not two. git grep composes the two patterns on the LINE — every
 # line that opens a definition form, minus every line that opens a VALID one —
-# so there is nothing to frame and nothing to parse: the surviving lines are
+# so there is nothing to frame and nothing to parse: the remaining lines are
 # the violations and are printed as they come. An earlier version harvested the
 # forms with -o and then searched for each one literally to find its location,
 # which reported every line that MENTIONED a malformed form, not the lines that

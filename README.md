@@ -54,7 +54,7 @@ flowchart TD
     V --> M[merge-change<br/>finalize ledger files, independent review,<br/>verification record + check-review.sh,<br/>signed squash merge, cleanup worktree]
 ```
 
-Three rules carry the whole system:
+Three rules define the whole system:
 
 1. **All work happens in worktrees** — documentation and code alike. The
    base branch (whatever the primary checkout has checked out — the scripts
@@ -63,10 +63,10 @@ Three rules carry the whole system:
    `merge-change` ever sees.
 2. **Integration is a signed squash merge** — the base branch is one signed,
    verified, auditable commit per change. The agent stages the squash and hands
-   the user a single command; the user signs it, and `finish-merge.sh` refuses
-   to remove the worktree or delete the branch until the signature verifies
+   the user a single command; the user signs it, and `finish-merge.sh` does not
+   remove the worktree or delete the branch until the signature verifies
    under `--strict`, the squash provably captured everything the change branch
-   held, and no task worktree is still nested inside the one it is about to
+   contained, and no task worktree is still nested inside the one it is about to
    remove.
 3. **Traceability is mechanical** — grep-able IDs link requirements, risks,
    design, and tests; scripts gate every merge.
@@ -102,7 +102,7 @@ written — `new-id.sh REQ` prints `REQ-a3k9z2` — and that ID is allocated
 against nothing, so two worktrees, or two GitHub PRs, can never contend for
 one and nothing is renumbered at merge. The token is six characters of an
 alphabet that drops the pairs a reader confuses (`0`/`o`, `1`/`l`/`i`) and
-always carries at least one digit, which is what keeps `REQ-argued` in prose
+always contains at least one digit, which is what keeps `REQ-argued` in prose
 from reading as an ID. It is deliberately **not** a content hash: a hash
 changes when the item text is edited, and every reference to it breaks.
 Sequential IDs from before this scheme keep working permanently — every
@@ -114,7 +114,7 @@ worktree, new items go into `docs/<area>/DRAFT-<branch>-<slug>.md`;
 `merge-change` renames it to `YYYY-MM-DD-<slug>.md` (the merge date, so
 `ls` reads chronologically; same-day collisions get `-2`). Existing items
 are always edited in the dated file that defines them. Each directory's
-README carries the grammar; `soup.md` stays a single inventory file, and
+README contains the grammar; `soup.md` stays a single inventory file, and
 every `doc_*` config key also accepts a single file (legacy monoliths keep
 working).
 
@@ -125,14 +125,14 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 
 | Script | Purpose |
 |---|---|
-| `new-id.sh PREFIX [COUNT]` | mint item IDs. Redraws a candidate that already occurs anywhere in the tree, tracked or untracked; refuses a prefix that is not declared in `id_prefixes`, and refuses to invent one at all when there is no entropy source rather than falling back to the pid and the clock |
+| `new-id.sh PREFIX [COUNT]` | mint item IDs. Redraws a candidate that already occurs anywhere in the tree, tracked or untracked; rejects a prefix that is not declared in `id_prefixes`, and mints nothing when there is no entropy source rather than falling back to the pid and the clock |
 | `check-ids.sh [--allow-draft-files]` | no draft ID tokens (always fatal — nothing mints one any more), no draft-named ledger files unless the flag is given, no duplicate IDs, and no `MALFORMED-ID`: a line opening with a definition form whose body is not a valid ID, which no other gate can see |
 | `check-trace.sh` | every REQ/LLR tested (transitive REQ coverage), HAZ mitigated, RC implemented, SDD traced, LLR satisfied-or-derived, derived items named by an `assesses:` line in the RMF; no dangling refs, and no `DANGLING-FILE` (a `DRAFT-*.md` ledger file named in a ledger that does not exist); no `ORPHAN-ANNOTATION` (an annotation belonging to no item); every problem report states a `status:`, and every open one an `opened:` date; open PRs listed as warnings, and failed past the configured `problem_age_days` / `problem_open_max` limits. Ends with `checked:` (items found), `problems:` (open count, oldest, and both limits — set or not) and `sources:` (document files read, then the number of configured path entries) |
 | `check-units.sh [--impact RANGE \| --exports UNIT \| --list]` | the multi-unit repository's entry point: validates `.guardrails/units.yaml` and every unit config; `UNCLAIMED-PATH`, `MISCLASSED-DEPENDENCY`/`INCOMPLETE-SEGREGATION` (the IEC 62304 5.3.5 class floor and its recorded escape), `DISCLAIMED-DRAFT`; without a manifest it proves the single-unit reading (two unit-shaped configs, or a near-missed manifest name in `.guardrails/`, are exit 2). `--impact` computes the units a change must run (touched + transitive dependents); `--exports` prints a unit's export surface from the same computation the consumer's verdicts resolve against; `--list` enumerates units |
-| `check-review.sh [--branch NAME]` | the change under merge has a verification record that declares it and that this change wrote (`MISSING-RECORD`, `STALE-RECORD`), that record names a `reviewer:`, a `verdict:` and what was `reproduced:` (`INCOMPLETE-RECORD`), and every `**finding-N**:` the reviewer raised carries a `disposition:` (`UNDISPOSED-FINDING`, plus `MALFORMED-FINDING` and `ORPHAN-DISPOSITION` for the headers and annotations that would otherwise detach one). Ends with `checked:` (records read, records for this change, findings, and whether provenance was checked). Run on the base branch it exits **2**, never 0 — there is no change under review there |
+| `check-review.sh [--branch NAME]` | the change under merge has a verification record that declares it and that this change wrote (`MISSING-RECORD`, `STALE-RECORD`), that record names a `reviewer:`, a `verdict:` and what was `reproduced:` (`INCOMPLETE-RECORD`), and every `**finding-N**:` the reviewer raised contains a `disposition:` (`UNDISPOSED-FINDING`, plus `MALFORMED-FINDING` and `ORPHAN-DISPOSITION` for the headers and annotations that would otherwise detach one). Ends with `checked:` (records read, records for this change, findings, and whether provenance was checked). Run on the base branch it exits **2**, never 0 — there is no change under review there |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified. `--setup` instead *proves the project can produce a verifiable signature*: every setting present (`user.signingkey`, `commit.gpgsign`, `user.email`, and the format's trust root — not `gpg.format`, whose unset value IS git's documented `openpgp` default), each missing one named on its own line, then a real signed commit made in a throwaway repository and read back at `%G?` = `G`. `ratchet` will not complete until it passes |
-| `finish-merge.sh BRANCH` | the guarded half of the merge command the user runs. Four guards, all proved before anything is removed: the signature verifies under `--strict`; `git diff --quiet HEAD BRANCH` proves the squash captured everything the change branch held; no registered worktree lies *inside* the one about to go, because a nested task worktree is invisible to the outer one's `git status` and would be deleted silently, work and all; and `git worktree remove` runs *without* `--force`, so git's own refusal of a dirty worktree is the last guard and the first destructive act. Only then the worktree goes and the branch is force-deleted. Any refusal leaves both intact — the signed commit always survives |
-| `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their merge-dated names, then rewrites every root-relative path reference to a renamed file, and every bare name that only one rename maps, across the ledger directories and the SOUP file, printing each; a bare name two renames share is reported as left for the author to write as a path; a relative link (`../risk/DRAFT-x.md`) is not carried either and is reported by `check-trace.sh` as `DANGLING-FILE` after the merge, as is a name glued to a longer token or wrapped in emphasis underscores; plans and verification records are left alone because they narrate the rename. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme landed |
+| `finish-merge.sh BRANCH` | the guarded half of the merge command the user runs. Four guards, all proved before anything is removed: the signature verifies under `--strict`; `git diff --quiet HEAD BRANCH` proves the squash captured everything the change branch contained; no registered worktree lies *inside* the one about to go, because a nested task worktree is invisible to the outer one's `git status` and would be deleted silently, work and all; and `git worktree remove` runs *without* `--force`, so git's own rejection of a dirty worktree is the last guard and the first destructive act. Only then the worktree goes and the branch is force-deleted. Any rejection leaves both intact — the signed commit always remains |
+| `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their merge-dated names, then rewrites every root-relative path reference to a renamed file, and every bare name that only one rename maps, across the ledger directories and the SOUP file, printing each; a bare name two renames share is reported as left for the author to write as a path; a relative link (`../risk/DRAFT-x.md`) is not rewritten either and is reported by `check-trace.sh` as `DANGLING-FILE` after the merge, as is a name glued to a longer token or wrapped in emphasis underscores; plans and verification records are left alone because they narrate the rename. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme was merged |
 
 Annotations are read as lists: only the IDs immediately following the first
 occurrence of `verifies:`/`mitigates:`/`implements:`/`satisfies:`/`traces:`/`assesses:`
@@ -141,11 +141,11 @@ has one definition, shared by every keyword.
 
 Annotations are read *within an item*. An item **opens** at its definition
 form and **closes** at the next markdown heading or the next **bold line
-carrying a colon** — `**PR-a3k9z2**:`, `**ADR-0007**:`, `**Decision 7**:`,
+containing a colon** — `**PR-a3k9z2**:`, `**ADR-0007**:`, `**Decision 7**:`,
 `**LLR-overflow:**` and an ordinary label like `**Rationale**:` all end an
 item, whatever their prefix and whether or not they are items themselves.
-`**21 of 35 inverted, 14 not.**` carries no colon, so it ends nothing — and
-that is the rule's one limit: a bold line carrying **no ASCII colon** does not
+`**21 of 35 inverted, 14 not.**` contains no colon, so it ends nothing — and
+that is the rule's one limit: a bold line containing **no ASCII colon** does not
 close, because nothing distinguishes it from that sentence. The close is
 byte-wise, so it does not shift with the reader's awk or locale. Give a colon to
 any header you want honoured, and put annotations *above* a bold label rather
@@ -190,16 +190,16 @@ and it deliberately does not test whether the reviewer was independent of the
 author — with agent reviewers the identity string is whatever the author types,
 and a gate keyed on it would be theatre. Independence is what step 6a is for.
 
-The record is found by **content, not filename**: it carries a `branch:` line
+The record is found by **content, not filename**: it contains a `branch:` line
 naming the change it covers, matched whole — and it must be the FIRST such line
 in the file, so that a record quoting `branch: other-change` in an example or a
-fenced block does not become the record for that change. A branch name carries
+fenced block does not become the record for that change. A branch name contains
 no identity of its own, so the record must also be one **this change wrote**:
 committed on this branch since it left the base, modified in the working tree,
 or not yet tracked. Without that, a reused branch name lets the previous
-change's record answer for this one, and the summary line says whether the
-check ran. `reviewer:`, `verdict:` and
-`reproduced:` must each carry a value — a keyword with nothing after it is an
+change's record answer for this one, and the summary line states whether the
+check was run. `reviewer:`, `verdict:` and
+`reproduced:` must each contain a value — a keyword with nothing after it is an
 omission wearing the shape of compliance. `reproduced:` exists so that the
 absence of evidence is a visible omission rather than an optional act of
 honesty, and **its value is never judged**: `reproduced: no — the root cause was
@@ -222,12 +222,12 @@ because an absent directory is exit 2 rather than an empty scan.
 
 **A configured entry that matches nothing is an error, not an empty result.**
 Exit 2 — never a quiet exit 0 — for a `doc_*`, `strict_paths` or `test_paths`
-entry matching no file present in the working tree, a ledger directory holding
+entry matching no file present in the working tree, a ledger directory containing
 no `*.md`, or an `id_prefixes` entry that is not a bare identifier.
 `strict_paths` and `test_paths` entries are **git pathspecs** — a plain path,
 or a pattern like `*_test.sh` that git matches recursively — and an empty
 directory matches no file. `doc_*` values are plain paths only: a file, or a
-directory whose `*.md` files sit directly in it.
+directory whose `*.md` files are directly in it.
 
 Every one of those would otherwise turn a whole gate family into a no-op that
 still reports success.
@@ -267,12 +267,12 @@ was the one exception, so a project running only that gate got no validation
 at all.
 
 **The scans exclude `.guardrails/scripts/`, and nothing else.** The installed
-scripts carry a draft token and definition-form examples in their own comments,
+scripts contain a draft token and definition-form examples in their own comments,
 so the gates they implement must not read them. That exclusion used to cover
 the whole `.guardrails/` tree, which also hid anything a project kept there:
 with `doc_srs: .guardrails/docs/requirements`, the finalize step renamed the
 draft ledger to its merge-date name, minted no ID, and exited 0, and both check
-scripts then passed a tree holding a live `REQ-DRAFT-x-1`. Ledgers under
+scripts then passed a tree containing a live `REQ-DRAFT-x-1`. Ledgers under
 `.guardrails/` are read normally now.
 
 `.guardrails/scripts/` stays invisible to the scans, and so do `.git/`,
@@ -281,7 +281,7 @@ at one of those is **accepted**: `checked:` counts its items as zero, and
 `finalize-docs.sh` renames a draft ledger there just as it would anywhere else.
 
 Whether anything warns you first depends on the location, on whether git tracks
-or ignores the file, and on whether the ledger still carries its `DRAFT-` name.
+or ignores the file, and on whether the ledger still contains its `DRAFT-` name.
 Some combinations are silent throughout; others raise a complaint that names no
 cause, which the rename then removes. The measured matrix is in
 `docs/verification/2026-08-20-scan-pathspec.md`; it is too conditional to
@@ -302,16 +302,16 @@ was counted there while the gate that would convict it never parsed its block.
 Each of the six gated prefixes is now
 checked against the one document it may be defined in (`REQ`→`doc_srs`,
 `HAZ`/`RC`→`doc_rmf`, `SDD`/`LLR`→`doc_sad`, `PR`→`doc_problems`), so while
-that gate is green every counted item sits somewhere a gate opened. A `doc_*`
+that gate is green every counted item is in a file a gate opened. A `doc_*`
 directory resolves to its `*.md` files one level deep, so an item in a
-subdirectory of one is reported — and so is one in a `.txt` sitting directly
+subdirectory of one is reported — and so is one in a `.txt` file directly
 in it; a `doc_*` configured as a single file resolves to that file whatever its
 extension. What a misplaced item loses is not enumeration — `MISSING-TEST` and
 the rest still fire on it — but the gate that would convict it on its own
 annotations, which parses the configured document alone. Two caveats: `DANGLING-REF`
 scans every `doc_*` file plus `strict_paths` and `test_paths`, so an item
 misfiled into another ledger still has its reference IDs read — by that gate,
-not by its own; and a `HAZ` block carries no annotation of its own that a gate
+not by its own; and a `HAZ` block contains no annotation of its own that a gate
 parses, yet moving it out of the RMF still blinds `UNANALYZED-DERIVED`, which
 reads `assesses:` lines in the RMF files alone.
 
@@ -334,16 +334,16 @@ eight hand-written copies that used to live there are gone.
 Two patterns are still written by hand, and both are named here rather than
 glossed over. `check-ids.sh`'s `MALFORMED-ID` candidate scan matches a
 definition-*shaped* line with any body at all, which is the point of it; what
-holds it in step with `gr_def_re` is the pair of tests asserting that a valid
+keeps it in step with `gr_def_re` is the pair of tests asserting that a valid
 token and a valid legacy ID are not reported malformed. And `check-trace.sh`'s
-derived-item search carries a literal ID with a trailing boundary class, so
+derived-item search contains a literal ID with a trailing boundary class, so
 that `LLR-q7w4zbq` does not satisfy a search for `LLR-q7w4zb`.
 
 Two behavioural tests keep the whole vocabulary honest, because three rounds
 of review defeated every textual guard tried before them: one redefines
 `gr_def_re` at the end of the library and requires every gate's verdict to
 change, and one **widens** `GR_ID_BODY` and requires every gate to start
-seeing items it could not see before. A scan holding its own copy fails both.
+seeing items it could not see before. A scan containing its own copy fails both.
 
 There used to be a third reader. The old `finalize-ids.sh` decided what number
 came next, and it alone matched the form *anywhere on a line*, so a backticked

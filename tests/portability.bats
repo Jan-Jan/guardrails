@@ -19,7 +19,7 @@ setup() { make_fixture_repo; }
     # verifies: PR-v3j4s2
     bin=$(make_strict_awk)
     run env PATH="$bin:$PATH" awk -v kws='a:
-b:' 'BEGIN { print "ran" }' /dev/null
+b:' 'BEGIN { print "ok" }' /dev/null
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
     [[ "$output" == *"newline in string"* ]] || { echo "$output"; false; }
 }
@@ -45,7 +45,7 @@ b:' 'BEGIN { print "ran" }' /dev/null
 
 # --- PR-v3j4s2 --------------------------------------------------------------
 
-@test "check-review: runs under an awk that refuses a newline in -v" {
+@test "check-review: runs under an awk that rejects a newline in -v" {
     # verifies: PR-v3j4s2
     # `scan_record` interpolated GR_RECORD_FIELDS — two literal newlines —
     # straight into `awk -v kws=`. On macOS that is exit 2 before the program
@@ -62,11 +62,11 @@ b:' 'BEGIN { print "ran" }' /dev/null
 
 @test "check-review: still names every missing field under a strict awk" {
     # verifies: PR-v3j4s2
-    # The regression above would also be satisfied by a scan that ran and read
-    # nothing. The flattened list must still split into all four keywords, so
-    # a record missing exactly one still draws exactly one INCOMPLETE-RECORD
-    # naming that field — and the branch: keyword must survive the flattening
-    # too, or the record would not be selected at all.
+    # The regression above would also be satisfied by a scan that was run and
+    # read nothing. The flattened list must still split into all four
+    # keywords, so a record missing exactly one still draws exactly one
+    # INCOMPLETE-RECORD naming that field — and the branch: keyword must remain
+    # through the flattening too, or the record would not be selected at all.
     make_change_worktree my-change
     mkdir -p docs/verification
     cat > docs/verification/2026-01-01-mine.md <<'EOF'
@@ -88,9 +88,9 @@ EOF
 
 # --- the class, not the instance --------------------------------------------
 
-@test "every check script runs clean under an awk that refuses a newline in -v" {
+@test "every check script runs clean under an awk that rejects a newline in -v" {
     # verifies: PR-v3j4s2
-    # The defect class is "a value carrying a literal newline reaches awk -v",
+    # The defect class is "a value containing a literal newline reaches awk -v",
     # and check-review.sh was one instance of it. Nothing stops the next one,
     # so every script that reaches an awk gate is swept here rather than only
     # the one that was reported. Each is given work to do and asserted at
@@ -101,10 +101,11 @@ EOF
     # new-id.sh. check-signing.sh calls no awk and is deliberately absent.
     # finish-merge.sh DOES call awk and is absent for a different reason: every
     # script here is asserted at exit 0, and finish-merge.sh has nothing to
-    # verify on this tree, so it would refuse — correctly, and the sweep would
-    # read that as a failure. Its strict-awk coverage lives in its own file
-    # instead: "derives the worktree path under an awk that refuses a newline
-    # in -v" (tests/finish-merge.bats), which builds the squash this needs.
+    # verify on this tree, so it would reject the run — correctly, and the
+    # sweep would read that as a failure. Its strict-awk coverage is in its own
+    # file instead: "derives the worktree path under an awk that rejects a
+    # newline in -v" (tests/finish-merge.bats), which builds the squash this
+    # needs.
     # A script added to scripts/ that calls awk belongs in one place or the
     # other; absent from both, nothing measures it.
     cat > docs/requirements/0001-01-01-base.md <<'EOF'
@@ -154,7 +155,7 @@ check-review.sh|
 finalize-docs.sh|--dry-run
 new-id.sh|PR
 EOF
-    # A loop over an empty list passes every assertion inside it. Say how many
+    # A loop over an empty list passes every assertion inside it. State how many
     # scripts were actually run, so a mangled here-document is a failure and
     # not a clean sweep of nothing.
     [ "$swept" -eq 5 ] || { echo "swept $swept scripts, expected 5"; false; }
@@ -162,7 +163,7 @@ EOF
 
 # --- PR-yd2sft --------------------------------------------------------------
 
-@test "bsd date stub: refuses -d and a doubled sign in -v" {
+@test "bsd date stub: rejects -d and a doubled sign in -v" {
     # verifies: PR-yd2sft
     # Calibrated like the awk stub, and for the same reason: on macOS the real
     # date already behaves this way, so an instrument that never fired would be
@@ -173,20 +174,21 @@ EOF
     run env PATH="$bin:$PATH" date -v--1d +%Y-%m-%d
     [ "$status" -ne 0 ] || { echo "-v--1d was accepted: $output"; false; }
     run env PATH="$bin:$PATH" date -v-3d +%Y-%m-%d
-    [ "$status" -eq 0 ] || { echo "a valid adjustment was refused: $output"; false; }
+    [ "$status" -eq 0 ] || { echo "a valid adjustment was rejected: $output"; false; }
     run env PATH="$bin:$PATH" date +%Y-%m-%d
-    [ "$status" -eq 0 ] || { echo "a plain call was refused: $output"; false; }
+    [ "$status" -eq 0 ] || { echo "a plain call was rejected: $output"; false; }
 }
 
 @test "days_ago produces a date in the future as well as one in the past" {
     # verifies: PR-yd2sft
     # `days_ago -1` is how the two clock-skew tests build tomorrow. GNU date
     # takes `-d "-1 days ago"` and answers; BSD date is handed `-v--1d` and
-    # refuses, so on macOS the helper returned the empty string and both tests
-    # asserted against a PR item with no `opened:` at all — failing several
-    # screens away from the cause, on a message about an incomplete item.
+    # rejects it, so on macOS the helper returned the empty string and both
+    # tests asserted against a PR item with no `opened:` at all — failing
+    # several screens away from the cause, on a message about an incomplete
+    # item.
     #
-    # Run under a stub `date` that refuses `-d` and rejects a doubled sign in
+    # Run under a stub `date` that rejects `-d` and a doubled sign in
     # `-v`, so this reddens on a GNU box too. Without it the test could only
     # fail on macOS — on the platform where the defect escaped, it was green,
     # which is the same blind spot make_strict_awk exists to remove for awk.
@@ -236,24 +238,24 @@ EOF
     # What must exist is the mutation SCRIPTS, not `docs/` — `docs/` is the one
     # directory certain to be there, so guarding on it guards nothing. Guard on
     # the reach instead: if the suites move to a top-level `verification/`, or
-    # stop being named `.mutations`, this arm finds nothing and says so rather
-    # than passing.
+    # stop being named `.mutations`, this arm finds nothing and states that
+    # rather than passing.
 
     # `grep -r`, not `git grep`: tests/evidence.sh runs this suite from a copy
     # in a mktemp directory with no `.git` and only part of the tree in it.
     # There `git grep` exits 128, and an exit-code assertion reads a missing
-    # repository as a clean toolkit. A partial copy has nothing to lint, so say
-    # so — but only a partial copy may say it, or a directory renamed in the
-    # real repository would silently turn this check off.
+    # repository as a clean toolkit. A partial copy has nothing to lint, so
+    # state that — but only a partial copy may state it, or a directory
+    # renamed in the real repository would silently turn this check off.
     # Executable content under docs/, by MODE as well as by name: a mutation
-    # script that loses its `.sh` suffix is still run and still carries the
+    # script that loses its `.sh` suffix is still run and still contains the
     # defect, and an --include glob would not see it.
     doc_files=$(cd "$root" && find docs -type f \
         \( -name '*.sh' -o -perm -u+x \) 2>/dev/null | sort)
 
     # Each arm is judged on its own. Skipping the whole test because ONE root is
-    # absent would let a partial copy that still carries scripts/ report clean —
-    # the arms that could run must run.
+    # absent would let a partial copy that still contains scripts/ report clean
+    # — the arms that could run must run.
     have=""
     for p in $paths; do
         if [ -e "$root/$p" ]; then have="$have $p"
@@ -272,7 +274,7 @@ EOF
     # would report a clean toolkit forever, and the exit code alone cannot tell
     # "found nothing" from "looked for nothing" — measured: `git grep` returns
     # 1, not 128, for a pathspec naming no such directory, so the exit code
-    # never carried the meaning the earlier version of this test claimed.
+    # never contained the meaning the earlier version of this test claimed.
     # Built with printf so this file does not contain the spelling it hunts.
     printf 'sed -%s %s\n' i "'s/a/b/' f" > "$BATS_TEST_TMPDIR/control.sh"
     grep -qE "$pat" "$BATS_TEST_TMPDIR/control.sh" \
@@ -295,7 +297,7 @@ EOF
     # substitution for that parser, and finish-merge.sh died at the terminal
     # with `syntax error near unexpected token ';;'` before running a line.
     # The defective spelling cannot be grepped narrowly: whether a `case`
-    # sits inside a command substitution is not decidable by a line scan. So
+    # is inside a command substitution is not decidable by a line scan. So
     # the rule covers EVERY pattern — the leading `(` is POSIX everywhere,
     # costs one character, and the uniform form is what makes this gate
     # simple enough to trust.
