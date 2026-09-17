@@ -1164,3 +1164,145 @@ EOF
     [ "$status" -eq 2 ]
     [[ "$output" == *"absolute"* ]]
 }
+
+# --- GR_AWK_ITEM_BLOCK: the annotation keyword predicates -------------------
+# TWO predicates, and the pair is the safety property. gr_kw_here is what every
+# READER tests; gr_kw_orphan_here is what the ORPHAN-ANNOTATION backstop tests,
+# and it is strictly wider. The invariant is a containment — the backstop sees
+# at least what every reader sees — never an equality: a reader widened to
+# match the backstop lets a quoted form outrank the real one, because every
+# reader here is first-occurrence-wins. These probe both predicates directly,
+# below every gate that uses them: a gate test can only show the pair agreeing,
+# never which of the two moved.
+
+# One GR_AWK_ITEM_BLOCK expression, evaluated against one line. The awk program
+# text is the first argument, the input line the second. Exported, because the
+# probe runs in a child sh: lib.sh is POSIX sh and every other test here sources
+# it the same way.
+item_block_probe() {
+    export _GR_PROBE_PROG="$1" _GR_PROBE_LINE="$2"
+    sh -c '. .guardrails/scripts/lib.sh
+           printf "%s\n" "$_GR_PROBE_LINE" |
+               LC_ALL=C awk "$GR_AWK_ITEM_BLOCK$_GR_PROBE_PROG"'
+}
+
+@test "gr_kw_orphan_here accepts a list marker before the keyword" {
+    # verifies: PR-h3wujj
+    # The asymmetry this closes: gr_id_run finds `satisfies:` anywhere on the
+    # line, so a bulleted annotation is credited inside a block while the
+    # backstop could not see the same line outside one. The BACKSTOP is the
+    # half that widens — it reports, it takes no value — so a form no reader
+    # would read is still reported where it belongs to no item.
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '- status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "HERE" ]
+}
+
+@test "gr_kw_here rejects a list marker before the keyword" {
+    # verifies: PR-h3wujj
+    # THE PROPERTY THE TWO REGRESSIONS TURNED ON, pinned so the readers cannot
+    # drift onto the backstop's width again. Every scalar reader in this
+    # toolkit is first-occurrence-wins, so a reader that accepted this line
+    # would let a QUOTED `- status: resolved` outrank an item's own column-one
+    # `status: open`, and a quoted `- branch: my-change` claim a record that
+    # declares another branch. The backstop above may see more than the
+    # readers; the readers may never see more than the backstop.
+    run item_block_probe '{ print (gr_kw_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '- status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "ABSENT" ]
+}
+
+@test "gr_kw_orphan_here still rejects bare indentation" {
+    # verifies: PR-h3wujj
+    # SCOPE CONTROL, not a widening. A MARKER is required; indentation alone
+    # changes nothing. This is what keeps the indented grammar comments in the
+    # ledger templates inert, and it is the property the backstop is built
+    # around rather than one it introduces.
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '  status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "ABSENT" ]
+}
+
+@test "gr_value reads from column one, and composes for the wider position" {
+    # gr_value moves with gr_kw_here and with nothing else: substr from
+    # length(kw) + 1 assumes the keyword starts at byte one, so against a
+    # bulleted line it returns a slice of the keyword itself — which is
+    # harmless precisely because no reader tests a bulleted line true. A
+    # backstop that wants a value from the wider position composes the two
+    # rather than widening gr_value, and the second probe pins that route: the
+    # check-review.sh orphan path uses it for its emptiness guard, where a
+    # keyword fragment would otherwise never compare equal to the empty string.
+    run item_block_probe '{ print "[" gr_value($0, "status:") "]" }' \
+        '- status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "[s: open]" ]
+
+    run item_block_probe '{ print "[" gr_value(gr_kw_lead($0), "status:") "]" }' \
+        '- status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "[open]" ]
+}
+
+# --- the ORDERED-list marker: the same defect, verbatim ---------------------
+# Round-2 review, finding 15. The first widening stepped over `-`, `*` and `+`
+# and nothing else, so an ordered-list item reproduced PR-h3wujj exactly:
+# `1. satisfies: REQ-001` outside every block was reported by nothing at all,
+# while gr_id_run credited the same line inside one. A markdown list is
+# bulleted OR ordered; a rule that knows only half of that closed half a hole
+# and the note above it claimed the whole one.
+
+@test "gr_kw_orphan_here accepts an ordered list marker before the keyword" {
+    # verifies: PR-h3wujj
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '1. status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "HERE" ]
+}
+
+@test "gr_kw_orphan_here accepts the paren form of an ordered marker" {
+    # verifies: PR-h3wujj
+    # Both delimiters markdown allows, and a multi-digit number with them: the
+    # tenth item of a list is no less an item than the first.
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '10) status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "HERE" ]
+}
+
+@test "gr_kw_orphan_here steps over a run of markers, not just one" {
+    # verifies: PR-h3wujj
+    # A one-line nested list. Depth is not a reason to lose an orphan, so the
+    # stripper consumes a RUN of markers rather than exactly one.
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '- 1. status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "HERE" ]
+}
+
+@test "gr_kw_here rejects an ordered list marker before the keyword" {
+    # verifies: PR-h3wujj
+    # SCOPE CONTROL. The widening is the BACKSTOP half and only that half. The
+    # readers are first-occurrence-wins, so a reader that took this line would
+    # let a quoted `1. status: resolved` outrank the column-one `status: open`
+    # an item made for itself — the regression the bulleted form already
+    # demonstrated twice.
+    run item_block_probe '{ print (gr_kw_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '1. status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "ABSENT" ]
+}
+
+@test "gr_kw_orphan_here still rejects a bare number with no delimiter" {
+    # verifies: PR-h3wujj
+    # SCOPE CONTROL, the ordered twin of "still rejects bare indentation". A
+    # MARKER is required, and a run of digits alone is not one — `1 status: of
+    # the bus is open` is prose, and a rule that stepped over it would report
+    # sentences.
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
+        '1 status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "ABSENT" ]
+}

@@ -249,49 +249,151 @@ function gr_block_closes(line) {
     if (substr(line, 1, 1) == "#") return 1
     return (substr(line, 1, 2) == "**" && index(line, ":") > 0)
 }
-# Is KW the annotation this line contains? Column one, and only column one.
+# Leading list markers, stepped over. Used by the ORPHAN-ANNOTATION backstop
+# alone — see gr_kw_orphan_here — and by NO reader. The invariant stated at
+# gr_kw_here below is what forbids a reader from calling this.
 #
-# A KNOWN ASYMMETRY, now HALF closed. The rule is that a reader must not take
-# a value from a position this backstop cannot see, because then an annotation
-# belonging to no item is read, matched and dropped in silence.
+# TWO MARKER FORMS, AND NOT ALL OF MARKDOWN LIST SYNTAX: a bullet marker, `-`,
+# `*` or `+`, and an ordered marker, a run of digits closed by `.` or `)`. Say
+# two forms and not both halves: an earlier version of this comment claimed
+# both halves of list syntax and a GFM task-list item is list syntax this rule
+# does not reach — `- [x] satisfies:` is stepped over as far as the `-`, and
+# `[x] satisfies:` does not match, so it is credited inside a block and
+# reported by nothing outside one. That is unfixed, and PR-h3wujj stays open
+# for it.
 #
-#   * `status:`, `opened:` — CLOSED, 2026-08-25. The problem-report
-#     reader in check-trace.sh goes through this function, so reader and
-#     backstop look in the same place, and a `- status: open` bullet is
-#     reported INCOMPLETE-PROBLEM rather than passing silently.
-#   * `traces:` and `satisfies:` — STILL OPEN. They are read by gr_id_run,
-#     which finds its keyword ANYWHERE on the line, so `- satisfies: REQ-001`
-#     counts inside a block while the same line outside every block is not
-#     reported here at all: exit 0 with a derived item never checked against
-#     the RMF. The block rule above makes it rare, not impossible. Closing it
-#     changes what every SAD and SRS ledger already written may look like,
-#     which is why it is stated rather than folded in. See
-#     skills/check-traceability/SKILL.md.
+# The first version knew the bullets alone, and an ordered item reproduced the
+# defect it was built to close, verbatim: round-2 review measured
+# `1. satisfies:` outside every block reported by nothing while gr_id_run
+# credited the same line inside one.
 #
-# Extending this to list markers was tried and reverted: it fired on
-# `- status: resolved only in the same change that merges the fix.` in the
-# shipped templates/problems.md, which is prose in a README. Rewording a correct
-# document to satisfy a scan is the failure mode this whole change exists to
-# remove, so the narrower rule stays and the gap is stated. Unanchored is worse
-# again — it fires on any sentence containing the word. Column one is also what
-# keeps the indented grammar comments in the ledger templates inert.
+# A RUN of them, not one: `- 1. status:` is a one-line nested list, and depth
+# is no reason to lose an orphan. The loop terminates because every pass
+# consumes at least two characters.
 #
-# The route out, if this is revisited: the templates already tell authors to
-# keep illustrative forms inline in backticks, and applying that convention to
-# the one offending line would close the hole. That is a change to the
-# templates and to every ledger already written against them, which is why it
-# is not folded in here.
+# A MARKER, never bare indentation, and never a bare number. The leading [ \t]*
+# admits an indented item; a line with no marker is returned unchanged,
+# which is what keeps the indented item grammar in the ledger templates inert,
+# and requiring the `.` or `)` is what keeps `1 status: of the bus` prose. The
+# trailing [ \t]+ is required too, as it always was: markdown needs whitespace
+# after a list marker, so `1.status:` is not a list item and is not stepped
+# over. Inside the bracket expression the `-` comes first, where it is a
+# literal and not a range; `*` and `+` are literal at any position in one.
+#
+# WHAT THIS STILL DOES NOT REACH, stated exactly, because the last statement of
+# it overclaimed. This steps over LIST MARKERS and nothing else. gr_id_run
+# finds its keyword anywhere on the line, so every other decoration it accepts
+# is still invisible to the backstop: a blockquote `> satisfies:`, a table
+# cell, a mention inside a sentence. Those are credited inside a block and
+# unreported outside one, exactly as the ordered form was. See the note at
+# gr_kw_orphan_here for why the reader is not narrowed to close the class.
+function gr_kw_lead(line,   s) {
+    s = line
+    while (sub(/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+/, "", s) > 0) { }
+    return s
+}
+# Is KW the annotation this line contains? Column one, and only column one. THE
+# READER form: every gate in this toolkit that TAKES a value tests it here.
+#
+# THE INVARIANT, and it is a containment and not an equality: the backstop must
+# see AT LEAST what every reader sees — backstop ⊇ reader, written out as
+# SUPERSET-OF so a plain-ASCII grep finds it as well. The hole
+# ORPHAN-ANNOTATION was built to close is a reader taking a value from a
+# position the backstop cannot see; a backstop wider than the readers closes
+# that hole and opens nothing, because reporting a line no reader would have
+# taken is noise at worst, never a false green.
+#
+# Reading that invariant as an equality, and widening THIS function to match
+# the backstop, was tried on 2026-09-15 and rejected in review on two
+# demonstrated regressions. Both turn on the same property: the readers are
+# FIRST-OCCURRENCE-WINS, so widening what counts as an occurrence lets a
+# QUOTED form outrank the real one.
+#
+#   * check-trace.sh, the problem-report reader. A block quoting
+#     `- status: resolved` in its prose, above its own column-one
+#     `status: open`, handed the reader the quotation: the open item left the
+#     roll-call at exit 0 — verbatim the false green that reader was anchored
+#     to remove. Same for `opened:` and `disposition:`.
+#   * check-review.sh, the record selector. A record declaring
+#     `branch: other-change` that quoted `- branch: my-change` above it became
+#     the record FOR my-change: a pass reported over a review that never
+#     happened.
+#
+# So the readers stay narrow and the backstop alone is wide. A bulleted
+# annotation is never READ, and is REPORTED where it belongs to no item.
+# Inside a block it is simply not the annotation the item made, and the gate
+# fails loudly for the field it now lacks — INCOMPLETE-PROBLEM, or
+# MISSING-RECORD. Loud is the correct answer to an annotation written in a form
+# no reader accepts; silent promotion of a quotation is not.
+#
+# Unanchored is worse again — it fires on any sentence containing the word —
+# and column one is also what keeps the indented grammar comments in the ledger
+# templates inert.
 function gr_kw_here(line, kw) {
     return (index(line, kw) == 1)
+}
+# Could KW be READ from this line by anything? Column one, or column one after
+# one or more list markers, bulleted or ordered. THE BACKSTOP form, and
+# deliberately wider than gr_kw_here per the invariant above. Two callers, both
+# backstops: check_orphans in check-trace.sh, and the ORPHAN-DISPOSITION path
+# in check-review.sh. No reader may call it.
+#
+# What the width buys, PR-h3wujj: gr_id_run finds its keyword ANYWHERE on the
+# line, so `- satisfies: REQ-001` was credited to an item inside a block while
+# the same line outside every block was reported by nothing at all — exit 0
+# with a derived item never checked against the RMF. The list form is now
+# reported wherever it belongs to no item, whether or not a reader would have
+# taken it, and `1. satisfies: REQ-001` with it — see gr_kw_lead for why the
+# ordered marker took a second round to arrive.
+#
+# What this does NOT cover is NOT ENUMERATED HERE, and that omission is the
+# point. gr_id_run finds its keyword ANYWHERE on the line; gr_kw_lead steps
+# over the two marker forms above, in runs, and over nothing else. Every other
+# position gr_id_run accepts is still credited to an item inside a block and
+# still invisible to the backstop.
+#
+# Three versions of this note each enumerated the remainder and each was wrong
+# within one review round: the first named a mid-sentence mention alone and
+# missed ordered markers; the second added a blockquote, a table cell and
+# emphasis and missed task-list items. A fourth list would rest on the same
+# evidence as the previous three — that nobody has yet found the next form —
+# so what is written down is what this rule DOES, and the remainder is
+# declared open-ended and presumed live. Examples exist in the problem item;
+# they are examples and never a set.
+#
+# Leaving that residue is deliberate, and the reason is the SAD. templates/
+# sad.md ships the annotation ON the definition line, and check-trace.sh states
+# so at both readers, so requiring column one of gr_id_run would reject the
+# documented primary form and every SAD written against it. No lead-stripper
+# closes the class either — a prefix regex cannot decide what a markdown line
+# is — which is why this one claims two marker forms and not closure, and why
+# closing PR-h3wujj needs either a reader the backstop can contain without
+# enumerating anything, or a markdown-aware line classifier.
+#
+# A list-marker rule was tried once before, on gr_kw_here, and reverted because
+# it fired on `- status: resolved only in the same change that merges the fix.`,
+# prose in the shipped templates/problems.md and in the twin the ratchet
+# installs at docs/problems/README.md. That sentence is a hazard to THIS
+# function for the same reason, so both lines now give the illustrative form
+# inline in backticks, which is the convention those templates already state
+# for their own examples. An extended-regex grep over docs/, templates/ and
+# skills/ for the WIDENED marker rule followed by a block-parsed keyword —
+# ^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+ — returns nothing at all. That
+# is the pattern skills/ratchet hands adopters to size the upgrade, and it is
+# this function written out, so what it prints is what this steps over.
+function gr_kw_orphan_here(line, kw) {
+    return (index(gr_kw_lead(line), kw) == 1)
 }
 # The value of an annotation: everything after the keyword, trimmed. A keyword
 # with nothing after it declares nothing, and every reader here treats it as
 # absent — an empty `opened:` is an omission wearing the shape of compliance.
 #
-# Meaningful only where gr_kw_here is true, which is why both are defined here:
-# a reader that takes a value from a keyword the ORPHAN-ANNOTATION backstop does
-# not parse reopens the hole that backstop was built to close. The PR `status:`
-# reader drifted that way (see check-trace.sh).
+# Meaningful only where gr_kw_here is true, which is why both are defined here,
+# narrow for the same reason gr_kw_here is: it is the READER half of a reader
+# pair, and it moves only when gr_kw_here moves. substr from length(kw) + 1
+# assumes the keyword starts at byte one, so a caller that has tested
+# gr_kw_orphan_here and wants a value from the wider position composes the two
+# — gr_value(gr_kw_lead(line), kw) — rather than widening this.
 function gr_value(line, kw,   v) {
     v = substr(line, length(kw) + 1)
     sub(/^[ \t]+/, "", v)

@@ -104,5 +104,11 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
 - The placeholders above are in angle brackets and the illustrative forms are
   described rather than written flush left, for the reason the other templates
   give: a gate reads column one whatever the surrounding prose states, and no
-  gate in this toolkit parses fenced code blocks.
+  gate in this toolkit parses fenced code blocks. A list marker is no escape
+  from that, and for `disposition:` it is the opposite of one. The ORPHAN
+  backstop steps over leading list markers — bullets and ordered markers
+  alike — so `- disposition: …` written outside every finding block is
+  reported ORPHAN-DISPOSITION, while inside a block it is still not the
+  finding's disposition and the finding stays UNDISPOSED-FINDING. Illustrate
+  the form inline in backticks, indented with no marker, or not at all.
 -->

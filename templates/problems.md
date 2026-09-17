@@ -23,8 +23,21 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
   there because "today" differs across timezones; anything further is a
   failure, because a date in the future ages backwards and would make a stale
   item look fresh. Both are read at COLUMN ONE, inside the item's block,
-  and the FIRST occurrence of each is the one that counts. A keyword
-  with nothing after it declares nothing and is reported as absent.
+  and the FIRST occurrence of each is the one that counts. COLUMN ONE means
+  column one: a leading list marker is NOT stepped over, so `- status: open`
+  declares no status and the item is reported `INCOMPLETE-PROBLEM`. That is
+  deliberate. Because the first occurrence wins, a reader that accepted the
+  bullet form would let a quoted `- status: resolved` somewhere in an item's
+  prose outrank the item's own `status: open`, and the open item would leave
+  the known-problem list at exit 0. A missing field named out loud is
+  recoverable; a wrong status nobody is told about is not. The orphan
+  backstop, which reports rather than reads, DOES step over list markers —
+  bullets (`-`, `*`, `+`) and ordered markers (`1.`, `1)`) alike, one or more
+  of them — so a list-item annotation belonging to no item at all is reported
+  `ORPHAN-ANNOTATION` — which is why the illustrative forms below use no
+  list marker. Bare indentation is not a marker and neither is a bare number;
+  only the marker is stepped over. A keyword with nothing after it declares
+  nothing and is reported as absent.
 - A resolved item needs no `opened:`: it cannot age, and requiring the field
   on it would redden every ledger already written for no gain. Adopting this
   on an existing ledger is a backfill of the items still open, and
@@ -32,7 +45,7 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
 - `status: accepted` is for a problem the project INVESTIGATED and ruled on:
   it will not be fixed, and that is a decision, not neglect. It needs BOTH an
   `opened:` and a `disposition:` — the ruling and the date it was made, read
-  at column one inside the item's block like the other two:
+  at column one inside the item's block, like the other two:
 
       **PR-NNNNNN**: <observable symptom, one sentence>.
       affects: <REQ/RC/SDD/LLR IDs implicated>.
@@ -70,7 +83,7 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
   larger than `problem_open_max`, or a missing field. Both limits are set in
   `.guardrails/config.yaml`, and both are printed on every run whether they
   are set or not.
-- status: resolved only in the same change that merges the fix.
+- `status: resolved` only in the same change that merges the fix.
 - Mint the ID when you write the item: run
   `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The token
   is random and is allocated against nothing, so two worktrees and two GitHub

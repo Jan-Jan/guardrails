@@ -29,7 +29,10 @@
 #                              DANGLING-REF's
 #   ORPHAN-ANNOTATION FILE:LINE — a status:/opened:/disposition:/traces:/
 #                              satisfies:/supersedes:/superseded-by: line at
-#                              column one that belongs to no item block
+#                              column one, or at column one after a list
+#                              marker, that belongs to no item block. Wider
+#                              than every reader on purpose: a form no reader
+#                              takes is still reported where it is orphaned
 #   UNRESOLVED-PR ID         — problem report with status: open, with its age.
 #                              WARNING only: listed for review,
 #                              never fails the check on its own
@@ -39,8 +42,9 @@
 #                              from STALE-PROBLEM and from problem_open_max —
 #                              a decision is not a backlog — but never exempt
 #                              from this roll-call
-#   INCOMPLETE-PROBLEM ID    — PR with no column-one status: in its block, an
-#                              OPEN one with no opened:, or an ACCEPTED one
+#   INCOMPLETE-PROBLEM ID    — PR with no column-one status: in its block — a
+#                              bulleted one is not read, and is not a status —
+#                              an OPEN one with no opened:, or an ACCEPTED one
 #                              with no disposition: or no opened: (a keyword
 #                              with an empty value counts as absent)
 #   MALFORMED-STATUS ID      — status: whose value is not one of open,
@@ -793,16 +797,27 @@ fi
 #
 # — unanchored, matched anywhere in the line, and therefore reading a `status:`
 # occurrence that check_orphans below CANNOT SEE, because that backstop reports
-# a keyword only at column one. ORPHAN-ANNOTATION exists to catch annotations
-# belonging to no item; a reader looking where the backstop does not reopens
-# the hole it closed. Worse, an item whose `status:` line the pattern missed —
-# `Status: open`, `status : open`, no `status:` line at all — read as RESOLVED
-# and vanished from the roll-call: an open problem no merge would ever see.
-# Measured on a real ledger, one item in 159 was in exactly that state.
+# a keyword only where a keyword could be read at all. ORPHAN-ANNOTATION
+# exists to catch annotations belonging to no item; a reader looking where the
+# backstop does not reopens the hole it closed. Worse, an item whose `status:`
+# line the pattern missed — `Status: open`, `status : open`, no `status:` line
+# at all — read as RESOLVED and vanished from the roll-call: an open problem no
+# merge would ever see. Measured on a real ledger, one item in 159 was in
+# exactly that state.
 #
-# So: column one, first occurrence in the block wins, value from a closed set.
-# Anchoring alone would move the false green rather than remove it, which is
-# why the missing-status: violation ships in the same change.
+# So: gr_kw_here — column one and nothing else, first occurrence in the block
+# wins, value from a closed set. Anchoring alone would move the false green
+# rather than remove it, which is why the missing-status: violation ships in
+# the same change.
+#
+# COLUMN ONE AND NOTHING ELSE is what the rule rests on, and the pairing with first
+# occurrence is what makes it so. A reader that also accepted a leading list
+# marker was tried and rejected in review: a block quoting `- status: resolved`
+# in its prose, above its own column-one `status: open`, handed the reader the
+# quotation, and the open item left this roll-call at exit 0 — the very failure
+# the rewrite above removed, restored by the widening. check_orphans below is
+# wider, and that direction is safe: it reports, it does not read. The
+# invariant, stated once in lib.sh at gr_kw_here, is backstop-contains-reader.
 #
 # Ages are whole days in LOCAL time, from `date +%Y-%m-%d`; the arithmetic
 # itself is exact (GR_AWK_CIVIL in lib.sh). A one-day disagreement about what
@@ -1025,9 +1040,26 @@ fi
 # them anyway — or reporting `status:` from the SRS, where nothing reads it —
 # would be noise, and noise is what teaches people to read past the output.
 #
-# Column one, like every definition form here. That is what keeps the grammar
-# comment shipped in templates/problems.md inert, and it is what makes this
-# gate adoptable without editing every ledger that already exists.
+# Column one, or column one after one or more list markers, bulleted or
+# ordered: gr_kw_orphan_here, which is WIDER than the gr_kw_here every reader
+# uses, and deliberately so. The invariant is a containment — the backstop must
+# see at least what every reader sees — and never an equality. Widening the
+# readers to match this instead was tried and rejected: the readers are
+# first-occurrence-wins, so a wide reader lets a QUOTED `- status: resolved`
+# outrank the item's own column-one `status: open`. lib.sh states both
+# regressions at gr_kw_here.
+#
+# Wider costs nothing here. This gate REPORTS; it takes no value and decides
+# no item's state, so a bulleted annotation outside every block is reported
+# whether or not a reader would have taken it — which is the PR-h3wujj defect,
+# since gr_id_run reads `- satisfies: REQ-001` inside a block and nothing at
+# all saw it outside one.
+#
+# A line with NO marker is tested unchanged, and that is what keeps the
+# indented item grammar shipped in templates/problems.md inert — the property
+# that makes this gate adoptable without editing every ledger that already
+# exists. It is the absence of a marker that keeps illustrative prose quiet,
+# never its indentation.
 check_orphans() {
     _kw="$1"
     _open="$2"
@@ -1062,7 +1094,7 @@ check_orphans() {
             FNR == NR { gr_fm_scan($0, FNR); next }
             gr_fm_skip(FNR) { next }
             gr_block_closes($0) { inblock = gr_block_opens($0) }
-            !inblock && gr_kw_here($0, kw) {
+            !inblock && gr_kw_orphan_here($0, kw) {
                 # FNR, never NR: the file is read TWICE (see the
                 # front-matter pass above), so NR is offset by the whole first
                 # pass and every reported line number would be wrong.
@@ -1147,12 +1179,18 @@ fi
 # DANGLING-REF's job, which scans every doc_* file.
 #
 # Column-one keyword via gr_kw_here, IDs via gr_id_run: the same pairing
-# status:/opened: use, so the reader and the ORPHAN-ANNOTATION backstop look in
-# the same place. Occurrences ACCUMULATE within a block rather than
-# first-one-wins — the annotation is a LIST and a second such line in the same
-# block adds to it — because an item may replace more than one predecessor,
-# and each predecessor is judged on its own: one applied half must not answer
-# for a missing one. Downstream, five of six sites were correct.
+# status:/opened: use, so this is a READER and stays narrow. The
+# ORPHAN-ANNOTATION backstop reads these two keywords wider — column one after
+# one or more list markers as well — which is the containment lib.sh states at
+# gr_kw_here and not a disagreement: a bulleted `- supersedes: REQ-001`, or an
+# ordered `1. supersedes: REQ-001`, records no supersession here, and is
+# reported where it belongs to no item at all.
+#
+# Occurrences ACCUMULATE within a block rather than first-one-wins — the
+# annotation is a LIST and a second such line in the same block adds to it —
+# because an item may replace more than one predecessor, and each predecessor
+# is judged on its own: one applied half must not answer for a missing one.
+# Downstream, five of six sites were correct.
 #
 # `supersedes:` is not a prefix of `superseded-by:` — they part at the ninth
 # character — so neither keyword's index() test can read the other's line.

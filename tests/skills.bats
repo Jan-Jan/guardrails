@@ -1265,3 +1265,94 @@ gr_writing_scan() {
     # the failure it invites: an anchor can match again and kill nothing.
     grep -q 'kills tests' "$skill"
 }
+
+@test "check-traceability: every report a single-unit check-trace.sh run prints has a catalogue row" {
+    # verifies: PR-6d2jvt
+    # The skill's "Fixing each rule" table is the only place an author is told
+    # what a gate finding means and what to do about it, and nothing tied it
+    # to the script. d8502d1 added three reports and changed a fourth's
+    # accepted values, updating two other skills and the templates but not the
+    # catalogue: ACCEPTED-PR, MALFORMED-SUPERSESSION and
+    # NON-RECIPROCAL-SUPERSESSION had no row at all, so an author with a red
+    # gate had nowhere to look the finding up.
+    #
+    # EXTRACTION, both sides derived from the files rather than listed here —
+    # a list in this test would be a third copy of the catalogue and would rot
+    # the same way:
+    #   * the script side is its own roster, the `#   TOKEN ...` lines of the
+    #     header block, up to the `# Scoped (multi-unit) runs add:` heading
+    #     that the script itself uses to separate the reports a default run
+    #     prints from the ones only a scoped run adds. The catalogue documents
+    #     the default run, so the scan stops there; the heading is asserted to
+    #     exist, so renaming it fails here rather than silently changing this
+    #     test's scope. The six scoped reports are documented in neither this
+    #     skill nor any other, which is a wider gap and wants its own item.
+    #   * the skill side is the first cell of each catalogue row, `| \`TOKEN`.
+    #     Prose mentions are deliberately NOT counted: most rows name other
+    #     reports in passing, so counting a mention would let a report read as
+    #     documented on the strength of a sentence about something else —
+    #     the exact hole this test exists to close.
+    # The second scan below keeps the roster itself honest: a report printed
+    # by the script but absent from the header would otherwise be invisible to
+    # the first comparison.
+    root="$BATS_TEST_DIRNAME/.."
+    script="$root/scripts/check-trace.sh"
+    skill="$root/skills/check-traceability/SKILL.md"
+
+    grep -q '^# Scoped (multi-unit) runs add:' "$script"
+
+    emitted=$(
+        awk '/^# Scoped \(multi-unit\) runs add:/ { exit }
+             /^#   [A-Z]/ { print $2 }' "$script" \
+            | grep -E '^[A-Z][A-Z0-9]*(-[A-Z0-9]+)+$' | sort -u
+    )
+    documented=$(
+        grep -oE '^\| `[A-Z][A-Z0-9]*(-[A-Z0-9]+)+' "$skill" \
+            | sed 's/^| `//' | sort -u
+    )
+
+    # An empty set on either side makes the comparison below succeed having
+    # compared nothing, which is the vacuous green this test must not report.
+    # Floors, not exact counts: adding a report must not have to edit them.
+    n_emitted=$(printf '%s\n' "$emitted" | grep -c . || true)
+    n_documented=$(printf '%s\n' "$documented" | grep -c . || true)
+    if [ "$n_emitted" -lt 15 ] || [ "$n_documented" -lt 15 ]; then
+        printf 'extraction read %s script reports and %s catalogue rows, expected at least 15 of each\n' \
+            "$n_emitted" "$n_documented"
+        return 1
+    fi
+
+    missing=""
+    for _r in $emitted; do
+        printf '%s\n' "$documented" | grep -qx "$_r" || missing="$missing $_r"
+    done
+    if [ -n "$missing" ]; then
+        printf 'reports check-trace.sh prints with no row in skills/check-traceability/SKILL.md:%s\n' "$missing"
+        return 1
+    fi
+
+    # Every report the script actually prints must appear in its own header
+    # roster, or the roster the comparison above trusts could drift away from
+    # the script while staying green. The grading letter and age some lines
+    # print before the token (`F 0 `, `W %d `) are stepped over.
+    sites=$(
+        grep -oE '(echo|printf) "([A-Z] (-?[0-9]+|%d) )?[A-Z][A-Z0-9]*(-[A-Z0-9]+)+' "$script" \
+            | sed -E 's/^(echo|printf) "([A-Z] (-?[0-9]+|%d) )?//' | sort -u
+    )
+    roster=$(
+        grep -E '^#   [A-Z][A-Z0-9]*(-[A-Z0-9]+)+ ' "$script" | awk '{ print $2 }' | sort -u
+    )
+    n_sites=$(printf '%s\n' "$sites" | grep -c . || true)
+    if [ "$n_sites" -lt 18 ]; then
+        printf 'the emission scan found %s report sites, expected at least 18\n' "$n_sites"
+        return 1
+    fi
+    undeclared=""
+    for _r in $sites; do
+        printf '%s\n' "$roster" | grep -qx "$_r" || undeclared="$undeclared $_r"
+    done
+    if [ -n "$undeclared" ]; then
+        printf 'reports check-trace.sh prints that its own header does not list:%s\n' "$undeclared"
+        return 1
+    fi
+}

@@ -143,15 +143,112 @@ affects: scripts/lib.sh, which states this as STILL OPEN in the same note that
 records `status:`/`opened:` as closed, and gives the route out immediately
 below it; skills/check-traceability, which that note defers to;
 templates/problems.md, whose one-line prose about resolving in the merging
-change is what fired the previous attempt at this rule and reverted it.
+change is what fired the previous attempt at this rule and reverted it, and
+its installed twin docs/problems/README.md, which the revert note never named
+and which is the same sentence in the same position.
 opened: 2026-09-10
 status: open
+**NOT resolved, and the status is the point.** The backstop is genuinely wider
+and every widening below is measured and pinned by a test watched failing. What
+is withdrawn is the CLAIM OF CLOSURE. Three independent review rounds each found
+a markdown list form that the round before had called closed:
+
+| round | the item was marked | what the next round measured still live |
+|---|---|---|
+| 1 | resolved | the design was inverted — see the containment note below |
+| 2 | resolved | ordered markers: `1. satisfies:` and `1) satisfies:` |
+| 3 | resolved | task-list items: `- [x] satisfies:` |
+
+The third is unfixed here and is reproducible today: `- [x] satisfies: REQ-x`
+under a heading, outside every block, exits 0 with nothing printed; the same
+line inside a block is credited, so `- [x] satisfies: derived` gives
+`UNANALYZED-DERIVED`. This repository's own `docs/plans/` use `- [ ]` lists.
+
+A fourth patch to `gr_kw_lead` would close that one form and this item would be
+marked resolved a fourth time on the same evidence as the previous three: that
+nobody had yet found the next form. The honest reading of three rounds is that
+markdown list syntax is not a set this author can enumerate by inspection, so
+the enumeration stops being a promise. What the item now claims is bounded and
+checkable — bullets `-`, `*`, `+` and ordered markers `<digits>.` / `<digits>)`,
+in runs, are stepped over; every other form is unenumerated and presumed live.
+
+Closing this needs one of two things that are changes of their own: a reader
+narrowed so the backstop can contain it without enumerating anything, or a
+markdown-aware line classifier rather than a prefix regex. Both are larger than
+this change and neither should be smuggled into a patch that adds one more
+alternation.
+
 The field vote is to close it, and the argument is the toolkit's own: the block
 rule makes the hole rare rather than impossible, and rare is the property that
 produces a false green nobody is looking for. Closing it needs the offending
 template line moved inline into backticks first, then a ratchet upgrade note of
 the kind skills/ratchet already contains for a tightening — not the report's
 warn-now-fail-later release, which is a gate that reports and proves nothing.
+
+What was built, which is a partial fix and is recorded as one. Root cause:
+`gr_kw_here` tested `index(line, kw) == 1` while `gr_id_run` finds
+its keyword anywhere on the line, so a list-item annotation was credited inside
+a block and reported by nothing outside one. Fixed by `gr_kw_lead`, which
+steps over one or more leading list markers, and by `gr_kw_orphan_here`, the
+predicate built on it — `index(gr_kw_lead(line), kw) == 1`.
+
+**Twice, because the first cut knew half of list syntax.** `gr_kw_lead` shipped
+matching `-`, `*` and `+` and nothing else, and round-2 independent review
+measured an ordered-list item reproducing the defect verbatim: `1. satisfies:`
+and `1) satisfies:` SILENT outside every block, CREDITED inside one. A doubled
+marker, `- - satisfies:`, was silent on the same reading. The rule now steps
+over a RUN of markers, bullet or ordered — digits closed by `.` or `)` — so
+neither the delimiter nor the nesting depth decides whether an orphan is
+reported. A bare number is still not a marker: the `.` or `)` is required, or
+`1 status: of the bus` would be reported as an annotation.
+
+**The fix is to the BACKSTOP, and to the backstop ALONE.** The first attempt
+routed `gr_kw_here` and `gr_value` through `gr_kw_lead` as well, widening every
+reader with the backstop, and an independent review rejected that on two
+demonstrated regressions. Both turn on first-occurrence-wins: a `PR` block
+quoting `- status: resolved` in its prose above its own column-one
+`status: open` gave the reader the quotation and left the roll-call at exit 0,
+and a verification record declaring `branch: other-change` that quoted
+`- branch: my-change` became the record FOR `my-change`, reporting a pass over
+a review that never happened. The invariant is therefore a CONTAINMENT and not
+an equality — the backstop must see at least what every reader sees — and the
+readers are back at column one, `gr_value` with them. A list-item annotation is
+never read, and is reported where it belongs to no item; inside a block it
+leaves the field missing, which is `INCOMPLETE-PROBLEM` or `MISSING-RECORD` and
+is loud.
+
+Pairing `gr_id_run` with `gr_kw_here` instead would have rejected the
+documented primary form: `templates/sad.md` ships the annotation ON the
+definition line, and check-trace.sh states as much at both readers. So the
+residue is deliberate, and it is stated in full rather than by example, because
+naming one case of it was how the ordered-list gap went unnoticed for a round:
+`gr_kw_lead` steps over LIST MARKERS and nothing else, so every other position
+`gr_id_run` accepts — a mid-sentence mention, a blockquote `> satisfies:`, a
+table cell, a keyword wrapped in emphasis — is still credited inside a block
+and still unreported outside one. Equally deliberate: bare indentation with no
+marker still declares nothing, which is what keeps the ledger templates' own
+grammar examples inert — it is the absence of a MARKER, never the indentation.
+
+Reproduced by `gr_kw_orphan_here accepts a list marker before the keyword` and
+`check-trace: a bullet satisfies: outside every block is an orphan`, each
+watched failing first; and, for the two review findings, by `check-trace: a
+quoted bulleted status: does not outrank the item's own` (the item vanished
+from the roll-call, `problems: open 0`) and `check-review: a quoted bulleted
+branch: does not claim the record` (exit 0 over a review of another branch),
+both watched failing against the rejected widening. The full red → green table
+and the scope controls are in `docs/verification/2026-09-16-close-kw-asymmetry.md`
+and are deliberately NOT repeated here: this item had a competing list of
+four until round 3 found it disagreeing with the record's list of six about
+which tests are evidence and which are controls. One list, in the record, and
+what it records is that the controls are scope controls rather than evidence,
+recorded as
+such. `check-trace: a bullet status: is not read as the problem status` was
+inverted from the rejected design and now pins the loud rejection.
+
+One mutation anchor died to this edit and was re-cut and re-proved:
+`2026-08-25-problem-triage.mutations/M30.sh`, which quotes the whole
+`gr_value` body, still kills 1 test after re-cutting, the same count its
+original record gives.
 
 **PR-crcee5**: 38 of this repository's 184 mutation scripts can no longer
 apply, so a fifth of its mutation evidence is unreproducible and nothing reports

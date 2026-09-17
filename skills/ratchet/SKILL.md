@@ -412,6 +412,117 @@ manifest and every unit's config in one pass, and its findings
 > job, as `merge-change` step 6a states. Existence is a separate question
 > already answered by `DANGLING-REF`.
 >
+> **An annotation written as a list item is now REPORTED where it belongs to
+> no item — and, as before, it is never READ.** Until this version the
+> `ORPHAN-ANNOTATION` backstop matched a keyword only at byte one, while
+> `traces:` and `satisfies:` are read ANYWHERE on their line — so a bulleted
+> `- satisfies: REQ-a3k9z2` was credited to its LLR inside a block, while the
+> same line outside every block was not reported at all: exit 0 with a derived
+> item never checked against the RMF. A gate that reads a keyword where the
+> backstop does not is the case that backstop exists to catch. `lib.sh` has
+> stated it as a known asymmetry since 2026-08-23 and closed the
+> `status:`/`opened:` half of it on 2026-08-25. **This version NARROWS the rest
+> and does not close it**, by stepping the BACKSTOP — and only the backstop —
+> over leading list markers. The problem item it came from is still open, and
+> the paragraph below names what is still live, so size the upgrade by what is
+> stepped over rather than by the word closed.
+>
+> **Two marker forms, and any depth of nesting — not every list form.** A
+> marker here is a bullet — `-`, `*` or `+` — or an ordered one: digits closed
+> by `.` or `)`.
+> The first cut of this rule knew the bullets alone, so `1. satisfies:` outside
+> every block stayed silent while the identical line inside one was credited —
+> the defect again, in the other half of the same syntax. Review measured it
+> and sent the change back. A run of markers is stepped over too, so
+> `- 1. status:` is no harder to report than `- status:`. A bare number is not
+> a marker: `1 status: of the bus` is prose and stays prose.
+>
+> **The readers stay at column one, and that is the design rather than an
+> omission.** The rule is a containment: the backstop must see at least what
+> every reader sees. Widening in the other direction was tried inside this same
+> change and rejected in review, on two regressions that were demonstrated and
+> not imagined. Both turn on first-occurrence-wins. A problem item quoting
+> `- status: resolved` in its prose, above its own `status: open`, gave the
+> reader the quotation and dropped out of the known-problem list at exit 0. A
+> verification record declaring `branch: other-change` that quoted
+> `- branch: my-change` became the record FOR `my-change`, reporting a pass over
+> a review that never happened. A backstop wider than the readers can only
+> over-report; a reader wider than it means to be answers confidently and
+> wrongly.
+>
+> So exactly one thing changes on the day you upgrade:
+>
+> * **Outside every item block, a list-item annotation is now
+>   `ORPHAN-ANNOTATION`** — the same report a column-one one has drawn since
+>   that backstop shipped, and for the same keywords: `status:`, `opened:`,
+>   `disposition:`, `traces:`, `satisfies:`, `supersedes:`, `superseded-by:`,
+>   and under a unit manifest `exported:` and `expects:`. `check-review.sh`
+>   reports an orphaned `disposition:` in a verification record the same way.
+>   The fix: move the line inside the block it belongs to AND drop the marker,
+>   or, if it is prose ABOUT the form rather than a use of it, put the form
+>   inline in backticks. That is the convention the ledger templates already
+>   state for their own examples, and it is what the shipped
+>   `templates/problems.md` now does to a sentence of its own — so a project
+>   that copied that file into `docs/problems/README.md` when it ratcheted has
+>   the same line in its own tree and must fix it in place.
+>
+> **Inside a block, nothing moves.** A list-item annotation was not read before
+> this version and is not read now. An item whose only `status:` is a list item
+> was `INCOMPLETE-PROBLEM` and stays `INCOMPLETE-PROBLEM`; a record whose only
+> `branch:` is a list item was not that branch's record and still is not. No
+> item changes state on upgrade day, no backlog count moves on its own, and
+> every such line the gate names has a short remedy — delete the marker.
+>
+> **Size it with one grep before you upgrade.** Every line the change can
+> touch is a line whose first non-blank characters are one or more list markers
+> and whitespace, followed immediately by a block-parsed keyword. The pattern
+> below is the `gr_kw_lead` rule written out, marker for marker — a bullet or
+> an ordered marker, one or more of them — so what it prints is what the gate
+> will step over:
+>
+>     grep -rnE '^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+(status|opened|disposition|traces|satisfies|supersedes|superseded-by|exported|expects):' docs/ templates/
+>
+> `docs/` already covers the verification records, where `disposition:` is the
+> one keyword this backstop reads. Whatever the grep prints is the whole
+> migration, and it is a list you can read before the gate reads it for you. In
+> the guardrails repository itself it now prints nothing: the two lines it once
+> found were the same shipped sentence in two files, and both give their
+> example inline in backticks instead.
+>
+> **Bare indentation still declares nothing, and that is deliberate.** A
+> marker is required: `  - status: open` is now reportable where it is
+> orphaned, `  status: open` is inert at any position. The ledger templates
+> ship their item grammar indented and unmarked, and it stays quotation rather
+> than becoming something a gate has an opinion about, precisely because the
+> rule reaches for the marker and not for the indentation. An earlier attempt
+> at this widening was reverted for the other half of the problem — it fired on
+> a bulleted prose sentence in the shipped `templates/problems.md`, which is
+> why that line now gives its example inline in backticks instead.
+>
+> **`traces:` and `satisfies:` are still read anywhere on their line**, and
+> that is not an oversight left behind. `templates/sad.md` ships the
+> annotation ON the definition line — `**LLR-a3k9z2**: <behavior>.
+> satisfies: REQ-m7dq3v` — so requiring column one of the READER would
+> reject the documented primary form and every SAD written against it. What
+> changed is that the backstop can now see the two marker forms above.
+>
+> **What is still live, and it is not a short list.** This rule was published
+> as a closure three times and was not one each time: the first cut inverted
+> the design, the second knew bullets and not ordered markers, and the third
+> missed GFM task-list items — `- [x] satisfies: REQ-…` is stepped over as far
+> as the `-` and no further, so it is credited inside a block and reported by
+> nothing outside one, today, on this version. That form is NOT fixed here.
+>
+> **So the residue is not enumerated, deliberately.** Three rounds of review
+> each found a form the round before had called the last one, so a list of
+> what remains would be a fourth guess wearing the shape of a specification.
+> What this version claims is only what it does: bullets and ordered markers,
+> in runs, are stepped over by the backstop. Every other position `gr_id_run`
+> accepts — task-list items, blockquote prefixes, table cells, emphasis, a
+> mid-sentence mention — is unenumerated and should be presumed live. If your
+> ledgers use any list form beyond the two named, this upgrade does not cover
+> them and the gate will stay silent on them exactly as before.
+>
 > **On macOS, `check-review.sh` has never run at all.** From the version that
 > introduced it until this one, its record scan handed `awk -v` a value
 > containing literal newlines. The awk that ships with macOS — BWK, `awk version

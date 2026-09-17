@@ -451,6 +451,8 @@ function gr_block_opens_loose(line) { return 0 }
 function gr_block_closes(line) { return 0 }
 function gr_block_id(line) { return "ZZ-NO-SUCH-ITEM-ZZ" }
 function gr_kw_here(line, kw) { return 1 }
+function gr_kw_lead(line) { return line }
+function gr_kw_orphan_here(line, kw) { return 1 }
 function gr_value(line, kw,   v) {
     v = substr(line, length(kw) + 1)
     sub(/^[ \t]+/, "", v)
@@ -671,6 +673,55 @@ REC
     [[ "$output" == *"ORPHAN-DISPOSITION"* ]] || { echo "$output"; false; }
 }
 
+@test "check-review: a bulleted disposition belonging to no finding is reported" {
+    # verifies: PR-h3wujj
+    # ORPHAN-DISPOSITION is one of exactly two places that took the WIDE
+    # predicate, and nothing pinned it here. The gate header read "at column
+    # one" while the code stepped over a list marker, so the only statement of
+    # this behaviour was a wrong one. The heading closes every finding block,
+    # which is what makes the bullet below it an orphan under any rule.
+    make_change_worktree my-change
+    write_record mine my-change
+    printf '\n## Notes\n- disposition: this bullet belongs to no finding block at all\n' \
+        >> docs/verification/2026-01-01-mine.md
+    commit_all records
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-DISPOSITION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-review: an ordered-list disposition belonging to no finding is reported" {
+    # verifies: PR-h3wujj
+    # Round-2 review, finding 15, at the second consumer of the widened
+    # backstop. The bullet form above was reported and this one was not, for no
+    # reason a reader of a record could name.
+    make_change_worktree my-change
+    write_record mine my-change
+    printf '\n## Notes\n1. disposition: this item belongs to no finding block at all\n' \
+        >> docs/verification/2026-01-01-mine.md
+    commit_all records
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-DISPOSITION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-review: an empty ordered-list disposition is not reported as an orphan" {
+    # verifies: PR-h3wujj
+    # The emptiness guard on the wide path, at the widened marker. It composes
+    # gr_value(gr_kw_lead(line), kw) precisely so a marked-up line yields the
+    # empty string rather than a fragment of the keyword; widen the stripper
+    # and that composition must keep up, or an empty `1. disposition:` starts
+    # being reported as an orphan disposition that disposes of nothing.
+    make_change_worktree my-change
+    write_record mine my-change
+    printf '\n## Notes\n1. disposition:\n' \
+        >> docs/verification/2026-01-01-mine.md
+    commit_all records
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-DISPOSITION"* ]] || { echo "$output"; false; }
+}
+
 @test "check-review: an ordinary bold header beginning with finding is left alone" {
     # `**findings**: three` is a heading, not a mislabelled finding. A letter
     # after `finding` ends the match, the same tail rule GR_ID_TAIL applies.
@@ -791,4 +842,57 @@ REC
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
     [[ "$output" == *"docs/verification"* ]]
+}
+
+@test "check-review: a quoted bulleted branch: does not claim the record" {
+    # verifies: PR-h3wujj
+    # The mirror regression of the one in check-trace.bats, and the sharper of
+    # the two: the record SELECTOR is first-occurrence-wins for the reason
+    # given at `A record claims ONE branch` in check-review.sh — a record that
+    # quotes another one's `branch:` must not become the record FOR that
+    # branch, which would report a pass over a review of it. A reader
+    # that steps over a list marker makes the quotation the claim, so this
+    # record, which declares `branch: other-change`, would report a pass over
+    # a review of my-change that never happened.
+    #
+    # BOTH HALVES ARE ASSERTED, and the second is the one with teeth. Round-2
+    # review, finding 14: MISSING-RECORD my-change alone passes for the wrong
+    # reason under half the mutation. Widen gr_kw_here and leave gr_value at
+    # column one, and `gr_value("- branch: my-change", "branch:")` slices from
+    # byte eight and returns the fragment `h: my-change`, which never equals
+    # my-change — so MISSING-RECORD still fires, by an accident of byte offset
+    # rather than by the rule under test. The composition lib.sh advertises for
+    # the wide position, gr_value(gr_kw_lead(line), kw), returns my-change and
+    # restores the regression with that assertion still green.
+    #
+    # What no byte offset can fake: first-occurrence-wins means the quotation,
+    # once taken, is the ONLY claim the record makes. So ask the record for the
+    # branch it really declares. Under the narrow readers it answers for
+    # other-change; under either widening it has spent its one claim on the
+    # quotation and answers for nothing.
+    make_change_worktree my-change
+    mkdir -p docs/verification
+    cat > docs/verification/2026-01-01-other.md <<'EOF'
+# Verification — other
+
+The record this one replaces opened with:
+
+- branch: my-change
+
+branch: other-change
+reviewer: an independent subagent
+verdict: accepted, no findings outstanding
+reproduced: yes, against the shipped scripts, before any change
+EOF
+    commit_all quoted-bullet-branch
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-RECORD my-change"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"for my-change 0"* ]] || { echo "$output"; false; }
+
+    # The claim the record DOES make, asked for by name. --branch skips the
+    # provenance test and nothing else, so this is the selector alone.
+    run sh .guardrails/scripts/check-review.sh --branch other-change
+    [ "$status" -eq 0 ] || { echo "the record no longer claims its own branch: $output"; false; }
+    [[ "$output" == *"for other-change 1"* ]] || { echo "$output"; false; }
 }

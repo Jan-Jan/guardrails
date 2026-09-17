@@ -68,22 +68,67 @@ the one most likely to reach a real ledger — **inside a block opened by a
 prefix whose gate does not read that keyword**, such as a `traces:` line inside
 an `**LLR-…**` block.
 
-Its known limit was that it matches a keyword only at column one while the
-gates matched one anywhere on the line, so `- status: open` counted inside a
-block but was not backstopped outside one. **A gate that reads a keyword
-where the backstop does not is the case the backstop exists to catch**, and on
-a bullet-style ledger it meant exit 0 with an open problem report absent from
-the known-problem list.
+Its known limit was that it matched a keyword only at column one while the
+gates matched one anywhere on the line, so a bulleted `- satisfies: REQ-…`
+was credited inside a block but was not backstopped outside one. **A gate that
+reads a keyword where the backstop does not is the case the backstop exists to
+catch**, and on a bullet-style ledger it meant exit 0 with a derived item no
+gate ever checked, or an open problem report absent from the known-problem
+list.
 
-That is now fixed for the problem-report keywords — `status:` and
-`opened:` are read at column one, first occurrence in the block wins, and an
-item with no readable `status:` is `INCOMPLETE-PROBLEM` rather than a silent
-"resolved". **It is not fixed for `traces:` and `satisfies:`**, which are still
-read anywhere on the line by `gr_id_run`. The same asymmetry, the same
-consequence: an indented or mid-line `satisfies:` satisfies an LLR while the
-backstop never reads it. Closing that means changing what every SAD and SRS
-ledger already written is allowed to look like, so the limit is stated here
-rather than fixed.
+That limit is **narrowed, not closed**, and what narrowed is the backstop
+alone.
+The backstop steps over one or more leading list markers — a bullet (`-`, `*`
+or `+`) or an ordered marker (a run of digits closed by `.` or `)`), each
+followed by whitespace, indented or not — before it tests the keyword. **Every
+reader stays at column one.** So a list-item annotation is never taken as a
+value, and is reported `ORPHAN-ANNOTATION` where it belongs to no item. **Bare
+indentation still declares nothing**: with no marker present the line is tested
+unchanged, which is what keeps the indented item grammar shipped in the ledger
+templates inert. A bare number is not a marker either — the `.` or `)` is
+required, so `1 status: of the bus` is prose and stays prose.
+
+**What is still open, stated plainly**, because this rule was published as a
+full closure three times and was not one. Two forms are stepped over — bullets
+and ordered markers, in runs. **Every other form is unenumerated and presumed
+live**: a GFM task-list item `- [x] satisfies:` was measured credited inside a
+block and unreported outside one, after the second closure claim. The problem
+item `PR-h3wujj` stays open for that reason, and the list below is what has
+been found rather than what exists. It knew bullets alone, so an
+ordered-list item reproduced the defect verbatim — `1. satisfies: REQ-…`
+silent outside every block, credited inside one — and independent review
+measured it and sent the change back. The backstop steps over list markers and
+nothing else, while the gates match a keyword anywhere on its line. So a
+blockquoted `> satisfies: REQ-…`, a table cell, or a mention inside a sentence
+is still credited inside a block and still unreported outside one. That residue
+is deliberate: `templates/sad.md` ships the annotation on the definition line,
+so narrowing the gates to column one would reject the documented primary form
+and every SAD written to it.
+
+**The invariant is a containment, not an equality**: the backstop must see at
+least what every reader sees. Widening in the other direction — the readers up
+to the backstop — is unsafe, and was tried and rejected. Every scalar reader
+here takes the FIRST occurrence in the block, so a reader that accepted the
+bullet form let a quoted one outrank the real one: a problem item quoting
+`- status: resolved` above its own `status: open` dropped out of the
+known-problem list at exit 0, and a verification record declaring
+`branch: other-change` that quoted `- branch: my-change` became the record for
+`my-change` — a pass reported over a review that never happened. A backstop
+wider than the readers can only over-report; a reader wider than it intends can
+answer confidently and wrongly.
+
+So a bulleted annotation INSIDE a block is a missing field, not a silent one:
+the item is `INCOMPLETE-PROBLEM`, the record `MISSING-RECORD`, and the fix is
+to drop the marker.
+
+**`traces:` and `satisfies:` are still read anywhere on their line** by
+`gr_id_run`, and that is deliberate rather than the remainder of the old
+asymmetry: `templates/sad.md` ships the annotation ON the definition line, so
+requiring column one of the reader would reject the documented primary form
+and every SAD written against it. What changed is that the backstop now sees
+the bullet form at all. The narrower residue is stated in `lib.sh` and is not
+closed here: a `satisfies:` elsewhere on its line — mid-sentence, or indented
+with no marker — still satisfies an LLR while this backstop never reads it.
 
 **`MISPLACED-ITEM` is what connects the two.** Each of the six gated
 prefixes is checked against the one document it may be defined in
@@ -154,13 +199,16 @@ Fix the config; never work around it by removing the prefix.
 | `DANGLING-REF <ID>` | ID referenced but defined nowhere | Typo → fix the reference. Deleted item → remove or update every reference (deleting a defined item is a change requiring its own review). |
 | `DANGLING-FILE <file>` | A `DRAFT-*.md` ledger file referenced in a ledger (or the SOUP file) — by path or bare name — that does not exist. Usually a draft another change already merged and renamed, or a draft in another unit; or a relative link (`../risk/DRAFT-x.md`), which resolves while the draft exists but which finalize does not rewrite, or a name wrapped in emphasis or glued to a longer word, which finalize also leaves; `finalize-docs.sh` rewrites the references it can see, and this is the rest. Plans and verification records are not scanned: they narrate the rename | Write the merged file's dated name. Never delete the reference to satisfy the gate — the sentence points somewhere for a reason. A reference to a draft that exists is fine — that is every change in flight — with one edge: a bare name resolves against this unit's ledger directories only, so across units write the path. |
 | `MISPLACED-ITEM <ID>` | Item defined outside the document configured for its prefix. It is still *enumerated* — `MISSING-TEST` and the rest fire on it exactly as on a placed item — but the gate that would report it on its own annotations parses only the configured document, so a misplaced `SDD` has no `traces:` obligation and a misplaced `PR` can never be reported open. Two caveats worth knowing: `DANGLING-REF` scans every `doc_*` file plus `strict_paths` and `test_paths`, so an item misfiled into *another* ledger still has its reference IDs read — by that gate, not by its own; and a `HAZ` block contains no annotation of its own that a gate parses, yet moving it out of the RMF still blinds `UNANALYZED-DERIVED`, which reads `assesses:` lines in the RMF files alone — an assessment inside a hazard's block stops counting when that block leaves (it fails red, so nothing passes silently) | Move the definition into that document — `REQ`→`doc_srs`, `HAZ`/`RC`→`doc_rmf`, `SDD`/`LLR`→`doc_sad`, `PR`→`doc_problems`. Adding the stray file to `strict_paths` does **not** fix it: that widens reference scanning, not the document a gate opens. A `doc_*` directory resolves to its `*.md` files **one level deep**, so a `.md` in a subdirectory of it reports — and so does a `.txt` directly in it. A `doc_*` configured as a single *file* resolves to that file whatever its extension. If the ID is illustrative text rather than a real item, indent it or keep it inline — no definition scan matches a form off column one. Do **not** leave `**REQ-NNN**:` at the start of a line: no gate reads it as a definition, but `MALFORMED-ID` reads it as one that failed, which is the correct answer to a line that looks exactly like a real item. |
-| `ORPHAN-ANNOTATION <file>:<line>` | A `status:`, `opened:`, `traces:` or `satisfies:` line at column one that belongs to no item. Three ways: before the first item in the file; under a heading with no item since; or **inside a block opened by a prefix whose gate does not read that keyword** — a `traces:` line inside an `**LLR-…**` block, say — which is the one most likely to reach a real ledger. Nothing reads it in any of the three: the gate keyed on that keyword parses item blocks of its own prefix, and this line is in none, so `status: open` left an item open in the ledger while the run exited 0. Reported only where the keyword is block-parsed (`status:`/`opened:`→`doc_problems`, `traces:`→`doc_sad`, `satisfies:`→`doc_sad`/`doc_srs`); `mitigates:`, `implements:`, `verifies:` and `assesses:` are read line-wise and cannot be orphaned | Move the line inside the item it describes — for the third case that usually means it is under the wrong item, so check which item you meant. If a heading separates them, put the heading before the item or drop it. If the line is illustrative rather than real, indent it: column-one anchoring is what keeps the grammar comments in the ledger templates inert. |
+| `ORPHAN-ANNOTATION <file>:<line>` | A `status:`, `opened:`, `disposition:`, `traces:`, `satisfies:`, `supersedes:` or `superseded-by:` line — and under a unit manifest `exported:` and `expects:` — at column one — or at column one after one or more list markers, bulleted (`-`, `*`, `+`) or ordered (`1.`, `1)`) — that belongs to no item. Three ways: before the first item in the file; under a heading with no item since; or **inside a block opened by a prefix whose gate does not read that keyword** — a `traces:` line inside an `**LLR-…**` block, say — which is the one most likely to reach a real ledger. Nothing reads it in any of the three: the gate keyed on that keyword parses item blocks of its own prefix, and this line is in none, so `status: open` left an item open in the ledger while the run exited 0. Reported only where the keyword is block-parsed (`status:`/`opened:`/`disposition:`→`doc_problems`, `traces:`→`doc_sad`, `satisfies:`→`doc_sad`/`doc_srs`, `supersedes:`/`superseded-by:`→every ledger); `mitigates:`, `implements:`, `verifies:` and `assesses:` are read line-wise and cannot be orphaned. This backstop is deliberately WIDER than every reader — it reports, it takes no value — so a list-item line is reported here even though no gate would have read it | Move the line inside the item it describes, and drop the list marker while you are there: a list-item annotation is never read, so inside a block it leaves the field missing. For the third case, being under the wrong item is the usual cause, so check which item you meant. If a heading separates them, put the heading before the item or drop it. If the line is illustrative rather than real, indent it with no list marker, or keep the form inline in backticks: it is the absence of a MARKER, not the indentation, that keeps the grammar comments in the ledger templates inert. |
 | `UNRESOLVED-PR PR-…` | Open problem report (**warning — never fails on its own**). The line contains the item's age, so the list can be triaged rather than scrolled past | Review it: still valid? Fix via `resolve-problem`, or leave open knowingly — the point is that every merge sees the list. |
-| `INCOMPLETE-PROBLEM PR-…` | A problem report with no column-one `status:` in its block, or an **open** one with no `opened:` (a keyword with an empty value counts as absent). Without a status the item is not merely unlabelled — it reads as resolved and vanishes from the roll-call, which is why this fails rather than warns | Add the field, at column one, inside the item's block. `opened:` is `YYYY-MM-DD`. A resolved item needs no `opened:`, so an existing ledger only has to backfill the items still open. |
-| `MALFORMED-STATUS PR-…` | `status:` whose value is neither `open` nor `resolved`. `closed`, `wontfix`, `Open` and `open (see below)` are all reported here | Pick one of the two. An unrecognised status is not a third state — it is an item no gate can classify, and before this check it counted as resolved. |
+| `ACCEPTED-PR PR-…` | A problem report with `status: accepted` — one the project investigated and ruled on, deciding the software is not changing (**warning — never fails on its own**). The line prints the `opened:` date and the `disposition:`, which is the ruling itself. An accepted item is exempt from `STALE-PROBLEM` and from `problem_open_max`, because neither limit measures anything about a decision, but it is never exempt from this roll-call: a decision nobody is reminded of decays back into a thing nobody remembers deciding. The `disposition:` is what makes the status safe to have — without it, `accepted` would be a one-word escape from both limits, so an accepted item with no `disposition:` — or no `opened:` — is `INCOMPLETE-PROBLEM`, and its date is judged exactly as an open item's is | Read the ruling on the line and decide whether it still stands. If it does, nothing. If it does not, reopen the item (`status: open`) or fix it under `resolve-problem`. Never reach for `accepted` because `PROBLEM-BACKLOG` is red — the honest moves there are a ruling with a date you can defend, or resolving the item; `resolve-problem` §4 has the form. |
+| `INCOMPLETE-PROBLEM PR-…` | A problem report with no column-one `status:` in its block, or an **open** one with no `opened:` (a keyword with an empty value counts as absent). A **list-item** `- status: open` — or `1. status: open` — is not a status: readers are column-one only, and a list-item one inside a block is reported here rather than read, because reading it would let a quoted example outrank the item's own annotation. Without a status the item is not merely unlabelled — it reads as resolved and vanishes from the roll-call, which is why this fails rather than warns | Add the field at column one inside the item's block, with no list marker. `opened:` is `YYYY-MM-DD`. A resolved item needs no `opened:`, so an existing ledger only has to backfill the items still open. |
+| `MALFORMED-STATUS PR-…` | `status:` whose value is not one of `open`, `accepted` or `resolved` — the three the gate reads, and the three its message names. `closed`, `wontfix`, `Open` and `open (see below)` are all reported here | Pick one of the three, and pick it for what it means: `open` for a problem still to answer, `accepted` for one the project investigated and ruled on (which then needs a `disposition:` — see `ACCEPTED-PR`), `resolved` for one a change has fixed. An unrecognised status is not a fourth state — it is an item no gate can classify, and before this check it counted as resolved. |
 | `MALFORMED-DATE PR-…` | An open item's `opened:` is not a `YYYY-MM-DD` calendar date, or is **more than one day ahead of today**. A future date yields a negative age, which compares as younger than any limit. **Tomorrow is allowed** and counts as 0 days old: `resolve-problem` tells the author to write *today*, and "today" differs by a day across timezones, so without that tolerance an author east of the build blocked their own merge on a correct item | Fix the date. If the clock or the timezone is more than a day out, fix that — the age is computed in local time from `date +%Y-%m-%d`. |
 | `STALE-PROBLEM PR-…` | Open longer than `problem_age_days` (strictly more than; the limit itself passes) | Resolve it, or raise the limit deliberately in `.guardrails/config.yaml`. Both are decisions; leaving it open silently was the option this removes. |
 | `PROBLEM-BACKLOG (n open…)` | More open problem reports than `problem_open_max` | The same two choices. Note the count includes items that are open but undatable — a ledger cannot reduce its backlog count by omitting a field. It EXCLUDES items whose status could not be read at all: the gate does not guess an unstated status, so the count can under-report, but only on a run already red for that item. |
+| `NON-RECIPROCAL-SUPERSESSION <ID>` | Half a supersession: `supersedes: <old ID>` on the replacement with no `superseded-by: <new ID>` back on the replaced item, or the mirror of that. This is the pair `merge-change` step 6a prescribes, and ONLY that pair. Both annotations are lists, so one item may replace several predecessors, and each predecessor is judged on its own — one applied half never answers for a missing one. It is deliberately not a sweep for other references to a superseded ID: an `affects:` or `traces:` line may name an old ID as history, so there is no unambiguous verdict there and none is invented, and whether the named ID exists at all is `DANGLING-REF`'s question | Add the missing half, at column one inside the named item's block. Never delete the half that is present to quiet the gate: the annotation already written is the true one, and deleting it destroys the only record that the replacement happened. If the two IDs are not really a replacement pair, remove BOTH and state the relationship in prose instead. |
+| `MALFORMED-SUPERSESSION <ID>` | A `supersedes:` or `superseded-by:` at column one inside an item block whose value gives the reader no item ID (the empty value included), or whose list mixes a token in a declared prefix that is not an ID in among ones that are. `supersedes: the original dosing requirement` is prose, not a reference, and `supersedes: REQ-m7dq3v, REQ-nope` records half of what it appears to; before this report, each read as no supersession at all while the run exited 0, so a value the reader cannot use is reported rather than quietly dropped. Prose and a parenthetical after the list end it and are never reported — `supersedes: REQ-m7dq3v (was REQ-001)` is clean | Write the ID the annotation means. This is the reference-side twin of `MALFORMED-ID` and takes the same remedy: find the real item and name it, and never widen the form to accept the token that is there. An annotation with nothing after it is the same fix — give it the ID, or delete the line if no supersession happened. |
 | `DRAFT-ID …` (check-ids) | A draft ID token (`REQ-DRAFT-<branch>-<n>`) left in the tree. **Always a failure**, under every flag: nothing mints one any more, so nothing would ever turn it into a real ID | Run `.guardrails/scripts/new-id.sh <PREFIX>` and replace the token with what it prints. |
 | `DRAFT-FILE …` (check-ids) | A `DRAFT-<branch>-<slug>.md` ledger file. Legitimate while the change is in flight — `--allow-draft-files` suppresses it — and renamed by `finalize-docs.sh` at merge | Nothing mid-change. At merge, run `merge-change` step 3. |
 | `DUPLICATE-ID <ID>` (check-ids) | One ID defined at two sites in the tree | Keep one definition and mint a fresh ID for the other. Two random tokens colliding is possible but vanishingly unlikely; a copy-pasted item is the usual cause. |

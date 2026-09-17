@@ -25,11 +25,17 @@
 #                            Such a line opens no block, so the finding is
 #                            invisible and its disposition is credited to
 #                            whatever block happens to be open.
-#   ORPHAN-DISPOSITION FILE:LINE — a `disposition:` at column one belonging to
-#                            no finding block. The backstop for every shape of
-#                            detached finding the rule above cannot name, and
-#                            the same mechanism check-trace.sh calls
-#                            ORPHAN-ANNOTATION.
+#   ORPHAN-DISPOSITION FILE:LINE — a `disposition:` at column one, or at
+#                            column one after one or more list markers,
+#                            belonging to no finding block. The backstop for
+#                            every shape of detached finding the rule above
+#                            cannot name, and the same mechanism check-trace.sh
+#                            calls ORPHAN-ANNOTATION — including its width:
+#                            this is one of exactly two places that take the
+#                            WIDE predicate, gr_kw_orphan_here, and it is wider
+#                            than every reader in this file on purpose. See the
+#                            note at the rule itself, and the invariant in
+#                            lib.sh.
 #   STALE-RECORD FILE — a record declaring this branch that this change did not
 #                            write or touch. A reused branch name would
 #                            otherwise let the previous change's record answer
@@ -207,8 +213,9 @@ gr_fm_skip(FNR) { next }
 # A finding is an item block in the ledger shape this toolkit uses everywhere,
 # so where one starts and ends is decided by the shared rule and by nothing
 # local. A bold line containing a colon, or a heading, ends it — which is why
-# `disposition:` is a plain column-one annotation and not a bold field: bold,
-# it would close the very block it belongs to.
+# `disposition:` is a plain annotation and not a bold field: bold, it would
+# close the very block it belongs to. The READER for it is column one and
+# nothing else; the backstop below it is wider, and the rule there states how.
 gr_block_closes(line) {
     if (open_line) gr_flush()
     if (gr_block_opens(line)) {
@@ -223,9 +230,28 @@ gr_block_closes(line) {
 !gr_block_opens(line) && gr_finding_shaped(line) {
     printf "M %d\n", FNR
 }
-gr_kw_here(line, "disposition:") {
-    if (gr_value(line, "disposition:") == "") next
-    if (open_line) disposed = 1
+# TWO rules in one pattern, and they are deliberately not the same width. The
+# backstop test selects the line — gr_kw_orphan_here, which also admits one or
+# more leading list markers, bulleted or ordered — and the READER inside it is
+# gr_kw_here, column one and nothing else. lib.sh states the invariant at
+# gr_kw_here: the backstop must see at least what every reader sees, never
+# exactly what it sees.
+#
+# Splitting them is not fastidiousness. A single wide test would make a
+# bulleted `- disposition: …` quoted in a finding the disposition OF that
+# finding, and the same widening on `branch:` below turned a record for
+# other-change into the record for my-change — a pass reported over a review
+# that never happened. Narrow here, a bulleted disposition inside a block
+# disposes of nothing and the finding stays UNDISPOSED, which is loud and
+# correct; wide there, one outside every block is still reported.
+#
+# The value test goes through gr_kw_lead so it reads the same position the
+# selecting test did: gr_value alone slices from byte one and would hand a
+# bulleted line a fragment of the keyword, never an empty string, so an empty
+# bulleted `- disposition:` would slip past the emptiness guard.
+gr_kw_orphan_here(line, "disposition:") {
+    if (gr_value(gr_kw_lead(line), "disposition:") == "") next
+    if (open_line) { if (gr_kw_here(line, "disposition:")) disposed = 1 }
     # Outside every block, this is an orphan: read, matched, and — until this
     # backstop — dropped in silence. It is where the finding went. The same
     # mechanism check-trace.sh calls ORPHAN-ANNOTATION, for the same reason.

@@ -1450,13 +1450,107 @@ LEDGER
 
 @test "check-trace: an indented annotation in a grammar comment is not an orphan" {
     # The shape templates/problems.md ships: the item grammar inside an HTML
-    # comment, indented. Column-one anchoring is what keeps it inert, and is
-    # what makes this gate cheap enough to adopt without editing every ledger.
+    # comment, indented and with no list marker, which is what keeps it
+    # inert: the backstop steps over a MARKER, never over bare indentation.
     printf '<!--\n  **PR-NNNNNN**: <symptom>.\n  status: open|resolved\n-->\n\n**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all grammar-comment
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
     [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+}
+
+# --- the list-marker form: the backstop sees it, no reader takes it ---------
+# gr_id_run finds its keyword ANYWHERE on the line, so `- satisfies: REQ-001`
+# was credited inside a block while the same line outside every block was not
+# reported at all: a derived item never checked against the RMF, at exit 0.
+# The BACKSTOP now steps over a list marker and reports that line; the readers
+# do not, and must not — see gr_kw_here in lib.sh for the two regressions a
+# widened reader demonstrated.
+
+@test "check-trace: a bullet satisfies: outside every block is an orphan" {
+    # verifies: PR-h3wujj
+    # The measured silent case: the heading closes the LLR block, so the
+    # annotation below it belongs to nothing under any rule. gr_id_run reads
+    # it; until the widening the backstop could not see it.
+    printf '\n## Notes\n- satisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    commit_all bullet-satisfies
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/architecture/0001-01-01-base.md:8 (satisfies: belongs to no item)"* ]]
+}
+
+@test "check-trace: an ordered-list satisfies: outside every block is an orphan" {
+    # verifies: PR-h3wujj
+    # Round-2 review, finding 15. The first widening knew `-`, `*` and `+` and
+    # stopped there, so THIS line — the same annotation in the other half of
+    # markdown list syntax — reproduced the defect verbatim: gr_id_run credits
+    # it inside a block, and outside every block nothing reported it.
+    printf '\n## Notes\n1. satisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
+    commit_all ordered-satisfies
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/architecture/0001-01-01-base.md:8 (satisfies: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: an ordered-list satisfies: inside a block is still credited" {
+    # verifies: PR-h3wujj
+    # THE OTHER HALF OF THE MEASURED PAIR, and it is a pin of what does NOT
+    # move. gr_id_run reads `1. satisfies: derived` at any position, so the
+    # derived REQ was credited here before the widening and is credited after
+    # it — the asymmetry was never that this line went unread, it was that the
+    # same line outside every block went unreported. The backstop reports only
+    # what belongs to no item, so this one is nobody orphan and the RMF verdict
+    # on it is what must be loud.
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\n1. satisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all ordered-derived
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a bullet status: is not read as the problem status" {
+    # verifies: PR-h3wujj
+    # The reader half, and it is a REJECTION. This item has no status any
+    # reader can see, so it is INCOMPLETE-PROBLEM — the loud answer, and the
+    # one this change chooses deliberately over reading the bullet.
+    #
+    # Reading it would mean widening the reader, and the reader is
+    # first-occurrence-wins: the same widening promotes a QUOTED `- status:`
+    # above the item's own column-one one, which is a silently WRONG status
+    # rather than a missing one. An author who wrote a bulleted status sees a
+    # red gate naming the item and fixes one line; an author whose item was
+    # silently read from someone else's quoted example sees exit 0. Loud
+    # rejection of a form is recoverable; a confident wrong answer is not.
+    #
+    # The bullet is inside the block, so it is nobody's orphan either — the
+    # backstop reports only what belongs to no item at all.
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-001\nopened: %s\n- status: open\n' \
+        "$(days_ago 5)" > docs/problems/0001-01-01-base.md
+    commit_all bullet-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-PROBLEM PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an indented grammar comment is still inert" {
+    # SCOPE CONTROL, pinned rather than asserted: the widening admits a list
+    # MARKER, never bare indentation, and that is the property it is built
+    # around. Both halves are checked, because only the pair rules out a
+    # grammar comment being read — the indented lines before the item must not
+    # become orphans, and the indented `status: open` inside the block must not
+    # become the item's status, which would make this resolved item read open.
+    printf '<!--\n  **PR-NNNNNN**: <symptom>.\n  opened: YYYY-MM-DD\n  status: open|resolved\n-->\n\n**PR-001**: Crash on empty input.\naffects: REQ-001\n  status: open\nstatus: resolved\n' \
+        > docs/problems/0001-01-01-base.md
+    commit_all indented-grammar
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"INCOMPLETE-PROBLEM"* ]]
+    [[ "$output" != *"UNRESOLVED-PR"* ]]
 }
 
 @test "check-trace: a status: line in the requirements ledger is out of scope" {
@@ -1635,6 +1729,8 @@ function gr_block_opens(line) { return 0 }
 function gr_block_closes(line) { return 0 }
 function gr_block_id(line) { return "ZZ-NO-SUCH-ITEM-ZZ" }
 function gr_kw_here(line, kw) { return 1 }
+function gr_kw_lead(line) { return line }
+function gr_kw_orphan_here(line, kw) { return 1 }
 function gr_value(line, kw,   v) {
     v = substr(line, length(kw) + 1)
     sub(/^[ \t]+/, "", v)
@@ -3692,4 +3788,24 @@ ORPHAN
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     [[ "$output" == *"DANGLING-FILE DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"*"found in none of this config's ledger directories"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a quoted bulleted status: does not outrank the item's own" {
+    # verifies: PR-h3wujj
+    # The regression a wide reader produces, pinned. Every scalar reader here
+    # is FIRST-OCCURRENCE-WINS, so a reader that steps over a list marker
+    # promotes any quoted form above the annotation the item actually made:
+    # this block quotes `- status: resolved` in its prose and declares
+    # `status: open` at column one below, and a wide reader hands the item the
+    # quotation. The item then leaves the roll-call at exit 0 — the exact
+    # false green the `COLUMN ONE AND NOTHING ELSE` note in check-trace.sh
+    # gives as the reason that reader is anchored. The backstop may be wider
+    # than the reader; the reader may not be wider than the backstop.
+    printf '**PR-001**: Crash on empty input.\naffects: REQ-001\nSeen in another ledger as:\n- status: resolved\nopened: %s\nstatus: open\n' \
+        "$(days_ago 5)" > docs/problems/0001-01-01-base.md
+    commit_all quoted-bullet-status
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"problems: open 1,"* ]] || { echo "$output"; false; }
 }
