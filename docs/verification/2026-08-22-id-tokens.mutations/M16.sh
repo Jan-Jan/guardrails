@@ -3,7 +3,7 @@
 python3 - <<'PY'
 s = open('scripts/new-id.sh').read()
 old = """case "$count" in
-    ''|*[!0-9]*) gr_die "COUNT must be a positive integer: $count" ;;
+    (''|*[!0-9]*) gr_die "COUNT must be a positive integer: $count" ;;
 esac
 [ "$count" -ge 1 ] || gr_die "COUNT must be a positive integer: $count"
 """

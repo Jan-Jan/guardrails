@@ -1,5 +1,7 @@
 #!/bin/sh
 # describes: check-trace: an empty owner: value counts as an owner
+# retired: the owner: field was dropped at 860dce4; check-trace.sh contains no
+# owner handling to revert
 python3 - <<'PY'
 old = '''                who = (own_seen && own != "") ? own : "unrecorded"'''
 new = '''                who = own_seen ? own : "unrecorded"'''

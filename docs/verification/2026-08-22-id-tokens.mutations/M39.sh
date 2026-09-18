@@ -3,7 +3,7 @@
 python3 - <<'PY'
 s = open('scripts/finalize-docs.sh').read()
 old = """        case "$f" in
-            *" "* | *"\t"*)
+            (*" "* | *"\t"*)
                 gr_die "draft ledger file name contains whitespace: $f" ;;
         esac
 """

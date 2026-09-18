@@ -1,5 +1,7 @@
 #!/bin/sh
 # describes: check-trace: owner: is read anywhere on the line, not at column one
+# retired: the owner: field was dropped at 860dce4; check-trace.sh contains no
+# owner handling to revert
 python3 - <<'PY'
 old = '''cur != "" && !own_seen && gr_kw_here(line, "owner:")  { own_seen = 1; own = gr_value(line, "owner:") }'''
 new = '''cur != "" && !own_seen && line ~ /owner:/ { own_seen = 1; own = gr_value(substr(line, index(line, "owner:")), "owner:") }'''

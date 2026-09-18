@@ -86,12 +86,18 @@ make — remains open territory, unclaimed by this closure.
 **PR-dy8yup**: Eighteen of the 184 mutation scripts under `docs/verification/`
 can no longer apply their mutation, so they measure nothing and nothing reports
 it.
-affects: docs/verification/2026-08-20-scan-pathspec.mutations/ (M18-M23),
-docs/verification/2026-08-22-id-tokens.mutations/ (M19, M20, M27-M29, M31), and
-docs/verification/2026-08-25-problem-triage.mutations/ (M05, M06, M08, M23, M32,
-M36).
+affects: docs/verification/2026-08-20-scan-pathspec.mutations/ (M12-M16,
+M18-M23), docs/verification/2026-08-22-id-tokens.mutations/ (M09, M16, M19, M20,
+M23, M27-M29, M31, M39), docs/verification/2026-08-23-review-artefact.mutations/
+(M03, M15-M17), docs/verification/2026-08-25-problem-triage.mutations/ (M05, M06,
+M08, M18, M23, M27, M32, M34, M36), and
+docs/verification/2026-08-27-config-schema.mutations/ (M60, M70, M73, M74, M76,
+M83, M85-M90).
 opened: 2026-08-27
-status: open
+status: resolved
+The list above is the corrected one — 46 scripts, measured at `8d78cd4`. The
+paragraph that follows is the original 2026-08-27 observation and accounts for
+only the 18 known then; the reconciliation is at the end of this item.
 Measured, not estimated. Against `main` at 860dce4: 152 of 184 exit 0, 166 with
 PR-aap8nx fixed, and the remaining 18 are unchanged by that fix. Three causes,
 all the same shape — a mutation whose target has moved on:
@@ -109,3 +115,35 @@ detects a defect, so one that cannot apply its defect is an empty row that
 reads like a covered one. Whether each should be re-anchored or retired is a
 judgement about what the original evidence claimed, which is why this is not
 folded into PR-aap8nx.
+
+Resolved 2026-09-17 by `restore-mutation-evidence`. The item stated eighteen; the
+measured figure at `8d78cd4` is **46**, and the `affects:` list above is the
+corrected one. It had grown by 28 in three weeks with nothing reporting it,
+which is the argument for the gate rather than for another census.
+
+Reading each script's exit code finds only 38 of them. Eight exit 0 while
+rewriting their target identically — five awk scripts counting occurrences that
+no longer exist, three `s.replace()` calls with no assertion. They are found
+only by checking the tree from outside, which is what the new runner does; the
+59 scripts with no self-guard of their own are recorded separately as
+PR-hcqjk6.
+
+Disposition of the 46: **29 re-anchored** to the current source, each proved to
+apply and then to be killed; **16 retired** in place with a declared reason and
+the commit that removed the behaviour; **1** — review-artefact M15 — retired as
+a mutation that never applied at all, recorded as PR-b7ua4s.
+
+Four ordinary changes account for 39 of the 46, measured by running today's
+scripts against the tree on each side of each commit: `c672c9f` 11, `0a35669`
+13, `3fe5eb3` 9, `860dce4` 6. `3fe5eb3` is the tree-wide `case`-pattern sweep
+that fixed PR-vh6cud — a change that gated a class of defect and silently
+deleted nine pieces of earlier evidence doing it.
+
+What stops it recurring is `tests/mutate.sh` and `tests/mutations.bats`: every
+mutation must apply or declare itself retired, 32 s for all 184, failing by
+name. `skills/develop-change/SKILL.md` step 6 already told authors to check this
+by hand and was correct; a step that depends on being remembered is not a
+control.
+
+Proving the kills found three further defects, all pre-existing and all now
+recorded: PR-tenhv4, PR-8uggn4 and PR-2c2k3p.

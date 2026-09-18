@@ -1,5 +1,7 @@
 #!/bin/sh
 # describes: check-trace: owner: is not required on an open item
+# retired: the owner: field was dropped at 860dce4; check-trace.sh contains no
+# owner handling to revert
 python3 - <<'PY'
 old = '''                if (who == "unrecorded")
                     printf "F 0 INCOMPLETE-PROBLEM %s (open, no owner:)\\n", cur'''

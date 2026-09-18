@@ -1,5 +1,7 @@
 #!/bin/sh
 # describes: check-trace: the LAST owner: in a block wins, not the first
+# retired: the owner: field was dropped at 860dce4; check-trace.sh contains no
+# owner handling to revert
 python3 - <<'PY'
 old = '''cur != "" && !own_seen && gr_kw_here(line, "owner:")  { own_seen = 1; own = gr_value(line, "owner:") }'''
 new = '''cur != "" && gr_kw_here(line, "owner:")  { own_seen = 1; own = gr_value(line, "owner:") }'''
