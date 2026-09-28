@@ -1,8 +1,8 @@
 # Requirements ledger
 
 This directory is a per-change ledger: each merged change contributes one
-dated file, `YYYY-MM-DD-<slug>.md`, named at merge time (the date is the
-merge date, so `ls` reads chronologically). In a worktree, create
+dated file, `YYYY-MM-DD-<slug>.md`, named at merge time (the date is the day
+`merge-change` finalized the draft, so `ls` reads chronologically). In a worktree, create
 `DRAFT-<branch>-<slug>.md`; `merge-change` renames it. **Edit existing items
 in the file that defines them** — definitions never move.
 

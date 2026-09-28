@@ -18,7 +18,7 @@ EOF
     git diff --quiet
 }
 
-@test "finalize: renames draft doc file to merge-dated name" {
+@test "finalize: renames draft doc file to its finalize-dated name" {
     printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
     commit_all draft-file
     today=$(date +%Y-%m-%d)
@@ -278,7 +278,11 @@ EOF
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     grep -q 'Created as DRAFT-feature-dose-limits.md; finalize renames it at merge.' docs/plans/2026-01-01-x.md
-    [[ "$output" != *"docs/plans"* ]] || { echo "$output"; false; }
+    # PR-9zvb36 narrowed this: the plan is still never REWRITTEN, but it is now
+    # reported as unrewritten, so the assertion names the rewrite line rather
+    # than the path. The report itself is pinned by its own tests below.
+    [[ "$output" != *"rewrote docs/plans"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"would rewrite docs/plans"* ]] || { echo "$output"; false; }
 }
 
 @test "finalize: an ambiguous bare basename is left for the gate, the path form still rewrites" {
@@ -435,4 +439,121 @@ EOF
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     grep -q 'Glued: xDRAFT-feature-x.md and _DRAFT-feature-x.md;' docs/risk/README.md
     grep -q "real: ${today}-x.md\." docs/risk/README.md
+}
+
+# --- What the rewrite pass cannot reach (PR-9zvb36) --------------------------
+
+@test "finalize-docs: a draft link in docs/plans/ is reported as unrewritten" {
+    # verifies: PR-9zvb36
+    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
+    mkdir -p docs/plans
+    printf 'See DRAFT-feature-dose-limits.md for the dose work.\n' > docs/plans/2026-01-01-x.md
+    commit_all draft-and-plan-link
+    run sh .guardrails/scripts/finalize-docs.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"unrewritten docs/plans/2026-01-01-x.md:1: DRAFT-feature-dose-limits.md"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"(outside the rewrite scope"* ]] || { echo "$output"; false; }
+    grep -q 'See DRAFT-feature-dose-limits.md for the dose work.' docs/plans/2026-01-01-x.md
+}
+
+@test "finalize-docs: a narration in a verification record is reported the same way" {
+    # verifies: PR-9zvb36 — the script does not judge narration against link.
+    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
+    mkdir -p docs/verification
+    printf 'Created as DRAFT-feature-dose-limits.md and finalized at merge.\n' > docs/verification/2026-01-01-r.md
+    commit_all draft-and-narration
+    run sh .guardrails/scripts/finalize-docs.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"unrewritten docs/verification/2026-01-01-r.md:1: DRAFT-feature-dose-limits.md"* ]] \
+        || { echo "$output"; false; }
+    grep -q 'Created as DRAFT-feature-dose-limits.md and finalized at merge.' docs/verification/2026-01-01-r.md
+}
+
+@test "finalize-docs: a reference inside the rewrite scope is not reported as unrewritten" {
+    # verifies: PR-9zvb36 — it was rewritten; reporting it too would be noise.
+    #
+    # Two references, because the rewritten one alone cannot fail: once it is
+    # rewritten the old basename is gone from the tree and the scan finds
+    # nothing whether or not the scope is subtracted. The second reference is
+    # the ambiguous bare form, which the pass deliberately leaves in place and
+    # already reports as `left` — a scoped file that still contains the old basename
+    # after the pass, which is the only shape that exercises the subtraction.
+    today=$(date +%Y-%m-%d)
+    printf '# merged earlier today\n' > "docs/risk/${today}-notes.md"
+    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-notes.md
+    printf '**HAZ-h7z4mn**: overdose.\n' > docs/risk/DRAFT-feature-notes.md
+    printf '\nPath: docs/risk/DRAFT-feature-notes.md. Bare: DRAFT-feature-notes.md.\n' >> docs/architecture/README.md
+    printf '**REQ-b4m8y7**: a second draft.\n' > docs/requirements/DRAFT-feature-dose-limits.md
+    printf '\nSee DRAFT-feature-dose-limits.md.\n' >> docs/risk/README.md
+    commit_all draft-and-scoped-refs
+    run sh .guardrails/scripts/finalize-docs.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"rewrote docs/risk/README.md: DRAFT-feature-dose-limits.md -> ${today}-dose-limits.md"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"left docs/architecture/README.md: DRAFT-feature-notes.md"* ]] || { echo "$output"; false; }
+    [[ "$output" != *unrewritten* ]] || { echo "$output"; false; }
+}
+
+@test "finalize-docs: --dry-run previews the unrewritten report" {
+    # verifies: PR-9zvb36
+    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
+    mkdir -p docs/plans
+    printf 'See DRAFT-feature-dose-limits.md for the dose work.\n' > docs/plans/2026-01-01-x.md
+    commit_all draft-and-plan-link-dry
+    run sh .guardrails/scripts/finalize-docs.sh --dry-run
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"would leave unrewritten docs/plans/2026-01-01-x.md:1: DRAFT-feature-dose-limits.md"* ]] \
+        || { echo "$output"; false; }
+    git diff --quiet
+    [ -f docs/requirements/DRAFT-feature-dose-limits.md ]
+}
+
+@test "finalize-docs: the unrewritten report does not change the exit status" {
+    # verifies: PR-9zvb36 — informational, so exit 0 with hits present.
+    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
+    mkdir -p docs/plans
+    printf 'See DRAFT-feature-dose-limits.md twice: DRAFT-feature-dose-limits.md.\n' > docs/plans/2026-01-01-x.md
+    commit_all draft-exit-status
+    run sh .guardrails/scripts/finalize-docs.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *unrewritten* ]] || { echo "$output"; false; }
+}
+
+@test "finalize-docs: the header states the finalize date, not the merge date" {
+    # verifies: PR-xec7dd — the date is the date the draft name was retired.
+    header=$(sed -n '1,/^set -u/p' "$BATS_TEST_DIRNAME/../scripts/finalize-docs.sh")
+    printf '%s\n' "$header" | grep -q 'finalize-date' || { printf '%s\n' "$header"; false; }
+    ! printf '%s\n' "$header" | grep -q 'merge-date' || { printf '%s\n' "$header"; false; }
+    ! grep -q 'merge-date' "$BATS_TEST_DIRNAME/../scripts/lib.sh" \
+        || { grep -n 'merge-date' "$BATS_TEST_DIRNAME/../scripts/lib.sh"; false; }
+}
+
+@test "finalize-docs: an unrewritten scan that fails aborts instead of reporting a clean finalize" {
+    # verifies: PR-9zvb36 — report_unrewritten dies on git grep exit > 1, and
+    # nothing reached that line: the sibling scan-failure test intercepts
+    # `git grep -l`, so it aborts inside scan_refs and the whole-tree
+    # `git grep -n` is never run. This wrapper lets every `-l` scan through —
+    # the rewrite pass completes normally — and fails only the later `-n` one,
+    # so a scan that errors cannot be read as a clean tree.
+    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
+    printf '\nSee DRAFT-feature-x.md.\n' >> docs/risk/README.md
+    commit_all unrewritten-scan-fails
+    real_git=$(command -v git)
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    cat > "$BATS_TEST_TMPDIR/bin/git" <<EOF
+#!/bin/sh
+if [ "\$1" = grep ] && [ "\$2" = -n ]; then
+    echo 'fatal: simulated grep failure' >&2
+    exit 128
+fi
+exec "$real_git" "\$@"
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/bin/git"
+    PATH="$BATS_TEST_TMPDIR/bin:$PATH" run sh .guardrails/scripts/finalize-docs.sh
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"unrewritten scan failed (git grep exit 128)"* ]] || { echo "$output"; false; }
+    # the rewrite pass completed before the fatal scan — proof the
+    # wrapper did not abort the script early, which would pass vacuously
+    [[ "$output" == *"rewrote docs/risk/README.md"* ]] || { echo "$output"; false; }
 }

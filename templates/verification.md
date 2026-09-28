@@ -14,7 +14,25 @@ Plan: `docs/plans/<plan file>`.
 
 ## The gate
 
-Every figure derived from the tree under test, not copied forward.
+Every figure below is measured on one tree, and the table names it, so a later
+reader can re-measure the same tree instead of guessing which round produced
+these numbers. **No figure here is copied forward from an earlier round.**
+Naming the tree does not soften that rule, it is what makes breaking it
+visible: a number reproduced from a previous round's record describes whichever
+tree that round measured, so under the name above it the table would claim a
+measurement nobody made.
+
+Measured on: `<commit>` — `git rev-parse HEAD` — tree `<tree hash>`, from
+`git rev-parse HEAD^{tree}` on a clean worktree. Where `merge-change` step 3
+renamed nothing, this is the tree step 2 measured and the step 2 gate summary
+is what the rows below report.
+
+A figure that describes the repository rather than this change does not belong
+in this table at all, freshly measured or not: the open-problem count, the
+roll-call total, the age of the oldest item. Each is true of one instant of a
+ledger every other change edits, and a record outlives that instant. The
+`check-trace.sh` row takes the exit status, plus which of **this change's own**
+IDs entered or left the roll-call.
 
 | Gate | Result |
 | --- | --- |
@@ -46,7 +64,8 @@ One block per finding the reviewer raised, in the toolkit item shape, each with
 its disposition. A review that raised nothing is legal, and `verdict:` above
 states that.
 
-**finding-1**: <what the reviewer found, in their terms>
+**finding-1**: <code | requirement | record> — <what the reviewer found, in
+their terms>
 disposition: <what changed, and the test that reddens without it>
 
 ## Gaps
@@ -78,6 +97,13 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   front matter, they do not count either — a header key is a title-page field,
   not a claim about the review.
 - A field with no value after it is an omission, not compliance.
+- A finding's value OPENS with its tag — `code`, `requirement` or `record`
+  (`merge-change` step 6a). check-review.sh never reads the value, so the tag
+  costs no field and adds no malformed case. It exists for the convergence rule
+  at `merge-change` step 6a: a round raising no `code` and no `requirement`
+  finding is the last REVIEW round. The tag does not shorten the sequence —
+  every finding reruns from step 1, whatever its tag — it decides only whether
+  another reviewer is dispatched.
 - A finding is `**finding-N**:` at column one, N digits, and its `disposition:`
   is a plain annotation inside its block. A heading or any bold line containing a
   colon ends the block, which is why `disposition:` is not written in bold: it

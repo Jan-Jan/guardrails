@@ -200,7 +200,8 @@ signed squash merges (`merge-change`).
 - **Draft doc files.** On ledger-layout projects (doc config keys point at
   directories), new items go into this change's own file:
   `docs/<area>/DRAFT-<branch>-<slug>.md`. merge-change renames it to
-  `YYYY-MM-DD-<slug>.md` (merge date), so parallel worktrees never touch the
+  `YYYY-MM-DD-<slug>.md`, dated when the draft name is retired, so parallel
+  worktrees never touch the
   same file and the ledger reads chronologically. Amendments to existing
   items are edited in the dated file that defines them; never move a
   definition between files.

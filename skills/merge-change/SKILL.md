@@ -106,6 +106,14 @@ after the finding — anything that does not repeat.
    commit, so the next reader knows what the duplicate scan in step 4 was
    actually compared against.
 
+   **A base already merged is a no-op, and the figures downstream of it stand.**
+   On a findings round the base has usually not moved since the round before,
+   and then `git merge` prints `Already up to date` and leaves
+   `git rev-parse HEAD^{tree}` exactly where it was. That is the same question
+   step 6 asks about step 2's gate summary, asked one step earlier. The step is
+   still run every round — what is cheap on a repeat round is the answer, never
+   the question.
+
    Resolve conflicts here, never on the base branch. This step is critical
    for step 4: `check-ids.sh` has no gate against the base branch, because
    after this merge every ID the base defines is in the tree its in-tree
@@ -130,10 +138,19 @@ after the finding — anything that does not repeat.
    re-run it in your own context. Breakage from the conflict resolution or
    the integration stops the merge right here, read from the summary's
    pass/fail counts.
+
+   **Record the tree the summary describes**, beside the summary itself:
+
+   ```sh
+   git rev-parse HEAD^{tree}   # clean worktree, at the moment of the dispatch
+   ```
+
+   A gate summary with no tree beside it cannot be re-identified one round
+   later, and step 6 compares against this hash.
 3. **Finalize the draft doc files:**
    `.guardrails/scripts/finalize-docs.sh` (preview with `--dry-run` first).
    This renames any `DRAFT-<branch>-<slug>.md` ledger file to
-   `<merge-date>-<slug>.md`. It then rewrites every root-relative path and
+   `<finalize-date>-<slug>.md`. It then rewrites every root-relative path and
    every bare name that refers to a renamed file across the ledger
    directories and the SOUP file and prints one `rewrote FILE: old -> new`
    line each; read those lines — a rewrite edits prose somebody else wrote. A
@@ -142,8 +159,46 @@ after the finding — anything that does not repeat.
    `../risk/DRAFT-x.md` is not rewritten; step 5 reports it as
    `DANGLING-FILE` and you write the dated name by hand. The same applies to
    a name wrapped in emphasis (`_DRAFT-x.md_`) or glued to a longer word.
-   Plans and verification records are never rewritten. Commit the renames:
-   `git add -A && git -c commit.gpgsign=false commit -m "chore: finalize ledger files"`.
+   Plans and verification records are never rewritten.
+
+   **`unrewritten FILE:LINE: NAME` is the rest of that sentence.** After the
+   rewrite the script scans the whole tree for each old basename and prints
+   every occurrence it did not touch, because the file is outside the rewrite
+   scope — a plan, a verification record. Read each line and rule on it
+   yourself: a sentence narrating the rename is meant to name the old file and
+   is correct as it stands, while a citation that was meant to resolve is now
+   dead and you repair it by hand. The script does not judge narration against
+   link, and the report does not move its exit status; under `--dry-run` the
+   line opens `would leave unrewritten`. Nothing downstream repeats it —
+   `DANGLING-FILE` at step 5 reads the same scope the rewrite does, which is
+   the gap this report was added to close.
+
+   **The script renames every draft ledger file it finds, including one another
+   change left behind.** It does not ask whose a draft is, so a leaked draft is
+   adopted into this change silently — renamed into this diff, this record and
+   this change's `Implements:` line, with no item to explain it. Read the rename
+   lines for a name you do not recognise, and if one appears, stop: the repair
+   belongs to a change of its own, not to this one. That there is no verdict for
+   this is a known gap, recorded as a problem item in this toolkit's own ledger.
+
+   **The date in the new name is the day the draft name was retired — this
+   step, on this round.** It is within a few days of the squash, and nothing
+   re-derives it afterwards: a findings round that crosses midnight keeps the
+   date of the first finalize attempt, because by then the tree is already
+   dated and the script has nothing to rename. So the filename is a handle for
+   the file, not a claim about when the change reached the base branch. When
+   you want the day of the merge itself, git has it exactly, for every commit.
+
+   Commit the renames — **only where there were renames.** On the second and
+   every later findings round the drafts are already dated, the script is a
+   silent no-op, and an unconditional commit then exits 1 with nothing to
+   commit: a halt for no defect at all, in a sequence that stops at any
+   failure. Stage first and let the index answer the question:
+
+   ```sh
+   git add -A
+   git diff --cached --quiet || git -c commit.gpgsign=false commit -m "chore: finalize ledger files"
+   ```
 
    There are no IDs to finalize. Every item received its ID from `new-id.sh`
    when it was written, and that ID is allocated against nothing — which is
@@ -158,10 +213,37 @@ after the finding — anything that does not repeat.
    not valid — a hand-typed token with no digit, or a legacy ID too short to
    have ever matched. The item it announces is invisible to every other gate.
    Give it an ID from `new-id.sh`; never widen a pattern to accept it.
+
+   **`DRAFT-FILE` does not say whose draft it is.** The scan reads the whole
+   tree, so a draft leaked by a change that already merged fails this step for
+   every change that follows it, and the verdict names no other change. If the
+   path is not one this change created, you are finishing someone else's step 3:
+   the repair belongs to a change of its own rather than to this diff. Telling
+   the two apart mechanically is an open problem in this toolkit — the obvious
+   discriminator, whether the name opens `DRAFT-<this branch>-`, convicts any
+   draft that does not embed its branch, which the convention permits.
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.
-6. **Dispatch the verification suite again** — same dispatch as step 2. The
-   renames moved files the tests may read; the fresh **gate summary** is what
-   proves nothing broke.
+6. **Dispatch the verification suite again — where step 3 renamed something.**
+   The renames moved files the tests may read, and a fresh **gate summary** is
+   what proves nothing broke.
+
+   Where step 3 renamed nothing, the tree step 2 measured is the tree still
+   under you: step 3 was a no-op, steps 4 and 5 only read, and step 1 merged a
+   base that had already been merged. A second dispatch over it spends a full
+   suite run to reproduce an answer you already have. The test is mechanical,
+   not a matter of judgment:
+
+   ```sh
+   git status --porcelain      # empty — otherwise the comparison means nothing
+   git rev-parse HEAD^{tree}   # the tree step 2 measured, or a different one?
+   ```
+
+   Same hash and a clean worktree, and **the step 2 summary stands**; step 6b
+   then records which tree the figures describe, so the evidence is keyed to a
+   tree rather than to a round nobody can identify afterwards. A different hash,
+   or anything uncommitted, and you dispatch as before. Findings rounds bring
+   the sequence through here repeatedly, and this is what keeps a round that
+   moved nothing from measuring the same tree twice.
 
 6a. **Independent review** (DO-178C independence: the verifier is not the
    author). Dispatch a fresh subagent — or hand off to a human reviewer,
@@ -246,11 +328,56 @@ after the finding — anything that does not repeat.
    shape step 6b's record already wants —
 
    ```markdown
-   **finding-1**: <what the reviewer found>
+   **finding-1**: record — the gate table states 214 tests, the summary 218.
    ```
 
    — plus a one-line verdict, so 6b copies them instead of re-summarizing
    them. A finding reworded by the author is the author's finding.
+
+   **Every finding opens with its tag** — `code`, `requirement` or `record`, the
+   first word of the finding's value, as above. `check-review.sh` block-parses
+   the `**finding-N**:` header and never looks at the value, so this adds no
+   script, no new required field and no new malformed case. What it adds is what
+   the convergence rule below needs: whether a round found a defect in the
+   software or in the account of it.
+
+   - `code` — the implementation is wrong.
+   - `requirement` — an item, a skill or a template states something the tree
+     does not do, or fails to state something it must.
+   - `record` — the verification record, the plan or the ledger is inaccurate
+     about work that is itself correct.
+
+   **Every finding still sends the sequence back to step 1, whatever its tag.**
+   What the tag decides is not whether the sequence reruns but whether **another
+   reviewer is dispatched** — see the convergence rule below. Bounding what a
+   `record` finding costs within a round — dispositioning it in place without
+   re-running at all — is the obvious next step and is deliberately not taken
+   here. Five
+   review rounds on the change that added this tag each rejected a formulation of
+   that boundary, because every one of them rested on naming a class of files no
+   gate reads, and there is none: `check-ids.sh` greps the whole tree. The tag
+   earns its place on the convergence rule alone. Anyone reaching for the saving
+   should read that change's record first.
+
+   **A round raising no `code` and no `requirement` finding is the last review
+   round.** Its findings are answered in the record they are about, anything
+   still outstanding is booked there as a gap, and the sequence reruns from
+   step 1 as every round does — but **no further reviewer is dispatched**, and
+   the rerun ends at 6b rather than at another 6a. That is the whole of the
+   saving, and it is deliberately the whole: the gates are cheap and run again,
+   what costs is the review and the round-trip it starts. Not two clean
+   rounds in a row: the second buys one independent read of the first's
+   corrections at the price of an entire review dispatch, and the regress it
+   guards against has no end — the verification record is the one artifact this
+   process does not verify, a property commit `328f0cfd` established rather than
+   repaired. Three downstream changes spent 27 review rounds between them, and
+   most of the later ones corrected prose with prose: one 12-round change whose
+   rounds 11 and 12 found no code defect, a 7-round change whose rounds 4
+   through 7 found none, an 8-round change over a diff with no production code
+   in it at all.
+
+   The reviewer still reads the record, and still raises what is wrong with it.
+   What changes is the price of a finding against it.
 
    **Remove the review worktree, every round that created one.** Findings or
    not, the dispatch is over the moment the report is in hand, and the
@@ -277,10 +404,12 @@ after the finding — anything that does not repeat.
    fails on a path that was never created — which, in a sequence that halts on
    any failure, is a stop for no reason.
 
-   **Here, and not in a later step, because a round that returns findings never
-   reaches a later step.** The paragraph below sends the sequence back to
-   step 1, so everything after it runs only on the final, finding-free round —
-   while the path and the branch above are *fixed*. Put the removal downstream
+   **Here, and not in a later step, because a round that returns any finding at
+   all never reaches a later step in that pass.** The paragraph below sends the
+   sequence back to step 1 whatever the findings were tagged, and the pass that
+   does go on to 6b is the one after the last review round, which dispatches no
+   reviewer and so creates no worktree to remove — while the path and the branch
+   above are *fixed*. Put the removal downstream
    and every intermediate round leaves its worktree behind, until the next
    round's dispatch fails with `fatal: a branch named
    '<change-branch>-review' already exists`.
@@ -293,7 +422,10 @@ after the finding — anything that does not repeat.
    read the scratch, delete it, and remove the worktree again, keeping
    anything worth keeping by putting it in the record at 6b first.
 
-   Findings block the merge: you decide the disposition, the fix is dispatched
+   Findings block the merge — every one of them, whatever its tag: you decide
+   the disposition, the sequence reruns from step 1, and where the round raised
+   a `code` or `requirement` finding a fresh reviewer is dispatched at 6a. The
+   fix is dispatched
    into a nested task worktree of its own — `.worktrees/<change-branch>-<tag>`,
    named in the prompt like every other (`worktree-discipline` step 1) — and
    merged onto the change branch, never onto the base branch, and the sequence
@@ -305,10 +437,28 @@ after the finding — anything that does not repeat.
    `docs/verification/<date>-<branch>.md` in the worktree, fill it in, and
    commit it (unsigned, like all worktree commits): test totals from the
    step 6 gate summary,
-   coverage summary (if configured), each check script's result, open PR
-   warnings, the `red -> green:` attestations from the dispatch reports, and
+   coverage summary (if configured), each check script's result, the
+   problem-ledger delta this change makes, the `red -> green:` attestations
+   from the dispatch reports, and
    the reviewer's verdict from 6a. The squash commit then contains the evidence
    on the base branch, and its `Verified:` line references this record.
+
+   **The delta, never the total.** The problem-ledger line is the IDs this
+   change **resolves, accepts or opens** — not the open count, not the
+   `check-trace.sh` roll-call, not the age of the oldest item. Each of those
+   describes the whole ledger at one instant; any other change that merges
+   falsifies it; and a record is read months afterwards, when nobody can tell a
+   figure that was wrong from one that merely aged. A delta is a property of
+   this change alone, so it stays true as long as the diff does, and a reader
+   who wants today's totals runs `check-trace.sh` and gets them fresh. The cost
+   of the old wording is on the record: one merged change here existed only to
+   correct a count in a record already on the base branch.
+
+   Note what this adds: nothing. There is no gate against count-shaped prose
+   and there will not be one — a check on shape loses to respellings, which is
+   this toolkit's standing position on shape guards. The paragraph above deletes
+   a required field rather than policing one, and the delta it puts in its place
+   is already in your hand from the ledger diff.
 
    **Copy the red → green attestations in.** The record's red → green table
    takes one row per ID this change implements: the ID, the test that verifies
@@ -347,7 +497,7 @@ after the finding — anything that does not repeat.
    Each finding from 6a gets a block with its disposition:
 
    ```markdown
-   **finding-1**: <what the reviewer found>
+   **finding-1**: <code | requirement | record> — <what the reviewer found>
    disposition: <what changed, and the test that reddens without it>
    ```
 
@@ -425,9 +575,17 @@ after the finding — anything that does not repeat.
    <type>: <summary>
 
    Implements: <final REQ/RC/SDD/LLR IDs>
+   Resolves: <PR IDs this change closes>
+   Opens: <PR IDs this change raises>
    Plan: docs/plans/<plan file>
    Verified: docs/verification/<record file>
    ```
+
+   `Resolves:` and `Opens:` are the same delta step 6b records, in the one place
+   that travels with the change forever. No script parses this message, so they
+   cost a line each and can be checked against the diff by anyone, at any
+   distance, without a ledger to compare them to. A change that closes or opens
+   nothing leaves the line out rather than writing an empty one.
 
    Then hand the user exactly one command, with the real paths and branch name
    substituted in — their shell has none of your variables — and **stop**:
@@ -521,7 +679,9 @@ after the finding — anything that does not repeat.
 
 | Thought | Reality |
 |---|---|
-| "Skip re-verification, the rename touched no code" | It moved regulated documents. Re-dispatch the gate (step 6). |
+| "Skip re-verification, the rename touched no code" | Ask the tree, not yourself. A rename moved regulated documents, and step 6 re-dispatches the gate. A round that renamed nothing left `git rev-parse HEAD^{tree}` where step 2 found it, and that hash — not your reading of what the round touched — is what lets the step 2 summary stand (step 6). |
+| "It is only a `record` finding, disposition it here and skip the rerun" | The tag states what a round found; it does not shorten the sequence. Every finding reruns from step 1. Bounding what a record finding costs is a real ask and five review rounds failed to state the boundary — see step 6a before attempting a sixth. |
+| "Put the open-problem count in the record so the reader knows where we are" | It is a fact about the ledger, not about this change, and the next merge falsifies it. Name the IDs this change resolves, accepts or opens (step 6b). |
 | "Sign later, merge now" | An unsigned base branch is a broken audit trail. Stop instead. |
 | "I'll run `git commit -S` myself, it's one command" | The commit is the user's: it may need their hardware touch, and waiting on their key on their behalf is what step 7 replaces. Hand over the compound and stop. |
 | "The message file can live in the repo, it's temporary" | No guard would catch it, which is the problem: it is one `git add -A` from being committed by the commit it describes. Write it outside the repository (step 7). |

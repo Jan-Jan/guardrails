@@ -686,7 +686,7 @@ gr_prefix_re() {
 # thing under `.guardrails/` that matches any gate's pattern; config.yaml
 # matches none. Excluding the whole directory also hid the project's own files:
 # with `doc_srs: .guardrails/docs/requirements`, the finalize step renamed the
-# draft ledger to its merge-date name, minted nothing, and exited 0, and both
+# draft ledger to its finalize-date name, minted nothing, and exited 0, and both
 # check scripts then passed a tree with a live `REQ-DRAFT-x-1` in it.
 # Narrowing cannot reach one case: a doc_* configured INSIDE this directory is
 # still accepted, and checked: counts its items as zero. Whether any gate

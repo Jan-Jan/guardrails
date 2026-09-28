@@ -111,7 +111,7 @@ pattern accepts both forms, and nothing converts an existing SRS.
 **Document ledgers:** each doc area is a directory of per-change files, not
 a monolith — so parallel worktrees never conflict on documents either. In a
 worktree, new items go into `docs/<area>/DRAFT-<branch>-<slug>.md`;
-`merge-change` renames it to `YYYY-MM-DD-<slug>.md` (the merge date, so
+`merge-change` renames it to `YYYY-MM-DD-<slug>.md` (the finalize date, so
 `ls` reads chronologically; same-day collisions get `-2`). Existing items
 are always edited in the dated file that defines them. Each directory's
 README contains the grammar; `soup.md` stays a single inventory file, and
@@ -132,7 +132,7 @@ at `.guardrails/scripts/`. POSIX sh + git/grep/awk/sed only.
 | `check-review.sh [--branch NAME]` | the change under merge has a verification record that declares it and that this change wrote (`MISSING-RECORD`, `STALE-RECORD`), that record names a `reviewer:`, a `verdict:` and what was `reproduced:` (`INCOMPLETE-RECORD`), and every `**finding-N**:` the reviewer raised contains a `disposition:` (`UNDISPOSED-FINDING`, plus `MALFORMED-FINDING` and `ORPHAN-DISPOSITION` for the headers and annotations that would otherwise detach one). Ends with `checked:` (records read, records for this change, findings, and whether provenance was checked). Run on the base branch it exits **2**, never 0 — there is no change under review there |
 | `check-signing.sh [--strict] [RANGE]` | commit signatures verified. `--setup` instead *proves the project can produce a verifiable signature*: every setting present (`user.signingkey`, `commit.gpgsign`, `user.email`, and the format's trust root — not `gpg.format`, whose unset value IS git's documented `openpgp` default), each missing one named on its own line, then a real signed commit made in a throwaway repository and read back at `%G?` = `G`. `ratchet` will not complete until it passes |
 | `finish-merge.sh BRANCH` | the guarded half of the merge command the user runs. Four guards, all proved before anything is removed: the signature verifies under `--strict`; `git diff --quiet HEAD BRANCH` proves the squash captured everything the change branch contained; no registered worktree lies *inside* the one about to go, because a nested task worktree is invisible to the outer one's `git status` and would be deleted silently, work and all; and `git worktree remove` runs *without* `--force`, so git's own rejection of a dirty worktree is the last guard and the first destructive act. Only then the worktree goes and the branch is force-deleted. Any rejection leaves both intact — the signed commit always remains |
-| `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their merge-dated names, then rewrites every root-relative path reference to a renamed file, and every bare name that only one rename maps, across the ledger directories and the SOUP file, printing each; a bare name two renames share is reported as left for the author to write as a path; a relative link (`../risk/DRAFT-x.md`) is not rewritten either and is reported by `check-trace.sh` as `DANGLING-FILE` after the merge, as is a name glued to a longer token or wrapped in emphasis underscores; plans and verification records are left alone because they narrate the rename. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme was merged |
+| `finalize-docs.sh [--dry-run]` | rename this change's draft ledger files to their finalize-dated names, then rewrites every root-relative path reference to a renamed file, and every bare name that only one rename maps, across the ledger directories and the SOUP file, printing each; a bare name two renames share is reported as left for the author to write as a path; a relative link (`../risk/DRAFT-x.md`) is not rewritten either and is reported by `check-trace.sh` as `DANGLING-FILE` after the merge, as is a name glued to a longer token or wrapped in emphasis underscores; plans and verification records are left alone because they narrate the rename. There are no IDs to finalize; this script was `finalize-ids.sh` until the token scheme was merged |
 
 Annotations are read as lists: only the IDs immediately following the first
 occurrence of `verifies:`/`mitigates:`/`implements:`/`satisfies:`/`traces:`/`assesses:`
@@ -271,7 +271,7 @@ scripts contain a draft token and definition-form examples in their own comments
 so the gates they implement must not read them. That exclusion used to cover
 the whole `.guardrails/` tree, which also hid anything a project kept there:
 with `doc_srs: .guardrails/docs/requirements`, the finalize step renamed the
-draft ledger to its merge-date name, minted no ID, and exited 0, and both check
+draft ledger to its finalize-date name, minted no ID, and exited 0, and both check
 scripts then passed a tree containing a live `REQ-DRAFT-x-1`. Ledgers under
 `.guardrails/` are read normally now.
 

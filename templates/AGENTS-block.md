@@ -23,7 +23,7 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
    so two worktrees and two GitHub PRs never contend for one and nothing is
    renumbered at merge. Never invent an ID by hand. Document FILES are still
    finalized at merge: new items go into `docs/<area>/DRAFT-<branch>-<slug>.md`,
-   renamed to `<merge-date>-<slug>.md` by `finalize-docs.sh`; existing items
+   renamed to `<finalize-date>-<slug>.md` by `finalize-docs.sh`; existing items
    are edited in the dated file that defines them. Every new test declares
    what it verifies
    (`verifies: <IDs>` — annotate the lowest level present: LLR where one

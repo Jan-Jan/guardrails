@@ -1266,6 +1266,215 @@ gr_writing_scan() {
     grep -q 'kills tests' "$skill"
 }
 
+@test "merge-change: the record states the ledger delta, not the open count" {
+    # verifies: PR-hkc376
+    # Step 6b required "open PR warnings" — a census of the whole ledger at one
+    # instant, in a per-change artifact read long afterwards. 78 of 123 records
+    # mention the roll-call and 20 pin a number; one merged change existed only
+    # to correct a count in an already-merged record.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'resolves, accepts or opens' "$skill"
+    ! grep -q 'open PR warnings' "$skill"
+}
+
+@test "merge-change: the commit template states the Resolves and Opens trailers" {
+    # verifies: PR-hkc376
+    # Deltas are checkable against the diff forever; no script parses the
+    # message, so the trailers cost nothing.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -qF 'Resolves: <PR IDs this change closes>' "$skill"
+    grep -qF 'Opens: <PR IDs this change raises>' "$skill"
+}
+
+@test "verification template: a repository figure does not belong in the gate table" {
+    # verifies: PR-hkc376
+    # Measuring the open count fresh does not make it a fact about this change.
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    grep -q 'describes the repository rather than this change' "$template"
+}
+
+@test "resolve-problem: a backlog figure in a document is a red flag" {
+    # verifies: PR-hkc376
+    skill="$BATS_TEST_DIRNAME/../skills/resolve-problem/SKILL.md"
+    grep -q 'State the backlog size' "$skill"
+    grep -q 'Name the IDs that moved' "$skill"
+}
+
+@test "verification template: the gate table names the tree the figures describe" {
+    # verifies: PR-dkm5tq
+    # Gate evidence is keyed to a tree or it is keyed to nothing; the practice
+    # was already ahead of the template.
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    grep -q 'Measured on:' "$template"
+    grep -qF 'rev-parse HEAD^{tree}' "$template"
+    # Naming the tree does not imply the older rule, and the older rule is the
+    # one 2026-09-10-field-report-items.md finding-21 turned on: a figure
+    # reproduced from an earlier round describes whichever tree that round
+    # measured, whatever the name above the table claims.
+    grep -q 'copied forward from an earlier round' "$template"
+}
+
+@test "merge-change: step 6 stands on step 2 where the tree is unchanged" {
+    # verifies: PR-dkm5tq
+    # Steps 4 and 5 are read-only and step 3 renames nothing on a second
+    # findings round, so the second dispatch measures the tree the first one
+    # already measured.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'the step 2 summary stands' "$skill"
+    grep -qF 'rev-parse HEAD^{tree}' "$skill"
+}
+
+@test "merge-change: step 3 commits only when it renamed something" {
+    # verifies: PR-dkm5tq
+    # The unconditional commit exits 1 with nothing to commit on a round where
+    # the drafts are already dated — a halt for no defect, in a sequence that
+    # stops at any failure.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'only where there were renames' "$skill"
+    grep -qF 'git diff --cached --quiet ||' "$skill"
+}
+
+@test "merge-change: the reviewer tags every finding" {
+    # verifies: PR-3s74u3
+    # check-review.sh block-parses the header and ignores the value, so the tag
+    # adds no script and no new malformed case.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'Every finding opens with its tag' "$skill"
+    grep -qF '`code`, `requirement` or `record`' "$skill"
+}
+
+@test "merge-change: a round with no code or requirement finding is the last" {
+    # verifies: PR-3s74u3
+    # 27 review rounds across three changes, the majority of the later ones
+    # correcting prose with prose. One clean round, not two.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'is the last review' "$skill"
+}
+
+@test "the skills and templates name the finalize date, not the merge date" {
+    # verifies: PR-xec7dd
+    # finalize-docs.sh dates a draft when it retires the draft name, which is
+    # merge-change step 3 and is not re-derived afterwards: 49 of 193 dated
+    # ledger files differ from the day their change reached the base branch,
+    # the largest gap 6 days. The documents claimed otherwise in fourteen places.
+    #
+    # The scan covers docs/problems/README.md as well, which is this repository's
+    # own copy of templates/problems.md: fixing the template does not fix the
+    # copy, and the copy is what a reader of this ledger opens. Round 2 of the
+    # review found it still stating the merge date after round 1 had repaired
+    # the template and the README.
+    root="$BATS_TEST_DIRNAME/.."
+    ! grep -rniE 'merge.date' "$root"/skills/*/SKILL.md "$root"/templates/*.md \
+        "$root"/README.md "$root"/docs/problems/README.md
+}
+
+@test "merge-change: step 2 records the tree its gate summary describes" {
+    # verifies: PR-dkm5tq
+    # Step 6 compares the current tree against the one step 2 measured, so step
+    # 2 has to have written that hash down. Without it the comparison has no
+    # left-hand side and the rule is unusable on its first pass.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'Record the tree the summary describes' "$skill"
+    # ...and upstream of the step 6 comparison that reads it.
+    recorded=$(grep -n 'Record the tree the summary describes' "$skill" | cut -d: -f1)
+    compared=$(grep -n 'the step 2 summary stands' "$skill" | cut -d: -f1)
+    [ "$recorded" -lt "$compared" ]
+}
+
+@test "check-traceability: the problem limits state the accepted ruling too" {
+    # verifies: PR-9xxz3b, PR-4fwfjp
+    # STALE-PROBLEM and PROBLEM-BACKLOG offered the reporter's two choices —
+    # fix someone else's problem report under merge pressure, or raise a limit.
+    # The third answer reached main in d8502d1 and was stated only in
+    # resolve-problem and templates/problems.md, never at the gate that reddens.
+    skill="$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+    stale=$(grep -n 'STALE-PROBLEM PR' "$skill" | cut -d: -f1)
+    backlog=$(grep -n 'PROBLEM-BACKLOG (n open' "$skill" | cut -d: -f1)
+    sed -n "${stale}p" "$skill" | grep -q 'status: accepted'
+    sed -n "${backlog}p" "$skill" | grep -q 'status: accepted'
+    # exempt from both limits, never exempt from the roll-call
+    sed -n "${stale}p" "$skill" | grep -q 'roll-call'
+}
+
+@test "check-traceability: MALFORMED-STATUS knows there are three values" {
+    # verifies: PR-4fwfjp
+    # d8502d1 added `accepted` as a third status and left this row behind, so
+    # the table listed wontfix and accepted alike as errors and told the author
+    # to pick one of two.
+    skill="$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+    row=$(grep -n 'MALFORMED-STATUS PR' "$skill" | cut -d: -f1)
+    sed -n "${row}p" "$skill" | grep -q 'accepted'
+    ! sed -n "${row}p" "$skill" | grep -q 'neither .open. nor .resolved.'
+    ! sed -n "${row}p" "$skill" | grep -q 'Pick one of the two'
+}
+
+@test "merge-change: step 3 tells the author to read the unrewritten lines" {
+    # verifies: PR-9zvb36
+    # The report's entire value is a human ruling narration against link, and
+    # step 3 is the only place an author is told what to read out of
+    # finalize-docs.sh. It enumerated `rewrote FILE:` and `left FILE:` only.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'unrewritten FILE' "$skill"
+    grep -q 'would leave unrewritten' "$skill"
+}
+
+@test "verification template opens every finding with its tag" {
+    # verifies: PR-3s74u3
+    # Step 6a requires `code`, `requirement` or `record` as the first word of a
+    # finding's value, and the template a reviewer copies showed an untagged
+    # finding-1 — the one place the shape is demonstrated rather than described.
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    grep -q '^\*\*finding-1\*\*: <code | requirement | record>' "$template"
+    # and the field grammar states what the tag is for
+
+    # The boundary itself, and not only the tag. Three formulations of this rule
+    # were rejected by three review rounds, and each time the skill was repaired
+    # and the template left stating the version just disproved — a reviewer
+    # copies the template, so the wrong rule is the one that reaches the field.
+    # The template states what the tag is FOR — the convergence rule — and must
+    # not restate a boundary rule. Five review rounds rejected five formulations
+    # of one, and the change that added the tag ships none; a template that
+    # reintroduces one reaches every adopter's record.
+    grep -q 'convergence rule' "$template"
+    ! grep -q 'outside the verification record' "$template"
+    ! grep -q 'a file some gate reads' "$template"
+    ! grep -q 'a file some test reads' "$template"
+    ! grep -q 'anything a .verify_commands. entry opens' "$template"
+}
+
+@test "merge-change: the tag does not shorten the sequence" {
+    # verifies: PR-3s74u3
+    # The reporter asked for three things: classify findings, bound what a record
+    # finding costs, and say when to stop. Five review rounds each rejected a
+    # formulation of the middle one, every version resting on naming a class of
+    # files no gate reads — there is none, check-ids.sh greps the whole tree. The
+    # change ships the first and third and states plainly that it ships no
+    # boundary, so a reader does not infer one from the tag's existence.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    grep -q 'Every finding still sends the sequence back to step 1' "$skill"
+    grep -q 'deliberately not taken' "$skill"
+    # and the tag's actual effect, which is what makes the convergence rule
+    # below executable: a record-only round reruns like any other but dispatches
+    # no further reviewer. Cutting the boundary rule without stating this left
+    # the two rules contradicting each other for exactly the case convergence
+    # is about.
+    grep -q 'whether \*\*another' "$skill"
+    grep -q 'no further reviewer is dispatched' "$skill"
+    # The neighbouring paragraphs must not re-derive a shortened sequence from
+    # the tag. Round 6 fixed the rule and left one of them stating its negation;
+    # round 7 found that, because the guard then asserted only the absence of the
+    # phrase "finding-free round", which a reworded sentence satisfies while
+    # keeping the inference. So assert the claim that replaced it, and reject the
+    # two inferences by shape rather than by one spelling.
+    ! grep -q 'finding-free round' "$skill"
+    ! grep -q 'runs only on the last round' "$skill"
+    ! grep -q 'never reaches a later step\.\*\* The paragraph below sends' "$skill"
+    grep -q 'any finding at' "$skill"
+    grep -q 'whatever the findings were tagged' "$skill"
+    # and the red-flag row does not offer the saving either
+    ! grep -q 'skips the suite, not the gates' "$skill"
+}
+
 @test "check-traceability: every report a single-unit check-trace.sh run prints has a catalogue row" {
     # verifies: PR-6d2jvt
     # The skill's "Fixing each rule" table is the only place an author is told

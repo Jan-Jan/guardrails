@@ -141,3 +141,4 @@ item back to `open` and resolve it under §3.
 | "Close the PR, fix ships next week" | Resolved means the merging change contains the fix. |
 | "The test would just duplicate the fix" | The failing reproduction is the evidence the fix works. |
 | "Mark it accepted, the backlog is red" | `accepted` needs a `disposition:` — a ruling you can defend, with a date. No ruling, no exemption. |
+| "State the backlog size so the reader knows where we are" | The reader's own `check-trace.sh` run knows. A number in a document measures a tree that no longer exists. Name the IDs that moved. |

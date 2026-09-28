@@ -30,8 +30,8 @@ work is a change like any other: do it **in a worktree**
 
 Update the requirements ledger (`doc_srs` in `.guardrails/config.yaml`)
 inline — don't batch. **New items go into this change's draft file**,
-`docs/requirements/DRAFT-<branch>-<slug>.md` (merge-change renames it to the
-merge date). **Amendments to existing requirements are edited in the dated
+`docs/requirements/DRAFT-<branch>-<slug>.md` (merge-change renames it to a
+dated name when it finalizes the draft). **Amendments to existing requirements are edited in the dated
 file that defines them** — definitions never move. On single-file projects
 (`doc_srs` points at a file), edit that file.
 

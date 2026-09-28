@@ -99,7 +99,8 @@ manifest and every unit's config in one pass, and its findings
 
    The requirements/risk/architecture/problems directories are **per-change
    ledgers**: each merged change contributes one dated file
-   (`YYYY-MM-DD-<slug>.md`, merge date), created in the worktree as
+   (`YYYY-MM-DD-<slug>.md`, dated when `merge-change` finalizes it), created in
+   the worktree as
    `DRAFT-<branch>-<slug>.md` and renamed by `merge-change`. The README in
    each directory contains the item grammar.
 4. Create `docs/adr/`, `docs/plans/`, and `docs/verification/` directories, and
@@ -301,7 +302,7 @@ manifest and every unit's config in one pass, and its findings
 >    `resolved`; an unrecognised status counted as resolved too.
 > 3. `INCOMPLETE-PROBLEM … (open, no opened:)` — the backfill. Only
 >    the still-open items need it, so this is bounded and shrinks every time
->    one is resolved. For `opened:`, the merge date in the defining file's own
+>    one is resolved. For `opened:`, the date in the defining file's own
 >    name (`docs/problems/YYYY-MM-DD-slug.md`) is the honest answer when the
 >    real date is not recorded.
 >

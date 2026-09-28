@@ -3,8 +3,8 @@
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
 # finalize-docs.sh [--dry-run]
 #
-# Renames this change's draft ledger files to their merge-dated names:
-#   docs/<area>/DRAFT-<branch>-<slug>.md -> docs/<area>/<merge-date>-<slug>.md
+# Renames this change's draft ledger files to their finalize-dated names:
+#   docs/<area>/DRAFT-<branch>-<slug>.md -> docs/<area>/<finalize-date>-<slug>.md
 # Prints one "before -> after" line per rename. Then rewrites every
 # root-relative path and every bare name that refers to a renamed file across
 # the ledger directories and the SOUP file, printing one "rewrote FILE: old ->
@@ -15,13 +15,22 @@
 # sentence about history must stay true. A bare name glued to a longer token
 # or wrapped in emphasis (aDRAFT-x.md, _DRAFT-x.md_) is not rewritten either —
 # it is not the file's name — and check-trace.sh reports it after the merge.
+# Then scans the WHOLE tree for each old basename and prints one
+# "unrewritten FILE:LINE: NAME" block per occurrence the rewrite pass did not
+# reach ("would leave unrewritten" under --dry-run) — a plan or a verification
+# record naming the draft. Informational only: the exit status does not move,
+# and which of those is a narration to leave and which a link to repair by hand
+# is the author's judgment, not this script's.
 # Idempotent: with no draft ledger files present it prints nothing.
 #
 # There are no IDs to finalize. An item is given its ID by new-id.sh when it is
 # written, and that ID is allocated against nothing, so nothing has to be
 # assigned at merge. Draft ledger FILES are a different problem and remain:
 # a change writes its own file so that parallel worktrees never touch one, and
-# the merge date cannot be known until the merge.
+# the date it is finalized under is this script's own run date — merge-change
+# step 3, within a few days of the merge, and not re-derived afterwards. The
+# filename is a handle for finding the file, not a record of when it merged;
+# the merge date is in git.
 #
 # This script was called finalize-ids.sh until the token scheme was merged. It was
 # renamed rather than left with a name for work it no longer does.
@@ -167,6 +176,53 @@ rewrite_refs() {
     done
 }
 
+# report_unrewritten OLD — one block per occurrence of the old basename OLD
+# still standing anywhere in the tree OUTSIDE the rewrite scope. The scope is
+# the ledger directories and the SOUP file, deliberately (see the rewrite pass
+# below), and check-trace.sh's DANGLING-FILE reads that same scope — so a
+# DRAFT- reference in a plan or a verification record is reported by nothing at
+# all, and one review round went on four dead links in one plan (PR-9zvb36).
+#
+# Informational: the exit status does not move, and no judgment is offered
+# about which occurrence is a narration to leave as written and which is a link
+# to repair by hand. That judgment is the author's and takes five seconds.
+#
+# A failed scan is fatal, exactly as scan_refs treats its own: a scan that
+# errors finds nothing, and finding nothing is what a clean tree looks like.
+#
+# Pathname expansion is off here and IFS is a newline, as it is for every split
+# in this pass; the git grep output is split on newlines alone so a path
+# containing a space or a glob character remains intact.
+report_unrewritten() {
+    _ob="$1"
+    _left=$(git grep -n --untracked -F -- "$_ob")
+    _lst=$?
+    [ "$_lst" -le 1 ] || gr_die "unrewritten scan failed (git grep exit $_lst)"
+    for _l in $_left; do
+        [ -n "$_l" ] || continue
+        _lf=${_l%%:*}
+        _lrest=${_l#*:}
+        _lno=${_lrest%%:*}
+        gr_contains "$rewrite_scope" "$_lf" && continue
+        if [ "$dry" -eq 1 ]; then
+            echo "would leave unrewritten $_lf:$_lno: $_ob"
+        else
+            echo "unrewritten $_lf:$_lno: $_ob"
+        fi
+        echo "  (outside the rewrite scope — a narration to leave, or a link to repair by hand)"
+    done
+}
+
+# One pass per DISTINCT old basename: bare_pairs already contains exactly one
+# entry per distinct old basename, ambiguous ones included, so two sibling
+# drafts sharing a name are reported once rather than once per sibling.
+run_unrewritten_report() {
+    for _pair in $bare_pairs; do
+        [ -n "$_pair" ] || continue
+        report_unrewritten "${_pair%% *}"
+    done
+}
+
 # Path-shaped references first, for every pair; bare basenames second, for
 # the unambiguous pairs only; then one `left` line per FILE that still contains a
 # bare form of an ambiguous name (finding 3) — a file containing only the path
@@ -305,6 +361,7 @@ done
 # Under --dry-run the drafts are still in place and legitimately in scope, so
 # the scope computed above is the right one to preview against.
 [ "$dry" -eq 1 ] && run_rewrites
+[ "$dry" -eq 1 ] && run_unrewritten_report
 [ "$dry" -eq 1 ] && exit 0
 
 # Rename draft doc files (tracked via git mv; untracked via plain mv).
@@ -338,5 +395,6 @@ for _key in doc_srs doc_rmf doc_sad doc_problems doc_soup; do
 done
 set -f
 run_rewrites
+run_unrewritten_report
 
 exit 0

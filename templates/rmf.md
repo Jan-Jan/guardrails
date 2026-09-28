@@ -1,7 +1,7 @@
 # Risk management ledger
 
 This directory is a per-change ledger: each merged change contributes one
-dated file, `YYYY-MM-DD-<slug>.md` (merge date, assigned by `merge-change`
+dated file, `YYYY-MM-DD-<slug>.md` (the finalize date, assigned by `merge-change`
 from your worktree's `DRAFT-<branch>-<slug>.md`). **Edit existing items in
 the file that defines them.** This README contains the project-wide
 acceptability matrix; the dated files contain hazards, controls, derived
