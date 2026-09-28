@@ -21,7 +21,9 @@ were found:
 
 * `PR-crcee5` — 38 of 184 mutation scripts can no longer apply. Found when this
   change's own edits staled five anchors and an audit of all five mutation
-  directories showed how many were already dead.
+  directories showed how many were already dead. Resolved by `47a8b1d`, which
+  measured the true population at 46 and repaired or retired every one; the
+  item states how the two figures differ.
 * `PR-dr7k7k` — no skill told an author to check for that, which is why the five
   happened. Found by the independent review, after the control had been written
   but before it was applied to work already merged.
@@ -265,7 +267,7 @@ scripts/check-trace.sh, whose lines most of the dead anchors quote;
 tests/portability.bats, the only reader of those directories, which greps them
 for `sed -i` spellings and nothing else.
 opened: 2026-09-10
-status: open
+status: resolved
 Measured 2026-09-10 by applying every `M*.sh` against a restored copy of
 `scripts/` and recording which ones failed their own `s.count(old) == 1`
 assertion. All 38 predate this change and are nobody's regression in particular
@@ -299,6 +301,38 @@ Observed twice while running the corpus for this change. An untracked file in
 the tree fails `verify-before-merge`'s clean `git status` check, so measuring
 the mutation evidence can block the merge gate of whatever change happens to be
 open — and the leak is silent, because the mutation that leaked it also failed.
+
+That second defect is **not** resolved by `47a8b1d` and is now `PR-fxdgw5`,
+which defines it with a current measurement. The reason it was recorded without
+an ID — the same change would touch the same artefacts — expired when that
+change repaired the anchors and left the 16 scripts' rewrite idiom alone.
+
+Resolved by `47a8b1d`. The fix is the one this item asked for and not a
+re-cutting of 38 anchors: `tests/mutate.sh` applies every mutation in a scratch
+tree built from `git ls-files` and checksums that tree before and after, so the
+verdict does not consult the script's own account of itself. Measured that way
+the population is **46**, not 38 — eight scripts rewrote their target
+identically and exited 0, which is why reading exit codes undercounted. Of the
+46, 29 were re-anchored and each proved to still kill tests, 16 declare
+`# retired: <reason>` because the production code they mutate no longer exists,
+and one (`2026-08-23-review-artefact.mutations/M15.sh`) is retired as an
+equivalent mutant that never applied. Both halves of the symptom are now false:
+`tests/mutate.sh` exits 0 at `167 applied, 17 retired, 0 unusable`, and
+`tests/mutations.bats` fails naming any mutation that neither applies nor
+declares a retirement — so `tests/portability.bats` is no longer the only reader
+of those directories. The accounting, the per-commit attribution of all 46 and
+the kill proofs are in
+`docs/verification/2026-09-17-restore-mutation-evidence.md`.
+
+The flip is late and the lateness is recorded rather than smoothed over.
+`skills/resolve-problem/SKILL.md` §4 — "never mark a problem resolved in a
+change that doesn't contain its fix" — and `docs/problems/README.md`, which
+states the same rule in one line, are the two places it exists; `merge-change`
+states it nowhere. `47a8b1d` merged the fix without editing this item, and
+nothing reported the omission, because no gate can connect a change to the
+problem it closes — the link exists only in prose. This change performs the
+flip alone: it contains no fix and claims none, and its evidence is the gate
+re-run recorded in its own verification record.
 
 **PR-z6uaa8**: The skills an agent actually executes are installed copies that
 nothing keeps in step with `skills/`, so seven of this repository's eleven
