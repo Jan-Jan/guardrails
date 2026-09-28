@@ -357,26 +357,30 @@ Amend `PR-dy8yup` **in the dated file that defines it** — definitions never mo
 correct `affects:` to the measured 46, set `status: resolved`, and state what was
 re-anchored, what was retired, and what now gates it.
 
-Two new items go in this change's draft ledger file, with the IDs already minted:
+Two new items go in this change's draft ledger file, with the IDs already
+minted. Both are shown INDENTED, because a definition form at column one is
+read as a definition wherever it appears — a fenced block included — and an
+unindented copy here made check-ids.sh report each ID as a duplicate of the
+ledger entry it illustrates. Indented, they illustrate and define nothing:
 
 ```
-**PR-b7ua4s**: A mutation script whose anchor matched no version of its target
-was counted in the mutation population of a merged verification record without
-ever running.
-affects: docs/verification/2026-08-23-review-artefact.mutations/M15.sh and the
-mutation population stated in docs/verification/2026-08-24-review-artefact.md.
-opened: 2026-09-17
-status: resolved
+  **PR-b7ua4s**: A mutation script whose anchor matched no version of its target
+  was counted in the mutation population of a merged verification record without
+  ever running.
+  affects: docs/verification/2026-08-23-review-artefact.mutations/M15.sh and the
+  mutation population stated in docs/verification/2026-08-24-review-artefact.md.
+  opened: 2026-09-17
+  status: resolved
 ```
 
 ```
-**PR-hcqjk6**: 59 of the 184 mutation scripts contain no self-guard, so a
-mutation that stops matching its target rewrites the file identically and exits
-0, reporting success for having done nothing.
-affects: docs/verification/*.mutations/ — all 33 under 2026-08-23-review-artefact,
-16 under 2026-08-20-scan-pathspec, 10 under 2026-08-22-id-tokens.
-opened: 2026-09-17
-status: resolved
+  **PR-hcqjk6**: 59 of the 184 mutation scripts contain no self-guard, so a
+  mutation that stops matching its target rewrites the file identically and exits
+  0, reporting success for having done nothing.
+  affects: docs/verification/*.mutations/ — all 33 under 2026-08-23-review-artefact,
+  16 under 2026-08-20-scan-pathspec, 10 under 2026-08-22-id-tokens.
+  opened: 2026-09-17
+  status: resolved
 ```
 
 `PR-hcqjk6` is resolved by the runner rather than by editing 59 scripts: the

@@ -27,7 +27,7 @@ were found:
 * `PR-dr7k7k` — no skill told an author to check for that, which is why the five
   happened. Found by the independent review, after the control had been written
   but before it was applied to work already merged.
-* `PR-z6uaa8` — the skills an agent executes are installed copies that have
+* `PR-z6uaa8` — the skills an agent executes are installed copies that had
   drifted from `skills/`. Found by the user asking where a `check-trace.sh` fix
   gets reported.
 
@@ -414,6 +414,69 @@ AGENTS.md should state a skills distribution rule the way it already states one
 for `scripts/`. What would close this instance is re-installing the skills by
 whatever means put them there — which is the first question above, not an
 assumption to act on, and it answers none of the rest.
+
+AMENDED 2026-09-28, after the user re-installed the skills and asked whether
+that resolved this item. **It did not, and the measurement is how the answer
+was reached rather than a judgement about it.**
+
+**The drift is gone.** All eleven skills now match, compared by SHA-256 of each
+`SKILL.md` against `~/.claude/skills/<name>/SKILL.md` at `main` = `47a8b1d`:
+`analyze-risks`, `check-traceability`, `design-architecture`, `develop-change`,
+`grill-requirements`, `merge-change`, `plan-change`, `ratchet`,
+`resolve-problem`, `verify-before-merge`, `worktree-discipline` — eleven
+compared, eleven identical, none absent. The seven this item recorded as
+diverged are among them. That is a real repair and the instance this item
+opened on is closed.
+
+**The defect is not, because its second half was never about the seven.** The
+symptom sentence ends "and no gate, script or document reports the drift", and
+that clause is unchanged: `grep` for a drift or divergence check across
+`install.sh` and every `tests/*.bats` returns nothing that compares an
+installed skill to its source. The eleven match today because they were copied
+today, and nothing will report it when they stop matching.
+
+**They will stop, and the shape on disk is why.** `~/.claude/skills/<name>` is
+a symlink to `../../.agents/skills/<name>`, and that target is a REAL
+DIRECTORY — a copy, not a link into this repository — with an mtime of
+2026-09-28 15:57 on every guardrails skill. A copy is a snapshot: the next
+change that edits a skill puts the repository one generation ahead again, with
+no signal.
+
+**The mechanism question this item raised is now partly answered.** `install.sh`
+has exactly two modes, and the layout is neither. Its default is
+`ln -s <repo>/skills/<name> "$dest/<name>"` — a symlink INTO the repository,
+which makes drift structurally impossible, and whose header states that reason:
+"Symlinks by default so `git pull` updates them". Its `--copy` mode is
+`cp -R "${skill%/}" "$target"`, a real directory at `$dest/<name>`. What exists
+is a real directory at `~/.agents/skills/<name>` with a symlink to it from
+`~/.claude/skills/<name>` — consistent with `--copy` under
+`CLAUDE_SKILLS_DIR=~/.agents/skills` PLUS a second party that links the default
+path at the store, and not producible by either mode alone.
+
+**That second party is now visible, which the 2026-09-15 measurement could only
+infer.** The store contains four skills this repository has never shipped —
+`eli5`, `find-skills`, `solidity`, `solidity-security` — and on the same day a
+`~/.claude/skills/synced/` directory appeared, containing a manifest and a
+bundle (`docs`, `docx`, `pdf`, `pptx`, `xlsx`, `morning`, `skill-creator`,
+`import-memory`) that is plainly not ours. **The install path is owned by
+tooling outside this repository**, which settles the third of the four open
+questions above in the direction the scope note already suspected: `--copy` is
+not the thing to remove, because removing it would not give guardrails control
+of a path it does not own.
+
+**So the remaining work is narrower and better defined than when this was
+written.** Not "make the install stay in step" — guardrails cannot, on this
+evidence. A check that REPORTS divergence between `skills/` and whatever is
+installed, and a decision about where such a check can run given that the
+install path is outside every repository. Detecting a drift you cannot prevent
+is this toolkit's own idiom: it is what `UNRESOLVED-PR`, `DANGLING-REF` and
+the mutation gate all do. The first of the four questions is answered enough to
+act on; the second and fourth are untouched, and the third is answered no.
+
+This amendment was written in a change opened while `close-crcee5`,
+`churn-proposal`, `field-report-two` and `parallel-session-proposals` were all
+open, against AGENTS.md non-negotiable 4, on the user's instruction of
+2026-09-28. It contains no fix and claims none.
 
 **PR-dr7k7k**: No skill told an author to check whether a change stales a
 mutation anchor, so a change could delete a past change's mutation evidence
