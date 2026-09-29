@@ -55,10 +55,10 @@ this one, which is the same dependence on memory that produced PR-dy8yup.
 **PR-tenhv4**: Under bash 3.2, a bare `[[ ... ]]` that is not the final command
 of a bats test body does not fail the test, so 67 assertions across five test
 files are evaluated and their results discarded.
-affects: tests/check-trace.bats (51), tests/check-review.bats (5),
+affects: tests/check-trace.bats (53), tests/check-review.bats (5),
 tests/finalize-docs.bats (5), tests/check-ids.bats (3), tests/lib.bats (3).
 opened: 2026-09-17
-status: open
+status: resolved
 The count is of lines that are exactly a bare `[[ ... ]]` and are not the last
 command in their test body. It deliberately excludes the 61 lines in
 check-trace.bats that end `]] \` and continue into `|| { ...; false; }` — every
@@ -113,11 +113,55 @@ So this item is not a tidiness concern about an idiom. At least one guard in the
 shipped toolkit currently has no working test, and the count of others in the
 same position is unknown until the 65 are audited.
 
-Left **open** rather than fixed here. The repair is an audit of 65 assertions in
-five files that this change does not otherwise touch, and several will turn out
-to be assertions nobody has ever actually checked — that is its own change, with
-its own reproduction and its own review. It is recorded now so it appears at
-every merge instead of being remembered. Related: the same shell version
+Left open for its own change, with its own reproduction and review, and resolved
+there. Root cause: bash 3.2 does not apply `errexit` to the status of a
+`[[ ... ]]` compound command, and bats takes a test's verdict from the status of
+its body's last command, so an assertion no guard reads is discarded. Fixed by
+appending a guard that fails — `|| { echo "$output"; false; }` — to all 301
+assertions in the suite. The guard is on every one of them, not only the 69,
+because the other 232 were live by position alone.
+
+**No gate keeps them guarded, and this item is resolved without one.** A gate
+was built in the same change and cut from it before merge, after four review
+rounds found sixteen defective readings across six revisions of it and then a
+blind spot live in the tree. It is `PR-x4nb48`, in
+`docs/problems/2026-09-28-assertion-gate.md`, and the reasoning is in this
+change's verification record. What this item asked for was the repair, and the
+repair is here and measured; the rule that prevents recurrence is a separate
+piece of work that had not converged.
+
+The repair is wider than the bare form on purpose. Measured on this machine at
+3.2.57, `[[ a == b ]];`, `[[ a == b ]] && true` and `[[ a == b ]] || true` all
+reach the next line, so guarding only the bare spelling would leave three more
+that fail the same way. `(( 1 == 2 ))` reaches it too, though the suite contains
+none. `[ a = b ]`, `let`, an assignment from a command substitution and a
+failing `grep` all stop it, so the hole is in the two bracket compounds.
+
+**The audit corrects this item's own figures.** The inert population was 69,
+not 67, and the two earlier figures stated above — 65 when this item was
+written, 67 after `650f090` — are superseded by it. The `affects:` line is
+corrected in place, per `resolve-problem` §2: its `check-trace.bats` count was
+51 and the measured figure is 53. The sentence opening this item still states
+67, because it records what was observed when the item was written. All three
+were counted under the rule "lines that are exactly a bare `[[ ... ]]`", which
+excludes a
+bare assertion with a trailing comment, and `tests/check-trace.bats:252` and
+`:269` are both `[[ "$output" == "checked:"* ]]` followed by one. The undercount
+has the same cause as the defect it counts: a definition that excluded a case
+without stating it. The repair covers 301 assertions rather than those 69,
+because the other 232 were live only by position — a line appended below any of
+them makes it inert with nothing reporting the change, which is how `650f090`
+added two
+to the population while using the guarded form correctly elsewhere in the same
+diff. Guarded everywhere, position is no longer what makes an assertion able to
+fail.
+
+All 69 were true as written: `tests/check-trace.bats` reports 266 of 266 with
+them live. The cost is measured instead in a mutation kill the suite did not
+report. With id-tokens M39 applied (it deletes `finalize-docs.sh`'s
+whitespace guard), the unguarded suite reports `ok` and the guarded suite
+reports `not ok`, showing the half-done rename the test was written to detect.
+Related: the same shell version
 produced PR-vh6cud (`docs/problems/2026-09-02-bash32-case-parse.md`), whose
 tree-wide fix is `3fe5eb3` — the commit that silently broke nine of the
 mutations PR-dy8yup is about.
@@ -129,7 +173,7 @@ names is never reached there.
 affects: tests/lib.bats:510-525 and the `gr_check_config` scalar-emptiness arm in
 scripts/lib.sh that no test in that file reaches.
 opened: 2026-09-17
-status: open
+status: resolved
 Found by measurement rather than by reading, while proving the kill for mutation
 `2026-08-27-config-schema.mutations/M90.sh` under D1. M90 deletes the
 scalar-emptiness arm. `tests/lib.bats` — the file for the script M90 mutates —
@@ -143,10 +187,19 @@ what is wrong is the claim `tests/lib.bats` makes about itself. The comment at
 line 511-516 records the reasoning for widening the rule to every key; the body
 was never widened to match.
 
-Left **open** alongside PR-tenhv4 rather than fixed here. The repair is a new
-scalar-key case in that test, and `tests/lib.bats` also contains three of
-PR-tenhv4's inert assertions — auditing the file once, in one change, beats
-touching it twice.
+Left open alongside PR-tenhv4 and resolved with it, in the one change that
+audits `tests/lib.bats`. That file also contains three of PR-tenhv4's inert
+assertions, and this change audits the file once. Root cause:
+`gr_check_forms` branches on whether the key is in `GR_LIST_KEYS`, and the test
+exercised only `strict_paths`, so the `cfg_get` arm beside the `cfg_list` one
+was never reached from this file. Fixed by giving the test a scalar key —
+`doc_problems` emptied, rejected with "set to nothing", then restored as a
+positive control, the same shape the list case already used.
+
+Measured by the method that found it: against
+`2026-08-27-config-schema.mutations/M90.sh`, which deletes that arm,
+`tests/lib.bats` reported 0 failures before the case and 1 after, the failure
+being the test whose own comment claims that coverage.
 
 **PR-2c2k3p**: `check-trace.sh`'s derived-REQ collector is pinned to the shared ID
 body by nothing any test observes, so if it were narrowed to numeric IDs only,

@@ -33,7 +33,7 @@ break_the_verifier() {
 @test "check-signing: unsigned commit fails with UNSIGNED" {
     run sh .guardrails/scripts/check-signing.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNSIGNED"* ]]
+    [[ "$output" == *"UNSIGNED"* ]] || { echo "$output"; false; }
 }
 
 @test "check-signing: ssh-signed commit with allowed signers passes" {
@@ -49,7 +49,7 @@ break_the_verifier() {
     git config --unset gpg.ssh.allowedSignersFile
     run sh .guardrails/scripts/check-signing.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"WARN-UNVERIFIED"* ]]
+    [[ "$output" == *"WARN-UNVERIFIED"* ]] || { echo "$output"; false; }
 }
 
 @test "check-signing: --strict fails on unverifiable signature" {
@@ -69,7 +69,7 @@ break_the_verifier() {
     git -c commit.gpgsign=false commit -qm "unsigned b"
     run sh .guardrails/scripts/check-signing.sh main..feature
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNSIGNED"* ]]
+    [[ "$output" == *"UNSIGNED"* ]] || { echo "$output"; false; }
 }
 
 @test "check-signing: a failed verdict contains the verifier's own reason" {

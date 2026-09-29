@@ -4,7 +4,7 @@ load helpers
     make_fixture_repo
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"no units.yaml — single-unit repository; no unit configs found astray"* ]]
+    [[ "$output" == *"no units.yaml — single-unit repository; no unit configs found astray"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: one non-root config without a manifest still passes (the GR_CONFIG layout)" {
@@ -26,7 +26,7 @@ load helpers
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 2 ]
     [[ "$output" == *"unit-shaped configs"* ]] || false
-    [[ "$output" == *"units.yaml"* ]]
+    [[ "$output" == *"units.yaml"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: near-miss-manifest-name-is-exit-2 — the class, not one member" {
@@ -53,7 +53,7 @@ load helpers
     make_units_fixture
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"units: 2, disclaimed 2"* ]]
+    [[ "$output" == *"units: 2, disclaimed 2"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: manifest shape errors surface here at exit 2" {
@@ -69,7 +69,7 @@ load helpers
     commit_all tools
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNCLAIMED-PATH tools/build.sh"* ]]
+    [[ "$output" == *"UNCLAIMED-PATH tools/build.sh"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: root-files-implicitly-disclaimed — root files and the manifest's own home pass" {
@@ -87,7 +87,7 @@ load helpers
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"DISCLAIMED-DRAFT"* ]] || false
-    [[ "$output" == *"legacy/DRAFT-old-change-notes.md"* ]]
+    [[ "$output" == *"legacy/DRAFT-old-change-notes.md"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: disclaimed-prose-is-not-malformed — definition-shaped legacy prose convicts nothing" {
@@ -107,7 +107,7 @@ load helpers
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"MISCLASSED-DEPENDENCY platform/hal"* ]] || false
-    [[ "$output" == *"apps/pump"* ]]
+    [[ "$output" == *"apps/pump"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: a declared, resolving segregation covers the edge" {
@@ -138,7 +138,7 @@ load helpers
     commit_all wrong-way
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"INCOMPLETE-SEGREGATION"* ]]
+    [[ "$output" == *"INCOMPLETE-SEGREGATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: tbd-class-on-edge-is-exit-2" {
@@ -148,7 +148,7 @@ load helpers
     commit_all tbd
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"TBD"* ]]
+    [[ "$output" == *"TBD"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: a TBD class on a unit with no dependency edge passes (tooth one)" {
@@ -230,7 +230,7 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"platform/hal	touched"* ]] || false
     [[ "$output" == *"apps/pump	dependent"* ]] || false
-    [[ "$output" == *"apps/monitor	dependent"* ]]
+    [[ "$output" == *"apps/monitor	dependent"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: unrelated-unit-skips — the standalone unit never appears" {
@@ -240,7 +240,7 @@ EOF
     commit_all hal-change
     run sh .guardrails/scripts/check-units.sh --impact HEAD~1..HEAD
     [ "$status" -eq 0 ]
-    [[ "$output" != *"svc/standalone"* ]]
+    [[ "$output" != *"svc/standalone"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: --impact — a touched unit is reported touched, not dependent" {
@@ -250,7 +250,7 @@ EOF
     commit_all both
     run sh .guardrails/scripts/check-units.sh --impact HEAD~1..HEAD
     [[ "$output" == *"apps/pump	touched"* ]] || false
-    [[ "$output" == *"platform/hal	touched"* ]]
+    [[ "$output" == *"platform/hal	touched"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: --impact — disclaimed and root-level changes map to no unit" {
@@ -270,7 +270,7 @@ EOF
     run sh .guardrails/scripts/check-units.sh --impact HEAD~1..HEAD
     [ "$status" -eq 0 ]
     [[ "$output" == *"platform/hal	touched"* ]] || false
-    [[ "$output" == *"apps/pump	touched"* ]]
+    [[ "$output" == *"apps/pump	touched"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: impact-unclaimed-path-is-exit-2" {
@@ -279,7 +279,7 @@ EOF
     commit_all tools
     run sh .guardrails/scripts/check-units.sh --impact HEAD~1..HEAD
     [ "$status" -eq 2 ]
-    [[ "$output" == *"UNCLAIMED-PATH"* ]]
+    [[ "$output" == *"UNCLAIMED-PATH"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: --impact on a bad range is exit 2, never an empty set" {
@@ -313,7 +313,7 @@ EOF
     commit_all stash
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DISCLAIMED-DRAFT .guardrails/DRAFT-stash.md"* ]]
+    [[ "$output" == *"DISCLAIMED-DRAFT .guardrails/DRAFT-stash.md"* ]] || { echo "$output"; false; }
 }
 
 @test "check-units: a draft token in a tracked root-level file convicts even without a DRAFT name" {
@@ -322,7 +322,7 @@ EOF
     commit_all root-token
     run sh .guardrails/scripts/check-units.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DISCLAIMED-DRAFT README.md:"* ]]
+    [[ "$output" == *"DISCLAIMED-DRAFT README.md:"* ]] || { echo "$output"; false; }
 }
 
 # --- fix1 finding-5: disclaimed definitions do not resolve a citation --------
@@ -336,7 +336,7 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"INCOMPLETE-SEGREGATION"* ]] || false
     [[ "$output" == *"RC-l3g4c9"* ]] || false
-    [[ "$output" == *"legacy/notes.md"* ]]      # the message names the disclaimed-only definition
+    [[ "$output" == *"legacy/notes.md"* ]] || { echo "$output"; false; }      # the message names the disclaimed-only definition
 }
 
 @test "check-units: the same citation defined in a unit's RMF resolves, disclaimed copy notwithstanding" {

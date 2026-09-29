@@ -55,7 +55,7 @@ EOF
 @test "check-trace: fully traced fixture passes" {
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: REQ without verifying test fails" {
@@ -63,7 +63,7 @@ EOF
     commit_all no-verifies
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST REQ-001"* ]]
+    [[ "$output" == *"MISSING-TEST REQ-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: hazard without risk control fails" {
@@ -71,7 +71,7 @@ EOF
     commit_all haz2
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]]
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: risk control without implementing requirement fails" {
@@ -79,7 +79,7 @@ EOF
     commit_all rc2
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]]
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: design item without traces fails" {
@@ -87,7 +87,7 @@ EOF
     commit_all sdd2
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: REQ covered only transitively via tested LLR passes" {
@@ -95,7 +95,7 @@ EOF
     # and no direct test for REQ-001
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: LLR without satisfies fails" {
@@ -104,7 +104,7 @@ EOF
     commit_all llr2
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: derived LLR mentioned in RMF is not UNSATISFIED" {
@@ -114,7 +114,7 @@ EOF
     commit_all derived
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: LLR without verifying test fails" {
@@ -122,7 +122,7 @@ EOF
     commit_all llr2-untested
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST LLR-002"* ]]
+    [[ "$output" == *"MISSING-TEST LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: REQ with neither direct test nor tested LLR fails" {
@@ -130,7 +130,7 @@ EOF
     commit_all req2
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST REQ-002"* ]]
+    [[ "$output" == *"MISSING-TEST REQ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: derived LLR not assessed in RMF fails" {
@@ -139,7 +139,7 @@ EOF
     commit_all derived-unassessed
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]]
+    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: derived REQ not assessed in RMF fails" {
@@ -148,7 +148,7 @@ EOF
     commit_all derived-req
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]]
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: open problem report warns but passes" {
@@ -156,7 +156,7 @@ EOF
     commit_all open-pr
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: resolved problem report is silent" {
@@ -164,7 +164,7 @@ EOF
     commit_all resolved-pr
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: open PR warning coexists with real failure exit 1" {
@@ -173,8 +173,8 @@ EOF
     commit_all pr-and-haz
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
-    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: prose satisfies after a heading does not satisfy an LLR" {
@@ -183,7 +183,7 @@ EOF
     commit_all prose-satisfies
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: longer-ID mention in RMF does not cover a derived LLR" {
@@ -193,7 +193,7 @@ EOF
     commit_all substring
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]]
+    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a later item's open status does not reach the resolved item above" {
@@ -215,7 +215,7 @@ EOF
     commit_all dangling-pr
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-999"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-999"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: rules work across multiple dated ledger files" {
@@ -228,7 +228,7 @@ EOF
     commit_all cross-file
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: derived assessment in any rmf-directory file counts" {
@@ -238,7 +238,7 @@ EOF
     commit_all derived-cross
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
 }
 
 @test "check-trace: template READMEs in ledger dirs cause no false positives" {
@@ -249,7 +249,7 @@ EOF
     commit_all readmes
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 0 ]
 }
@@ -266,12 +266,12 @@ EOF
     commit_all single-file-layout
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]   # summary lines only: nothing precedes checked:
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
     printf '\n**HAZ-002**: Underdose.\n' >> docs/risk/rmf.md
     commit_all haz2-single
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]]
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: dangling reference to undefined ID fails" {
@@ -279,7 +279,7 @@ EOF
     commit_all dangling
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-999"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-999"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a REQ in a parenthetical after the list is not coverage" {
@@ -288,7 +288,7 @@ EOF
     commit_all parenthetical
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST REQ-002"* ]]
+    [[ "$output" == *"MISSING-TEST REQ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: comma lists, trailing commas and trailing prose all count" {
@@ -297,9 +297,9 @@ EOF
     printf '# verifies: REQ-003,\ntrue\n' > tests/test_b.sh
     commit_all lists
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"MISSING-TEST REQ-001"* ]]
-    [[ "$output" != *"MISSING-TEST REQ-002"* ]]
-    [[ "$output" != *"MISSING-TEST REQ-003"* ]]
+    [[ "$output" != *"MISSING-TEST REQ-001"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MISSING-TEST REQ-002"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MISSING-TEST REQ-003"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a REQ in a parenthetical after satisfies: does not satisfy an LLR" {
@@ -314,7 +314,7 @@ EOF
     commit_all satisfies-parenthetical
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST REQ-002"* ]]
+    [[ "$output" == *"MISSING-TEST REQ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: traces: with no ID list is untraced even if a REQ appears later" {
@@ -328,21 +328,21 @@ EOF
     commit_all bad-traces
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNTRACED-DESIGN SDD-001"* ]]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a configured doc path that is absent fails loudly, never silently passes" {
     rm -rf docs/risk
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_rmf"* ]]
+    [[ "$output" == *"doc_rmf"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a configured test path that is absent fails loudly" {
     rm -rf tests
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"test_paths"* ]]
+    [[ "$output" == *"test_paths"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: prints how many items of each prefix were checked" {
@@ -365,15 +365,15 @@ EOF
     commit_all counts
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"checked: REQ 3, HAZ 2, RC 2, SDD 1, LLR 1, PR 0"* ]]
+    [[ "$output" == *"checked: REQ 3, HAZ 2, RC 2, SDD 1, LLR 1, PR 0"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: reports how many source files each gate read" {
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
     # docs/requirements contains the ratchet README plus the fixture ledger file
-    [[ "$output" == *"sources: srs 2,"* ]]
-    [[ "$output" == *"tests 1"* ]]
+    [[ "$output" == *"sources: srs 2,"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"tests 1"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a requirements ledger with no REQ items reports REQ 0, not a silent pass" {
@@ -385,8 +385,8 @@ EOF
     # denominator: the summary states REQ 0 instead of leaving a zero-item run
     # indistinguishable from a full one.
     [ "$status" -eq 1 ]
-    [[ "$output" == *"REQ 0"* ]]
-    [[ "$output" == *"sources: srs 1,"* ]]
+    [[ "$output" == *"REQ 0"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"sources: srs 1,"* ]] || { echo "$output"; false; }
 }
 
 # --- Config shapes that would silently disable a gate ----------------------
@@ -397,22 +397,22 @@ EOF
     commit_all no-rmf-files
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_rmf"* ]]
-    [[ "$output" == *"no *.md"* ]]
+    [[ "$output" == *"doc_rmf"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"no *.md"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a configured strict path that is absent fails loudly" {
     rm -rf src
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"strict_paths"* ]]
+    [[ "$output" == *"strict_paths"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an absent path containing a space is named in full" {
     sed -i.bak 's|^  - src$|  - my sources|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"my sources"* ]]
+    [[ "$output" == *"my sources"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an ID prefix that is not a bare identifier is an error" {
@@ -420,7 +420,7 @@ EOF
         && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"bare identifier"* ]]
+    [[ "$output" == *"bare identifier"* ]] || { echo "$output"; false; }
 }
 
 # --- One annotation rule, applied identically to every keyword -------------
@@ -433,7 +433,7 @@ EOF
     commit_all sdd2
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]]
+    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a REQ named in prose after satisfies: does not satisfy an LLR" {
@@ -445,7 +445,7 @@ EOF
     commit_all llr2
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 # --- Configured paths must match something that is actually there ----------
@@ -459,14 +459,14 @@ EOF
     commit_all glob-path
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-999"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-999"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a strict path glob that matches nothing is still an error" {
     sed -i.bak 's|^  - src$|  - src/*.rs|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"src/*.rs"* ]]
+    [[ "$output" == *"src/*.rs"* ]] || { echo "$output"; false; }
 }
 
 # --- Path entries: plain paths, shell globs and git pathspecs --------------
@@ -482,14 +482,14 @@ EOF
     commit_all pathspec
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a pathspec matching no file at all is still an error" {
     sed -i.bak 's|^  - tests$|  - *_nothing.sh|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"matches no file"* ]]
+    [[ "$output" == *"matches no file"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a pathspec matching a non-ASCII path is accepted" {
@@ -503,7 +503,7 @@ EOF
     commit_all nonascii
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an unrelated later traces: does not credit an SDD block" {
@@ -520,7 +520,7 @@ EOF
     commit_all sdd-block
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a configured directory that is empty matches no file" {
@@ -530,8 +530,8 @@ EOF
     commit_all empty-src
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"strict_paths"* ]]
-    [[ "$output" == *"matches no file"* ]]
+    [[ "$output" == *"strict_paths"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"matches no file"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a path entry is a git pathspec, not shell-expanded at the root" {
@@ -545,7 +545,7 @@ EOF
     commit_all glob-narrowing
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-999"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-999"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: traces: on a line below the SDD header still counts" {
@@ -559,7 +559,7 @@ EOF
     commit_all sdd-continuation
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]]
+    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]] || { echo "$output"; false; }
 }
 
 # --- Config value lexing ----------------------------------------------------
@@ -569,14 +569,14 @@ EOF
         && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"rmf 2"* ]]
+    [[ "$output" == *"rmf 2"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a config with CRLF line endings still parses" {
     sed -i.bak 's/$/\r/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == "checked:"* ]]
+    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }
 }
 
 # --- Config shapes the reader cannot see ------------------------------------
@@ -585,21 +585,21 @@ EOF
     sed -i.bak 's/^strict_paths:/strict-paths:/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"strict-paths"* ]]
+    [[ "$output" == *"strict-paths"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an indented top-level key is an error" {
     sed -i.bak 's/^strict_paths:/ strict_paths:/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"strict_paths"* ]]
+    [[ "$output" == *"strict_paths"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a space before the colon is an error" {
     sed -i.bak 's/^strict_paths:/strict_paths :/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"strict_paths"* ]]
+    [[ "$output" == *"strict_paths"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a list item at column zero is an error" {
@@ -607,7 +607,7 @@ EOF
     sed -i.bak 's/^  - src$/- src/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"- src"* ]]
+    [[ "$output" == *"- src"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a config saved with a UTF-8 BOM is rejected, not half-read" {
@@ -616,7 +616,7 @@ EOF
     mv .guardrails/config.new .guardrails/config.yaml
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"BOM"* ]]
+    [[ "$output" == *"BOM"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a config with a YAML document separator still parses" {
@@ -638,12 +638,12 @@ EOF
     # exit 2 below closes a hole that was really open
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]]
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
 
     sed -i.bak 's/^doc_rmf:/doc_rmff:/' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_rmff"* ]]
+    [[ "$output" == *"doc_rmff"* ]] || { echo "$output"; false; }
 }
 
 # --- A prefix must have gates, and those gates must have their inputs -------
@@ -657,8 +657,8 @@ EOF
         && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"TC"* ]]
-    [[ "$output" == *"no prefix with a traceability gate"* ]]
+    [[ "$output" == *"TC"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"no prefix with a traceability gate"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an extra prefix alongside the gated ones is accepted and still checked" {
@@ -671,7 +671,7 @@ EOF
     commit_all extra-prefix
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF ADR-007"* ]]
+    [[ "$output" == *"DANGLING-REF ADR-007"* ]] || { echo "$output"; false; }
 }
 
 
@@ -687,8 +687,8 @@ EOF
     commit_all haz-rc-only
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_srs"* ]]
-    [[ "$output" == *"RC"* ]]
+    [[ "$output" == *"doc_srs"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"RC"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: REQ declared with an empty test_paths is an error, not zero tests to search" {
@@ -697,7 +697,7 @@ EOF
     sed -i.bak 's|^  - tests$||' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"test_paths"* ]]
+    [[ "$output" == *"test_paths"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: RC declared without doc_rmf is rejected, not left unplaceable" {
@@ -728,8 +728,8 @@ EOF
     commit_all rc-no-rmf
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"declares RC but doc_rmf is not configured"* ]]
-    [[ "$output" == *"only document a RC may be defined in"* ]]
+    [[ "$output" == *"declares RC but doc_rmf is not configured"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"only document a RC may be defined in"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a list item orphaned by a commented-out key is an error" {
@@ -739,7 +739,7 @@ EOF
         && rm -f .guardrails/config.yaml.bak
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"- src"* ]]
+    [[ "$output" == *"- src"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an SDD defined outside doc_sad is reported, not silently exempt" {
@@ -749,8 +749,8 @@ EOF
     commit_all sdd-outside
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM SDD-002"* ]]
-    [[ "$output" == *"doc_sad"* ]]
+    [[ "$output" == *"MISPLACED-ITEM SDD-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"doc_sad"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a REQ defined outside doc_srs is reported" {
@@ -759,7 +759,7 @@ EOF
     commit_all req-outside
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a HAZ defined outside doc_rmf is reported" {
@@ -771,7 +771,7 @@ EOF
     commit_all haz-outside
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM HAZ-002 (must be defined in the files doc_rmf resolves to"* ]]
+    [[ "$output" == *"MISPLACED-ITEM HAZ-002 (must be defined in the files doc_rmf resolves to"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an RC defined outside doc_rmf is reported" {
@@ -781,7 +781,7 @@ EOF
     commit_all rc-outside
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM RC-002 (must be defined in the files doc_rmf resolves to"* ]]
+    [[ "$output" == *"MISPLACED-ITEM RC-002 (must be defined in the files doc_rmf resolves to"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an LLR defined outside doc_sad is reported" {
@@ -794,7 +794,7 @@ EOF
     commit_all llr-outside
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM LLR-002 (must be defined in the files doc_sad resolves to"* ]]
+    [[ "$output" == *"MISPLACED-ITEM LLR-002 (must be defined in the files doc_sad resolves to"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a PR defined outside doc_problems is reported" {
@@ -802,7 +802,7 @@ EOF
     commit_all pr-outside
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM PR-001 (must be defined in the files doc_problems resolves to"* ]]
+    [[ "$output" == *"MISPLACED-ITEM PR-001 (must be defined in the files doc_problems resolves to"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: correctly placed items are not reported as misplaced" {
@@ -815,7 +815,7 @@ EOF
     commit_all placed
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"MISPLACED-ITEM"* ]]
+    [[ "$output" != *"MISPLACED-ITEM"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an item in a subdirectory of its doc directory is reported" {
@@ -828,7 +828,7 @@ EOF
     commit_all nested
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]] || { echo "$output"; false; }
 }
 
 @test "every script is executable in the index, not just runnable via sh" {
@@ -876,7 +876,7 @@ EOF
     commit_all txt-ledger
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002 (must be defined in the files doc_srs resolves to"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: every misplaced item is reported, not just the first" {
@@ -885,8 +885,8 @@ EOF
     commit_all two-strays
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM REQ-002"* ]]
-    [[ "$output" == *"MISPLACED-ITEM REQ-003"* ]]
+    [[ "$output" == *"MISPLACED-ITEM REQ-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"MISPLACED-ITEM REQ-003"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an indented definition defines nothing" {
@@ -901,7 +901,7 @@ EOF
     commit_all indented
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-002"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-002"* ]] || { echo "$output"; false; }
     [[ "$output" == *"checked: REQ 1,"* ]] || { echo "indented line was counted: $output"; false; }
 }
 
@@ -911,7 +911,7 @@ EOF
     commit_all midline
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-002"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-002"* ]] || { echo "$output"; false; }
     [[ "$output" == *"checked: REQ 1,"* ]] || { echo "mid-line form was counted: $output"; false; }
 }
 
@@ -946,10 +946,10 @@ EOF
     [[ "$output" != *"UNTRACED-DESIGN"* ]] || { echo "awk parsed an indented SDD: $output"; false; }
     [[ "$output" != *"UNANALYZED-DERIVED"* ]] || { echo "awk parsed an indented REQ: $output"; false; }
     [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "awk parsed an indented PR: $output"; false; }
-    [[ "$output" == *"DANGLING-REF LLR-002"* ]]
-    [[ "$output" == *"DANGLING-REF SDD-002"* ]]
-    [[ "$output" == *"DANGLING-REF REQ-002"* ]]
-    [[ "$output" == *"DANGLING-REF PR-002"* ]]
+    [[ "$output" == *"DANGLING-REF LLR-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"DANGLING-REF SDD-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"DANGLING-REF REQ-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"DANGLING-REF PR-002"* ]] || { echo "$output"; false; }
     # The whole count line: "SDD 1" also matches "SDD 12".
     [[ "$output" == *"checked: REQ 1, HAZ 1, RC 1, SDD 1, LLR 1, PR 0"* ]] \
         || { echo "counts moved: $output"; false; }
@@ -1318,7 +1318,7 @@ LEDGER
     commit_all pr-bold-body
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an emphasised line in a REQ body does not detach derived" {
@@ -1327,7 +1327,7 @@ LEDGER
     commit_all derived-req-bold
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]]
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an emphasised line in an SDD body does not detach traces:" {
@@ -1335,7 +1335,7 @@ LEDGER
     commit_all sdd-bold
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]]
+    [[ "$output" != *"UNTRACED-DESIGN SDD-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an emphasised line in an LLR body does not detach satisfies:" {
@@ -1344,7 +1344,7 @@ LEDGER
     commit_all llr-bold
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" != *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 # The two boundaries the rule must KEEP. Both pass before this change and must
@@ -1357,7 +1357,7 @@ LEDGER
     commit_all cross-prefix
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a markdown heading closes an item block" {
@@ -1366,7 +1366,7 @@ LEDGER
     commit_all heading-closes
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 # --- a definition form it cannot read still closes the block above it ------
@@ -1384,8 +1384,8 @@ LEDGER
     # Both halves of the pair, on one fixture. The block rule stops the
     # `status: open` reaching PR-001, and ORPHAN-ANNOTATION stops it being
     # dropped in silence once it belongs to nothing. Either alone is a defect.
-    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]]
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1393,8 +1393,8 @@ LEDGER
     printf '**PR-abcdef**: Hand-typed ID with no digit.\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all malformed-opens-nothing
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"UNRESOLVED-PR"* ]]
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1403,7 +1403,7 @@ LEDGER
     commit_all indented-malformed
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
 }
 
 # --- ORPHAN-ANNOTATION: an annotation belonging to no item ----------------
@@ -1417,8 +1417,8 @@ LEDGER
     commit_all orphan-status
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
-    [[ "$output" == *"docs/problems/0001-01-01-base.md:1"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"docs/problems/0001-01-01-base.md:1"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a traces: line under a heading is an orphan" {
@@ -1426,8 +1426,8 @@ LEDGER
     commit_all orphan-traces
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
-    [[ "$output" == *"traces:"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"traces:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a satisfies: line before the first REQ is an orphan" {
@@ -1436,7 +1436,7 @@ LEDGER
     commit_all orphan-satisfies
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an annotation inside its own item is not an orphan" {
@@ -1444,8 +1444,8 @@ LEDGER
     commit_all attributed
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an indented annotation in a grammar comment is not an orphan" {
@@ -1456,7 +1456,7 @@ LEDGER
     commit_all grammar-comment
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 # --- the list-marker form: the backstop sees it, no reader takes it ---------
@@ -1476,7 +1476,7 @@ LEDGER
     commit_all bullet-satisfies
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ORPHAN-ANNOTATION docs/architecture/0001-01-01-base.md:8 (satisfies: belongs to no item)"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/architecture/0001-01-01-base.md:8 (satisfies: belongs to no item)"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an ordered-list satisfies: outside every block is an orphan" {
@@ -1548,9 +1548,9 @@ LEDGER
     commit_all indented-grammar
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
-    [[ "$output" != *"INCOMPLETE-PROBLEM"* ]]
-    [[ "$output" != *"UNRESOLVED-PR"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"INCOMPLETE-PROBLEM"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a status: line in the requirements ledger is out of scope" {
@@ -1561,7 +1561,7 @@ LEDGER
     commit_all out-of-scope
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a derived REQ named only in passing in the RMF is unassessed" {
@@ -1774,7 +1774,7 @@ POISON
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all undeclared-prefix-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1783,7 +1783,7 @@ POISON
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all colon-inside-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1794,7 +1794,7 @@ POISON
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all nbhyphen-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1805,7 +1805,7 @@ POISON
     commit_all emphasis-with-spaces
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
 }
 
 # --- the backstop must agree with the gates it backs -----------------------
@@ -1835,7 +1835,7 @@ CFG
         >> docs/requirements/0001-01-01-base.md
     commit_all cross-prefix-orphan
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1845,7 +1845,7 @@ CFG
     commit_all front-matter
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 
@@ -1862,7 +1862,7 @@ CFG
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all bold-italic-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1871,7 +1871,7 @@ CFG
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all space-before-colon
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1883,7 +1883,7 @@ CFG
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all multiword-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1894,7 +1894,7 @@ CFG
     commit_all single-asterisk
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]]
+    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: unclosed front matter does not blank the file" {
@@ -1903,7 +1903,7 @@ CFG
     printf -- '---\ntitle: Problem reports\n\nstatus: open\n\n## Notes\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all unclosed-front-matter
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1939,7 +1939,7 @@ SAD
     rm -f docs/requirements/0001-01-01-base.md
     commit_all overlapping-doc-paths
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 0 ]
 }
 
@@ -1950,8 +1950,8 @@ SAD
     printf '# Problems\n\n---\n\nstatus: open\n\n---\n\n**PR-001**: Crash.\nstatus: resolved\n' > docs/problems/0001-01-01-base.md
     commit_all thematic-break
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
-    [[ "$output" == *"0001-01-01-base.md:5"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"0001-01-01-base.md:5"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1971,8 +1971,8 @@ SAD
     # the absence of PR-001 was too weak — an opening pattern that dropped its
     # colon reported `UNRESOLVED-PR PR-b4m8p3** (duplicate of PR-001):` and
     # passed.
-    [[ "$output" != *"UNRESOLVED-PR"* ]]
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -1981,7 +1981,7 @@ SAD
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all nested-emphasis-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a header with an interior colon closes the block" {
@@ -1989,7 +1989,7 @@ SAD
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all interior-colon-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a header with a non-ASCII space before its colon closes" {
@@ -2000,7 +2000,7 @@ SAD
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all nbsp-before-colon
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an empty bold label with a colon closes the block" {
@@ -2008,7 +2008,7 @@ SAD
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all empty-bold-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]]
+    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: front matter closed by ... is skipped" {
@@ -2016,7 +2016,7 @@ SAD
     commit_all dots-terminator
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: CRLF front matter is skipped" {
@@ -2024,7 +2024,7 @@ SAD
     commit_all crlf-front-matter
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: the status: backstop opens on PR and no other prefix" {
@@ -2035,7 +2035,7 @@ SAD
     printf '**SDD-e7q9s6**: Misfiled design item.\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all status-opens-on-pr-only
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -2084,7 +2084,7 @@ SAD
     printf '\n**SDD-002**: Audit logger.\n\n**D\xe9tail**:\ntraces: REQ-001\n' >> docs/architecture/0001-01-01-base.md
     commit_all latin1-header
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -2094,7 +2094,7 @@ SAD
     printf '\n**SDD-002**: Audit logger.\n\n# Appendix\ntraces: REQ-001\n' >> docs/architecture/0001-01-01-base.md
     commit_all h1-closes
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]]
+    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -2102,8 +2102,8 @@ SAD
     printf '**PR-001**: Crash on empty dose input.\n\n# Notes\n\nsee **PR-b4m8p3**: for the duplicate\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all midline-def
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
-    [[ "$output" != *"UNRESOLVED-PR"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -2146,7 +2146,7 @@ SAD
     commit_all bom-front-matter
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a definition form inside a closing line opens no block" {
@@ -2156,8 +2156,8 @@ SAD
     printf '**PR-001**: Crash on empty dose input.\nstatus: resolved\n\n**Note**: see **PR-b4m8p3**: for the duplicate\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all def-inside-closing-line
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"UNRESOLVED-PR"* ]]
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -2170,8 +2170,8 @@ SAD
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all traces-opens-on-sdd-only
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]]
-    [[ "$output" == *"traces:"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"traces:"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
 }
 
@@ -2589,7 +2589,7 @@ POISON
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" == *"INCOMPLETE-PROBLEM PR-001"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"status:"* ]]
+    [[ "$output" == *"status:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an indented status: line no longer states an item's status" {
@@ -2689,7 +2689,7 @@ POISON
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"INCOMPLETE-PROBLEM PR-001"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"opened:"* ]]
+    [[ "$output" == *"opened:"* ]] || { echo "$output"; false; }
     [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "dropped from roll-call: $output"; false; }
 }
 
@@ -2792,7 +2792,7 @@ POISON
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     [[ "$output" == *"MALFORMED-DATE PR-001"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"future"* ]]
+    [[ "$output" == *"future"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an item opened today is zero days old, not a day either way" {
@@ -2825,7 +2825,7 @@ POISON
     commit_all at-limit
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"STALE-PROBLEM"* ]]
+    [[ "$output" != *"STALE-PROBLEM"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: problem_open_max fails a backlog past the limit" {
@@ -2848,7 +2848,7 @@ POISON
     commit_all backlog-at-limit
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"PROBLEM-BACKLOG"* ]]
+    [[ "$output" != *"PROBLEM-BACKLOG"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: the backlog count spans every ledger file, not one at a time" {
@@ -3107,7 +3107,7 @@ POISON
     commit_all opened-in-srs
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an indented opened: in a grammar comment is not an orphan" {
@@ -3119,7 +3119,7 @@ POISON
     commit_all grammar-comment
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]]
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a CRLF ledger states its status like any other" {
@@ -3493,14 +3493,14 @@ POISON
     [[ "$output" == *"checked: REQ 1,"* ]] || false   # pump's own item only
     unit_run check-trace.sh platform/hal
     [ "$status" -eq 0 ]
-    [[ "$output" == *"expectations against this unit: 0 open"* ]]
+    [[ "$output" == *"expectations against this unit: 0 open"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a manifest repo without GR_CONFIG is exit 2 naming the remedy" {
     make_units_fixture
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"multi-unit repository"* ]]
+    [[ "$output" == *"multi-unit repository"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: scoped-run-convicts-standalone — a sibling-internal reference convicts with no orchestrator" {
@@ -3509,7 +3509,7 @@ POISON
     commit_all ref
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
-    [[ "$output" == *"NON-EXPORTED-REF LLR-h6k9m3"* ]]
+    [[ "$output" == *"NON-EXPORTED-REF LLR-h6k9m3"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a reference into an undeclared unit convicts UNDECLARED-DEPENDENCY" {
@@ -3518,7 +3518,7 @@ POISON
     commit_all ref
     unit_run check-trace.sh platform/hal
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-p2m4k7"* ]]
+    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-p2m4k7"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: disclaimed-definitions-do-not-resolve, and disclaimed-definition-names-its-path" {
@@ -3529,7 +3529,7 @@ POISON
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
     [[ "$output" == *"DANGLING-REF REQ-z9q3w2"* ]] || false
-    [[ "$output" == *"legacy/notes.md"* ]]      # the message names the file
+    [[ "$output" == *"legacy/notes.md"* ]] || { echo "$output"; false; }      # the message names the file
 }
 
 @test "check-trace: a truly undefined reference stays plain DANGLING-REF" {
@@ -3538,7 +3538,7 @@ POISON
     commit_all dangling
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-zz9zz2 (referenced but never defined)"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-zz9zz2 (referenced but never defined)"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: misexported-item-convicts — a non-yes value and a non-REQ carrier" {
@@ -3552,7 +3552,7 @@ POISON
     unit_run check-trace.sh platform/hal
     [ "$status" -eq 1 ]
     [[ "$output" == *"MISEXPORTED-ITEM REQ-h4m2p9"* ]] || false
-    [[ "$output" == *"MISEXPORTED-ITEM LLR-h6k9m3"* ]]
+    [[ "$output" == *"MISEXPORTED-ITEM LLR-h6k9m3"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: expects-undeclared-unit-convicts — and the MISSING-TEST exemption never engages" {
@@ -3562,7 +3562,7 @@ POISON
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
     [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-e7x2m4"* ]] || false
-    [[ "$output" == *"MISSING-TEST REQ-e7x2m4"* ]]
+    [[ "$output" == *"MISSING-TEST REQ-e7x2m4"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: expects-grammar-errors-convict — empty value, no opened:, non-REQ carrier" {
@@ -3583,7 +3583,7 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"INCOMPLETE-EXPECTATION REQ-g2h6j3"* ]] || false
     [[ "$output" == *"INCOMPLETE-EXPECTATION LLR-p6r3z9"* ]] || false
-    [[ "$output" == *"INCOMPLETE-EXPECTATION REQ-k4m7n2"* ]]
+    [[ "$output" == *"INCOMPLETE-EXPECTATION REQ-k4m7n2"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an unmet expectation is reported, exempt from MISSING-TEST, and exit 0 inside its budget" {
@@ -3595,7 +3595,7 @@ EOF
     [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || false
     [[ "$output" != *"MISSING-TEST REQ-e7x2m4"* ]] || false
     [[ "$output" == *"expectations: open 1,"* ]] || false
-    [[ "$output" == *"limits age 90, open 10"* ]]
+    [[ "$output" == *"limits age 90, open 10"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: unmet-rc-linked-expectation-exits-1" {
@@ -3605,7 +3605,7 @@ EOF
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
     [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || false
-    [[ "$output" == *"risk control"* ]]
+    [[ "$output" == *"risk control"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: expectation-aging-mirrors-problem-limits — past the age limit fails, unset limit prints none, unparseable is exit 2" {
@@ -3635,7 +3635,7 @@ EOF
     commit_all exp
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
-    [[ "$output" == *"EXPECTATION-BACKLOG (1 open expectation"* ]]
+    [[ "$output" == *"EXPECTATION-BACKLOG (1 open expectation"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: expectation-met-requires-export — satisfied by a non-exported REQ stays unmet" {
@@ -3645,7 +3645,7 @@ EOF
     commit_all half-met
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 0 ]
-    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]]
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: missing-test-exemption-ends-when-met" {
@@ -3670,7 +3670,7 @@ EOF
     commit_all met
     unit_run check-trace.sh platform/hal
     [ "$status" -eq 0 ]      # satisfies: REQ-e7x2m4 resolves via the reverse edge
-    [[ "$output" == *"expectations against this unit: 0 open"* ]]
+    [[ "$output" == *"expectations against this unit: 0 open"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: satisfies-across-wrong-edge-convicts" {
@@ -3692,7 +3692,7 @@ EOF
     commit_all wrong-edge
     unit_run check-trace.sh platform/hal
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-e7x2m4"* ]]
+    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-e7x2m4"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: reverse-edge-discharges-nothing — the consumer's item joins no provider enumeration" {
@@ -3709,7 +3709,7 @@ EOF
     commit_all swap-test
     unit_run check-trace.sh platform/hal
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST"* ]]
+    [[ "$output" == *"MISSING-TEST"* ]] || { echo "$output"; false; }
 }
 
 # verifies: engagement rule (architecture item 2) — byte-exact manifest name
@@ -3723,7 +3723,7 @@ EOF
     printf 'units:\n  - pkg/a\n' > .guardrails/UNITS.YAML
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"scope: unit"* ]]
+    [[ "$output" != *"scope: unit"* ]] || { echo "$output"; false; }
 }
 
 # --- fix1 finding-6: abnormal-input coverage for the unit annotations --------
@@ -3738,7 +3738,7 @@ EOF
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
     [[ "$output" == *"MISEXPORTED-ITEM REQ-p2m4k7"* ]] || false
-    [[ "$output" == *"only accepted value is yes"* ]]
+    [[ "$output" == *"only accepted value is yes"* ]] || { echo "$output"; false; }
 }
 
 # verifies: ORPHAN-ANNOTATION backstop over exported:/expects: (architecture item 3)
@@ -3754,7 +3754,7 @@ ORPHAN
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
     [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0002-01-01-orphan.md:3 (exported: belongs to no item)"* ]] || false
-    [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0002-01-01-orphan.md:4 (expects: belongs to no item)"* ]]
+    [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0002-01-01-orphan.md:4 (expects: belongs to no item)"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a relative link to a draft that exists resolves from the referencing file" {

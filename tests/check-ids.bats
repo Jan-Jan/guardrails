@@ -20,22 +20,22 @@ EOF
     printf '\n**REQ-DRAFT-mybranch-1**: a draft item.\n' >> docs/requirements/0001-01-01-base.md
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-ID"* ]]
+    [[ "$output" == *"DRAFT-ID"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: an LLR draft token fails" {
     printf '**LLR-DRAFT-mybranch-1**: draft low-level req.\n' > docs/architecture/0001-01-01-base.md
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-ID"* ]]
-    [[ "$output" == *"LLR-DRAFT-mybranch-1"* ]]
+    [[ "$output" == *"DRAFT-ID"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"LLR-DRAFT-mybranch-1"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: a PR draft token fails" {
     printf '**PR-DRAFT-mybranch-1**: draft problem. status: open\n' > docs/problems/0001-01-01-base.md
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"PR-DRAFT-mybranch-1"* ]]
+    [[ "$output" == *"PR-DRAFT-mybranch-1"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: draft-named file fails with DRAFT-FILE" {
@@ -43,7 +43,7 @@ EOF
     git add docs/requirements/DRAFT-mybranch-dose.md
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-FILE docs/requirements/DRAFT-mybranch-dose.md"* ]]
+    [[ "$output" == *"DRAFT-FILE docs/requirements/DRAFT-mybranch-dose.md"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: duplicate LLR definitions fail with DUPLICATE-ID" {
@@ -52,7 +52,7 @@ EOF
     commit_all llr-dup
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DUPLICATE-ID LLR-001"* ]]
+    [[ "$output" == *"DUPLICATE-ID LLR-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: duplicate in-tree definitions fail with DUPLICATE-ID" {
@@ -60,7 +60,7 @@ EOF
     commit_all dup
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DUPLICATE-ID REQ-001"* ]]
+    [[ "$output" == *"DUPLICATE-ID REQ-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: an ID prefix that is not a bare identifier is an error" {
@@ -72,10 +72,10 @@ EOF
     commit_all metachar
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"bare identifier"* ]]
+    [[ "$output" == *"bare identifier"* ]] || { echo "$output"; false; }
     # and only that: gr_prefix_re must propagate the die rather than returning
     # an empty string that trips the unrelated "not configured" fallback
-    [[ "$output" != *"not configured"* ]]
+    [[ "$output" != *"not configured"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: a draft whose prefix is missing from id_prefixes is still a draft" {
@@ -89,8 +89,8 @@ EOF
     commit_all undeclared-prefix-draft
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-ID"* ]]
-    [[ "$output" == *"PR-DRAFT-b-1"* ]]
+    [[ "$output" == *"DRAFT-ID"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"PR-DRAFT-b-1"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: an ID inside the excluded tooling dir is not a duplicate" {
@@ -561,7 +561,7 @@ EOF
 
     run sh .guardrails/scripts/check-ids.sh --allow-draft-files
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-ID"* ]]
+    [[ "$output" == *"DRAFT-ID"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: the draft failure states what to run instead" {
@@ -589,7 +589,7 @@ EOF
 
     run sh .guardrails/scripts/check-ids.sh --allow-draft-files
     [ "$status" -eq 0 ]
-    [[ "$output" != *"DRAFT-FILE"* ]]
+    [[ "$output" != *"DRAFT-FILE"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: a draft ledger filename still fails without the flag" {
@@ -599,7 +599,7 @@ EOF
 
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-FILE"* ]]
+    [[ "$output" == *"DRAFT-FILE"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: --allow-drafts is gone, and is rejected rather than ignored" {
@@ -632,7 +632,7 @@ EOF
 
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DUPLICATE-ID REQ-a3k9z2"* ]]
+    [[ "$output" == *"DUPLICATE-ID REQ-a3k9z2"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: MALFORMED-ID reports the lines that open one, not the lines that mention one" {
@@ -752,14 +752,14 @@ EOF
     commit_all empty-body
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MALFORMED-ID"* ]]
+    [[ "$output" == *"MALFORMED-ID"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: a bold run containing asterisks is not a definition form" {
     printf '**REQ-a**b**: emphasis inside what is not an item header.\n' > docs/requirements/2026-01-01-x.md
     commit_all asterisk-in-body
     run sh .guardrails/scripts/check-ids.sh
-    [[ "$output" != *"MALFORMED-ID"* ]]
+    [[ "$output" != *"MALFORMED-ID"* ]] || { echo "$output"; false; }
 }
 
 # --- T5: check-ids under scope ----------------------------------------------
@@ -769,7 +769,7 @@ EOF
     make_units_fixture
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"multi-unit repository"* ]]
+    [[ "$output" == *"multi-unit repository"* ]] || { echo "$output"; false; }
 }
 
 # verifies: obligation duplicate-id-stays-tree-wide (scoped drafts narrow to the unit)
@@ -782,7 +782,7 @@ EOF
     unit_run check-ids.sh platform/hal
     [ "$status" -eq 1 ]
     [[ "$output" == *"DRAFT-ID"* ]] || false
-    [[ "$output" == *"DRAFT-FILE"* ]]
+    [[ "$output" == *"DRAFT-FILE"* ]] || { echo "$output"; false; }
 }
 
 # verifies: obligation disclaimed-prose-is-not-malformed (scoped half)
@@ -804,7 +804,7 @@ EOF
     [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]] || false
     unit_run check-ids.sh platform/hal
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]]
+    [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]] || { echo "$output"; false; }
 }
 
 # verifies: obligation duplicate-id-stays-tree-wide (disclaimed path included)
@@ -814,5 +814,5 @@ EOF
     commit_all legacy-dup
     unit_run check-ids.sh platform/hal
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]]
+    [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]] || { echo "$output"; false; }
 }

@@ -24,7 +24,7 @@ EOF
     today=$(date +%Y-%m-%d)
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"DRAFT-feature-dose-limits.md -> ${today}-dose-limits.md"* ]]
+    [[ "$output" == *"DRAFT-feature-dose-limits.md -> ${today}-dose-limits.md"* ]] || { echo "$output"; false; }
     [ -f "docs/requirements/${today}-dose-limits.md" ]
     [ ! -f docs/requirements/DRAFT-feature-dose-limits.md ]
     grep -q '^\*\*REQ-a3k9z2\*\*:' "docs/requirements/${today}-dose-limits.md"
@@ -83,7 +83,7 @@ EOF
     commit_all metachar
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"bare identifier"* ]]
+    [[ "$output" == *"bare identifier"* ]] || { echo "$output"; false; }
     # nothing renamed, nothing rewritten
     [ -f docs/problems/DRAFT-b-notes.md ]
     grep -q 'PR-p9r5wx' docs/problems/DRAFT-b-notes.md
@@ -102,7 +102,7 @@ EOF
     commit_all dup-key
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"rename"* ]]
+    [[ "$output" == *"rename"* ]] || { echo "$output"; false; }
 }
 
 @test "finalize: same-day rename collision never overwrites an existing file" {
@@ -126,7 +126,7 @@ EOF
     commit_all spacey
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"whitespace"* ]]
+    [[ "$output" == *"whitespace"* ]] || { echo "$output"; false; }
     git diff --quiet
     grep -q 'REQ-a3k9z2' 'docs/requirements/DRAFT-my notes.md'
 }
@@ -142,7 +142,7 @@ EOF
     commit_all missing-doc-path
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"docs/problemz"* ]]
+    [[ "$output" == *"docs/problemz"* ]] || { echo "$output"; false; }
     git diff --quiet
     grep -q 'PR-p9r5wx' docs/problems/DRAFT-feature-notes.md
 }
@@ -158,7 +158,7 @@ EOF
     commit_all typo-key
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_problemss"* ]]
+    [[ "$output" == *"doc_problemss"* ]] || { echo "$output"; false; }
     [ -f docs/problems/DRAFT-feature-notes.md ]
 }
 
@@ -198,7 +198,7 @@ EOF
     make_units_fixture
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"multi-unit repository"* ]]
+    [[ "$output" == *"multi-unit repository"* ]] || { echo "$output"; false; }
 }
 
 # --- The rewrite pass: references to renamed drafts (PR-58zsvf) --------------

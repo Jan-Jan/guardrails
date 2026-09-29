@@ -17,7 +17,7 @@ load helpers
     # which runs the impact set, blocks
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
-    [[ "$output" == *"NON-EXPORTED-REF REQ-h4m2p9"* ]]
+    [[ "$output" == *"NON-EXPORTED-REF REQ-h4m2p9"* ]] || { echo "$output"; false; }
 }
 
 @test "chain: export-removal-reopens-expectation — a met expectation recomputes to unmet, nothing stored goes stale" {
@@ -51,7 +51,7 @@ EOF
     run sh .guardrails/scripts/check-units.sh --impact HEAD~1..HEAD
     [[ "$output" == *"apps/pump	dependent"* ]] || false
     unit_run check-trace.sh apps/pump
-    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]]
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || { echo "$output"; false; }
 }
 
 @test "chain: item-deletion-degrades-to-dangling" {
@@ -71,7 +71,7 @@ EOF
     [[ "$output" == *"apps/pump	dependent"* ]] || false
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
-    [[ "$output" == *"DANGLING-REF REQ-h4m2p9 (referenced but never defined)"* ]]
+    [[ "$output" == *"DANGLING-REF REQ-h4m2p9 (referenced but never defined)"* ]] || { echo "$output"; false; }
 }
 
 @test "chain: transitive-dependent-unaffected — in the set, green when it never referenced the item" {
@@ -100,7 +100,7 @@ EOF
     commit_all direct-ref
     unit_run check-trace.sh apps/monitor
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-h4m2p9"* ]]
+    [[ "$output" == *"UNDECLARED-DEPENDENCY REQ-h4m2p9"* ]] || { echo "$output"; false; }
 }
 
 @test "chain: exports-mode-matches-resolution — the listing and the verdicts are one computation" {
@@ -118,5 +118,5 @@ EOF
     commit_all internal-ref
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 1 ]
-    [[ "$output" == *"NON-EXPORTED-REF LLR-h6k9m3"* ]]
+    [[ "$output" == *"NON-EXPORTED-REF LLR-h6k9m3"* ]] || { echo "$output"; false; }
 }

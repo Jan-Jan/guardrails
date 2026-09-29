@@ -108,8 +108,8 @@ EOF
     rm -rf docs/risk
     run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_rmf'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_rmf"* ]]
-    [[ "$output" == *"docs/risk"* ]]
+    [[ "$output" == *"doc_rmf"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"docs/risk"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_prefix_re builds alternation from id_prefixes" {
@@ -146,8 +146,8 @@ EOF
     rm -f docs/risk/*.md
     run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_rmf'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_rmf"* ]]
-    [[ "$output" == *"no *.md"* ]]
+    [[ "$output" == *"doc_rmf"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"no *.md"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_prefixes rejects a prefix that is not a bare identifier" {
@@ -155,7 +155,7 @@ EOF
         && rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_prefixes'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"bare identifier"* ]]
+    [[ "$output" == *"bare identifier"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_prefixes splits on spaces even when the caller set IFS to newline" {
@@ -164,7 +164,7 @@ IFS="
 "
 gr_prefixes | tr "\n" " "'
     [ "$status" -eq 0 ]
-    [[ "$output" == "REQ HAZ RC SDD LLR PR "* ]]
+    [[ "$output" == "REQ HAZ RC SDD LLR PR "* ]] || { echo "$output"; false; }
 }
 
 
@@ -191,7 +191,7 @@ gr_prefixes | tr "\n" " "'
     sed -i.bak '/^doc_sad:/d' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_sad"* ]]
+    [[ "$output" == *"doc_sad"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_check_config rejects a list item that belongs to no key" {
@@ -210,7 +210,7 @@ test_paths:
 EOF
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"- src"* ]]
+    [[ "$output" == *"- src"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_check_config accepts an indented comment inside a list block" {
@@ -258,7 +258,7 @@ strict_paths:
 EOF
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"- lib"* ]]
+    [[ "$output" == *"- lib"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_check_config accepts a document end marker" {
@@ -434,14 +434,14 @@ EOF
     # green review gate over a directory that does not exist.
     run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"docs/verification"* ]]
+    [[ "$output" == *"docs/verification"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_verification_dir dies when a configured directory is absent" {
     printf 'doc_verification: docs/nowhere\n' >> .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"docs/nowhere"* ]]
+    [[ "$output" == *"docs/nowhere"* ]] || { echo "$output"; false; }
 }
 
 @test "doc_verification is a known config key" {
@@ -451,7 +451,7 @@ EOF
     printf 'doc_verification: docs/verification\n' >> .guardrails/config.yaml
     commit_all doc-verification-key
     run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"unknown config key"* ]]
+    [[ "$output" != *"unknown config key"* ]] || { echo "$output"; false; }
     # And positively: a negative assertion alone is satisfied by a script that
     # is not there, which is the class this suite has now produced five times.
     [ "$status" -eq 0 ] || { echo "$output"; false; }
@@ -488,7 +488,7 @@ EOF
         && rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config && echo accepted'
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *accepted* ]]
+    [[ "$output" == *accepted* ]] || { echo "$output"; false; }
 }
 
 @test "gr_limit reads a whole number, rejects anything else, and is empty when unset" {
@@ -504,10 +504,11 @@ EOF
     printf 'problem_age_days:\n' >> .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_limit problem_age_days'
     [ "$status" -eq 2 ] || { echo "empty value accepted: $status $output"; false; }
-    [[ "$output" == *"empty value"* ]]
+    [[ "$output" == *"empty value"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_check_config rejects a key set to nothing, whichever key it is" {
+    # verifies: PR-8uggn4
     # One `#` in front of one strict_paths item read as an empty list, every
     # traceability scan then walked no paths, and a merge over an undefined-ID
     # reference went from exit 1 to exit 0. The rule had been arriving one key
@@ -529,6 +530,31 @@ EOF
     sed -i.bak 's|^#  - src$|  - src|' .guardrails/config.yaml \
         && rm -f .guardrails/config.yaml.bak
     commit_all restored
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"DANGLING-REF"* ]] || { echo "$output"; false; }
+
+    # And now the half this test named and never reached. gr_check_forms
+    # branches on whether the key is in GR_LIST_KEYS: strict_paths above takes
+    # the cfg_list arm, and until PR-8uggn4 nothing in this file took the
+    # cfg_get arm beside it, so "scalar and list alike" was a claim about one
+    # arm. doc_problems is a scalar, and emptying it must be rejected the same
+    # way. Measured: with the scalar arm deleted (config-schema M90) this file
+    # killed the mutation 0 times and check-review.bats killed it.
+    sed -i.bak 's|^doc_problems: .*$|doc_problems:|' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    commit_all emptied-scalar-key
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"set to nothing"* ]] || { echo "$output"; false; }
+    [[ "$output" == *doc_problems* ]] || { echo "$output"; false; }
+
+    # The scalar arm gets the same positive control as the list arm: restored,
+    # the tree returns to its genuine failure, so it was the empty value that
+    # produced exit 2 and not the edit's collateral.
+    sed -i.bak 's|^doc_problems:$|doc_problems: docs/problems|' .guardrails/config.yaml \
+        && rm -f .guardrails/config.yaml.bak
+    commit_all restored-scalar-key
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
     [[ "$output" == *"DANGLING-REF"* ]] || { echo "$output"; false; }
@@ -901,7 +927,7 @@ EOF
     printf 'depends_on: platform/hal\n' >> .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"wrong form"* ]]
+    [[ "$output" == *"wrong form"* ]] || { echo "$output"; false; }
 }
 
 # verifies: architecture item 8 — expectation limits parse through the same
@@ -943,7 +969,7 @@ EOF
     printf 'unitz:\n  - oops\n' >> .guardrails/units.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"unknown manifest key"* ]]
+    [[ "$output" == *"unknown manifest key"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: manifest-shape-errors-are-exit-2 — units in scalar form" {
@@ -958,7 +984,7 @@ EOF
     printf '  - platform/hal\n' >> .guardrails/units.yaml   # under not_a_unit:
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"more than once"* ]]
+    [[ "$output" == *"more than once"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: manifest-shape-errors-are-exit-2 — nested unit" {
@@ -968,7 +994,7 @@ EOF
     printf '  - platform/hal/drivers\n' >> .guardrails/units.yaml  # appends to not_a_unit:
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"overlap"* ]]
+    [[ "$output" == *"overlap"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: manifest-shape-errors-are-exit-2 — missing unit config" {
@@ -976,7 +1002,7 @@ EOF
     rm apps/pump/.guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"no .guardrails/config.yaml"* ]]
+    [[ "$output" == *"no .guardrails/config.yaml"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: manifest-shape-errors-are-exit-2 — glob character in an entry" {
@@ -1009,7 +1035,7 @@ EOF
     write_config     # recreates root .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"two authorities"* ]]
+    [[ "$output" == *"two authorities"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: cycle-is-exit-2" {
@@ -1017,7 +1043,7 @@ EOF
     printf 'depends_on:\n  - apps/pump\n' >> platform/hal/.guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"cycle"* ]]
+    [[ "$output" == *"cycle"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: depends_on naming an undeclared unit is exit 2" {
@@ -1025,7 +1051,7 @@ EOF
     printf 'depends_on:\n  - vendor/lib\n' >> platform/hal/.guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"undeclared"* ]]
+    [[ "$output" == *"undeclared"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: unit-paths-outside-unit-are-exit-2" {
@@ -1034,7 +1060,7 @@ EOF
         apps/pump/.guardrails/config.yaml && rm -f apps/pump/.guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"outside the unit"* ]]
+    [[ "$output" == *"outside the unit"* ]] || { echo "$output"; false; }
 }
 
 @test "lib: a unit config setting doc_verification is exit 2" {
@@ -1043,7 +1069,7 @@ EOF
     mkdir -p apps/pump/docs/verification
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"repository-level"* ]]
+    [[ "$output" == *"repository-level"* ]] || { echo "$output"; false; }
 }
 
 # --- T3: engagement rule, scope resolver, annotation parser -----------------
@@ -1062,7 +1088,7 @@ EOF
     [ "$status" -eq 2 ]
     [[ "$output" == *"multi-unit repository"* ]] || false
     [[ "$output" == *"check-units.sh"* ]] || false
-    [[ "$output" == *"GR_CONFIG"* ]]
+    [[ "$output" == *"GR_CONFIG"* ]] || { echo "$output"; false; }
 }
 
 # verifies: engagement rule — undeclared config rejected
@@ -1073,7 +1099,7 @@ EOF
     GR_CONFIG=vendor/thing/.guardrails/config.yaml \
         run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"not a declared unit"* ]]
+    [[ "$output" == *"not a declared unit"* ]] || { echo "$output"; false; }
 }
 
 # verifies: engagement rule — declared unit config resolves to its unit
@@ -1091,7 +1117,7 @@ EOF
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units && gr_exported_reqs platform/hal'
     [ "$status" -eq 0 ]
     [[ "$output" == "REQ-h4m2p9	"* ]] || false
-    [[ "$output" != *"LLR-"* ]]
+    [[ "$output" != *"LLR-"* ]] || { echo "$output"; false; }
 }
 
 # verifies: annotation grammar reader (architecture item 3)
@@ -1107,7 +1133,7 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"REQ-e7x2m4	"*"	EXPECTS	platform/hal"* ]] || false
     [[ "$output" == *"REQ-e7x2m4	"*"	OPENED	2026-09-01"* ]] || false
-    [[ "$output" == *"REQ-e7x2m4	"*"	RC	1"* ]]
+    [[ "$output" == *"REQ-e7x2m4	"*"	RC	1"* ]] || { echo "$output"; false; }
 }
 
 # verifies: consumer resolution over depends_on edges
@@ -1162,7 +1188,7 @@ EOF
     printf '  - /abs\n' >> .guardrails/units.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"absolute"* ]]
+    [[ "$output" == *"absolute"* ]] || { echo "$output"; false; }
 }
 
 # --- GR_AWK_ITEM_BLOCK: the annotation keyword predicates -------------------

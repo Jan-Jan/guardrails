@@ -55,7 +55,7 @@ token_re() {
 @test "new-id: rejects a prefix that is not declared in id_prefixes" {
     run .guardrails/scripts/new-id.sh XYZ
     [ "$status" -eq 2 ]
-    [[ "$output" == *"not declared in id_prefixes"* ]]
+    [[ "$output" == *"not declared in id_prefixes"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: rejects a count that is not a positive integer" {
@@ -74,7 +74,7 @@ token_re() {
     printf 'stritc_paths:\n  - src\n' >> .guardrails/config.yaml
     run .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]
-    [[ "$output" == *"unknown config key"* ]]
+    [[ "$output" == *"unknown config key"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: never mints an ID already present in the tree" {
@@ -84,7 +84,7 @@ token_re() {
     commit_all
     GR_ID_FORCE_TOKEN=a3k9z2 run .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]
-    [[ "$output" == *"could not mint"* ]]
+    [[ "$output" == *"could not mint"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: sees an UNTRACKED file when checking for collisions" {
@@ -93,7 +93,7 @@ token_re() {
     printf '**REQ-a3k9z2**: taken, not yet committed\n' > docs/requirements/2026-01-01-x.md
     GR_ID_FORCE_TOKEN=a3k9z2 run .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]
-    [[ "$output" == *"could not mint"* ]]
+    [[ "$output" == *"could not mint"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: a reference, not just a definition, blocks the token" {
@@ -134,7 +134,7 @@ token_re() {
     commit_all
     run .guardrails/scripts/check-ids.sh
     [ "$status" -eq 0 ]
-    [[ "$output" != *"MALFORMED-ID"* ]]
+    [[ "$output" != *"MALFORMED-ID"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: the collision scan follows GR_SCAN_EXCLUDE" {
@@ -219,7 +219,7 @@ token_re() {
     cd apps/pump/src
     run sh ../../../.guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 0 ]
-    [[ "$output" =~ ^REQ-[abcdefghjkmnpqrstuvwxyz23456789]{6}$ ]]
+    [[ "$output" =~ ^REQ-[abcdefghjkmnpqrstuvwxyz23456789]{6}$ ]] || { echo "$output"; false; }
 }
 
 @test "new-id: new-id-outside-unit-requires-flag — at the root it rejects the request and lists the units" {
@@ -228,7 +228,7 @@ token_re() {
     [ "$status" -eq 2 ]
     [[ "$output" == *"platform/hal"* ]] || false
     [[ "$output" == *"apps/pump"* ]] || false
-    [[ "$output" == *"--unit"* ]]
+    [[ "$output" == *"--unit"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: --unit selects explicitly, from anywhere" {
@@ -245,14 +245,14 @@ token_re() {
     GR_CONFIG=apps/pump/.guardrails/config.yaml \
         run sh .guardrails/scripts/new-id.sh --unit platform/hal REQ
     [ "$status" -eq 2 ]
-    [[ "$output" == *"disagree"* ]]
+    [[ "$output" == *"disagree"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: an explicit unit GR_CONFIG alone still works (the engagement rule)" {
     make_units_fixture
     GR_CONFIG=apps/pump/.guardrails/config.yaml run sh .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 0 ]
-    [[ "$output" =~ ^REQ- ]]
+    [[ "$output" =~ ^REQ- ]] || { echo "$output"; false; }
 }
 
 @test "new-id: the mint collision scan stays tree-wide under scope" {
@@ -260,12 +260,12 @@ token_re() {
     # wedge the draw to an ID defined in the OTHER unit: the scan must see it
     run sh -c 'cd apps/pump && GR_ID_FORCE_TOKEN=h4m2p9 sh ../../.guardrails/scripts/new-id.sh REQ'
     [ "$status" -eq 2 ]
-    [[ "$output" == *"100 attempts"* ]]
+    [[ "$output" == *"100 attempts"* ]] || { echo "$output"; false; }
 }
 
 # verifies: engagement rule — --unit is meaningless without a manifest (finding-6c)
 @test "new-id: --unit in a single-unit repository is exit 2, never a silent guess" {
     run sh .guardrails/scripts/new-id.sh --unit apps/pump REQ
     [ "$status" -eq 2 ]
-    [[ "$output" == *"single-unit repository"* ]]
+    [[ "$output" == *"single-unit repository"* ]] || { echo "$output"; false; }
 }

@@ -10,7 +10,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-RECORD my-change"* ]]
+    [[ "$output" == *"MISSING-RECORD my-change"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record declaring the branch passes" {
@@ -38,7 +38,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-RECORD my-change"* ]]
+    [[ "$output" == *"MISSING-RECORD my-change"* ]] || { echo "$output"; false; }
 }
 
 # --- never a vacuous pass ---------------------------------------------------
@@ -48,7 +48,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"base branch"* ]]
+    [[ "$output" == *"base branch"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a detached HEAD exits 2" {
@@ -102,7 +102,7 @@ setup() { make_fixture_repo; }
     make_change_worktree my-change
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"docs/verification"* ]]
+    [[ "$output" == *"docs/verification"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a doc_verification directory with no *.md exits 2" {
@@ -110,7 +110,7 @@ setup() { make_fixture_repo; }
     mkdir -p docs/verification
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"no verification records"* ]]
+    [[ "$output" == *"no verification records"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: an invalid config is rejected before any record is read" {
@@ -120,7 +120,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"unknown config key"* ]]
+    [[ "$output" == *"unknown config key"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: an unknown argument is rejected, not ignored" {
@@ -129,7 +129,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh --allow-anything
     [ "$status" -eq 2 ]
-    [[ "$output" == *"unknown argument"* ]]
+    [[ "$output" == *"unknown argument"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: --branch names the change in a single checkout" {
@@ -142,7 +142,7 @@ setup() { make_fixture_repo; }
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     run sh .guardrails/scripts/check-review.sh --branch other-branch
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-RECORD other-branch"* ]]
+    [[ "$output" == *"MISSING-RECORD other-branch"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: --branch with no value is rejected" {
@@ -150,7 +150,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh --branch
     [ "$status" -eq 2 ]
-    [[ "$output" == *"--branch needs"* ]]
+    [[ "$output" == *"--branch needs"* ]] || { echo "$output"; false; }
 }
 
 # --- INCOMPLETE-RECORD ------------------------------------------------------
@@ -166,8 +166,8 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"INCOMPLETE-RECORD"* ]]
-    [[ "$output" == *"no reviewer:"* ]]
+    [[ "$output" == *"INCOMPLETE-RECORD"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"no reviewer:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record with no verdict: fails" {
@@ -177,7 +177,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"no verdict:"* ]]
+    [[ "$output" == *"no verdict:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record with no reproduced: fails" {
@@ -187,7 +187,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"no reproduced:"* ]]
+    [[ "$output" == *"no reproduced:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: every missing field is named, not just the first" {
@@ -196,8 +196,8 @@ setup() { make_fixture_repo; }
     sed -i.bak '/^verdict:/d; /^reproduced:/d' docs/verification/2026-01-01-mine.md
     commit_all records
     run sh .guardrails/scripts/check-review.sh
-    [[ "$output" == *"no verdict:"* ]]
-    [[ "$output" == *"no reproduced:"* ]]
+    [[ "$output" == *"no verdict:"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"no reproduced:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a field with no value is an omission, not compliance" {
@@ -207,7 +207,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"no reproduced:"* ]]
+    [[ "$output" == *"no reproduced:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a field of whitespace only is an omission" {
@@ -217,7 +217,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"no reproduced:"* ]]
+    [[ "$output" == *"no reproduced:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: reproduced: no passes — the value is never judged" {
@@ -242,7 +242,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"no reviewer:"* ]]
+    [[ "$output" == *"no reviewer:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: an indented field does not satisfy the requirement" {
@@ -252,7 +252,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"no reviewer:"* ]]
+    [[ "$output" == *"no reviewer:"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: another change's record cannot supply this change's fields" {
@@ -263,8 +263,8 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"2026-01-01-mine.md"* ]]
-    [[ "$output" != *"2026-01-01-other.md"* ]]
+    [[ "$output" == *"2026-01-01-mine.md"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"2026-01-01-other.md"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record for another change is not schema-checked at all" {
@@ -294,8 +294,8 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNDISPOSED-FINDING"* ]]
-    [[ "$output" == *"finding-1"* ]]
+    [[ "$output" == *"UNDISPOSED-FINDING"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"finding-1"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a finding with a disposition passes" {
@@ -316,7 +316,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNDISPOSED-FINDING"* ]]
+    [[ "$output" == *"UNDISPOSED-FINDING"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: the reported line is the finding, not the record" {
@@ -340,8 +340,8 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"finding-1"* ]]
-    [[ "$output" != *"finding-2"* ]]
+    [[ "$output" == *"finding-1"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"finding-2"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a heading between a finding and its disposition detaches it" {
@@ -352,7 +352,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"UNDISPOSED-FINDING"* ]]
+    [[ "$output" == *"UNDISPOSED-FINDING"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record with no findings at all passes" {
@@ -386,7 +386,7 @@ setup() { make_fixture_repo; }
     commit_all records
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"MALFORMED-FINDING"* ]]
+    [[ "$output" == *"MALFORMED-FINDING"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a finding inside front matter is not a finding" {
@@ -535,7 +535,7 @@ REC
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     run sh .guardrails/scripts/check-review.sh --branch some-other-change
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"MISSING-RECORD some-other-change"* ]]
+    [[ "$output" == *"MISSING-RECORD some-other-change"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record this change did not write is reported, not accepted" {
@@ -548,7 +548,7 @@ REC
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     [[ "$output" == *"STALE-RECORD"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"did not write it"* ]]
+    [[ "$output" == *"did not write it"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record modified by this change counts as written by it" {
@@ -571,7 +571,7 @@ REC
     write_record mine my-change
     run sh .guardrails/scripts/check-review.sh
     [[ "$output" == *"provenance checked"* ]] || { echo "$output"; false; }
-    [[ "$output" != *"NOT checked"* ]]
+    [[ "$output" != *"NOT checked"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: --branch naming the base branch is rejected" {
@@ -594,7 +594,7 @@ REC
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"checked: records 2, for my-change 2"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"2026-01-01-two.md (no reproduced:)"* ]]
+    [[ "$output" == *"2026-01-01-two.md (no reproduced:)"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a record in a subdirectory of doc_verification is not read" {
@@ -610,7 +610,7 @@ REC
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"MISSING-RECORD my-change"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"checked: records 1,"* ]]
+    [[ "$output" == *"checked: records 1,"* ]] || { echo "$output"; false; }
 }
 
 # --- a finding must not be able to vanish ----------------------------------
@@ -815,7 +815,7 @@ REC
     commit_all record
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"records"* ]]     # the existing checked: summary
+    [[ "$output" == *"records"* ]] || { echo "$output"; false; }     # the existing checked: summary
 }
 
 @test "check-review: a manifest repo with a broken manifest is exit 2 here too" {
@@ -831,7 +831,7 @@ REC
     # The exit 2 must come from the manifest validator, not from the absent
     # root config: pre-manifest, "config not found" also exited 2 here, and
     # that green would have proven nothing.
-    [[ "$output" == *"unknown manifest key"* ]]
+    [[ "$output" == *"unknown manifest key"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a manifest repo missing docs/verification is exit 2 naming the rule" {
@@ -841,7 +841,7 @@ REC
     make_change_worktree units-change
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 2 ]
-    [[ "$output" == *"docs/verification"* ]]
+    [[ "$output" == *"docs/verification"* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: a quoted bulleted branch: does not claim the record" {
