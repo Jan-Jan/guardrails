@@ -39,7 +39,8 @@
 # signed commit always remains; only cleanup is rejected, which is a safe thing
 # to reject. The fix is to run this script again ON ITS OWN — re-running the
 # whole compound cannot double-commit (the squash is no longer staged, so
-# `git commit` fails and `&&` short-circuits), but it wastes a key touch.
+# `git commit` fails and `&&` short-circuits). With nothing staged, git exits
+# before it invokes the signing program, so no key touch is spent either.
 #
 # There is no --force and no way to skip a guard. That is the entire point.
 #

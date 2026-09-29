@@ -7,569 +7,294 @@ description: The compliance chokepoint - integrate a worktree into the base bran
 
 **Announce at start:** "Using the merge-change skill to integrate this change."
 
-Precondition: `verify-before-merge` passed in the worktree. The **base
-branch** — whatever branch the primary (non-worktree) checkout currently has
-checked out; never assume `main` — only ever receives one verified,
-**signed** squash commit per change. Every step until the squash happens
-**in the worktree**. Detect the base once and use it throughout:
+## Preconditions
 
-```sh
-BASE=$(. .guardrails/scripts/lib.sh && gr_base_branch)
-```
+- `verify-before-merge` passed in the change worktree.
+- Every step before step 7 runs **in the change worktree**. The base branch
+  receives exactly one verified, **signed** squash commit per change.
+- The base branch is whatever the primary checkout has checked out. Never
+  assume `main`. Detect it once:
 
-**One change at a time.** A change is taken all the way to its signed squash
-before the next change is opened. Parallelism lives *inside* a change — several
-task subagents under `develop-change`, each in its own task worktree off the
-change branch — never across changes. Two open changes race on the base branch,
-on the duplicate scan in step 4, and on the verification record, and every one
-of those races surfaces here rather than where it was created.
+  ```sh
+  BASE=$(. .guardrails/scripts/lib.sh && gr_base_branch)
+  ```
 
-## Multi-unit repositories
+- **One change at a time.** Take this change to its signed squash before the
+  next change opens. Parallelism exists only inside a change, across task
+  worktrees.
+- If `.guardrails/units.yaml` exists, read `references/multi-unit.md` first.
+  It changes which gates run and how often.
 
-When `.guardrails/units.yaml` exists, the sequence below runs **per unit
-over the impact set**, and the impact set is computed, not judged:
+## Steps
 
-```sh
-.guardrails/scripts/check-units.sh --impact "$BASE..HEAD"
-```
+Halt on any failure. You decide the fix. Dispatch the fix like any other task,
+into a nested task worktree at a path you name in the prompt:
+`.worktrees/<change-branch>-<tag>` (`worktree-discipline` step 1). When its
+report is green, merge the task branch into the change branch, then
+remove the worktree and delete the task branch:
+`git worktree remove` and then `git branch -d`. Then rerun from step 1.
 
-One `<unit>\t<touched|dependent>` line per unit — consume it mechanically,
-never hand-pick the unit list. The mode exits 2 on a changed path claimed by
-no unit (fix default mode's UNCLAIMED-PATH first; a partial impact set would
-read as complete), and maps a change under the root `.guardrails/` to every unit.
-Then, wherever the sequence calls for the gates or the suite:
+The tag must be unique per dispatch. Date it, number it, or name it after the
+finding. With a repeated tag, a missed cleanup makes the next round's
+dispatch fail.
 
-- run `check-units.sh` with no flag once — the repository-level gates;
-- run `check-trace.sh`, `check-ids.sh` and that unit's `verify_commands`
-  with `GR_CONFIG=<unit>/.guardrails/config.yaml`, for **every unit in the impact set**
-  (dependents included — that is what the set is for);
-- run `finalize-docs.sh` (step 3) once per touched unit, `GR_CONFIG`
-  pointing at each — a dependent has no drafts to rename;
-- `check-review.sh` is repository-level and runs exactly once, unchanged.
-
-The record at 6b names the units touched, and the impact set beside its
-`branch:` line, so the evidence states which units' gates the verdict covers.
-One branch, one squash, one record — D6 — however many units were run.
-
-## The sequence
-
-Halt on any failure. Deciding what to fix is yours; writing the fix is
-dispatched like any other task — into its own nested task worktree, at a path
-you name in the prompt (`.worktrees/<change-branch>-<tag>`,
-`worktree-discipline` step 1) — and it is merged onto the change branch, never
-onto the base branch. That dispatch ends the way every other one does: once its
-report is green you merge the task branch into the change branch, then
-remove the worktree and delete the task branch (`worktree-discipline`,
-"Inside the worktree"). Then rerun from step 1.
-
-The tag is yours to name, and it must be unique per dispatch. Not because two
-findings rounds that both use the natural `fix` would collide when the
-second is created: the removal above takes round 1's branch with it, so the
-name is free again before round 2 dispatches. That is the same property
-step 6a rests on when it keeps the review tag fixed at `review`. The rule is
-insurance against a cleanup that was missed, and this is the dispatch where
-that is likeliest — no numbered step of this sequence performs its removal;
-you do, between rounds, and it is the whole cleanup:
-`git worktree remove` and then `git branch -d`. Met by a repeated tag, either
-half left undone is `fatal: a branch named '<change-branch>-fix' already
-exists` at the next round's creation — git validates the new branch name
-before the worktree path. Met by a fresh tag, the leftover and the new
-dispatch do not collide. A leftover branch alone is a stale branch, deletable
-whenever you notice it.
-A wholly skipped cleanup also leaves a nested worktree still registered —
-gitignored, so `git status` never shows it — which step 6d catches and which
-guard 4 rejects at step 8, after a full `check-signing.sh --strict` run.
-Nothing is lost either way, but the second costs a halt late in the sequence
-rather than a deletion at your convenience. Date it, number it, or name it
-after the finding — anything that does not repeat.
-
-1. **Merge the latest base branch into the worktree branch.** *Latest* means
-   latest on the remote, not latest in this clone — on a shared repository a
-   stale local base is the whole hazard this step exists to remove:
+1. **Merge the latest base branch into the worktree branch.** Latest means
+   latest on the remote:
 
    ```sh
    if [ -n "$(git remote)" ]; then
-       # A FAILED fetch is not "no remote". Swallowing it merges against a
-       # stale remote-tracking ref and reports success — the same shape as a
-       # gate that exits 0 having proved nothing. Stop and fix the access.
        git fetch origin || { echo "fetch failed — fix it before merging" >&2; exit 1; }
        git merge "origin/$BASE"
    else
-       git merge "$BASE"          # genuinely local-only: nothing to fetch
+       git merge "$BASE"
    fi
    ```
 
-   If the fetch cannot succeed here — no credentials in this environment, a
-   hardware key that is not present — that is a **stop**, not a warning to
-   scroll past. Either fetch from a session that can, or record in the
-   verification record that the base was merged from a local ref and name the
-   commit, so the next reader knows what the duplicate scan in step 4 was
-   actually compared against.
+   - A failed fetch is a **stop**. Fetch from a session that can, or record in
+     the verification record that the base was merged from a local ref, and
+     name the commit.
+   - A project may put the remote out of scope only if its own AGENTS.md states
+     why, and the record states it too. Never adopt that by analogy. With
+     sequential IDs, or several people merging to a shared remote, the fetch is
+     required. See `references/rationale.md`.
+   - Run this step every round. `Already up to date` leaves the tree hash
+     unchanged, and the figures downstream of it remain valid.
+   - Resolve conflicts here, never on the base branch.
+2. **Dispatch the verification suite** as `verify-before-merge` describes. A
+   fresh subagent runs every `verify_commands` entry in the change worktree,
+   logs raw output outside the tree, and returns the **gate summary**. Do not
+   run it in your own context. Read the verdict from the pass and fail counts.
 
-   **A base already merged is a no-op, and the figures downstream of it stand.**
-   On a findings round the base has usually not moved since the round before,
-   and then `git merge` prints `Already up to date` and leaves
-   `git rev-parse HEAD^{tree}` exactly where it was. That is the same question
-   step 6 asks about step 2's gate summary, asked one step earlier. The step is
-   still run every round — what is cheap on a repeat round is the answer, never
-   the question.
-
-   Resolve conflicts here, never on the base branch. This step is critical
-   for step 4: `check-ids.sh` has no gate against the base branch, because
-   after this merge every ID the base defines is in the tree its in-tree
-   duplicate scan already reads. Skip the fetch and that stops being true.
-
-   **A project may nevertheless put the remote out of scope**, and one does:
-   this toolkit's own repository (`AGENTS.md` non-negotiable 5) forbids an agent
-   to fetch or push at all, because the fetch blocks on a hardware key only the
-   user can touch. That is a deliberate trade, not a loophole, and it is only
-   available to a project that can state why the lost coverage does not matter
-   to it — there, that IDs are random and minted against nothing, so two
-   branches cannot collide by construction and the scan was covering a vanishing
-   case. **Do not adopt it by analogy.** With sequential IDs, or several people
-   merging to a shared remote, the fetch is critical exactly as written
-   above. A project that puts the remote out of scope states this in its own
-   AGENTS.md, with its own reason, and in the verification record too.
-2. **Dispatch the verification suite** the way `verify-before-merge` describes
-   — a fresh subagent runs every `verify_commands` entry in the worktree
-   (per unit over the impact set in a multi-unit repository — see
-   "Multi-unit repositories"), logs
-   the raw output outside the tree, and returns the **gate summary**. Don't
-   re-run it in your own context. Breakage from the conflict resolution or
-   the integration stops the merge right here, read from the summary's
-   pass/fail counts.
-
-   **Record the tree the summary describes**, beside the summary itself:
+   **Record the tree the summary describes**, beside the summary:
 
    ```sh
    git rev-parse HEAD^{tree}   # clean worktree, at the moment of the dispatch
    ```
 
-   A gate summary with no tree beside it cannot be re-identified one round
-   later, and step 6 compares against this hash.
-3. **Finalize the draft doc files:**
-   `.guardrails/scripts/finalize-docs.sh` (preview with `--dry-run` first).
-   This renames any `DRAFT-<branch>-<slug>.md` ledger file to
-   `<finalize-date>-<slug>.md`. It then rewrites every root-relative path and
-   every bare name that refers to a renamed file across the ledger
-   directories and the SOUP file and prints one `rewrote FILE: old -> new`
-   line each; read those lines — a rewrite edits prose somebody else wrote. A
-   `left FILE: …` line means two drafts shared a bare name and the reference
-   must be written as a path by hand. A relative link such as
-   `../risk/DRAFT-x.md` is not rewritten; step 5 reports it as
-   `DANGLING-FILE` and you write the dated name by hand. The same applies to
-   a name wrapped in emphasis (`_DRAFT-x.md_`) or glued to a longer word.
-   Plans and verification records are never rewritten.
+3. **Finalize the draft doc files.** Preview, then run:
 
-   **`unrewritten FILE:LINE: NAME` is the rest of that sentence.** After the
-   rewrite the script scans the whole tree for each old basename and prints
-   every occurrence it did not touch, because the file is outside the rewrite
-   scope — a plan, a verification record. Read each line and rule on it
-   yourself: a sentence narrating the rename is meant to name the old file and
-   is correct as it stands, while a citation that was meant to resolve is now
-   dead and you repair it by hand. The script does not judge narration against
-   link, and the report does not move its exit status; under `--dry-run` the
-   line opens `would leave unrewritten`. Nothing downstream repeats it —
-   `DANGLING-FILE` at step 5 reads the same scope the rewrite does, which is
-   the gap this report was added to close.
+   ```sh
+   .guardrails/scripts/finalize-docs.sh --dry-run
+   .guardrails/scripts/finalize-docs.sh
+   ```
 
-   **The script renames every draft ledger file it finds, including one another
-   change left behind.** It does not ask whose a draft is, so a leaked draft is
-   adopted into this change silently — renamed into this diff, this record and
-   this change's `Implements:` line, with no item to explain it. Read the rename
-   lines for a name you do not recognise, and if one appears, stop: the repair
-   belongs to a change of its own, not to this one. That there is no verdict for
-   this is a known gap, recorded as a problem item in this toolkit's own ledger.
+   It renames each `DRAFT-<branch>-<slug>.md` ledger file to
+   `<finalize-date>-<slug>.md`, then rewrites every root-relative path and bare
+   name that refers to it across the ledger directories and the SOUP file.
+   Read every line it prints:
 
-   **The date in the new name is the day the draft name was retired — this
-   step, on this round.** It is within a few days of the squash, and nothing
-   re-derives it afterwards: a findings round that crosses midnight keeps the
-   date of the first finalize attempt, because by then the tree is already
-   dated and the script has nothing to rename. So the filename is a handle for
-   the file, not a claim about when the change reached the base branch. When
-   you want the day of the merge itself, git has it exactly, for every commit.
+   - `rewrote FILE: old -> new` — it edited prose somebody else wrote. Check it.
+   - `left FILE: …` — two drafts share a bare name. Write the reference as a
+     path by hand.
+   - `unrewritten FILE:LINE: NAME` (`would leave unrewritten` under
+     `--dry-run`) — an old name outside the rewrite scope, in a plan or a
+     verification record. Rule on each: narration of the rename stays; a
+     citation meant to resolve is dead, so repair it. This line does not change
+     the exit status, and nothing later repeats it.
+   - A rename you do not recognise is a draft another change left behind.
+     Stop: its repair is a separate change.
 
-   Commit the renames — **only where there were renames.** On the second and
-   every later findings round the drafts are already dated, the script is a
-   silent no-op, and an unconditional commit then exits 1 with nothing to
-   commit: a halt for no defect at all, in a sequence that stops at any
-   failure. Stage first and let the index answer the question:
+   A relative link such as `../risk/DRAFT-x.md`, a name in emphasis, or a name
+   joined to a longer word is not rewritten. Step 5 reports it as
+   `DANGLING-FILE`; write the dated name by hand. Plans and verification
+   records are never rewritten. The date is the day this step first retired the
+   draft name, not the day of the merge.
+
+   Commit the renames **only where there were renames**:
 
    ```sh
    git add -A
    git diff --cached --quiet || git -c commit.gpgsign=false commit -m "chore: finalize ledger files"
    ```
 
-   There are no IDs to finalize. Every item received its ID from `new-id.sh`
-   when it was written, and that ID is allocated against nothing — which is
-   why step 1 above is enough to make two parallel changes safe to merge in
-   either order.
-4. **`.guardrails/scripts/check-ids.sh`** — zero draft tokens, zero
-   ledger files with a draft name, zero duplicates, zero malformed IDs. Step 1
-   has already merged the base branch in, so the duplicate scan sees every ID
-   the base defines; there is no separate base gate and no `--base`.
+   There are no IDs to finalize. `new-id.sh` minted each ID when its item was
+   written.
+4. **`.guardrails/scripts/check-ids.sh`** — zero draft tokens, zero draft ledger
+   files, zero duplicates, zero malformed IDs. Step 1 merged the base, so the
+   duplicate scan already sees every ID the base defines.
 
-   **`MALFORMED-ID`** means a line opens with a definition form whose ID is
-   not valid — a hand-typed token with no digit, or a legacy ID too short to
-   have ever matched. The item it announces is invisible to every other gate.
-   Give it an ID from `new-id.sh`; never widen a pattern to accept it.
-
-   **`DRAFT-FILE` does not say whose draft it is.** The scan reads the whole
-   tree, so a draft leaked by a change that already merged fails this step for
-   every change that follows it, and the verdict names no other change. If the
-   path is not one this change created, you are finishing someone else's step 3:
-   the repair belongs to a change of its own rather than to this diff. Telling
-   the two apart mechanically is an open problem in this toolkit — the obvious
-   discriminator, whether the name opens `DRAFT-<this branch>-`, convicts any
-   draft that does not embed its branch, which the convention permits.
+   - `MALFORMED-ID`: give the item an ID from `new-id.sh`. Never widen a
+     pattern to accept the token.
+   - `DRAFT-FILE` on a path this change did not create is another change's
+     unfinished step 3. Its repair is a separate change.
 5. **`.guardrails/scripts/check-trace.sh`** — all gates clean.
-6. **Dispatch the verification suite again — where step 3 renamed something.**
-   The renames moved files the tests may read, and a fresh **gate summary** is
-   what proves nothing broke.
-
-   Where step 3 renamed nothing, the tree step 2 measured is the tree still
-   under you: step 3 was a no-op, steps 4 and 5 only read, and step 1 merged a
-   base that had already been merged. A second dispatch over it spends a full
-   suite run to reproduce an answer you already have. The test is mechanical,
-   not a matter of judgment:
+6. **Dispatch the verification suite again, where step 3 renamed something.**
+   Decide by the tree, not by judgment:
 
    ```sh
-   git status --porcelain      # empty — otherwise the comparison means nothing
-   git rev-parse HEAD^{tree}   # the tree step 2 measured, or a different one?
+   git status --porcelain      # must be empty
+   git rev-parse HEAD^{tree}   # compare with the hash recorded at step 2
    ```
 
-   Same hash and a clean worktree, and **the step 2 summary stands**; step 6b
-   then records which tree the figures describe, so the evidence is keyed to a
-   tree rather than to a round nobody can identify afterwards. A different hash,
-   or anything uncommitted, and you dispatch as before. Findings rounds bring
-   the sequence through here repeatedly, and this is what keeps a round that
-   moved nothing from measuring the same tree twice.
+   Same hash and a clean worktree: **the step 2 summary stands**, and 6b
+   records which tree the figures describe. A different hash, or anything
+   uncommitted: dispatch the suite again.
 
 6a. **Independent review** (DO-178C independence: the verifier is not the
-   author). Dispatch a fresh subagent — or hand off to a human reviewer,
-   per team policy — with the diff, the relevant SRS/RMF/SAD excerpts, and
-   the plan, and with **no implementation narrative and no chat history**.
-   What is withheld is the author's account of the work, never access to the
-   code: the reviewer has the whole repository, which is what the re-run below
-   needs. The reviewer answers:
+   author). Dispatch a fresh subagent, or a human reviewer where team policy
+   requires one. Give it the diff, the relevant SRS/RMF/SAD excerpts and the
+   plan. Give it **no implementation narrative and no chat history**. It has
+   the whole repository.
+
+   Name its worktree in the prompt: `.worktrees/<change-branch>-review`, on
+   branch `<change-branch>-review`, nested inside the change worktree. A
+   dispatched subagent is pinned to the change worktree's subtree
+   (`worktree-discipline` step 1).
+
+   The reviewer answers:
    - Does the code satisfy each REQ/LLR the change claims to implement?
-   - Do the tests actually verify what their `verifies:` annotations claim
-     (verification of verification)? Would they fail if the behavior broke?
+   - Do the tests verify what their `verifies:` annotations claim? Would they
+     fail if the behavior broke?
    - Are robustness (abnormal-input) cases present for every claimed ID
      (class B/C)?
-   - Is there behavior with no requirement — unmarked derived work?
+   - Is there behavior with no requirement, that is, unmarked derived work?
 
-   **The reviewer runs the suite itself.** For any change touching more than
-   documentation, independence covers the evidence as well as the code: the
-   reviewer runs every `verify_commands` entry in its own task worktree off the
-   change branch and reports the counts it saw, not the counts it was handed.
-   Only when the diff is documentation alone may it rest on the step 6 gate
-   summary — then that summary is handed over as evidence in place of the
-   re-run, and the record notes the substitution.
-
-   **The reviewer's worktree is nested**, and you name its path in the dispatch
-   prompt: `.worktrees/<change-branch>-review`, on branch
-   `<change-branch>-review`, inside the change worktree. The reviewer is a
-   dispatched subagent like any other, so it is pinned to the change worktree's
-   subtree and cannot discover that before violating it
-   (`worktree-discipline` step 1) — and a reviewer whose worktree is unusable
-   reports on a suite it could not run. You remove it again at the end of this
-   step; leaving it registered blocks the cleanup at step 7.
+   **The reviewer runs the suite itself** in its own worktree and reports the
+   counts it saw. Only a documentation-only diff may use the step 6 gate
+   summary instead; the record then states the substitution.
 
    **When the diff touches documentation**, the reviewer also checks:
-   - New items are in this change's draft ledger file, and no existing
-     definition moved from the file that defines it to another one.
-   - IDs are well-formed minted tokens, and an amendment edits the defining
-     file in place rather than restating the item somewhere new.
-   - Item form is correct: `**<ID>**: The software shall <single, testable
-     behavior>`.
-   - `satisfies:` / `implements:` references resolve, and derived items are
-     marked as derived.
+   - New items are in this change's draft ledger file, and no definition moved
+     to another file.
+   - IDs are minted tokens. An amendment edits the defining file in place.
+   - Item form: `**<ID>**: The software shall <single, testable behavior>`.
+   - `satisfies:` / `implements:` references resolve; derived items are marked.
    - Terms match `docs/CONTEXT.md`.
-   - Anything removed or reworded has its supersession annotations: the
-     superseded item keeps its place and gains `superseded-by: <new ID>`, and
-     the new item contains `supersedes: <old ID>`. A requirement that
-     disappeared is a finding.
-   - The test that verified the superseded item now names both IDs —
-     `verifies: <old ID>, <new ID>`. `superseded-by:` exempts nothing: the old
-     item keeps its definition, so `check-trace.sh` still requires a test for
-     it, and the dual annotation is what keeps MISSING-TEST clean for both.
+   - Anything removed or reworded is superseded, not deleted: the old item
+     keeps its place and gains `superseded-by: <new ID>`, and the new item
+     contains `supersedes: <old ID>`. A requirement that disappeared is a
+     finding.
+   - The test that verified the superseded item names both IDs:
+     `verifies: <old ID>, <new ID>`. `superseded-by:` exempts nothing from
+     `MISSING-TEST`, so the dual annotation keeps it clean for both.
+   - Every other site that names the superseded ID. `check-trace.sh` enforces
+     the supersession pair (`NON-RECIPROCAL-SUPERSESSION`,
+     `MALFORMED-SUPERSESSION`) and only the pair. An `affects:`, `traces:` or
+     table row may name an old ID as history, so that sweep stays a review job.
 
-   **The pair is now enforced, and only the pair.** `check-trace.sh` reports
-   `NON-RECIPROCAL-SUPERSESSION` when `supersedes: <old ID>` on the
-   replacement is not answered by `superseded-by: <new ID>` on the replaced
-   item, or the reverse — read at column one inside the item's block, in every
-   ledger, and an orphaned half is `ORPHAN-ANNOTATION`. Both annotations are
-   lists, so an item may replace more than one predecessor, and a second
-   `supersedes:` line in the same block adds to the first rather than being
-   ignored by it.
-
-   A half whose value contains no readable ID is `MALFORMED-SUPERSESSION`, not
-   silence. `supersedes: the old requirement`, a typo, or the keyword with
-   nothing after it would otherwise record no supersession at all — a
-   half-applied supersession passing green, which is the case this gate exists
-   to remove. So is ONE mistyped entry in a list that also contains good ones:
-   `supersedes: REQ-m7dq3v, REQ-nope` reports
-   `(supersedes: REQ-nope — not an item ID)` rather than recording half the
-   list. Prose and a parenthetical after the list end it and stay clean —
-   `supersedes: REQ-m7dq3v (was REQ-001)` and
-   `supersedes: REQ-m7dq3v — the original wording` are both correct.
-
-   What the gate does **not** check, and the reviewer therefore still does by
-   hand: **every other site that names the superseded ID.** An `affects:`,
-   `traces:` or verification-table row may legitimately name an old ID as
-   history, so there is no unambiguous verdict to give and none is invented.
-   Budget for that sweep — on the first downstream use of this form, six sites
-   were half-applied; reciprocity accounts for five of them, and the sixth was
-   a reference the gate cannot judge. Existence is a third question and
-   already `DANGLING-REF`'s: an ID that was never defined is reported there.
-
-   **Findings come back ready to file.** The reviewer returns each one in the
-   shape step 6b's record already wants —
+   **Every finding opens with its tag** — `code`, `requirement` or `record`,
+   the first word of the value — in the shape 6b files:
 
    ```markdown
    **finding-1**: record — the gate table states 214 tests, the summary 218.
    ```
 
-   — plus a one-line verdict, so 6b copies them instead of re-summarizing
-   them. A finding reworded by the author is the author's finding.
-
-   **Every finding opens with its tag** — `code`, `requirement` or `record`, the
-   first word of the finding's value, as above. `check-review.sh` block-parses
-   the `**finding-N**:` header and never looks at the value, so this adds no
-   script, no new required field and no new malformed case. What it adds is what
-   the convergence rule below needs: whether a round found a defect in the
-   software or in the account of it.
-
    - `code` — the implementation is wrong.
    - `requirement` — an item, a skill or a template states something the tree
-     does not do, or fails to state something it must.
-   - `record` — the verification record, the plan or the ledger is inaccurate
-     about work that is itself correct.
+     does not do, or omits something it must state.
+   - `record` — the verification record, plan or ledger is inaccurate about
+     work that is itself correct.
+
+   The reviewer also returns a one-line verdict. Copy findings as they
+   arrived; a reworded finding is the author's.
 
    **Every finding still sends the sequence back to step 1, whatever its tag.**
-   What the tag decides is not whether the sequence reruns but whether **another
-   reviewer is dispatched** — see the convergence rule below. Bounding what a
-   `record` finding costs within a round — dispositioning it in place without
-   re-running at all — is the obvious next step and is deliberately not taken
-   here. Five
-   review rounds on the change that added this tag each rejected a formulation of
-   that boundary, because every one of them rested on naming a class of files no
-   gate reads, and there is none: `check-ids.sh` greps the whole tree. The tag
-   earns its place on the convergence rule alone. Anyone reaching for the saving
-   should read that change's record first.
+   The tag decides only whether **another reviewer is dispatched**.
+   Dispositioning a `record` finding in place, without a rerun, is
+   deliberately not taken; read `references/rationale.md` before proposing it.
 
    **A round raising no `code` and no `requirement` finding is the last review
-   round.** Its findings are answered in the record they are about, anything
-   still outstanding is booked there as a gap, and the sequence reruns from
-   step 1 as every round does — but **no further reviewer is dispatched**, and
-   the rerun ends at 6b rather than at another 6a. That is the whole of the
-   saving, and it is deliberately the whole: the gates are cheap and run again,
-   what costs is the review and the round-trip it starts. Not two clean
-   rounds in a row: the second buys one independent read of the first's
-   corrections at the price of an entire review dispatch, and the regress it
-   guards against has no end — the verification record is the one artifact this
-   process does not verify, a property commit `328f0cfd` established rather than
-   repaired. Three downstream changes spent 27 review rounds between them, and
-   most of the later ones corrected prose with prose: one 12-round change whose
-   rounds 11 and 12 found no code defect, a 7-round change whose rounds 4
-   through 7 found none, an 8-round change over a diff with no production code
-   in it at all.
+   round.** Answer its findings in the record, book anything outstanding there
+   as a gap, and rerun from step 1 — but no further reviewer is dispatched, and
+   the rerun ends at 6b. The reviewer still reads the record and raises what is
+   wrong with it. What changes is the price of a finding against it.
 
-   The reviewer still reads the record, and still raises what is wrong with it.
-   What changes is the price of a finding against it.
-
-   **Remove the review worktree, every round that created one.** Findings or
-   not, the dispatch is over the moment the report is in hand, and the
-   dispatcher removes every task worktree when its dispatch ends
-   (`worktree-discipline`, "Inside the worktree"). For this one that dispatcher
-   is `merge-change`, so this is where it happens. A review produces findings,
-   not commits, so there is nothing to merge — the worktree and its branch go
-   as they are:
+   **Remove the review worktree, every round that created one**, as soon as the
+   report is in hand. A review produces no commits, so nothing is merged:
 
    ```sh
-   # in the change worktree, as soon as the reviewer's report is in hand
    git worktree remove .worktrees/<change-branch>-review
    git branch -d <change-branch>-review
    ```
 
-   `git branch -d` and not `-D`: a review branch should be exactly where it
-   started, and a rejection here means the reviewer committed something, which
-   is worth reading before it is discarded.
+   - Use `-d`, not `-D`. A rejection means the reviewer committed something.
+     Read it first.
+   - Not every round creates one. A human reviewer uses their own checkout,
+     and class A may skip this step. `git worktree remove`
+     fails on a path that was never created, so skip the removal there.
+   - Remove it here. A round that returns any finding at all goes back to
+     step 1 whatever the findings were tagged, so no later step runs on that
+     round, and the next round's dispatch reuses the same path and branch.
+   - `git worktree remove` fails on untracked files as well as modified ones.
+     Nothing gitignored is among them. Do not use `--force`:
+     read the scratch, delete it, and remove the worktree again.
+     Copy anything worth keeping into the 6b record first.
 
-   Not every round creates one. A human reviewer, where team policy sends the
-   review to a person, works from their own checkout; and a class A change
-   skips this step altogether. Where no review worktree was created there is
-   nothing to remove, and `git worktree remove`
-   fails on a path that was never created — which, in a sequence that halts on
-   any failure, is a stop for no reason.
-
-   **Here, and not in a later step, because a round that returns any finding at
-   all never reaches a later step in that pass.** The paragraph below sends the
-   sequence back to step 1 whatever the findings were tagged, and the pass that
-   does go on to 6b is the one after the last review round, which dispatches no
-   reviewer and so creates no worktree to remove — while the path and the branch
-   above are *fixed*. Put the removal downstream
-   and every intermediate round leaves its worktree behind, until the next
-   round's dispatch fails with `fatal: a branch named
-   '<change-branch>-review' already exists`.
-
-   `git worktree remove` fails on untracked files as well as modified ones,
-   and a reviewer leaves scratch behind — a log, a note, a file it wrote and
-   did not delete. Nothing gitignored is among them: git does not see an
-   ignored file, which is the same property guard 4 exists for. That failure
-   is not a reason to use `--force`, which destroys exactly what it caught:
-   read the scratch, delete it, and remove the worktree again, keeping
-   anything worth keeping by putting it in the record at 6b first.
-
-   Findings block the merge — every one of them, whatever its tag: you decide
-   the disposition, the sequence reruns from step 1, and where the round raised
-   a `code` or `requirement` finding a fresh reviewer is dispatched at 6a. The
-   fix is dispatched
-   into a nested task worktree of its own — `.worktrees/<change-branch>-<tag>`,
-   named in the prompt like every other (`worktree-discipline` step 1) — and
-   merged onto the change branch, never onto the base branch, and the sequence
-   reruns from step 1.
-   Rigor scales with class — A may skip this step, B one reviewer, C a
-   thorough review (consider two independent reviewers for critical items).
+   Findings block the merge. Decide each disposition and dispatch each fix into
+   `.worktrees/<change-branch>-<tag>`, merged onto the change branch, never onto
+   the base branch. Rigor scales with class: A may skip this step, B needs one
+   reviewer, C a thorough review. For class C, consider two independent
+   reviewers for critical items.
 
 6b. **Verification record** — copy `.guardrails/templates/verification.md` to
-   `docs/verification/<date>-<branch>.md` in the worktree, fill it in, and
-   commit it (unsigned, like all worktree commits): test totals from the
-   step 6 gate summary,
-   coverage summary (if configured), each check script's result, the
-   problem-ledger delta this change makes, the `red -> green:` attestations
-   from the dispatch reports, and
-   the reviewer's verdict from 6a. The squash commit then contains the evidence
-   on the base branch, and its `Verified:` line references this record.
+   `docs/verification/<date>-<branch>.md`, fill it in, and commit it unsigned.
+   It contains:
 
-   **The delta, never the total.** The problem-ledger line is the IDs this
-   change **resolves, accepts or opens** — not the open count, not the
-   `check-trace.sh` roll-call, not the age of the oldest item. Each of those
-   describes the whole ledger at one instant; any other change that merges
-   falsifies it; and a record is read months afterwards, when nobody can tell a
-   figure that was wrong from one that merely aged. A delta is a property of
-   this change alone, so it stays true as long as the diff does, and a reader
-   who wants today's totals runs `check-trace.sh` and gets them fresh. The cost
-   of the old wording is on the record: one merged change here existed only to
-   correct a count in a record already on the base branch.
-
-   Note what this adds: nothing. There is no gate against count-shaped prose
-   and there will not be one — a check on shape loses to respellings, which is
-   this toolkit's standing position on shape guards. The paragraph above deletes
-   a required field rather than policing one, and the delta it puts in its place
-   is already in your hand from the ledger diff.
-
-   **Copy the red → green attestations in.** The record's red → green table
-   takes one row per ID this change implements: the ID, the test that verifies
-   it, and the statement that the test was watched failing for the right reason
-   before it passed. The source is the `red -> green:` lines of the task
-   subagents' dispatch reports (`develop-change`) — the subagent that executed
-   the loop is the only party that saw the test fail, so it is the only party
-   that can attest it. Those lines arrived in a conversation, and a
-   conversation is not durable state (`worktree-discipline`, "The artifacts
-   are the memory"); step 8 then recommends compacting it. Uncopied, the
-   evidence for the iron law is lost at the boundary this skill draws.
-
-   Nothing re-verifies these rows. `check-review.sh` does not parse the table,
-   and 6a cannot re-observe a test failing once it passes — the table is durable
-   evidence, not a gated field, and it adds no required field to the record. The
-   independent check on the same property comes at 6a from the other side: "do
-   the tests verify what their `verifies:` annotations claim, and would they fail
-   if the behavior broke?" A test that could never have gone red is caught by
-   that question whatever this table states.
+   - test totals from the gate summary, and the tree they describe;
+   - coverage, if configured, and each check script's result;
+   - the problem-ledger delta: the IDs this change resolves, accepts or opens.
+     Never the open count or the oldest age; the next merge makes those false;
+   - the `red -> green:` attestations from the dispatch reports, one row per
+     implemented ID. The task subagent is the only party that saw each test
+     fail, and scrollback does not persist;
+   - the reviewer's verdict and every finding with its disposition.
 
    Four fields are required, each a plain annotation at column one:
 
-   - `branch:` — the change this record covers. It is how the gate finds the
-     record, matched whole; the filename is not.
+   - `branch:` — the change this record covers, matched whole. The gate finds
+     the record by this field, not by its filename.
    - `reviewer:` — who performed step 6a.
-   - `verdict:` — what the review concluded. A review that raised nothing must
-     still record that verdict.
+   - `verdict:` — what the review concluded, including "nothing found".
    - `reproduced:` — was the defect reproduced before the fix, and how, or why
-     not. **The value is never judged.** "Root cause measured directly, the
-     end-to-end failure never reproduced" is an honest, passing record; the
-     field exists so that the absence of evidence is a visible omission rather
-     than an optional disclosure.
-
-   In a multi-unit repository the record also names the units touched, and the impact set.
-
-   Each finding from 6a gets a block with its disposition:
+     not. The value is never judged; an honest "not reproduced" passes.
 
    ```markdown
    **finding-1**: <code | requirement | record> — <what the reviewer found>
    disposition: <what changed, and the test that reddens without it>
    ```
 
-6c. **`.guardrails/scripts/check-review.sh`** — the record exists, declares
-   this branch, contains all four fields with values, and leaves no finding
-   without a disposition. Run it from the worktree; on the base branch it
-   exits 2, because there is no change under review there.
+6c. **`.guardrails/scripts/check-review.sh`** from the change worktree. On the
+   base branch it exits 2. It checks that the record exists, declares this
+   branch, contains all four fields with values, and leaves no finding without
+   a disposition. Never answer a report by deleting a finding.
 
-   `MISSING-RECORD` means step 6b did not happen for this branch.
-   `STALE-RECORD` means a record declares this branch but the change did not
-   write it — a reused branch name, with the previous change's record
-   answering for this one. `UNDISPOSED-FINDING` means a finding from 6a has no
-   stated resolution; `ORPHAN-DISPOSITION` and `MALFORMED-FINDING` mean a
-   finding header the rule cannot read, so a disposition is attached to the
-   wrong finding or to none. Never answer any of them by deleting the finding.
+   - `MISSING-RECORD` — step 6b did not happen for this branch.
+   - `INCOMPLETE-RECORD` — a required field is missing or has no value.
+   - `STALE-RECORD` — a record declares this branch but this change did not
+     write it. A reused branch name.
+   - `UNDISPOSED-FINDING` — a finding has no disposition.
+   - `ORPHAN-DISPOSITION`, `MALFORMED-FINDING` — a finding header the gate
+     cannot read, so a disposition is attached to the wrong finding or none.
 
-6d. **Check that nothing is registered inside the change worktree.** Every
-   worktree this change created should already be gone: the review worktree at
-   the end of step 6a, and each task worktree when its dispatch ended, removed
-   by the dispatcher (`worktree-discipline`, "Inside the worktree"). This is the
-   structural check that it actually happened:
+6d. **Check that nothing is registered inside the change worktree:**
 
    ```sh
-   # in the change worktree, before the squash is staged
    sh .guardrails/scripts/finish-merge.sh --check <change-branch>
    ```
 
-   This is guard 4 itself, asked in advance. It exits 0 with `nothing is
-   registered inside <path>`, or 1 naming every worktree that lies inside the
-   change worktree — and there is a third answer to read carefully: exit 0 with
-   `no worktree is registered for <branch>, so nothing was inspected`, which is
-   not a pass. It means no worktree was found for that branch at all, so guard 4
-   had nothing to look at. From the change worktree, where one IS registered,
-   that answer means you named the wrong branch. It removes nothing and deletes nothing, and it runs from
-   the change worktree, which the rest of the script rejects. **It proves guard
-   4 and nothing else.** Guards 1 and 2 both read the squash commit, which does
-   not exist yet at this step, so neither can be preflighted; guard 3 *is* the
-   removal, and cannot be proved without doing it. A green answer here states
-   only that guard 4 will not be what rejects step 8.
+   - Exit 0 with `nothing is registered inside <path>`: pass.
+   - Exit 0 with `no worktree is registered for <branch>, so nothing was
+     inspected`: not a pass. You named the wrong branch.
+   - Exit 1 naming paths: a removal was skipped or failed. Go back to where
+     that worktree was dispatched from and remove it there — step 6a for the
+     review worktree, `develop-change`'s merge-and-remove for a task worktree.
+     If `git worktree remove` fails on one as dirty, the remedy step 6a gives
+     for the review worktree applies.
 
-   A worktree registered anywhere else is not this step's
-   business — another change's, a piece of tooling, the primary checkout
-   itself — and guard 4 never mentions it either, because removing the change
-   worktree does not touch it. A path inside is a removal that was skipped or
-   that failed, so go back to where it was dispatched from and do it there —
-   step 6a for the review worktree, `develop-change`'s merge-and-remove for a
-   task worktree. If `git worktree remove` fails on one of them as dirty, then
-   the remedy step 6a gives for the review worktree applies to any of them.
-
-   **This step is not tidiness.** `finish-merge.sh` will not remove a change
-   worktree that has a worktree registered inside it (guard 4, step 8's table),
-   because removing the outer one destroys the inner one's uncommitted work at
-   exit 0. A worktree left behind therefore blocks step 7's cleanup after the
-   user has already spent a key touch — which is a much worse place to find out
-   than here, before the squash is staged.
-
+   It removes nothing. A worktree registered anywhere else is not this step's
+   business. This check answers guard 4 of step 7 only. Guards 1 and 2 read
+   the squash commit, which does not exist yet, and guard 3 is the removal
+   itself.
 7. **Squash onto the base branch, then hand the signing over.** The squash is
-   yours; the commit is the user's. Do the merge in the primary checkout, with
-   the base branch checked out:
+   yours; the commit is the user's. In the primary checkout, with the base
+   branch checked out:
 
    ```sh
-   cd <primary checkout>       # or exit the worktree via your harness tool
    git merge --squash <branch>
    ```
 
-   Write the commit message to a file **outside the repository** — a temp
-   directory such as `/tmp/merge-<branch>.msg`, never anywhere under the working
-   tree. Not because a guard would catch it: none of them reads the primary
-   checkout's working tree, so an untracked message file there is invisible to
-   all four. The reason is plainer — a stray file in the repository is one
-   `git add -A` away from being committed as part of the change, and it would
-   be committed by the very commit it describes. The message is unchanged:
+   Write the commit message to a file **outside the repository**, such as
+   `/tmp/merge-<branch>.msg`:
 
    ```
    <type>: <summary>
@@ -581,120 +306,100 @@ after the finding — anything that does not repeat.
    Verified: docs/verification/<record file>
    ```
 
-   `Resolves:` and `Opens:` are the same delta step 6b records, in the one place
-   that travels with the change forever. No script parses this message, so they
-   cost a line each and can be checked against the diff by anyone, at any
-   distance, without a ledger to compare them to. A change that closes or opens
-   nothing leaves the line out rather than writing an empty one.
+   `Resolves:` and `Opens:` repeat the 6b delta. Leave out a line that would be
+   empty.
 
-   Then hand the user exactly one command, with the real paths and branch name
-   substituted in — their shell has none of your variables — and **stop**:
+   Hand the user exactly one command, with real paths and branch name
+   substituted, because their shell has none of your variables, and **stop**:
 
    ```sh
    git commit -S -F /tmp/merge-<branch>.msg && sh .guardrails/scripts/finish-merge.sh <branch>
    ```
 
-   **You never run `git commit -S` yourself.** Signing may require the user's
-   hardware-key touch, and starting a blocking wait on their behalf is exactly
-   what this handoff replaces. Tell them the touch is coming.
+   **Never run `git commit -S` yourself.** Signing may need the user's
+   hardware-key touch; tell them it is coming.
+   `finish-merge.sh` proves four things, and deletes the branch only when all
+   four pass. The script numbers them as guards and proves them in this order:
 
-   The command is a compound for a reason. The half that needs their key is a
-   plain `git commit` they can read before they touch it; the half that deletes
-   things is a script, because `&&` guards nothing and the tail force-deletes a
-   branch (`-D`, necessarily — git does not consider a squashed branch merged).
-   `finish-merge.sh` proves four things before it removes anything: the new
-   HEAD's signature verifies under `--strict`, `git diff HEAD <branch>` is
-   empty, no registered worktree lies inside the one it is about to remove
-   (step 6a removes the review worktree and step 6d checks that nothing is
-   left), and that worktree is clean. Then, in that order, it removes the
-   worktree and deletes the branch. **Cleanup happens
-   only after the signature check passes** — that is the script's first guard,
-   not a step anyone may take on their own judgment.
+   - Guard 1: the new HEAD's signature verifies under `--strict`.
+   - Guard 2: `git diff HEAD <branch>` is empty.
+   - Guard 4: no registered worktree is inside the one it removes. It is
+     proved before guard 3, because the removal would take a nested worktree
+     with it.
+   - Guard 3: that worktree is clean. The script removes it without `--force`,
+     so git rejects the removal on a dirty worktree.
 
-   Exactly one of those four is knowable before the squash exists, and step 6d
-   has already asked it: `finish-merge.sh --check <branch>` answers guard 4 on
-   its own, from the change worktree, removing nothing. The other three cannot
-   be preflighted — two of them read the squash commit, and the third is the
-   removal itself — so a green `--check` narrows what step 8 can reject but
-   does not promise it will not.
+   It finds the worktree from the
+   branch name; never pass it a path. If the harness created the worktree,
+   leave or remove it with the harness tool so its state stays consistent.
+   With no worktree registered for the branch, the script skips the removal
+   and still deletes the branch.
 
-   If signing fails (no key configured), **stop**: point to the ratchet setup
-   checklist. There is no unsigned fallback, ever.
-
-   The script takes the branch name and finds the worktree itself, so it needs
-   no path from you — a pasted path is a chance to remove the wrong directory.
-   If the harness created the worktree (e.g. `EnterWorktree`) and you left or
-   removed it with the harness tool so its state stays consistent, that is fine:
-   with no worktree registered for the branch the script skips the removal and
-   still deletes the branch.
+   If signing fails because no key is configured, **stop** and point to the
+   ratchet setup checklist. There is no unsigned fallback.
 8. **Confirm, then report.** On the user's word that the command succeeded,
-   confirm it rather than take it — the base branch's HEAD is the signed squash:
+   confirm it:
 
    ```sh
    git log -1 --format='%h %G? %s'
    .guardrails/scripts/check-signing.sh --strict   # verifies the new HEAD
    ```
 
-   `--strict`, not the bare form. The tolerant mode passes a signature it could
-   not verify — printing `WARN-UNVERIFIED` and exiting 0 — so under the comment
-   "verifies the new HEAD" it would confirm nothing on exactly the machine where
-   confirmation matters. `finish-merge.sh` has already run the same check with
-   `--strict` moments earlier in the same compound, so this costs one re-read of
-   a commit whose signature is known good, and it means this line cannot report
-   success where that guard would have rejected it.
+   Use `--strict`. The bare form passes a signature it could not verify.
 
-   Then report the merge — the squash commit, the IDs it implements, the
-   verification record it cites — and recommend compacting the conversation
-   before the next change is opened. This is the safe boundary: the plan, the
-   ledger and the verification record contain everything durable, and
-   scrollback contains nothing they do not. If the harness offers a compaction
-   step (e.g. a `/compact` command), name it so the user can run it.
+   Report the squash commit, the IDs it implements and the record it cites.
+   Recommend compacting the conversation before the next change; the plan, the
+   ledger and the record contain everything durable. If the harness offers a
+   compaction step, such as a `/compact` command, name it so the user can run it.
 
-   **If the script rejected the cleanup.** Every rejection exits non-zero
-   having removed nothing and deleted nothing, and the signed commit is on the
-   base branch either way — only the cleanup is withheld, which is safe.
-   Read which guard fired:
-
-   | Rejection | What it means | What fixes it |
-   |---|---|---|
-   | `UNVERIFIED` / `UNSIGNED` from `check-signing.sh --strict` | The new HEAD's signature did not verify. **Read the reason the gate prints indented under the verdict** — it is the verifier's own, not a guess. A missing `gpg.ssh.allowedSignersFile` is only one of the things it reports, and an OpenPGP-signed commit never reads that setting at all; `gpg: ... can't open ... trustdb.gpg: Operation not permitted` is an environment fault rather than a bad signature. `--strict` is unconditional here, so a signature nobody can verify never passes for cleanup. | Fix what the reason names — the signers file for ssh (ratchet's signing checklist), a readable trust root for OpenPGP — then re-run the script. |
-   | The squash did not capture everything — `git diff HEAD <branch>` is non-empty | Step 1 merged the base into the change branch, so a correct squash leaves the two trees identical. A difference means something was not included: an unstaged file, a partial `git add`, or a base that moved between step 1 and the squash. Deleting the branch would destroy exactly that difference. | `git diff HEAD <branch>` to see what is missing. Bring it onto the base branch, or rerun the sequence from step 1, before re-running the script. |
-   | `a registered worktree lies inside <path>` — plural, `registered worktrees lie inside <path>` | A task or review worktree is still registered inside the change worktree. Removing the outer one would delete that worktree's files while git still had it registered: uncommitted work gone, the registration left prunable, the branch orphaned. Guard 3 cannot catch it, because a nested worktree is invisible to the outer one's `git status`, so `git worktree remove` does not fail on it. | Deal with each path the rejection names — merge or abandon its branch, then `git worktree remove` the path — and re-run the script. Step 6a is where the review worktree should already have gone and step 6d is where its absence should already have been checked; a task worktree here means a dispatch was never cleaned up. |
-   | `git worktree remove` rejected it | The worktree is dirty — uncommitted work is still there. No `--force` is passed, and git's own rejection is the guard. | Inspect the worktree, commit or discard what is there, then re-run the script. |
-   | A precondition error (exit 2) | The script is in the wrong place or was passed the wrong branch: run from a linked worktree, run on a detached HEAD, no such branch, or the branch named *is* the base branch. | Run it from the primary checkout with the base branch checked out, naming the change branch. |
-
-   **The fix is to re-run the script alone**, never the whole compound:
+   If `finish-merge.sh` exited non-zero, read `references/cleanup-rejections.md`.
+   The signed commit is on the base branch either way, and nothing was removed.
+   Fix the cause, then re-run the script alone, never the whole compound:
 
    ```sh
    sh .guardrails/scripts/finish-merge.sh <branch>
    ```
 
-   Re-running the compound is safe — the squash is no longer staged, so
-   `git commit` fails and `&&` short-circuits before the script, and nothing
-   double-commits — but it spends a key touch to prove that, and it reads as
-   though the merge itself needs redoing. It does not. The merge is done; only
-   the cleanup is outstanding.
-
 ## Red flags
 
 | Thought | Reality |
 |---|---|
-| "Skip re-verification, the rename touched no code" | Ask the tree, not yourself. A rename moved regulated documents, and step 6 re-dispatches the gate. A round that renamed nothing left `git rev-parse HEAD^{tree}` where step 2 found it, and that hash — not your reading of what the round touched — is what lets the step 2 summary stand (step 6). |
-| "It is only a `record` finding, disposition it here and skip the rerun" | The tag states what a round found; it does not shorten the sequence. Every finding reruns from step 1. Bounding what a record finding costs is a real ask and five review rounds failed to state the boundary — see step 6a before attempting a sixth. |
-| "Put the open-problem count in the record so the reader knows where we are" | It is a fact about the ledger, not about this change, and the next merge falsifies it. Name the IDs this change resolves, accepts or opens (step 6b). |
+| "Skip re-verification, the rename touched no code" | Ask the tree. Only an unchanged `git rev-parse HEAD^{tree}` lets the step 2 summary stand (step 6). |
+| "It is only a `record` finding, disposition it here and skip the rerun" | The tag does not shorten the sequence. Every finding reruns from step 1 (step 6a). |
+| "Put the open-problem count in the record so the reader knows where we are" | The next merge makes it false. Name the IDs this change resolves, accepts or opens (step 6b). |
 | "Sign later, merge now" | An unsigned base branch is a broken audit trail. Stop instead. |
-| "I'll run `git commit -S` myself, it's one command" | The commit is the user's: it may need their hardware touch, and waiting on their key on their behalf is what step 7 replaces. Hand over the compound and stop. |
-| "The message file can live in the repo, it's temporary" | No guard would catch it, which is the problem: it is one `git add -A` from being committed by the commit it describes. Write it outside the repository (step 7). |
-| "The script rejected the cleanup, I'll remove the worktree and branch by hand" | A guard caught something. `--force` and `-D` destroy exactly what it caught. Fix the cause, re-run the script (step 8). |
-| "Cleanup failed, so re-run the whole command" | The merge is done and the commit remains. Re-run the script alone — the compound only spends another key touch to short-circuit (step 8). |
+| "I'll run `git commit -S` myself, it's one command" | The commit is the user's. Hand over the compound and stop (step 7). |
+| "The message file can live in the repo, it's temporary" | It is one `git add -A` from being committed by the commit it describes (step 7). |
+| "The script rejected the cleanup, I'll remove the worktree and branch by hand" | A guard caught something. `--force` and `-D` destroy it. Fix the cause and re-run the script (step 8). |
+| "Cleanup failed, so re-run the whole command" | The merge is done. Re-run the script alone (step 8). |
 | "Merge the base branch in afterwards if something breaks" | Step 1 exists so breakage surfaces in the worktree. |
 | "Leave the worktree around just in case" | Merged work is on the base branch. Clean up (step 8). |
 | "Checks fail but the change is obviously fine" | Fix the artifact or the genuine gap. Never bypass. |
-| "The reviewer found nothing worth writing down" | Then `verdict:` records that. A record with no findings is legal; a record with no verdict is not. |
-| "Drop the finding, I decided it was wrong" | Its disposition states that, with the reason. A deleted finding and a finding that never existed read identically. |
-| "The record is prose, a gate cannot check it" | It checks presence, not quality — that a reviewer, a verdict and a `reproduced:` are there at all (step 6c). |
-| "The suite passed for me, the reviewer needn't re-run it" | Independence covers the evidence. Only a documentation-only diff may rest on your step 6 gate summary (step 6a). |
-| "I'll tidy the reviewer's findings as I write the record" | Copy them in the `**finding-N**:` shape they arrived in. Rewording is the author answering the review. |
-| "Open the next change while this one waits on review" | One change reaches its signed squash first. Fix what the review found instead. |
-| "The subagents reported red → green, that is on the record" | It is in the scrollback, which step 8 compacts away. Copy those lines into the record (step 6b) or nothing durable attests them. |
-| "I'll keep this conversation going into the next change" | The plan, the ledger and the record contain it. Compact at the merge boundary (step 8). |
+| "The reviewer found nothing worth writing down" | Then `verdict:` records that. `check-review.sh` rejects a record with no verdict (step 6c). |
+| "Drop the finding, I decided it was wrong" | Its disposition states that, with the reason. |
+| "The record is prose, a gate cannot check it" | It checks presence: a reviewer, a verdict and `reproduced:` (step 6c). |
+| "The suite passed for me, the reviewer needn't re-run it" | Only a documentation-only diff may use your gate summary (step 6a). |
+| "I'll tidy the reviewer's findings as I write the record" | Copy them as they arrived. Rewording is the author answering the review. |
+| "Open the next change while this one waits on review" | One change reaches its signed squash first. |
+| "The subagents reported red → green, that is on the record" | It is in scrollback. Copy those lines into the record (step 6b). |
+| "I'll keep this conversation going into the next change" | Compact at the merge boundary (step 8). |
+
+## Done when
+
+- The base branch HEAD is one squash commit for this change, and
+  `check-signing.sh --strict` verifies it.
+- The commit message names the plan and the verification record.
+- The record contains `branch:`, `reviewer:`, `verdict:` and `reproduced:`,
+  and every finding has a disposition.
+- The change worktree and branch are gone, and nothing was removed with
+  `--force` or `-D` by hand.
+- You reported the merge and recommended compacting.
+
+## References
+
+- `references/multi-unit.md` — read when `.guardrails/units.yaml` exists,
+  before step 1.
+- `references/cleanup-rejections.md` — read when `finish-merge.sh` exits
+  non-zero at step 7 or 8.
+- `references/rationale.md` — read when a rule here seems wrong for your case,
+  or before proposing to change one.

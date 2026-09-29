@@ -133,6 +133,14 @@ In code, additionally:
 - Skills live at `skills/<name>/SKILL.md` with `name` and `description`
   frontmatter. Skills are self-contained — they must not reference superpowers
   or other external skill suites.
+- A `SKILL.md` has the `##` sections `Preconditions`, `Steps`, `Red flags`,
+  `Done when` and, where it has reference files, `References`, in that order.
+  It is at most 2,000 words. Reasons, worked examples and conditional material
+  go to `skills/<name>/references/<topic>.md`, and the `References` section
+  names each file with the condition for reading it. Incident history stays in
+  `docs/plans/` and git. `tests/skills.bats` enforces all of this, with the
+  exemptions that `docs/plans/2026-09-28-agent-first-skills.md` states: D5 for
+  the word ceiling, and D3 item 3 for the section order.
 - `scripts/` is the source of truth for the check scripts; `/ratchet` copies
   them into target projects. Never fork script logic into `templates/`.
 - Plans and design docs live in `docs/plans/`, named `YYYY-MM-DD-<topic>.md`.

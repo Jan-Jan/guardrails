@@ -398,7 +398,7 @@ gr_writing_scan() {
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
     # the test's — but that is a property of its position, not an assertion.)
-    run grep -q 'gitignored and therefore absent' "$skill"
+    run grep -rq 'gitignored and therefore absent' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
 }
 
@@ -426,7 +426,7 @@ gr_writing_scan() {
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
     # the test's — but that is a property of its position, not an assertion.)
-    run grep -q 'Nothing but the primary checkout and the change worktree' "$skill"
+    run grep -rq 'Nothing but the primary checkout and the change worktree' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
 }
 
@@ -451,12 +451,13 @@ gr_writing_scan() {
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
     # the test's — but that is a property of its position, not an assertion.)
-    run grep -q 'Every round, findings or not' "$skill"
+    run grep -rq 'Every round, findings or not' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
 }
 
 @test "merge-change: a fix dispatch's tag is unique, and AGENTS.md defers on tags" {
     # verifies: PR-n57ayn
+    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
     # `.worktrees/<change-branch>-<tag>` leaves the tag unconstrained, so the
     # rule that it must not repeat is worth keeping — but its first
     # justification was false. Two findings rounds that both use the
@@ -470,8 +471,9 @@ gr_writing_scan() {
     # `develop-change`.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'must be unique per dispatch' "$skill"
-    grep -q 'insurance against a cleanup that was missed' "$skill"
-    grep -q 'keeps the review tag fixed at' "$skill"
+    rationale="$(dirname "$skill")/references/rationale.md"
+    grep -q 'insurance against a cleanup that was missed' "$rationale"
+    grep -q 'keeps the review tag fixed at' "$rationale"
     grep -q 'remove the worktree and delete the task branch' "$skill"
     # The insurance clause is the critical half of that justification, so
     # what it insures against must not be understated. "no numbered step of
@@ -483,16 +485,16 @@ gr_writing_scan() {
     # and guard 4 are what find it, late. The `fatal:` covers both cases
     # because git validates the new branch name before the worktree path.
     grep -q '`git worktree remove` and then `git branch -d`' "$skill"
-    grep -q 'git validates the new branch name' "$skill"
-    grep -q 'skipped cleanup also leaves a nested worktree still registered' "$skill"
-    grep -q 'guard 4 rejects at step 8' "$skill"
+    grep -q 'git validates the new branch name' "$rationale"
+    grep -q 'skipped cleanup also leaves a nested worktree still registered' "$rationale"
+    grep -q 'guard 4 rejects at step 8' "$rationale"
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
     # the test's — but that is a property of its position, not an assertion.)
-    run grep -q 'collide at creation' "$skill"
+    run grep -rq 'collide at creation' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
-    run grep -q 'it is only a stale branch' "$skill"
+    run grep -rq 'it is only a stale branch' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
     # AGENTS.md enumerated `<N>` as the plan task number "or the tag `review`
     # for the independent review", which has no slot for a fix dispatch's tag.
@@ -605,18 +607,20 @@ gr_writing_scan() {
 
 @test "merge-change: step 8 maps guard 4's rejection to a remedy" {
     # verifies: PR-n57ayn
+    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
     # Step 7 counts the guards finish-merge.sh proves and step 8's table is the
     # one place that maps a rejection to a remedy. Guard 4 was added without
     # either being updated, leaving the rejection an operator is now most likely
     # to meet unexplained in both. The row quotes what the script prints.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'proves four things' "$skill"
-    grep -q 'a registered worktree lies inside' "$skill"
+    grep -q 'a registered worktree lies inside' \
+        "$(dirname "$skill")/references/cleanup-rejections.md"
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
     # the test's — but that is a property of its position, not an assertion.)
-    run grep -q 'proves three things' "$skill"
+    run grep -rq 'proves three things' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
 }
 
@@ -740,9 +744,10 @@ gr_writing_scan() {
 
 @test "merge-consumes-impact-mechanically: the skill names the mode and forbids hand-picking" {
     # verifies: D6/D12; --impact semantics quoted from scripts/check-units.sh
+    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
     # The composed-chain obligations test the chain THROUGH this mode; a
     # hand-judged unit list is the false green the mode exists to prevent.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     grep -q 'check-units.sh --impact' "$skill"
     grep -q 'never hand-pick the unit list' "$skill"
     grep -q 'maps a change under the root `.guardrails/` to every unit' "$skill"
@@ -751,7 +756,8 @@ gr_writing_scan() {
 @test "merge-runs-impact-set-gates: per-unit runs are spelled out" {
     # verifies: D6 — gates and verify_commands of every unit in the impact
     # set, plus the repository-level check-units.sh run.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     grep -q 'GR_CONFIG=<unit>/.guardrails/config.yaml' "$skill"
     grep -q 'every unit in the impact set' "$skill"
     grep -q 'check-units.sh` with no flag' "$skill"
@@ -761,13 +767,14 @@ gr_writing_scan() {
     # verifies: architecture item 6 — finalize-docs.sh is unit-scoped; drafts
     # are in touched units by the paths-inside-the-unit rule, so dependents
     # have nothing to rename.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     grep -q 'once per touched unit' "$skill"
 }
 
 @test "merge-record-names-units: the verification record contains the impact set" {
     # verifies: D6 — one record per change; the record names the units.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     grep -q 'units touched, and the impact set' "$skill"
     grep -q 'the record also names the units touched' "$skill"
 }
@@ -1274,7 +1281,7 @@ gr_writing_scan() {
     # to correct a count in an already-merged record.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'resolves, accepts or opens' "$skill"
-    ! grep -q 'open PR warnings' "$skill"
+    ! grep -rq 'open PR warnings' "$(dirname "$skill")"
 }
 
 @test "merge-change: the commit template states the Resolves and Opens trailers" {
@@ -1364,7 +1371,7 @@ gr_writing_scan() {
     # review found it still stating the merge date after round 1 had repaired
     # the template and the README.
     root="$BATS_TEST_DIRNAME/.."
-    ! grep -rniE 'merge.date' "$root"/skills/*/SKILL.md "$root"/templates/*.md \
+    ! grep -rniE 'merge.date' "$root"/skills "$root"/templates/*.md \
         "$root"/README.md "$root"/docs/problems/README.md
 }
 
@@ -1444,6 +1451,7 @@ gr_writing_scan() {
 
 @test "merge-change: the tag does not shorten the sequence" {
     # verifies: PR-3s74u3
+    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
     # The reporter asked for three things: classify findings, bound what a record
     # finding costs, and say when to stop. Five review rounds each rejected a
     # formulation of the middle one, every version resting on naming a class of
@@ -1466,13 +1474,16 @@ gr_writing_scan() {
     # phrase "finding-free round", which a reworded sentence satisfies while
     # keeping the inference. So assert the claim that replaced it, and reject the
     # two inferences by shape rather than by one spelling.
-    ! grep -q 'finding-free round' "$skill"
-    ! grep -q 'runs only on the last round' "$skill"
-    ! grep -q 'never reaches a later step\.\*\* The paragraph below sends' "$skill"
+    run grep -rq 'finding-free round' "$(dirname "$skill")"
+    [ "$status" -ne 0 ]
+    run grep -rq 'runs only on the last round' "$(dirname "$skill")"
+    [ "$status" -ne 0 ]
+    run grep -rq 'never reaches a later step\.\*\* The paragraph below sends' "$(dirname "$skill")"
+    [ "$status" -ne 0 ]
     grep -q 'any finding at' "$skill"
     grep -q 'whatever the findings were tagged' "$skill"
     # and the red-flag row does not offer the saving either
-    ! grep -q 'skips the suite, not the gates' "$skill"
+    ! grep -rq 'skips the suite, not the gates' "$(dirname "$skill")"
 }
 
 @test "check-traceability: every report a single-unit check-trace.sh run prints has a catalogue row" {
@@ -1562,6 +1573,234 @@ gr_writing_scan() {
     done
     if [ -n "$undeclared" ]; then
         printf 'reports check-trace.sh prints that its own header does not list:%s\n' "$undeclared"
+        return 1
+    fi
+}
+
+# The skill shape (docs/plans/2026-09-28-agent-first-skills.md, D5 and D9).
+#
+# Skills not yet rewritten into the D9 section order. D3 change 3 empties
+# this list; a name stays on it only while that skill is out of order.
+gr_shape_exempt_skills() {
+    echo 'analyze-risks check-traceability design-architecture develop-change grill-requirements plan-change ratchet resolve-problem verify-before-merge worktree-discipline'
+}
+
+# Skills over the D5 ceiling. Each name is removed by the change that brings
+# that skill under 2,000 words; a name stays only while the skill is over.
+gr_ceiling_exempt_skills() {
+    echo 'check-traceability develop-change merge-change ratchet worktree-discipline'
+}
+
+# The `## ` headings of a SKILL.md outside fenced code, joined with `|`.
+gr_skill_headings() {
+    awk '/^```/ { fenced = !fenced; next } !fenced && /^## / { sub(/^## /, ""); printf "%s|", $0 }' "$1"
+}
+
+# 0 when a SKILL.md has the D9 order, with or without References.
+gr_skill_has_d9_order() {
+    case "$(gr_skill_headings "$1")" in
+        ('Preconditions|Steps|Red flags|Done when|References|') return 0 ;;
+        ('Preconditions|Steps|Red flags|Done when|') return 0 ;;
+        (*) return 1 ;;
+    esac
+}
+
+gr_skill_words() {
+    wc -w < "$1" | tr -d ' '
+}
+
+@test "skill shape: every SKILL.md has the D9 sections in order" {
+    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # A fixed order lets an agent find the step it needs without reading the
+    # whole file. Exempt skills are the ones D3 change 3 has not rewritten.
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+    failures=""
+    for skill_file in skills/*/SKILL.md; do
+        skill_name=$(basename "$(dirname "$skill_file")")
+        case " $(gr_shape_exempt_skills) " in
+            (*" $skill_name "*) continue ;;
+        esac
+        if ! gr_skill_has_d9_order "$skill_file"; then
+            failures="$failures $skill_name:[$(gr_skill_headings "$skill_file")]"
+        fi
+    done
+    if [ -n "$failures" ]; then
+        echo "skills out of the D9 section order:$failures"
+        return 1
+    fi
+}
+
+@test "skill shape: every shape exemption names a skill still out of order" {
+    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # An exemption that outlives its reason hides the next regression.
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+    stale=""
+    for skill_name in $(gr_shape_exempt_skills); do
+        skill_file="skills/$skill_name/SKILL.md"
+        if [ ! -f "$skill_file" ]; then
+            stale="$stale $skill_name:missing"
+        elif gr_skill_has_d9_order "$skill_file"; then
+            stale="$stale $skill_name:in-order"
+        fi
+    done
+    if [ -n "$stale" ]; then
+        echo "remove from gr_shape_exempt_skills:$stale"
+        return 1
+    fi
+}
+
+@test "skill shape: every SKILL.md is at most 2,000 words" {
+    # verifies: D5 (docs/plans/2026-09-28-agent-first-skills.md)
+    # A ceiling nobody checks is how the skills reached their size.
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+    failures=""
+    for skill_file in skills/*/SKILL.md; do
+        skill_name=$(basename "$(dirname "$skill_file")")
+        case " $(gr_ceiling_exempt_skills) " in
+            (*" $skill_name "*) continue ;;
+        esac
+        word_count=$(gr_skill_words "$skill_file")
+        if [ "$word_count" -gt 2000 ]; then
+            failures="$failures $skill_name:$word_count"
+        fi
+    done
+    if [ -n "$failures" ]; then
+        echo "skills over 2,000 words:$failures"
+        return 1
+    fi
+}
+
+@test "skill shape: every ceiling exemption names a skill still over it" {
+    # verifies: D5 (docs/plans/2026-09-28-agent-first-skills.md)
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+    stale=""
+    for skill_name in $(gr_ceiling_exempt_skills); do
+        skill_file="skills/$skill_name/SKILL.md"
+        if [ ! -f "$skill_file" ]; then
+            stale="$stale $skill_name:missing"
+        elif [ "$(gr_skill_words "$skill_file")" -le 2000 ]; then
+            stale="$stale $skill_name:$(gr_skill_words "$skill_file")"
+        fi
+    done
+    if [ -n "$stale" ]; then
+        echo "remove from gr_ceiling_exempt_skills:$stale"
+        return 1
+    fi
+}
+
+@test "skill shape: the References section lists exactly the reference files" {
+    # verifies: D6, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # A reference file no SKILL.md names is never read; a named one that does
+    # not exist is a dead instruction. A file is listed only by an entry line,
+    # one opening with "- `references/"; a name on a continuation line or in
+    # prose does not list it (review round 6, finding 35).
+    cd "$BATS_TEST_DIRNAME/.." || return 1
+    failures=""
+    for skill_dir in skills/*/; do
+        skill_name=$(basename "$skill_dir")
+        names_in_section=$(
+            awk '/^## / { in_references = ($0 ~ /^## References[[:space:]]*$/) } in_references' \
+                "${skill_dir}SKILL.md" \
+                | grep -E '^- `references/' \
+                | sed -E 's/^- `(references\/[a-z0-9-]+\.md)`.*/\1/' | LC_ALL=C sort -u
+        ) || true
+        files_on_disk=$(
+            cd "$skill_dir" && find references -name '*.md' 2>/dev/null | LC_ALL=C sort
+        ) || true
+        if [ "$names_in_section" != "$files_on_disk" ]; then
+            failures="$failures $skill_name:[listed: $(echo $names_in_section)][present: $(echo $files_on_disk)]"
+        fi
+        # D9: the section is omitted when the skill has no reference file.
+        # A trailing space after the heading is still the heading.
+        if [ -z "$files_on_disk" ] && grep -qE '^## References[[:space:]]*$' "${skill_dir}SKILL.md"; then
+            failures="$failures $skill_name:[a References heading and no reference file]"
+        fi
+        # D9: each entry names the file and the condition for reading it.
+        # Every non-blank line after the heading is an entry or an indented
+        # continuation of one, so a prose line or a `* ` bullet is reported,
+        # not skipped.
+        malformed_entries=$(
+            awk '/^## / { in_references = ($0 ~ /^## References[[:space:]]*$/); next }
+                 in_references && NF' "${skill_dir}SKILL.md" \
+                | awk '/^- `references\/[a-z0-9-]+\.md` — read when / { in_entry = 1; next }
+                       in_entry && /^[[:space:]]+[^[:space:]]/ { next }
+                       { in_entry = 0; print }'
+        ) || true
+        if [ -n "$malformed_entries" ]; then
+            failures="$failures $skill_name:[entry without a file and a read-when condition: $malformed_entries]"
+        fi
+    done
+    if [ -n "$failures" ]; then
+        echo "References section and references/ disagree:$failures"
+        return 1
+    fi
+}
+
+@test "merge-change: text the first rewrite lost is stated again" {
+    # verifies: D6 (docs/plans/2026-09-28-agent-first-skills.md)
+    # Review round 1 of agent-first-skills found instructions from the old
+    # skill that were neither kept nor listed as dropped history.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    grep -q 'The reviewer still reads the record and raises what is' "$skill"
+    grep -q 'name it so the user can run it' "$skill"
+    grep -q 'consider two independent' "$skill"
+    grep -q 'contains all four fields with values' "$skill"
+    grep -q 'INCOMPLETE-RECORD' "$skill"
+    grep -q 'With no worktree registered for the branch' "$skill"
+    grep -q 'leave or remove it with the harness tool' "$skill"
+    grep -q 'exempts nothing from' "$skill"
+    grep -q 'not by its filename' "$skill"
+    grep -q 'their shell has none of your variables' "$skill"
+    grep -q 'Two open changes race on the base branch' "$rationale"
+    grep -q 'cannot be re-identified one round' "$rationale"
+    grep -q 'an unconditional commit exits 1 with nothing to' "$rationale"
+    grep -q 'Nothing later repeats the `unrewritten` report' "$rationale"
+    # Review round 6: the rationale file no longer points into script
+    # comments (see "the rationale file describes no script"), so what remains
+    # to assert here is the reasons it keeps.
+    grep -q 'what the duplicate scan at step 4 was compared against' "$rationale"
+    grep -q 'is adopted into this change silently' "$rationale"
+    grep -q 'fails step 4 for every later change' "$rationale"
+    grep -q 'move files the tests may read' "$rationale"
+    grep -q 'not the counts it was handed' "$rationale"
+    grep -q 'reports on a suite it could not run' "$rationale"
+    grep -q 'in the software or in the account of it' "$rationale"
+    grep -q 'the dispatcher is `merge-change`' "$rationale"
+    grep -q 'a stop with no defect behind it' "$rationale"
+    grep -q 'the property guard 4 exists for' "$rationale"
+    grep -q 'the squash commit contains the evidence' "$rationale"
+    grep -q 'needs the current totals' "$rationale"
+    grep -q 'a change with no reproduction states so' "$rationale"
+    grep -q 'the units whose gates the verdict covers' "$rationale"
+    grep -q 'A deleted finding and a finding that never existed read identically' "$rationale"
+    grep -q 'removing the change worktree does not touch it' "$rationale"
+    grep -q 'No script parses the message' "$rationale"
+    grep -q 'starts a blocking wait on the user' "$rationale"
+    grep -q 'a chance to remove the wrong directory' "$rationale"
+    grep -q 'one re-read of a commit whose signature is known good' "$rationale"
+    grep -q 'only the cleanup is outstanding' "$rationale"
+    # Finding 23 of review round 4: the step 1 paragraph stated that two
+    # branches cannot collide by construction.
+    run grep -q 'cannot collide by construction' "$rationale"
+    [ "$status" -ne 0 ]
+    run grep -q 'with two independent reviewers for critical' "$skill"
+    [ "$status" -ne 0 ]
+}
+
+@test "merge-change: the rationale file describes no script" {
+    # verifies: D6 (docs/plans/2026-09-28-agent-first-skills.md)
+    # Review rounds 3 to 6 found the rationale file's statements about scripts
+    # false, and then the comments its pointers led to. It now keeps only the
+    # reasons behind the agent's rules; a script's own comments describe the
+    # script. A path under `scripts/` or any word ending in `.sh` is a
+    # description creeping back.
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    [ -s "$rationale" ]
+    run grep -nE 'scripts/|\.sh([^A-Za-z0-9_]|$)' "$rationale"
+    if [ "$status" -ne 1 ]; then
+        echo "the rationale file names a script:"
+        echo "$output"
         return 1
     fi
 }
