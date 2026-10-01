@@ -12,7 +12,21 @@ affects: tests/*.bats, which contain 301 guarded assertions no rule keeps
 guarded; tests/portability.bats, where such a gate belongs beside the
 `case`-pattern and in-place-`sed` scans.
 opened: 2026-09-28
-status: open
+status: accepted
+disposition: ruled on 2026-09-30 — no third attempt by a line-based rule.
+Two gates were built, measured and cut, the second over five review rounds.
+Reading the corpus is solved and that evidence is kept; deciding whether a
+guard can fail is not, and six spellings inert under bats were accepted in
+turn, each repair closing the spelling it was shown rather than the class
+behind it. The guards `PR-tenhv4` applied remain unprotected, and that is
+accepted rather than overlooked. The exposure is a silent regression in this
+repository's own suite, which `/ratchet` makes the tool-qualification basis for
+every adopter's check scripts, so a regression here weakens their evidence
+without reaching their code. Reopen this item only for an approach that does
+not decide inertness from the text of a line. The second attempt's record,
+`docs/verification/2026-09-29-assertion-gate.md`, names two: run each test body
+under a shell that answers directly, or enforce one literal guard spelling by
+exact string comparison.
 
 `PR-tenhv4` repaired 69 inert assertions and guarded all 301 so that position
 would stop deciding whether an assertion can fail. It did not deliver a gate.
@@ -132,6 +146,11 @@ entirely and enforce ONE literal guard spelling by exact string comparison,
 accepting that every diagnostic message in the suite becomes uniform. That
 touches every line containing `|| {` — 1,070 in the tree this item is recorded
 in, and 1,087 in the gate tree the figure was first taken on.
+
+The ruling that closed this item is recorded in
+`docs/verification/2026-09-30-accept-x4nb48.md`, which also states what
+`/ratchet` does and does not ship, because the adopter consequence was
+overstated while the second attempt was under way.
 
 Related: `PR-7za3at` is the same class of defect in a negated command, also
 unguarded by anything today.
