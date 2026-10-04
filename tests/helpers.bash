@@ -4,24 +4,72 @@
 #
 # bats itself keeps every $BATS_TEST_TMPDIR until the whole run exits, and each
 # fixture here is a real git repository — about 120 inodes, most of them under
-# .git. One full-suite run therefore occupies roughly sixty thousand inodes
-# for its entire duration, and /tmp is a tmpfs with a fixed inode budget.
-# Three overlapping runs exhaust it.
+# .git. Without the teardown below, a full-suite run would retain every fixture
+# it has built until the run exits. No total is stated here: the per-fixture
+# figure is the only one measured, and the total it implies moves with the test
+# count, which was 400 when this comment was written and is 752 now. With the
+# teardown, what remains at any moment is the fixtures of the tests still
+# running and of the tests that have failed.
 #
-# That is not a tidiness problem, it is an EVIDENCE problem: past the budget a
-# redirect fails with ENOSPC, bats reports `not ok … teardown_suite` and
-# short-counts the plan, and a mutation runner that treats any failure as a
-# kill scores a live mutant as dead. A run killed that way also never
-# reaches bats' own cleanup, so its directory leaks and the next run starts
-# closer to the wall.
+# Whether that is close to a limit depends on the platform, and an earlier
+# version of this comment asserted one budget for every platform without
+# measuring any. Measure before reasoning from it: `df -i "$TMPDIR"`.
+#
+# Measured on macOS, the host this suite was measured on and the one AGENTS.md
+# calls a stock box for its default awk: bats puts its run directory under $TMPDIR, which is /var/folders/…/T/ on
+# the APFS data volume, and on 2026-10-01 that volume reported over six billion
+# free inodes at 0% used. Nothing this suite does approaches it. `PR-2scmvn`
+# records a misdiagnosis that followed from the earlier wording.
+#
+# Not measured anywhere else. Where $TMPDIR is a tmpfs the budget is finite and
+# the reasoning below applies, but no such host was tested for this comment and
+# no figure here describes one.
+#
+# Where the budget IS finite, exhausting it is not a tidiness problem but an
+# EVIDENCE problem: past the budget a redirect fails with ENOSPC, bats reports
+# `not ok … teardown_suite` and short-counts the plan, and a mutation runner
+# that treats any failure as a kill scores a live mutant as dead. A run killed
+# that way also never reaches bats' own cleanup, so its directory leaks and the
+# next run starts closer to the wall. The teardown below bounds the occupancy
+# on every platform, which is why it is kept.
 #
 # A FAILING test keeps its directory, because that is what you inspect; bats
 # does the same on retry.
 teardown() {
     if [ "${BATS_TEST_COMPLETED:-}" = 1 ] && [ -n "${BATS_TEST_TMPDIR:-}" ]; then
         rm -rf "$BATS_TEST_TMPDIR"
+        return 0
     fi
+    gr_failure_environment
     return 0
+}
+
+# Print the environment a temp-file fault would be identified by, on any test
+# that did not complete.
+#
+# `PR-2scmvn` was observed once, on 2026-09-01, with git reporting `unable to
+# create temporary file: Invalid argument`. It was ruled on without a
+# mechanism, because by the time anyone read the log the facts that would
+# establish one were gone. Five are printed here instead.
+#
+# This matters beyond a lost run. `tests/evidence.sh` derives its red figure by
+# subtracting the new tests that PASSED from the new tests submitted, so a test
+# that fails for an environmental reason is counted as a test that proves a
+# defect was fixed, and drops off the list of tests that cannot go red. All
+# five of that script's guards — scripts checked out from the base, a TAP plan
+# emitted at all, plan against submitted, results against plan, and names
+# against measured — are satisfied by a run that completes with a spurious
+# failure in it. A mutation kill table inverts the same way. An unexplained red
+# test therefore costs a figure in a merged record, not only a run.
+gr_failure_environment() {
+    {
+        echo "--- failed test environment (PR-2scmvn) ---"
+        echo "tmpdir: ${TMPDIR:-unset}"
+        echo "testdir: ${BATS_TEST_TMPDIR:-unset}"
+        echo "inodes: $(df -i "${TMPDIR:-/tmp}" 2>&1 | tail -n 1)"
+        echo "blocks: $(df -k "${TMPDIR:-/tmp}" 2>&1 | tail -n 1)"
+        echo "openfiles: $(ulimit -n 2>&1)"
+    } >&2
 }
 
 write_config() {

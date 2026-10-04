@@ -90,7 +90,46 @@ create a temporary file.
 affects: tests/run-tests.sh and tests/check-ids.bats; and, through them, every
 gate verdict in this toolkit that rests on a single suite run.
 opened: 2026-09-01
-status: open
+status: accepted
+disposition: ruled on 2026-10-03 — not reproducible; cause disproven.
+The suite now instruments a failed test instead of relying on a mechanism.
+Six full suite runs across three concurrent lanes in one worktree — a heavier
+condition than the observation below, which describes one run started
+immediately behind another — were all 749 of 749, exit 0, with
+the TAP plan equal to the result count. Six clean runs exclude the observed
+two-in-four rate at about the 98% level and do not exclude a per-run rate near
+20%, where zero failures in six has probability 26%. That is a bound, not a
+proof, and it is what this ruling rests on. Twenty-four further runs of
+`tests/check-ids.bats` alone were also clean and are not counted: the
+observation below already records that configuration as non-reproducing.
+The "transient temp-directory pressure" explanation below rests on a claim in
+`tests/helpers.bash` that `/tmp` is a tmpfs with a fixed inode budget. That is
+false on macOS, which is the host this suite was measured on and the one
+AGENTS.md calls a stock box for its default awk: `/tmp` is APFS and
+reported over six billion free inodes at 0% used on 2026-10-01, and bats writes
+under `$TMPDIR` in /var/folders rather than `/tmp` at all. The teardown that
+bounds that occupancy is byte-identical from `590867a` (2026-08-27) to the base
+`051becc`, and this change is what ends the range, by adding the
+`gr_failure_environment` call — the `teardown()` function, not the whole file,
+which does change across that range — so the mitigation for the named cause was
+already active on the day of the failure. This change corrects that comment, because it is what
+produced the misdiagnosis.
+**The exposure is wider than a lost run, and an earlier draft of this ruling
+stated the opposite.** That draft had the fault making a run falsely red
+rather than falsely green, and so costing no verdict. An independent reviewer refuted it.
+`tests/evidence.sh` derives its red figure by subtracting the new tests that
+PASSED from the new tests submitted, so a test failing for an environmental
+reason is counted as a test that proves a defect was fixed, and drops off the
+list of tests that cannot go red; ten merged records quote a figure
+derived that way. Every
+guard that script has is satisfied by a run which completes with a spurious
+failure in it. A mutation kill table inverts the same way, as the corrected
+comment in `tests/helpers.bash` states.
+Accepted with that understanding recorded. The search stops,
+and `tests/helpers.bash` now prints five labelled facts — `tmpdir`, `testdir`,
+`inodes`, `blocks` and `openfiles` — on any test that did not complete, so a recurrence is identifiable
+from the run that contains it rather than from whoever reads the log. Reopen on any such
+capture.
 Found on 2026-09-01 by the T1 subagent of this change, from four full suite
 runs in one task worktree: runs 1 and 4 green at 438 ok, runs 2 and 3 each
 red on a DIFFERENT test — `poisoning gr_def_re changes every gate's verdict`,

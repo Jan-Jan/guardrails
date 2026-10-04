@@ -423,3 +423,78 @@ $f"
         | xargs -0 awk -f "$BATS_TEST_TMPDIR/caselint.awk")
     [ -z "$found" ] || { echo "case patterns missing the leading (:"; echo "$found"; false; }
 }
+
+# --- PR-2scmvn --------------------------------------------------------------
+
+# A test that did not complete prints the environment that would identify a
+# temp-file fault. PR-2scmvn was observed once and ruled on without a
+# mechanism, because the facts that would establish one were gone by the time
+# anyone read the log. These three tests pin both halves and the path between
+# them: the diagnostics appear when a test failed, nothing is printed and the
+# directory is released when it passed, and the diagnostics reach a real bats
+# run's output.
+
+@test "a test that did not complete prints every fact it promises" {
+    # verifies: PR-2scmvn
+    # One assertion per labelled fact. Round 2 of this change's review deleted
+    # the df line and the tmpdir line in turn and both tests stayed green,
+    # because no assertion named either: a fact nothing pins can be removed in
+    # silence, which is the defect this capture exists to avoid.
+    sandbox="$BATS_TEST_TMPDIR/failed"
+    mkdir -p "$sandbox"
+    run env -u BATS_TEST_COMPLETED "BATS_TEST_TMPDIR=$sandbox" \
+        bash -c '. "$1"; teardown' _ "$BATS_TEST_DIRNAME/helpers.bash"
+    for fact in "failed test environment (PR-2scmvn)" "tmpdir: " "testdir: " \
+                "inodes: " "blocks: " "openfiles: "; do
+        [[ "$output" == *"$fact"* ]] \
+            || { echo "no $fact line:"; echo "$output"; false; }
+    done
+    [[ "$output" == *"$sandbox"* ]] \
+        || { echo "testdir did not name the directory"; echo "$output"; false; }
+    [ -d "$sandbox" ] \
+        || { echo "the directory of a failed test was removed"; false; }
+}
+
+@test "a completed test prints nothing and releases its directory" {
+    # verifies: PR-2scmvn
+    sandbox="$BATS_TEST_TMPDIR/passed"
+    mkdir -p "$sandbox"
+    run env "BATS_TEST_COMPLETED=1" "BATS_TEST_TMPDIR=$sandbox" \
+        bash -c '. "$1"; teardown' _ "$BATS_TEST_DIRNAME/helpers.bash"
+    [ ! -d "$sandbox" ] \
+        || { echo "the directory of a passing test was kept"; false; }
+    [ -z "$output" ] \
+        || { echo "$output"; false; }
+}
+
+@test "the capture reaches a real bats run's output" {
+    # verifies: PR-2scmvn
+    # Both tests above call teardown in a subshell. Neither proves the
+    # diagnostics reach bats' own output, which is where anyone
+    # investigating a recurrence will look for them.
+    # Built with printf, not a heredoc. A heredoc would put `@test` at column
+    # one in THIS file, where `tests/evidence.sh` counts it with
+    # `grep -c '^@test'` and then reports a plan mismatch against a base run
+    # that never had it. That is the same column-one-inside-a-heredoc defect
+    # `PR-tenhv4`'s change recorded at `tests/check-trace.bats:1739`.
+    printf '%s\n' \
+        "load \"$BATS_TEST_DIRNAME/helpers\"" \
+        "@test \"deliberately failing probe\" {" \
+        "    false" \
+        "}" > "$BATS_TEST_TMPDIR/probe.bats"
+    # The same idiom as tests/evidence.sh:86. tests/run-tests.sh uses a
+    # system bats when one is on PATH and only then vendors tests/.bats-core,
+    # which is gitignored — so hard-coding the vendored path makes this test
+    # fail on any host that has bats installed.
+    probe_bats=$(command -v bats \
+        || echo "$BATS_TEST_DIRNAME/.bats-core/bin/bats")
+    run "$probe_bats" "$BATS_TEST_TMPDIR/probe.bats"
+    [ "$status" -ne 0 ] \
+        || { echo "the probe was expected to fail"; echo "$output"; false; }
+    [[ "$output" == *"failed test environment (PR-2scmvn)"* ]] \
+        || { echo "the capture did not reach the run output"; \
+             echo "$output"; false; }
+    [[ "$output" == *"inodes: "* ]] \
+        || { echo "the inode line did not reach the run output"; \
+             echo "$output"; false; }
+}
