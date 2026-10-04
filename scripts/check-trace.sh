@@ -7,32 +7,74 @@
 #   MISSING-TEST ID          — REQ or LLR with no `verifies:` reference in
 #                              test_paths. A REQ also counts as tested when a
 #                              tested LLR `satisfies:` it (transitive).
-#   UNMITIGATED-HAZARD ID    — HAZ with no RC `mitigates:` line naming it
-#   UNIMPLEMENTED-CONTROL ID — RC with no REQ `implements:` line naming it
+#                              Never annotate a test that does not verify the
+#                              behavior. Put an LLR test at the software item's
+#                              own interface.
+#   UNMITIGATED-HAZARD ID    — HAZ with no RC `mitigates:` line naming it.
+#                              Instead of a new RC, record the acceptability
+#                              rationale and control in the RMF.
+#   UNIMPLEMENTED-CONTROL ID — RC with no REQ `implements:` line naming it.
+#                              For a non-software control, note the external
+#                              implementation in the RMF item. Add an
+#                              implementing REQ only if software is part of it.
 #   UNTRACED-DESIGN ID       — SDD whose block has no `traces:` REQ reference
 #   UNSATISFIED-LLR ID       — LLR whose block has no `satisfies:` naming a
 #                              REQ and is not marked `satisfies: derived`
 #   UNANALYZED-DERIVED ID    — REQ/LLR marked derived that no `assesses:`
-#                              line in the RMF names
+#                              line in the RMF names. Several items may share
+#                              one `assesses:` line.
 #   DANGLING-REF ID          — ID referenced in docs/strict/test paths but
-#                              defined nowhere
+#                              defined nowhere. Deleting a defined item is a
+#                              change that needs its own review.
 #   DANGLING-FILE FILE       — a `DRAFT-<name>.md` ledger file (name
 #                              characters [A-Za-z0-9_.-]) named in a doc_*
-#                              file, by path or bare name, that does not exist
+#                              file, by path or bare name, that does not exist.
+#                              Usual causes: a draft another change merged and
+#                              renamed, or a draft in another unit.
+#                              finalize-docs.sh does not rewrite a relative
+#                              link, a name in emphasis or a name joined to a
+#                              longer word. Plans and verification records are
+#                              not scanned. A reference to an existing draft
+#                              passes. A bare name resolves against this unit's
+#                              ledger directories only; across units, write the
+#                              path.
 #   MISPLACED-ITEM ID        — item defined outside the document configured
-#                              for its prefix
+#                              for its prefix. Adding the stray file to
+#                              strict_paths does not fix it. A doc_* directory
+#                              resolves to its *.md files one level deep; a
+#                              single-file doc_* resolves whatever its
+#                              extension. Indent an illustrative ID or keep it
+#                              inline. Never leave a definition form such as
+#                              `**REQ-NNN**:` at the start of a line: that is
+#                              MALFORMED-ID (check-ids.sh).
 #   NON-RECIPROCAL-SUPERSESSION ID — `supersedes: Y` with no `superseded-by:`
 #                              naming it back on Y, or the reverse. The pair
 #                              merge-change step 6a prescribes, and ONLY the
 #                              pair: this is not a sweep for stale references
 #                              to a superseded ID, and existence is
-#                              DANGLING-REF's
+#                              DANGLING-REF's. Each predecessor in a list is
+#                              judged alone. If the two IDs are not a
+#                              replacement pair, remove both halves and state
+#                              the relationship in prose.
 #   ORPHAN-ANNOTATION FILE:LINE — a status:/opened:/disposition:/traces:/
 #                              satisfies:/supersedes:/superseded-by: line at
 #                              column one, or at column one after a list
 #                              marker, that belongs to no item block. Wider
 #                              than every reader on purpose: a form no reader
-#                              takes is still reported where it is orphaned
+#                              takes is still reported where it is orphaned.
+#                              Three cases: before the first item in the file;
+#                              under a heading with no item since; inside a
+#                              block whose prefix's gate does not read the
+#                              keyword, usually the wrong item. Move a
+#                              separating heading before the item, or drop it.
+#                              Indent an illustrative line with no list marker,
+#                              or keep it inline in backticks. Reported per
+#                              ledger: status:/opened:/disposition: in
+#                              doc_problems, traces: in doc_sad, satisfies: in
+#                              doc_sad and doc_srs, supersedes:/superseded-by:
+#                              in every ledger. mitigates:, implements:,
+#                              verifies: and assesses: are read line-wise and
+#                              cannot be orphaned.
 #   UNRESOLVED-PR ID         — problem report with status: open, with its age.
 #                              WARNING only: listed for review,
 #                              never fails the check on its own
@@ -41,12 +83,17 @@
 #                              only, and exempt
 #                              from STALE-PROBLEM and from problem_open_max —
 #                              a decision is not a backlog — but never exempt
-#                              from this roll-call
+#                              from this roll-call. Never set accepted to make
+#                              PROBLEM-BACKLOG pass; resolve-problem §4 states
+#                              the form.
 #   INCOMPLETE-PROBLEM ID    — PR with no column-one status: in its block — a
 #                              bulleted one is not read, and is not a status —
 #                              an OPEN one with no opened:, or an ACCEPTED one
 #                              with no disposition: or no opened: (a keyword
-#                              with an empty value counts as absent)
+#                              with an empty value counts as absent). A
+#                              resolved item needs no opened:, so in an
+#                              existing ledger backfill it on open and accepted
+#                              items only.
 #   MALFORMED-STATUS ID      — status: whose value is not one of open,
 #                              accepted or resolved
 #   MALFORMED-DATE ID        — an open or accepted PR whose opened: is not a
@@ -54,15 +101,25 @@
 #                              ahead of today (one day is allowed for clock
 #                              skew). An accepted item ages against no limit,
 #                              but the date still records when the problem was
-#                              raised, and the roll-call prints it
+#                              raised, and the roll-call prints it. The age
+#                              is computed in local time from
+#                              `date +%Y-%m-%d`; tomorrow counts as 0 days old.
 #   MALFORMED-SUPERSESSION ID — a column-one supersedes: or superseded-by: in
 #                              an item block whose value contains no item ID,
 #                              the empty value included, OR whose list contains
 #                              a token in a declared prefix that is not an ID
 #                              beside ones that are. Reported rather than read
-#                              as no supersession — or as half of one
-#   STALE-PROBLEM ID         — open longer than problem_age_days (more than)
-#   PROBLEM-BACKLOG          — more open PRs than problem_open_max (more than)
+#                              as no supersession — or as half of one. Prose
+#                              or a parenthetical after the ID list ends the
+#                              list and is not reported.
+#   STALE-PROBLEM ID         — open longer than problem_age_days (more than).
+#                              Set accepted where the item is real but its fix
+#                              belongs to another change; resolve-problem
+#                              requires the ruling first.
+#   PROBLEM-BACKLOG          — more open PRs than problem_open_max (more than).
+#                              The count includes open items with no usable
+#                              opened: and excludes items whose status cannot
+#                              be read.
 #
 # Scoped (multi-unit) runs add:
 #   NON-EXPORTED-REF ID      — reference to an item defined in a declared
@@ -123,8 +180,46 @@
 # prefix has no configured document and is not placement-checked, so an item
 # of one is still counted without being examined.
 #
+# After the violation lines and before `checked:`, one `fix <RULE>: <remedy>`
+# line per rule that fired, warnings included, in the order the rules first
+# fired (D8 of docs/plans/2026-09-28-agent-first-skills.md).
+# check_trace_remedy below is the remedy table; tests/remedies.bats checks that
+# it has one entry per report in the roster above.
+#
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
+
+# Prints the remedy for report $1, or returns 1 for a report with none.
+check_trace_remedy() {
+    case "$1" in
+        (MISSING-TEST) echo 'Write a test annotated verifies: <ID> at the lowest level that exists, LLR before REQ (develop-change); sharpen an untestable REQ with grill-requirements.' ;;
+        (UNMITIGATED-HAZARD) echo 'Run analyze-risks for the hazard and add a risk control whose mitigates: line names it.' ;;
+        (UNIMPLEMENTED-CONTROL) echo 'Write a testable REQ whose implements: line names the control (grill-requirements) — see the script header.' ;;
+        (UNTRACED-DESIGN) echo 'Add a traces: line naming the REQ the design item serves; where no REQ exists, delete the item or grill the requirement first.' ;;
+        (UNSATISFIED-LLR) echo 'Add satisfies: <REQ> to the LLR block, or mark it satisfies: derived and assess it with analyze-risks.' ;;
+        (UNANALYZED-DERIVED) echo 'Run analyze-risks and put assesses: <ID> on its own line under the RMF derived-requirements heading; a mention elsewhere does not count.' ;;
+        (DANGLING-REF) echo 'Correct the typo in the reference, or remove every reference to a deleted item — see the script header.' ;;
+        (DANGLING-FILE) echo 'Write the dated name the draft file was merged under; never delete the reference to pass the gate — see the script header.' ;;
+        (MISPLACED-ITEM) echo 'Move the definition into the document configured for its prefix: REQ doc_srs, HAZ and RC doc_rmf, SDD and LLR doc_sad, PR doc_problems.' ;;
+        (NON-RECIPROCAL-SUPERSESSION) echo 'Add the missing half at column one inside the named item block; never delete the half that is present.' ;;
+        (ORPHAN-ANNOTATION) echo 'Move the line into the item block it describes, at column one with no list marker — see the script header.' ;;
+        (UNRESOLVED-PR) echo 'Review the open item: fix it under resolve-problem, or leave it open knowingly.' ;;
+        (ACCEPTED-PR) echo 'Check that the ruling in disposition: still stands; where it does not, set status: open or fix the item under resolve-problem.' ;;
+        (INCOMPLETE-PROBLEM) echo 'Add the missing status:, opened: (YYYY-MM-DD) or disposition: at column one inside the item block, with no list marker.' ;;
+        (MALFORMED-STATUS) echo 'Set status: to open, accepted (with a disposition:) or resolved.' ;;
+        (MALFORMED-DATE) echo 'Write opened: as a YYYY-MM-DD calendar date no later than tomorrow; where the clock or timezone is wrong, correct that.' ;;
+        (MALFORMED-SUPERSESSION) echo 'Write the item ID the annotation means, or delete the line where no supersession happened; never widen the form to accept the token.' ;;
+        (STALE-PROBLEM) echo 'Resolve the item, rule on it as status: accepted with a disposition: (resolve-problem), or raise problem_age_days deliberately.' ;;
+        (PROBLEM-BACKLOG) echo 'Resolve open items or rule on them as status: accepted with a disposition: (resolve-problem), or raise problem_open_max deliberately.' ;;
+        (NON-EXPORTED-REF) echo 'Reference only exported items of a dependency, or have its unit mark the item exported: yes.' ;;
+        (UNDECLARED-DEPENDENCY) echo 'Add the named unit to depends_on in the config of this unit, or remove the reference.' ;;
+        (UNMET-EXPECTATION) echo 'Have the provider unit export a REQ that satisfies: the expectation, or re-analyze the risk and remove the expects: line.' ;;
+        (INCOMPLETE-EXPECTATION) echo 'Put expects: on a REQ, name a unit in it, and add opened: as a YYYY-MM-DD date.' ;;
+        (MISEXPORTED-ITEM) echo 'Write exported: yes, and only on a REQ item.' ;;
+        (EXPECTATION-BACKLOG) echo 'Close open expectations with an exported answer from the provider, or raise expectation_open_max deliberately.' ;;
+        (*) return 1 ;;
+    esac
+}
 
 . "$(dirname "$0")/lib.sh"
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
@@ -245,6 +340,24 @@ require_paths strict_paths $strict_paths
 # shellcheck disable=SC2086
 require_paths test_paths $test_paths
 
+# Every violation line from here to the summary goes through print_violations,
+# which prints it at once and adds its rule (the first word) to fired_rules.
+# The remedy lines for fired_rules are printed just before the summary. An exit
+# before the summary (exit 2 from any gr_die below) leaves the violation lines
+# already printed on stdout; no temporary file is written.
+fired_rules=""
+
+# print_violations TEXT — prints each line of TEXT and records the first word
+# of each line in fired_rules, once, in first-fired order.
+print_violations() {
+    [ -n "$1" ] || return 0
+    printf '%s\n' "$1"
+    for _rule in $(printf '%s\n' "$1" | awk 'NF { print $1 }'); do
+        gr_contains "$fired_rules" "$_rule" || fired_rules="${fired_rules}${fired_rules:+
+}$_rule"
+    done
+}
+
 fail=0
 
 foreign=""
@@ -291,7 +404,7 @@ if [ -n "$GR_UNIT" ]; then
         $1 !~ /^REQ-/       { printf "MISEXPORTED-ITEM %s (exported: on a non-REQ item — only requirements are exported; LLR and SDD are design data)\n", $1; next }
         $4 != "yes"         { printf "MISEXPORTED-ITEM %s (exported: %s — the only accepted value is yes; anything else reads as not exported, which strands consumers silently)\n", $1, $4 }')
     if [ -n "$_misexp" ]; then
-        printf '%s\n' "$_misexp"
+        print_violations "$_misexp"
         fail=1
     fi
 
@@ -302,7 +415,7 @@ if [ -n "$GR_UNIT" ]; then
         $1 !~ /^REQ-/ { printf "INCOMPLETE-EXPECTATION %s (expects: on a non-REQ item)\n", $1; next }
         $4 == ""      { printf "INCOMPLETE-EXPECTATION %s (expects: with no unit named)\n", $1 }')
     if [ -n "$_badexp" ]; then
-        printf '%s\n' "$_badexp"
+        print_violations "$_badexp"
         fail=1
     fi
 
@@ -314,7 +427,7 @@ if [ -n "$GR_UNIT" ]; then
         _eid=${_el%%"$_tab"*}
         _etgt=${_el#*"$_tab"}
         if ! gr_contains "$deps" "$_etgt"; then
-            echo "UNDECLARED-DEPENDENCY $_eid (expects: names $_etgt, which is not in this unit's depends_on — the MISSING-TEST exemption never engages across an undeclared edge)"
+            print_violations "UNDECLARED-DEPENDENCY $_eid (expects: names $_etgt, which is not in this unit's depends_on — the MISSING-TEST exemption never engages across an undeclared edge)"
             fail=1
             continue
         fi
@@ -327,7 +440,7 @@ if [ -n "$GR_UNIT" ]; then
             print (a < 0 ? -1 : a)        # further future is rejected (as PRs)
         }')
         if [ "$_eage" -lt 0 ]; then
-            echo "INCOMPLETE-EXPECTATION $_eid (opened: cannot be used — '$_eopd' is absent, not a calendar date, or more than a day in the future)"
+            print_violations "INCOMPLETE-EXPECTATION $_eid (opened: cannot be used — '$_eopd' is absent, not a calendar date, or more than a day in the future)"
             fail=1
             continue
         fi
@@ -351,19 +464,19 @@ $_eid"
         exp_open=$((exp_open + 1))
         [ "$_eage" -gt "$exp_oldest" ] && exp_oldest=$_eage
         if printf '%s\n' "$own_scan" | awk -F'\t' -v i="$_eid" '$1 == i && $3 == "RC" { found = 1 } END { exit !found }'; then
-            echo "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days — implements a risk control, exit 1 on every run until the provider delivers or the risk is re-analyzed)"
+            print_violations "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days — implements a risk control, exit 1 on every run until the provider delivers or the risk is re-analyzed)"
             fail=1
         elif [ -n "$exp_age_limit" ] && [ "$_eage" -gt "$exp_age_limit" ]; then
-            echo "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days, limit $exp_age_limit)"
+            print_violations "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days, limit $exp_age_limit)"
             fail=1
         else
-            echo "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days)"
+            print_violations "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days)"
         fi
     done
     if [ -n "$exp_open_limit" ] && [ "$exp_open" -gt "$exp_open_limit" ]; then
         _noun="open expectations"
         [ "$exp_open" -eq 1 ] && _noun="open expectation"
-        echo "EXPECTATION-BACKLOG ($exp_open $_noun, limit $exp_open_limit)"
+        print_violations "EXPECTATION-BACKLOG ($exp_open $_noun, limit $exp_open_limit)"
         fail=1
     fi
     _eold_txt="n/a"
@@ -481,7 +594,7 @@ done
 #
 # What is true for all six is the rule itself: an item belongs in the files
 # its key resolves to. The exceptions above are stated where there is room for
-# them — skills/check-traceability/SKILL.md and README.md.
+# them — the MISPLACED-ITEM entry in the header roster above, and README.md.
 # `**SDD-001**:` in docs/design.md passed with no `traces:` at all, and moving
 # that same file into doc_sad turned the run red without changing a character
 # of it.
@@ -509,7 +622,7 @@ check_placement() {
     _inside=$(ids_defined_in "$_pfx" "$@")
     for _id in $(ids_defined "$_pfx"); do
         gr_contains "$_inside" "$_id" || {
-            echo "MISPLACED-ITEM $_id (must be defined in the files $_key resolves to)"
+            print_violations "MISPLACED-ITEM $_id (must be defined in the files $_key resolves to)"
             fail=1
         }
     done
@@ -532,7 +645,7 @@ if [ -n "$test_paths" ]; then
     # shellcheck disable=SC2086
     verified_llr=$(ids_matching 'verifies:' LLR $test_paths)
     for id in $(ids_defined LLR); do
-        gr_contains "$verified_llr" "$id" || { echo "MISSING-TEST $id (no 'verifies:' reference in test paths)"; fail=1; }
+        gr_contains "$verified_llr" "$id" || { print_violations "MISSING-TEST $id (no 'verifies:' reference in test paths)"; fail=1; }
     done
 
     # REQ coverage: direct verifies:, plus satisfies: lists of tested LLRs
@@ -550,7 +663,7 @@ $sats"
         # verifying test yet and is already reported once, accurately, by
         # UNMET-EXPECTATION above. Met, it is an ordinary REQ again.
         gr_contains "$exempt_expect" "$id" && continue
-        gr_contains "$covered" "$id" || { echo "MISSING-TEST $id (no direct 'verifies:' and no tested LLR satisfies it)"; fail=1; }
+        gr_contains "$covered" "$id" || { print_violations "MISSING-TEST $id (no direct 'verifies:' and no tested LLR satisfies it)"; fail=1; }
     done
 fi
 
@@ -559,7 +672,7 @@ if [ -n "$rmf_files" ]; then
     # shellcheck disable=SC2086
     mitigated=$(ids_matching 'mitigates:' HAZ $rmf_files)
     for id in $(ids_defined HAZ); do
-        gr_contains "$mitigated" "$id" || { echo "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
+        gr_contains "$mitigated" "$id" || { print_violations "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
     done
 fi
 
@@ -568,7 +681,7 @@ if [ -n "$srs_files" ]; then
     # shellcheck disable=SC2086
     implemented=$(ids_matching 'implements:' RC $srs_files)
     for id in $(ids_defined RC); do
-        gr_contains "$implemented" "$id" || { echo "UNIMPLEMENTED-CONTROL $id (no requirement 'implements:' it)"; fail=1; }
+        gr_contains "$implemented" "$id" || { print_violations "UNIMPLEMENTED-CONTROL $id (no requirement 'implements:' it)"; fail=1; }
     done
 fi
 
@@ -592,14 +705,14 @@ for f in $sad_files; do
         END { flush() }
     ' "$f")
     for id in $untraced; do
-        echo "UNTRACED-DESIGN $id (no 'traces:' to a requirement)"
+        print_violations "UNTRACED-DESIGN $id (no 'traces:' to a requirement)"
         fail=1
     done
 done
 
 # --- UNSATISFIED-LLR: every LLR satisfies a REQ or is marked derived --------
 for id in $(printf '%s\n' "$llr_info" | awk '$2 == "-" { print $1 }'); do
-    echo "UNSATISFIED-LLR $id (no 'satisfies:' REQ and not marked derived)"
+    print_violations "UNSATISFIED-LLR $id (no 'satisfies:' REQ and not marked derived)"
     fail=1
 done
 
@@ -636,7 +749,7 @@ assessed="$(ids_matching 'assesses:' REQ $rmf_files)
 $(ids_matching 'assesses:' LLR $rmf_files)"
 for id in $derived_ids; do
     gr_contains "$assessed" "$id" && continue
-    echo "UNANALYZED-DERIVED $id (no 'assesses:' line in the RMF names it)"
+    print_violations "UNANALYZED-DERIVED $id (no 'assesses:' line in the RMF names it)"
     fail=1
 done
 
@@ -679,7 +792,7 @@ classify_unresolved() {
         esac
     done
     [ -n "$_v" ] || { _v="DANGLING-REF"; _d="(referenced but never defined)"; }
-    echo "$_v $_cid $_d"
+    print_violations "$_v $_cid $_d"
 }
 if [ -n "$scope" ]; then
     # The trailing boundary is matched and then stripped: without it a mention
@@ -707,7 +820,7 @@ $(ids_defined "$pfx")"
             gr_contains "$reverse" "$id" && continue
             classify_unresolved "$id"
         else
-            echo "DANGLING-REF $id (referenced but never defined)"
+            print_violations "DANGLING-REF $id (referenced but never defined)"
         fi
         fail=1
     done
@@ -780,7 +893,7 @@ if [ -n "$file_scope" ]; then
                 [ "$_found" -eq 1 ] && continue
                 _why="names a draft ledger file found in none of this config's ledger directories — after a merge, write the dated name; across units, write the path" ;;
         esac
-        echo "DANGLING-FILE $_dref ($_dfile:$_dline $_why)"
+        print_violations "DANGLING-FILE $_dref ($_dfile:$_dline $_why)"
         fail=1
     done
 fi
@@ -1014,13 +1127,13 @@ _accepted_n=$(printf '%s\n' "$_prs" | grep -c '^A ' || true)
 # open and absent from the age.
 _oldest=$(printf '%s\n' "$_prs" | LC_ALL=C awk 'BEGIN { m = -1 } $1 == "W" && $2 + 0 > m { m = $2 + 0 } END { print m }')
 if [ -n "$_prs" ]; then
-    printf '%s\n' "$_prs" | cut -d' ' -f3-
+    print_violations "$(printf '%s\n' "$_prs" | cut -d' ' -f3-)"
     printf '%s\n' "$_prs" | grep -q '^F ' && fail=1
 fi
 if [ -n "$open_limit" ] && [ "$_open_n" -gt "$open_limit" ]; then
     _noun="open problem reports"
     [ "$_open_n" -eq 1 ] && _noun="open problem report"
-    echo "PROBLEM-BACKLOG ($_open_n $_noun, limit $open_limit)"
+    print_violations "PROBLEM-BACKLOG ($_open_n $_noun, limit $open_limit)"
     fail=1
 fi
 
@@ -1148,7 +1261,7 @@ _orphans=$(
     check_orphans 'superseded-by:' 'REQ|HAZ|RC|SDD|LLR|PR' $_sup_files
 ) || exit 2
 if [ -n "$_orphans" ]; then
-    printf '%s\n' "$_orphans"
+    print_violations "$_orphans"
     fail=1
 fi
 
@@ -1161,7 +1274,7 @@ if [ -n "$GR_UNIT" ]; then
         check_orphans 'opened:'   'REQ|HAZ|RC|SDD|LLR|PR' $srs_files
     ) || exit 2
     if [ -n "$_orphans2" ]; then
-        printf '%s\n' "$_orphans2"
+        print_violations "$_orphans2"
         fail=1
     fi
 fi
@@ -1350,7 +1463,7 @@ if [ -n "$_sup_files" ]; then
         # `for (k in arr)` has unspecified order, so without this the report's
         # line order varies between awks and between runs — green on one
         # implementation and flaky on the next. Critical, not cosmetic.
-        printf '%s\n' "$_sup_raw" | LC_ALL=C sort
+        print_violations "$(printf '%s\n' "$_sup_raw" | LC_ALL=C sort)"
         fail=1
     fi
 fi
@@ -1369,6 +1482,13 @@ for pfx in $prefixes; do
     n=$(ids_defined "$pfx" | grep -c .) || true
     summary="${summary}${summary:+, }${pfx} ${n}"
 done
+
+# One remedy line per rule, in the order the rules first fired.
+for rule in $fired_rules; do
+    remedy=$(check_trace_remedy "$rule") || continue
+    printf 'fix %s: %s\n' "$rule" "$remedy"
+done
+
 echo "checked: $summary"
 # The third summary line, and the reason an unset limit is not a silent one.
 # A team that has switched a limit off reads that fact at every merge, next to

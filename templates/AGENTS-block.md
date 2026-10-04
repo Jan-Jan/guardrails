@@ -98,6 +98,20 @@ In code, additionally:
   change worktree (merge-change step 6c); on the base branch it exits 2, never 0
 - `.guardrails/scripts/check-signing.sh [--strict] [RANGE]` — signature verification
 - `.guardrails/scripts/finalize-docs.sh [--dry-run]` — rename draft ledger files
+- `.guardrails/scripts/merge-preflight.sh [--before-review] [--local-base] BRANCH`
+  — the mechanical merge checks, stopping at the first failure; `--local-base`
+  checks the local base branch only, not `origin/<base>`, for a project that
+  puts the remote out of scope. Run from the change worktree (merge-change
+  steps 4 and 6c)
+- `.guardrails/scripts/task-worktree.sh start TAG | merge TAG | remove TAG | discard TAG`
+  — create a nested task worktree, copying in every ignored entry of the change
+  worktree except `.worktrees/`, `.claude/` and a name that contains a newline
+  or the byte `\001`, which it reports; `merge` merges it back and
+  removes it, run by the dispatcher after a green task report and never as a
+  remedy; `remove` merges nothing, rejects a branch with commits, and is how
+  the review worktree is retired; `discard` lists the branch's commits, then
+  removes the worktree and deletes the branch without merging them. Run from
+  the change worktree
 
 Exit code 0 = pass, 1 = violations (fix them, never bypass), 2 = setup error.
 

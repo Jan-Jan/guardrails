@@ -17,15 +17,14 @@ The unique tag is insurance against a cleanup that was missed. The removal
 after each fix dispatch deletes the task branch, so a reused `fix` tag is free
 again before the next round. That is the same property that
 keeps the review tag fixed at `review`. But no numbered step performs the fix dispatch's
-cleanup; you do, between rounds. With a repeated tag, a missed
-`git worktree remove` or `git branch -d` becomes
-`fatal: a branch named '<change-branch>-fix' already exists` when the next
-round creates its worktree, because git validates the new branch name before
-the worktree path. With a fresh tag, the new dispatch does not collide with
-the leftover, and a leftover branch is merely stale.
+cleanup; you do, between rounds. With a repeated tag, a missed cleanup leaves
+the task branch or its worktree in place, and
+the next round cannot create its worktree on that path and branch. With a
+fresh tag, the new dispatch does not collide with the leftover, and a leftover
+branch is merely stale.
 
 A wholly skipped cleanup also leaves a nested worktree still registered. It is
-gitignored, so `git status` never shows it. Step 6d catches it. Otherwise
+gitignored, so `git status` never shows it. Step 6c catches it. Otherwise
 guard 4 rejects at step 8, after the key touch and the signature check under `--strict`.
 
 ## Step 1: the fetch, and putting the remote out of scope
@@ -65,7 +64,7 @@ The date in the new name is the day step 3 first retired the draft name, and
 it is not derived again. The filename is a handle for the file; git records the day
 of the merge.
 
-## Steps 3 and 4: a draft another change left behind
+## Steps 3 and 5: a draft another change left behind
 
 Step 3 renames every draft ledger file it finds, including one another change
 left behind, and nothing distinguishes the two mechanically. Such a draft
@@ -74,13 +73,14 @@ record and this change's `Implements:` line, with no item to explain it. A renam
 do not recognise at step 3 is that case.
 
 A `DRAFT-FILE` report names no change. A draft leaked by a change that already merged fails step 4 for every later change.
-A `DRAFT-FILE` on a path this change did not create is that case.
+A `DRAFT-FILE` on a path this change did not create, ruled on at step 5, is
+that case.
 
 Whether the name opens `DRAFT-<this branch>-` is not a discriminator, because
 the convention does not require a draft to embed its branch. That gap is a
 problem item in this toolkit's own ledger.
 
-## Step 4: `MALFORMED-ID`
+## Step 5: `MALFORMED-ID`
 
 Widening the definition pattern to accept the token makes the item visible to
 every gate, and admits everywhere an ID that was not minted and whose form the
@@ -91,7 +91,7 @@ pattern exists to reject.
 The renames at step 3 move files the tests may read, so a fresh gate summary
 is what shows that nothing broke.
 
-Where step 3 renamed nothing, step 3 was a no-op, steps 4 and 5 only read, and
+Where step 3 renamed nothing, step 3 was a no-op, step 4 only reads, and
 step 1 merged a base already merged. The tree is the tree step 2 measured, and
 a second suite run would reproduce an answer already in hand. The hash makes
 that a mechanical test rather than a judgment about what the round touched.
@@ -137,14 +137,27 @@ fails on the existing branch.
 
 ## Step 6a: a round with no review worktree
 
-`git worktree remove` fails on a path that was never created. In a sequence
+Removing a review worktree that was never created fails. In a sequence
 that halts on any failure, that is a stop with no defect behind it.
+
+## Step 6a: a review commits nothing
+
+Three commands retire a task worktree, and only one of them merges. `merge`
+is the dispatcher's step after a green task report: it merges the task branch
+into the change branch and then removes the worktree and the branch. `remove`
+and `discard` retire a task worktree without merging: `remove` rejects a branch
+with commits, and `discard` deletes those commits after each one is recorded. A
+reviewer's commit merged into the change branch would put the reviewer's work
+into the change it reviewed, and the reviewer would then be an author of that
+change. The review worktree is therefore retired with `remove`, which rejects a
+review branch with commits, so a commit made by a reviewer is read and recorded
+as a finding instead.
 
 ## Step 6a: a review worktree with scratch in it
 
-`git worktree remove` rejects untracked files. It never reports an ignored
-file, because git does not see one, and that is the property guard 4 exists for.
-`--force` would delete the scratch the rejection reported.
+The removal rejects untracked files. It never reports an ignored file,
+because git does not see one, and that is the property guard 4 exists for.
+Forcing the removal would delete the scratch the rejection reported.
 
 ## Step 6b: the record is committed in the worktree
 
@@ -182,16 +195,16 @@ states the units whose gates the verdict covers.
 A deleted finding and a finding that never existed read identically. So a
 finding judged wrong keeps its block, and its disposition states the reason.
 
-## Step 6d: a worktree registered elsewhere
+## Steps 6c and 6d: a worktree registered elsewhere
 
 A worktree registered elsewhere, such as another change's or the primary
 checkout, is not guard 4's concern, because
 removing the change worktree does not touch it.
 
-## Step 6d: why the check comes before the squash
+## Steps 6c and 6d: why the check comes before the squash
 
 Found at step 8, a leftover blocks the cleanup after the user has already
-spent a key touch. Found at 6d, it costs one removal.
+spent a key touch. Found at 6c, it costs one removal.
 
 ## Step 7: the message file and the signing hand-over
 

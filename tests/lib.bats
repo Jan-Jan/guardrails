@@ -142,6 +142,39 @@ EOF
     [ -z "$output" ]
 }
 
+# verifies: PR-tz6gsp
+@test "gr_base_branch returns git's status when git worktree list fails, and prints nothing" {
+    # Before the status was taken, the failure returned 0 with no output, which
+    # is the detached-primary result above, and git's error was discarded.
+    git worktree add -q -b feature wt
+    cd wt
+    status_before=$(git status --porcelain)
+    stub_directory=$(make_git_failing_on '*" worktree list "*')
+    PATH="$stub_directory:$PATH" run sh -c '. .guardrails/scripts/lib.sh && gr_base_branch 2>/dev/null'
+    [ "$status" -eq 128 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "printed on failure: $output"; false; }
+    # git's own error is passed through, not suppressed.
+    PATH="$stub_directory:$PATH" run sh -c '. .guardrails/scripts/lib.sh && gr_base_branch'
+    [ "$status" -eq 128 ] || { echo "$status: $output"; false; }
+    output_has "fatal: stub failure of git worktree list --porcelain"
+    [ "$(git status --porcelain)" = "$status_before" ] \
+        || { echo "the worktree changed"; false; }
+}
+
+@test "gr_nested_worktrees prints each worktree inside WT, indented, and no sibling" {
+    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    git worktree add -q -b outer outer
+    git worktree add -q -b sibling outer-sibling
+    # Spelled as git records it: $BATS_TEST_TMPDIR can be a symlinked path.
+    outer_path=$(git -C outer rev-parse --show-toplevel)
+    git -C outer worktree add -q -b inner "$outer_path/.worktrees/inner"
+    inner_path=$(git -C outer/.worktrees/inner rev-parse --show-toplevel)
+    porcelain=$(git worktree list --porcelain)
+    run env wt_list="$porcelain" sh -c '. .guardrails/scripts/lib.sh && gr_nested_worktrees "$1"' _ "$outer_path"
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ "$output" = "    $inner_path" ] || { echo "output: $output"; echo "$porcelain"; false; }
+}
+
 @test "gr_doc_files dies when a configured directory contains no *.md" {
     rm -f docs/risk/*.md
     run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_rmf'
@@ -723,7 +756,7 @@ PY
     done
     # Pinned, so a script added later without the guard reddens here rather
     # than being quietly excluded from the question.
-    [ "$n" -eq 8 ] || { echo "expected 8 scripts, got $n"; false; }
+    [ "$n" -eq 10 ] || { echo "expected 10 scripts, got $n"; false; }
     [ "$shell" = dash ] || skip "no dash present: this was run under $shell and cannot discriminate"
 }
 

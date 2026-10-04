@@ -896,3 +896,39 @@ EOF
     [ "$status" -eq 0 ] || { echo "the record no longer claims its own branch: $output"; false; }
     [[ "$output" == *"for other-change 1"* ]] || { echo "$output"; false; }
 }
+
+# --- a git step whose failure would read as a state -------------------------
+
+# verifies: PR-tz6gsp
+@test "check-review: a failed git worktree list exits 2, is not read as a detached primary checkout" {
+    # Before gr_base_branch took the status, its failure printed nothing, and
+    # the run exited 2 with "the primary checkout is detached".
+    make_change_worktree my-change
+    write_record mine my-change
+    commit_all records
+    head_before=$(git rev-parse HEAD)
+    stub_directory=$(make_git_failing_on '*" worktree list "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "git worktree list failed, so the base branch cannot be read."
+    output_lacks "detached"
+    [ -z "$(git status --porcelain)" ] || { echo "the worktree changed"; false; }
+    [ "$(git rev-parse HEAD)" = "$head_before" ] || { echo "HEAD moved"; false; }
+}
+
+# verifies: PR-tz6gsp
+@test "check-review: --branch with a failed git worktree list exits 2, is not read as a detached primary checkout" {
+    # --branch accepts an empty base as a detached primary checkout, so before
+    # gr_base_branch took the status the run continued with no base branch.
+    make_change_worktree my-change
+    write_record mine my-change
+    commit_all records
+    head_before=$(git rev-parse HEAD)
+    stub_directory=$(make_git_failing_on '*" worktree list "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-review.sh --branch my-change
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "git worktree list failed, so the base branch cannot be read."
+    output_lacks "detached"
+    [ -z "$(git status --porcelain)" ] || { echo "the worktree changed"; false; }
+    [ "$(git rev-parse HEAD)" = "$head_before" ] || { echo "HEAD moved"; false; }
+}

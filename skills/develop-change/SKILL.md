@@ -83,8 +83,9 @@ the dispatched subagent, run the loop yourself — do not dispatch again.
   yours. From the task worktree `git merge <change-branch>` merges the wrong
   direction, into the task branch, and still exits 0 (`worktree-discipline`
   step 1 lists every route that fails). So when a dispatch report comes back
-  green, *you* merge that task branch into the change branch from the change
-  worktree, then remove the task worktree and the task branch. Parallel tasks
+  green, *you* run `sh .guardrails/scripts/task-worktree.sh merge <tag>` in
+  the change worktree, which merges that task branch into the change branch,
+  then removes the task worktree and the task branch. Parallel tasks
   touch disjoint files, so those merges do not conflict with each other. The
   base branch is never touched.
 - **At most five at once, disjoint files only.** Fan out only across tasks whose
@@ -96,11 +97,13 @@ the dispatched subagent, run the loop yourself — do not dispatch again.
 
   ```
   Execute task 3 of docs/plans/2026-08-30-<topic>.md under the develop-change
-  skill. Create your task worktree at .worktrees/<change-branch>-t3, nested
-  inside the change worktree you are in, on branch <change-branch>-t3 off
-  <change-branch>. Commit your work on that branch and leave it there — do not
-  merge it. Once your task worktree exists, do not commit on <change-branch>
-  and do not keep working in the change worktree. Return the dispatch report.
+  skill. Create your task worktree with
+  `sh .guardrails/scripts/task-worktree.sh start t3` from the change worktree
+  you are in; it is .worktrees/<change-branch>-t3, on branch
+  <change-branch>-t3 off <change-branch>. Commit your work on that branch and
+  leave it there — do not merge it. Once your task worktree exists,
+  do not commit on <change-branch> and do not keep working in the change
+  worktree. Return the dispatch report.
   ```
 
   **Name the path; do not leave it to be chosen.** A dispatched subagent is
@@ -111,10 +114,11 @@ the dispatched subagent, run the loop yourself — do not dispatch again.
 
   **What is forbidden is the change branch, not the change worktree.** Under
   containment the subagent *starts* in the change worktree — that is where its
-  pin puts it, and where it must run `git worktree add` from — so "do not enter
-  the change worktree" is an instruction it cannot follow. The prohibition that
-  is actually meant is narrower and begins once the task worktree exists: no
-  commit on the change branch, and no further work in the change worktree.
+  pin puts it, and where it must run `task-worktree.sh start` from — so "do not
+  enter the change worktree" is an instruction it cannot follow. The
+  prohibition that is actually meant is narrower and begins once the task
+  worktree exists: no commit on the change branch, and no further work in the
+  change worktree.
 
   Otherwise, do not restate the task. `plan-change` already put the exact
   paths, the real code and the expected output in the plan; restating them
@@ -143,8 +147,7 @@ The `worktree:` line confirms the subagent went where you sent it. The prompt
 already states `.worktrees/<change-branch>-t<N>`, so the path is not new
 information — but a report naming anything else is a task that will not have
 worked, and it is cheaper to see that on one line than to infer it from the
-failures. You also need the path to run `git worktree remove` once the task
-branch is merged; `git worktree list` is the fallback if a report omits it.
+failures.
 
 The `red -> green:` lines are how the iron law stays enforced under
 delegation: the subagent that executed the loop is the only party that saw the

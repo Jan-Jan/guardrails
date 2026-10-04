@@ -44,6 +44,51 @@ teardown() {
     return 0
 }
 
+# write_traced_docs — the fully traced fixture of tests/check-trace.bats and
+# tests/remedies.bats: one REQ, verified through a tested LLR, implementing a
+# control that mitigates a hazard. Run in a fixture repo; commits nothing.
+write_traced_docs() {
+    cat > docs/requirements/0001-01-01-base.md <<'EOF'
+# SRS
+
+**REQ-001**: The system shall limit the dose. (implements: RC-001)
+EOF
+    cat > docs/risk/0001-01-01-base.md <<'EOF'
+# Risk Management File
+
+**HAZ-001**: Overdose delivered to patient.
+
+**RC-001**: Software limits dose to configured maximum. mitigates: HAZ-001
+EOF
+    cat > docs/architecture/0001-01-01-base.md <<'EOF'
+# Software Architecture
+
+**SDD-001**: Dose limiter module. traces: REQ-001
+
+**LLR-001**: Clamp requested dose to the configured maximum. satisfies: REQ-001
+EOF
+    printf '# verifies: LLR-001\ntrue\n' > tests/test_a.sh
+}
+
+# output_has TEXT / output_lacks TEXT — $output contains, or does not contain,
+# TEXT anywhere; on failure both are printed. Functions rather than `[[ ]]`,
+# whose status bash 3.2 discards mid-test.
+output_has() {
+    case "$output" in
+        (*"$1"*) return 0 ;;
+    esac
+    printf 'expected in output: %s\n---\n%s\n' "$1" "$output"
+    return 1
+}
+
+output_lacks() {
+    case "$output" in
+        (*"$1"*) printf 'unexpected in output: %s\n---\n%s\n' "$1" "$output"
+                 return 1 ;;
+    esac
+    return 0
+}
+
 # Print the environment a temp-file fault would be identified by, on any test
 # that did not complete.
 #
@@ -462,4 +507,28 @@ EOF
 unit_run() {
     _s="$1"; _u="$2"; shift 2
     GR_CONFIG="$_u/.guardrails/config.yaml" run sh ".guardrails/scripts/$_s" "$@"
+}
+
+# make_git_failing_on PATTERN — a directory to put first on PATH, with a git
+# that exits 128 when its arguments, joined by spaces and enclosed in spaces,
+# match the case pattern PATTERN, and runs the real git for every other call.
+make_git_failing_on() {
+    real_git=$(command -v git)
+    stub_directory="$BATS_TEST_TMPDIR/git-failing-on"
+    case "$real_git" in
+        ("$stub_directory"/*) echo "make_git_failing_on called with the stub already on PATH" >&2
+                              return 1 ;;
+    esac
+    mkdir -p "$stub_directory"
+    cat > "$stub_directory/git" <<STUB
+#!/bin/sh
+case " \$* " in
+    ($1)
+        echo "fatal: stub failure of git \$*" >&2
+        exit 128 ;;
+esac
+exec "$real_git" "\$@"
+STUB
+    chmod +x "$stub_directory/git"
+    printf '%s\n' "$stub_directory"
 }

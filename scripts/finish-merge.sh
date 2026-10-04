@@ -36,6 +36,8 @@
 #      branch behind.
 #
 # A failing guard exits non-zero having removed nothing and deleted nothing. The
+# one exit 1 that follows a removal is a failed `git branch -D` after guard 3
+# removed the worktree; its message states that the worktree was removed. The
 # signed commit always remains; only cleanup is rejected, which is a safe thing
 # to reject. The fix is to run this script again ON ITS OWN — re-running the
 # whole compound cannot double-commit (the squash is no longer staged, so
@@ -72,51 +74,40 @@ gr_refuse() {
     exit 1
 }
 
-# gr_nested_worktrees WT — every registered worktree path lying inside WT, one
-# per line, indented. Reads `$wt_list`, the porcelain listing captured and
-# status-checked by its caller. Shared by --check and guard 4: the check that
-# loses work if it answers wrong is not a check to write twice.
+# The remedy for each kind of nested worktree, one per line, for $branch. Guard
+# 4's rejection and the --check verdict both print it, so the two cannot name
+# different commands for the same state. Every command runs from the change
+# worktree, which is still in place when guard 4 rejects after the squash.
 #
-# Written in plain shell, with no awk, and that is the point. `awk -v k=v`
-# ESCAPE-PROCESSES the value on its way into the program: `-v inside='w\top/'`
-# arrives as `w<TAB>op/`. A change worktree whose path contained a backslash
-# therefore made the prefix test match nothing, the result come back empty, and
-# guard 4 PASS — after which guard 3 removed the change worktree and took the
-# nested worktree's uncommitted work with it, at exit 0. Every other rejection in
-# this script fails CLOSED and merely withholds cleanup; this is the one whose
-# failure loses work, so it is built out of constructs that have no escape
-# layer to get wrong: `read -r` on whole lines, `${x#...}` for the prefix
-# strip, and a `case` pattern whose variable half is quoted and therefore
-# literal.
+#   gr_nested_remedy check | after-squash
 #
-# The leading `(` on each pattern is critical, not style: callers use this
-# inside a $(...) command substitution, and bash 3.2 — macOS's /bin/sh —
-# mis-parses an unparenthesised pattern's closing `)` as the substitution's
-# own, failing the WHOLE SCRIPT at parse time (`syntax error near unexpected
-# token ';;'`), before any guard runs. POSIX makes the open paren optional;
-# that shell makes it mandatory here.
-#
-# The matches are PRINTED, not accumulated in a variable: a `while read` fed by
-# a pipe runs in a subshell, so an assignment inside it would not remain after
-# the loop, and a command substitution is how the result reaches the caller.
-# `printf` cannot fail on a string already in memory.
-#
-# The comparison is a prefix test on the paths git RECORDS, not on anything
-# resolved afresh: both sides come out of the same `git worktree list`, so they
-# are already spelled alike whatever the platform did to symlinks. The trailing
-# `/` is critical — without it a sibling at `<wt>-sibling`, which is not
-# inside anything, would be reported as nested.
-gr_nested_worktrees() {
-    printf '%s\n' "$wt_list" | while IFS= read -r gr_line; do
-        case "$gr_line" in
-            ("worktree "*) ;;
-            (*) continue ;;
-        esac
-        gr_path=${gr_line#worktree }
-        case "$gr_path" in
-            ("$1"/*) printf '    %s\n' "$gr_path" ;;
-        esac
-    done
+# No remedy names a merging command. Merging a task branch is the dispatcher's
+# step after a green task report (develop-change), not a fix for a rejection:
+# commits a task branch still has here were never gated or reviewed. Both
+# modes name `remove <tag>`, which merges nothing, and `discard <tag>` for a
+# branch remove rejects. `after-squash` adds that those commits are not in the
+# squash, which is already on the base branch, so keeping them is a new change
+# rather than a rerun of this one.
+gr_nested_remedy() {
+    case "$1" in
+        (check)
+            gr_unmerged="those commits were never gated or reviewed"
+            gr_keep_work="return to develop-change and
+      rerun merge-change from step 1." ;;
+        (*)
+            gr_unmerged="those commits are not in the squash and were never gated or reviewed"
+            gr_keep_work="copy its branch first (git branch <new-name> <branch>)
+      and open a new change for it." ;;
+    esac
+    printf '%s\n' \
+"    a worktree .worktrees/$branch-<tag>, the review worktree included:
+      task-worktree.sh remove <tag>
+      If remove rejects on commits, $gr_unmerged:
+      record each one as a finding and run task-worktree.sh discard <tag>,
+      or, to keep the work, $gr_keep_work
+    a worktree task-worktree.sh did not create: record the commits its branch has,
+      then run git worktree remove <path> (no --force) and
+      git branch -D <branch>, which merge nothing."
 }
 
 # Exactly one branch name, the change branch — no more, no fewer — and one
@@ -148,8 +139,8 @@ done
 
 # --check — the preflight, placed HERE, before the linked-worktree rejection
 # below, because that rejection is exactly what makes this mode impossible where
-# it is wanted: merge-change step 6d, in the change worktree, before the squash
-# is staged.
+# it is wanted: merge-change step 6c, where merge-preflight.sh runs it as the
+# NESTED-WORKTREE check, in the change worktree, before the squash is staged.
 #
 # It proves guard 4 and NOTHING ELSE, from anywhere in the repository, and
 # removes nothing. Guards 1 and 2 both read the squash commit; at the point
@@ -165,7 +156,8 @@ if [ "$check_only" -eq 1 ]; then
     # from a linked worktree, which is where this mode runs. The `[ -z "$base" ]
     # ||` half keeps a detached primary checkout from turning the preflight into
     # a usage error: guard 4 needs no base branch to answer.
-    base=$(gr_base_branch)
+    base=$(gr_base_branch) || gr_die \
+"git worktree list failed, so the base branch cannot be read."
     [ -z "$base" ] || [ "$branch" != "$base" ] || gr_die \
 "$branch is the base branch, not a change branch. Name the change branch."
 
@@ -193,7 +185,7 @@ if [ "$check_only" -eq 1 ]; then
         # that one, it costs exactly what this mode exists to save: the operator
         # takes an unproved guard 4 through the hardware-key touch and meets its
         # rejection at step 8 anyway. So it states what it did not do, and names
-        # the reason an operator at step 6d is most likely looking at it —
+        # the reason an operator at step 6c is most likely looking at it —
         # that step runs INSIDE the change worktree, where a registration always
         # exists, so no registration means the branch named is not that one. A
         # misspelt branch cannot reach here at all: `git show-ref` above already
@@ -201,7 +193,7 @@ if [ "$check_only" -eq 1 ]; then
         echo "finish-merge --check: no worktree is registered for $branch, so nothing was inspected"
         printf '%s\n' \
 "  Guard 4 has nothing to reject, but nothing was proved about a change
-  worktree either. Step 6d runs inside the change worktree, where one IS
+  worktree either. Step 6c runs this inside the change worktree, where one IS
   registered — if that is where you are, check the branch name."
         exit 0
     fi
@@ -225,8 +217,9 @@ if [ "$check_only" -eq 1 ]; then
         printf '%s\n' "$nested" >&2
         printf '%s\n' \
 "  Guard 4 will reject cleanup AFTER the signed squash, which costs a key touch
-  to learn. Deal with each of them now — merge or abandon the branch, then
-  \`git worktree remove\` the path — and run this again." >&2
+  to learn. Deal with each of them now, from $wt:
+$(gr_nested_remedy check)
+  Then run this again." >&2
         exit 1
     fi
 
@@ -249,7 +242,8 @@ fi
 # base (a detached primary checkout) compared against an empty current branch
 # is EQUAL, so the comparison alone would pass over exactly the case where
 # neither value means anything.
-base=$(gr_base_branch)
+base=$(gr_base_branch) || gr_die \
+"git worktree list failed, so the base branch cannot be read."
 [ -n "$base" ] || gr_die \
 "the base branch cannot be determined (this checkout is detached).
   Check out the base branch — the one the signed squash was merged onto — and
@@ -335,17 +329,18 @@ if [ -n "$wt" ]; then
     # Guard 4 — nothing is registered INSIDE $wt. Proved here, before the
     # removal below, because that removal is what destroys it.
     #
-    # The scan itself lives in gr_nested_worktrees, which the --check preflight
-    # above shares: every constraint that makes it correct — no awk near a
+    # The scan is gr_nested_worktrees in lib.sh, which the --check preflight
+    # above and task-worktree.sh share: every constraint that makes it correct — no awk near a
     # PATH, the parenthesised `case` patterns, the quoted variable half, the
     # trailing `/`, the printed matches — is argued at that function.
     nested=$(gr_nested_worktrees "$wt")
 
     if [ -n "$nested" ]; then
         # ALL of them, not the first. A five-way fan-out leaves five task
-        # worktrees, and reporting one per run costs the operator five runs of
-        # `check-signing.sh --strict` — a hardware key touch apiece — to learn
-        # what one run already knew. Only the sentences around the list change
+        # worktrees, and reporting one per run costs the operator five runs to
+        # learn what one run already knew. A re-run verifies the signature with
+        # `check-signing.sh --strict` and uses no private key, so the cost is
+        # the runs, not key touches. Only the sentences around the list change
         # number, and an embedded newline is what tells them apart: command
         # substitution strips TRAILING newlines, so one path arrives with none
         # at all and two or more arrive with one between them.
@@ -370,8 +365,9 @@ $nested
   registrations left prunable, branches orphaned. Guard 3 cannot see this: a
   nested worktree is invisible to the outer one's \`git status\`, so
   \`git worktree remove\` does not reject it. Nothing was removed and $branch
-  was NOT deleted. $gr_deal — merge or abandon the branch, then
-  \`git worktree remove\` the path — and run this script again on its own."
+  was NOT deleted. $gr_deal, from $wt — the squash did not remove it:
+$(gr_nested_remedy after-squash)
+  Then run this script again on its own."
     fi
 
     git worktree remove "$wt" || gr_refuse \
@@ -380,12 +376,16 @@ $nested
   --force is not passed, and nothing here overrides that. Deal with what is
   in it, then run this script again on its own."
     removed="worktree removed: $wt"
+    delete_rejection="the worktree was removed but $branch could not be deleted."
 else
     removed="no worktree was registered for $branch, so none was removed"
+    delete_rejection="no worktree was registered for $branch, so no worktree was removed, and $branch could not be deleted."
 fi
 
-git branch -D "$branch" >/dev/null || gr_refuse \
-"the worktree was removed but $branch could not be deleted."
+# The one rejection that can follow a destructive act, so its message states
+# which path was taken: after a removal the worktree is gone, and with no
+# worktree registered nothing was removed.
+git branch -D "$branch" >/dev/null || gr_refuse "$delete_rejection"
 
 echo "finish-merge: HEAD verified as a signed squash of $branch"
 echo "finish-merge: $removed"

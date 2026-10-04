@@ -92,13 +92,12 @@ signed squash merges (`merge-change`).
    task worktree.
 
    The subagent still reports the path back on the dispatch report's
-   `worktree:` line (`develop-change`) — as confirmation that it went where it
-   was sent, and because the dispatcher needs it to remove the worktree
-   afterwards.
+   `worktree:` line (`develop-change`), as confirmation that it went where it
+   was sent.
 
    ```sh
-   # .worktrees/ is inside the change worktree and must be gitignored
-   git worktree add .worktrees/<change-branch>-t<N> -b <change-branch>-t<N> <change-branch>
+   # from the change worktree; creates .worktrees/<change-branch>-t<N>
+   sh .guardrails/scripts/task-worktree.sh start t<N>
    ```
 
    **Then get inside it — harness tool first.** Creating the worktree is half
@@ -113,20 +112,17 @@ signed squash merges (`merge-change`).
    the first. Prove it because a harness worktree tool can report success and
    leave you unable to run anything at all (red flags, below).
 
-   From there the task is ordinary: copy in the ignored artifacts the next
-   paragraph names, edit, run the project's `verify_commands`, and commit on
-   the task branch (unsigned — see "Inside the worktree"). Then report and
-   stop; the dispatcher merges.
+   From there the task is ordinary: edit, run the project's `verify_commands`,
+   and commit on the task branch (unsigned — see "Inside the worktree"). Then
+   report and stop; the dispatcher merges.
 
    **A fresh task worktree contains only tracked files.** It is a checkout of the
    change branch's tree and nothing more, so everything gitignored is absent
    from it — a vendored test runner, installed dependencies, a build cache.
-   `git status --ignored` in the change worktree is how you enumerate them
-   rather than guess. Whatever the project's `verify_commands` need, copy it
-   across from the change worktree before running them, or the first command
-   that reaches for a missing artifact will try to refetch it — which fails
-   outright on a machine with no network path to the source. The copy costs nothing and
-   leaves the tree clean, because anything missing for this reason is
+   `start` copies the change worktree's ignored entries into it; if a
+   `verify_commands` entry still reaches for a missing artifact, compare with
+   `git status --ignored` in the change worktree. The copy leaves the tree
+   clean, because anything missing for this reason is
    gitignored by definition and so cannot dirty `git status`.
 
    **The measurement.** Dispatched into a change worktree under
@@ -218,30 +214,20 @@ signed squash merges (`merge-change`).
 
   ```sh
   # in the change worktree, once the dispatch report comes back green
-  git -c commit.gpgsign=false merge --no-ff <change-branch>-t<N>
-  git worktree remove <task-worktree-path>   # the report's worktree: line, or
-                                             # `git worktree list` to find it
-  git branch -d <change-branch>-t<N>
+  sh .guardrails/scripts/task-worktree.sh merge t<N>
   ```
 
-  **That merge is unsigned for the same reason the commits are** — it is
-  squashed away too, and `--no-ff` writes a commit object every time, up to
-  five of them per fan-out. `git merge` honors `commit.gpgsign` exactly as
-  `git commit` does, and a guardrails project sets it (`ratchet`'s setup
-  checklist), so without the flag each task merge asks for a hardware-key
-  touch or fails with `error: gpg failed to sign the data` /
-  `fatal: failed to write commit object` — which leaves `MERGE_HEAD` and a
-  staged, half-merged change worktree behind, and `verify-before-merge`'s
-  clean `git status` check then fails on the mess.
-
   The path is the one the dispatcher named in the prompt,
-  `.worktrees/<change-branch>-t<N>` (step 1); the report's `worktree:` line
-  confirms the subagent went there rather than telling you where to look, and
-  `git worktree list` shows what is still registered if neither is to hand.
+  `.worktrees/<change-branch>-t<N>` (step 1), and `t<N>` is its tag; the
+  report's `worktree:` line confirms the subagent went there.
 
   A task worktree dispatched only to review the change has nothing to merge —
-  the dispatcher removes the worktree and its task branch as they are. For the
-  independent review that dispatcher is `merge-change` itself, and the removal
+  `task-worktree.sh remove review` removes the worktree and its task branch
+  without a merge, and rejects a branch with commits. Record each such commit
+  as a finding, then `task-worktree.sh discard review` removes the worktree and
+  deletes the branch with them. `merge` is run only after a green task report,
+  and no remedy for a rejection names it. For the independent review that
+  dispatcher is `merge-change` itself, and the removal
   has a place in its sequence: the end of `merge-change` step 6a, where that
   dispatch ends. It goes there and nowhere later because a review that returns
   findings sends the sequence back to step 1, so no step after it runs on that

@@ -8,6 +8,11 @@
 
 load helpers
 
+# The command task-worktree.sh had before merge and remove replaced it. A
+# variable, so the old spelling is not a literal in this file, which the check
+# that no remedy names it searches.
+retired_command=finish
+
 setup() { make_fixture_repo; }
 
 # Throwaway SSH signing for the fixture repo, in the shape check-signing.bats
@@ -198,6 +203,24 @@ STUB
     assert_nothing_removed
 }
 
+# verifies: PR-tz6gsp
+@test "finish-merge: a failed git worktree list in gr_base_branch exits 2, is not read as a detached checkout" {
+    # Every git worktree list fails here, the FIRST one included, which is
+    # gr_base_branch's. Before gr_base_branch took the status, that failure
+    # printed nothing and the script exited 2 with "this checkout is detached"
+    # and the remedy to check out the base branch.
+    setup_ssh_signing
+    make_squashed_change
+    head_before=$(git rev-parse HEAD)
+    stub_directory=$(make_git_failing_on '*" worktree list "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "git worktree list failed, so the base branch cannot be read."
+    output_lacks "detached"
+    assert_nothing_removed
+    [ "$(git rev-parse HEAD)" = "$head_before" ] || { echo "HEAD moved"; false; }
+}
+
 @test "finish-merge: a failing awk rejects instead of deleting the branch" {
     # verifies: PR-n57ayn
     # The worktree path is derived through awk, and an awk that dies leaves the
@@ -303,6 +326,56 @@ STUB
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
     [[ "$output" == *"no worktree"* ]] || { echo "$output"; false; }
     ! branch_exists my-change || { echo "branch still exists"; false; }
+}
+
+# Makes `git branch -D my-change` fail and leaves every earlier step alone: a
+# `<ref>.lock` file is how git marks a ref as being updated, and a deletion
+# that cannot take the lock exits non-zero without touching the ref. Nothing
+# else in the script's path writes that ref, so the guards and the removal run
+# as they do on a real merge.
+lock_change_branch_ref() {
+    _common=$(git -C "$REPO" rev-parse --path-format=absolute --git-common-dir)
+    : > "$_common/refs/heads/my-change.lock"
+}
+
+@test "finish-merge: a failed branch deletion after a removal reports the worktree removed" {
+    # verifies: PR-sa5y4k
+    # The one exit 1 that follows a destructive act. The worktree is gone by
+    # then, so the message has to state that it is, or the operator reads the
+    # rejection as "nothing was removed" and looks for a worktree that no
+    # longer exists.
+    setup_ssh_signing
+    make_squashed_change
+    lock_change_branch_ref
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    case "$output" in
+        (*"the worktree was removed but my-change could not be deleted"*) ;;
+        (*) echo "expected the removal to be reported, got: $output"; false ;;
+    esac
+    [ ! -d "$CHANGE_WT" ] || { echo "worktree still on disk"; false; }
+    branch_exists my-change || { echo "the branch was deleted anyway"; false; }
+}
+
+@test "finish-merge: a failed branch deletion with no worktree registered does not claim a removal" {
+    # verifies: PR-sa5y4k
+    # With no worktree registered the script removes nothing, so a message that
+    # states a worktree was removed is false on this path.
+    setup_ssh_signing
+    make_squashed_change
+    git worktree remove "$CHANGE_WT"
+    lock_change_branch_ref
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    case "$output" in
+        (*"the worktree was removed"*)
+            echo "claimed a removal that did not happen: $output"; false ;;
+    esac
+    case "$output" in
+        (*"no worktree was removed"*"my-change could not be deleted"*) ;;
+        (*) echo "expected the no-removal message, got: $output"; false ;;
+    esac
+    branch_exists my-change || { echo "the branch was deleted anyway"; false; }
 }
 
 @test "finish-merge: rejects a run from a linked worktree" {
@@ -486,9 +559,10 @@ STUB
 @test "finish-merge: every nested worktree is named, not just the first" {
     # verifies: PR-n57ayn
     # A five-way fan-out leaves five task worktrees. Reporting one and exiting
-    # makes the operator run the script five times, and each round pays a full
-    # `check-signing.sh --strict` — a hardware key touch per hidden worktree.
-    # The rejection lists all of them, and changes number when it does.
+    # makes the operator run the script five times to learn what one run
+    # already knew. Each re-run verifies the signature and uses no private key,
+    # so the cost is the runs, not key touches. The rejection lists all of
+    # them, and changes number when it does.
     setup_ssh_signing
     ignore_worktrees_dir
     make_squashed_change
@@ -504,6 +578,86 @@ STUB
     [[ "$output" == *"registered worktrees lie inside"* ]] \
         || { echo "expected the plural rejection, got: $output"; false; }
     assert_nothing_removed
+}
+
+# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+@test "finish-merge: guard 4's rejection names the task-worktree.sh remedy, as --check does" {
+    # The change worktree is still in place when guard 4 rejects after the
+    # squash, so the task-worktree.sh commands still apply from it. Every
+    # nested worktree gets `remove <tag>` there, which merges nothing: no
+    # remedy names a merging command.
+    setup_ssh_signing
+    ignore_worktrees_dir
+    make_squashed_change
+    nest_task_worktree my-change-review >/dev/null
+
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "a registered worktree lies inside"
+    output_has "the review worktree included"
+    output_has "task-worktree.sh remove <tag>"
+    output_has "task-worktree.sh discard <tag>"
+    output_has "git worktree remove <path>"
+    output_has "git branch -D <branch>"
+    output_lacks "task-worktree.sh merge"
+    output_lacks "task-worktree.sh $retired_command"
+    output_lacks "merge or abandon"
+    assert_nothing_removed
+}
+
+# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+@test "finish-merge: guard 4 after the squash names remove and discard for a task branch with a commit" {
+    # A commit on a task branch after the squash is not in the squash, and it
+    # was never gated or reviewed. `remove <tag>` rejects the branch, and the
+    # remedy names discard after recording, or a new change to keep the work.
+    # It never names a merge.
+    setup_ssh_signing
+    ignore_worktrees_dir
+    make_squashed_change
+    nested=$(nest_task_worktree my-change-t1)
+    printf 'late work\n' > "$nested/late.txt"
+    git -C "$nested" add -A
+    git -C "$nested" -c commit.gpgsign=false commit -qm "late work"
+
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "$nested"
+    output_has "task-worktree.sh remove <tag>"
+    output_has "If remove rejects on commits, those commits are not in the squash"
+    output_has "never gated or reviewed"
+    output_has "task-worktree.sh discard <tag>"
+    # The squash is already on the base branch, so a rerun of this change's
+    # merge-change cannot bring the work in; it becomes a new change.
+    output_has "copy its branch first"
+    output_has "open a new change for it"
+    output_lacks "rerun merge-change from step 1"
+    output_lacks "task-worktree.sh merge"
+    output_lacks "task-worktree.sh $retired_command"
+    assert_nothing_removed
+    branch_exists my-change-t1 || { echo "the task branch was deleted"; false; }
+}
+
+# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+@test "finish-merge: guard 4 after the squash names the plain git commands for a worktree task-worktree.sh did not create" {
+    # A nested worktree whose path is not .worktrees/<change-branch>-<tag> was
+    # not created by task-worktree.sh, so no task-worktree.sh command reaches
+    # it. The remedy names the git commands that merge nothing: record the
+    # commits, remove the worktree without --force, delete the branch.
+    setup_ssh_signing
+    ignore_worktrees_dir
+    make_squashed_change
+    git -C "$CHANGE_WT" worktree add -q "$CHANGE_WT/.worktrees/scratch" -b scratch my-change
+
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "/.worktrees/scratch"
+    output_has "a worktree task-worktree.sh did not create: record the commits its branch has"
+    output_has "git worktree remove <path>"
+    output_has "git branch -D <branch>"
+    output_lacks "merge or abandon"
+    output_lacks "task-worktree.sh merge"
+    assert_nothing_removed
+    branch_exists scratch || { echo "the scratch branch was deleted"; false; }
 }
 
 @test "finish-merge: a sibling whose path merely starts with the change worktree's is not nested" {
@@ -586,6 +740,34 @@ STUB
     branch_exists my-change-t1 || { echo "the task branch was deleted"; false; }
 }
 
+# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+@test "finish-merge: --check names the task-worktree.sh remedy for each kind of nested worktree" {
+    # Before the squash, every nested worktree is retired with `remove <tag>`,
+    # the review worktree included, and a branch remove rejects is discarded
+    # after recording, or kept by returning to develop-change. A worktree that
+    # task-worktree.sh did not create gets the git commands. No remedy names
+    # a merging command.
+    setup_ssh_signing
+    ignore_worktrees_dir
+    make_squashed_change
+    nest_task_worktree my-change-review >/dev/null
+
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "the review worktree included"
+    output_has "task-worktree.sh remove <tag>"
+    output_has "If remove rejects on commits, those commits were never gated or reviewed"
+    output_has "task-worktree.sh discard <tag>"
+    output_has "return to develop-change"
+    output_has "rerun merge-change from step 1"
+    output_has "git worktree remove <path>"
+    output_has "git branch -D <branch>"
+    output_lacks "task-worktree.sh merge"
+    output_lacks "task-worktree.sh $retired_command"
+    output_lacks "not in the squash"
+    assert_nothing_removed
+}
+
 # verifies: PR-k77dzn
 @test "finish-merge: --check exits 0 when nothing is nested" {
     setup_ssh_signing
@@ -601,7 +783,7 @@ STUB
 
 # verifies: PR-k77dzn
 @test "finish-merge: --check runs from the change worktree, before any squash" {
-    # The test that matters most. This mode is for merge-change step 6d — in
+    # The test that matters most. This mode is for merge-change step 6c — in
     # the change worktree, before the squash is staged — which is exactly the
     # state the linked-worktree rejection and guards 1 and 2 make impossible.
     # `gr_base_branch` reads the FIRST worktree in the porcelain listing, the
@@ -709,6 +891,22 @@ STUB
     [ "$status" -ne 0 ] || { echo "expected a rejection, got 0: $output"; false; }
     [[ "$output" == *"git worktree list failed"* ]] \
         || { echo "expected the registry rejection, got: $output"; false; }
+    assert_nothing_removed
+}
+
+# verifies: PR-tz6gsp
+@test "finish-merge: --check exits 2 when gr_base_branch's git worktree list fails" {
+    # Before gr_base_branch took the status, its failure printed nothing, which
+    # this mode accepts as a detached primary checkout, and the run reached its
+    # own git worktree list: exit 2 for the second call, not the first.
+    make_change_worktree
+    cd "$REPO"
+    stub_directory=$(make_git_failing_on '*" worktree list "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "git worktree list failed, so the base branch cannot be read."
+    output_lacks "so the worktrees cannot be inspected"
+    output_lacks "detached"
     assert_nothing_removed
 }
 

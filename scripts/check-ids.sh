@@ -14,6 +14,7 @@
 #   DUPLICATE-ID  — an ID defined (**ID**: ...) at more than one site in the
 #                   tree. A definition line declares the ID at its start and no
 #                   other, so naming further IDs in the same sentence is safe.
+#                   A copy-pasted item is the usual cause.
 #   MALFORMED-ID  — a line that opens with a definition form for a declared
 #                   prefix whose body is not a valid ID: **REQ-abcdef**: with no
 #                   digit, or a legacy **REQ-01** too short to have ever
@@ -32,8 +33,25 @@
 # names a declared unit's config. Engaged, the DRAFT-ID, DRAFT-FILE and
 # MALFORMED-ID scans narrow to the unit; DUPLICATE-ID stays tree-wide.
 #
+# After the violation lines, one `fix <RULE>: <remedy>` line per rule that
+# fired, in the order the rules first fired (D8 of
+# docs/plans/2026-09-28-agent-first-skills.md). check_ids_remedy below is the
+# remedy table; tests/remedies.bats checks that it has one entry per rule
+# above.
+#
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
+
+# Prints the remedy for report $1, or returns 1 for a report with none.
+check_ids_remedy() {
+    case "$1" in
+        (DRAFT-ID) echo 'Run .guardrails/scripts/new-id.sh <PREFIX> and replace each draft token with the ID it prints.' ;;
+        (DRAFT-FILE) echo 'Mid-change, leave it: check-ids.sh --allow-draft-files passes it. At merge, run merge-change step 3 (finalize-docs.sh), which renames it, then run this check again.' ;;
+        (DUPLICATE-ID) echo 'Keep one definition and give the other item a fresh ID from .guardrails/scripts/new-id.sh <PREFIX>.' ;;
+        (MALFORMED-ID) echo 'Give each item an ID from .guardrails/scripts/new-id.sh <PREFIX>; never widen a pattern to accept the token that is there.' ;;
+        (*) return 1 ;;
+    esac
+}
 
 . "$(dirname "$0")/lib.sh"
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
@@ -84,6 +102,8 @@ P=$(gr_prefix_re) || exit 2
 draft_re="$GR_DRAFT_TOKEN_RE"
 def_re=$(gr_def_re "$P")
 fail=0
+# The rules that fired, space-separated, in the order they fired.
+fired_rules=""
 
 # --- DRAFT-ID: no draft identifiers may remain, under any flag --------------
 # Status checked, stderr not suppressed. A scan that errors finds nothing, and
@@ -107,9 +127,7 @@ _st=$?
 [ "$_st" -le 1 ] || gr_die "scanning for draft IDs failed (git grep exit $_st)"
 if [ -n "$drafts" ]; then
     printf '%s\n' "$drafts" | sed 's/^/DRAFT-ID /'
-    echo "guardrails: draft IDs are no longer minted — an item gets its final ID" >&2
-    echo "when it is written. Run .guardrails/scripts/new-id.sh <PREFIX> and replace" >&2
-    echo "each token above with the ID it prints." >&2
+    fired_rules="$fired_rules DRAFT-ID"
     fail=1
 fi
 
@@ -123,6 +141,7 @@ if [ "$allow_draft_files" -eq 0 ]; then
         | grep -E "$GR_DRAFT_FILE_RE" || true)
     if [ -n "$draft_files" ]; then
         printf '%s\n' "$draft_files" | sed 's/^/DRAFT-FILE /'
+        fired_rules="$fired_rules DRAFT-FILE"
         fail=1
     fi
 fi
@@ -169,9 +188,7 @@ _st=$?
 [ "$_st" -le 1 ] || gr_die "MALFORMED-ID scan failed (git grep exit $_st)"
 if [ -n "$malformed" ]; then
     printf '%s\n' "$malformed" | sed 's/^/MALFORMED-ID /'
-    echo "guardrails: the lines above open with a definition form whose ID is not" >&2
-    echo "valid, so no gate can see the item they announce. Give each one an ID from" >&2
-    echo ".guardrails/scripts/new-id.sh <PREFIX>." >&2
+    fired_rules="$fired_rules MALFORMED-ID"
     fail=1
 fi
 
@@ -196,6 +213,12 @@ dups=$(printf '%s\n' "$_defs" | sed 's/[*:]//g' | sort | uniq -d)
 for id in $dups; do
     echo "DUPLICATE-ID $id (defined more than once in tree)"
     fail=1
+done
+[ -z "$dups" ] || fired_rules="$fired_rules DUPLICATE-ID"
+
+for rule in $fired_rules; do
+    remedy=$(check_ids_remedy "$rule") || continue
+    printf 'fix %s: %s\n' "$rule" "$remedy"
 done
 
 exit $fail

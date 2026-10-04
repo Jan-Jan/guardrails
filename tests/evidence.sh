@@ -31,7 +31,8 @@ cd "$root"
 
 base="${1:-}"
 if [ -z "$base" ]; then
-    base=$(. "$root/scripts/lib.sh" && gr_base_branch)
+    base=$(. "$root/scripts/lib.sh" && gr_base_branch) \
+        || { echo "evidence: git worktree list failed, so the base branch cannot be read; pass BASE_REF" >&2; exit 2; }
 fi
 [ -n "$base" ] || { echo "evidence: cannot detect the base branch; pass BASE_REF" >&2; exit 2; }
 git rev-parse --verify -q "$base" >/dev/null || { echo "evidence: no such ref: $base" >&2; exit 2; }

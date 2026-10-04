@@ -104,7 +104,8 @@ done
 # defect: this gate runs at merge-change step 6c, from the change's worktree.
 # The base branch is needed either way: to reject the base as the subject
 # (below), and to decide which records this change wrote (further down).
-base=$(gr_base_branch)
+base=$(gr_base_branch) || gr_die \
+"git worktree list failed, so the base branch cannot be read."
 
 if [ "$named" -eq 1 ]; then
     # --branch relaxes WHICH change is asked about. It does not relax the

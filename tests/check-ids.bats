@@ -133,7 +133,9 @@ EOF
     calls_finalize_docs=0
     calls_finish_merge=0
     calls_lib=0
+    calls_merge_preflight=0
     calls_new_id=0
+    calls_task_worktree=0
 
     forms_check_ids=0
     forms_check_review=0
@@ -143,7 +145,9 @@ EOF
     forms_finalize_docs=0
     forms_finish_merge=0
     forms_lib=0
+    forms_merge_preflight=0
     forms_new_id=0
+    forms_task_worktree=0
 
     # The third pin: how many sites paste the library's ID body in directly,
     # rather than through gr_def_re. Replacing one with a hand-rolled shape
@@ -163,7 +167,9 @@ EOF
     # 3 since gr_req_scan (units change): its awk takes body="$GR_ID_BODY"
     # rather than pasting the shape — the reuse this pin exists to encourage.
     body_lib=3
+    body_merge_preflight=0
     body_new_id=0
+    body_task_worktree=0
 
     # The two shared definitions added 2026-08-22, pinned for the same reason
     # the three above are. gr_def_re_loose states which lines OPEN in definition
@@ -178,7 +184,9 @@ EOF
     loose_finalize_docs=0
     loose_finish_merge=0
     loose_lib=0
+    loose_merge_preflight=0
     loose_new_id=0
+    loose_task_worktree=0
 
     block_check_ids=0
     block_check_review=1
@@ -193,7 +201,9 @@ EOF
     # 1 since gr_req_scan (units change): its awk composes the shared
     # GR_AWK_ITEM_BLOCK rather than growing a sixth opinion about blocks.
     block_lib=1
+    block_merge_preflight=0
     block_new_id=0
+    block_task_worktree=0
 
     # GR_AWK_FRONT_MATTER, added 2026-08-23 and pinned for the reason above.
     # Two gates skip YAML front matter and they must skip the SAME bytes: one
@@ -209,7 +219,9 @@ EOF
     fm_finalize_docs=0
     fm_finish_merge=0
     fm_lib=0
+    fm_merge_preflight=0
     fm_new_id=0
+    fm_task_worktree=0
 
     # GR_AWK_CIVIL, added 2026-08-24. One reader today, pinned before there is
     # a second: the toolkit has one notion of what a calendar date is and what
@@ -225,7 +237,9 @@ EOF
     civil_finalize_docs=0
     civil_finish_merge=0
     civil_lib=0
+    civil_merge_preflight=0
     civil_new_id=0
+    civil_task_worktree=0
 
     forms() {
         # Fold the digit-class spellings together, then drop backslashes and
@@ -296,7 +310,7 @@ EOF
             false
         }
     done
-    [ "$seen" -eq 9 ] || { echo "expected 9 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 11 ] || { echo "expected 11 scripts, scanned $seen"; false; }
 
     # And the constructor and the body each exist exactly once, so the counts
     # above are counts of uses of something real rather than of a name nothing
@@ -338,7 +352,7 @@ EOF
         seen=$((seen + 1))
         sh -n "$f" || { echo "does not parse: $f"; false; }
     done
-    [ "$seen" -eq 9 ] || { echo "expected 9 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 11 ] || { echo "expected 11 scripts, scanned $seen"; false; }
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {
@@ -572,13 +586,16 @@ EOF
     # **PR-DRAFT-x-1**: at column one it is also a MALFORMED-ID, and this test
     # passed on that gate's message instead — mutation M24 blanked the draft
     # message and reddened nothing at all.
+    #
+    # The message is the `fix DRAFT-ID:` line on stdout since D8
+    # (docs/plans/2026-09-28-agent-first-skills.md); it was a stderr paragraph.
     printf 'A note referring to PR-DRAFT-x-1 in prose.\n' > docs/problems/z.md
     commit_all draft
 
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
     [[ "$output" != *"MALFORMED-ID"* ]] || { echo "wrong gate: $output"; false; }
-    [[ "$output" == *"draft IDs are no longer minted"*"new-id.sh"* ]] \
+    printf '%s\n' "$output" | grep -q '^fix DRAFT-ID: .*new-id\.sh' \
         || { echo "$output"; false; }
 }
 
@@ -719,13 +736,15 @@ EOF
     # Independent review, S13. DRAFT-ID's guidance is pinned by a test and by
     # mutation M24; MALFORMED-ID's was pinned by neither, and M42 dropped all
     # three of its guidance lines while reddening only the location assertion.
+    # The guidance is the `fix MALFORMED-ID:` line on stdout since D8
+    # (docs/plans/2026-09-28-agent-first-skills.md); it was a stderr paragraph.
     printf '**REQ-abcdef**: a body that is not an ID.\n' \
         > docs/requirements/2026-01-01-x.md
     commit_all malformed
 
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
-    [[ "$output" == *"the lines above open with a definition form"*"new-id.sh"* ]] \
+    printf '%s\n' "$output" | grep -q '^fix MALFORMED-ID: .*new-id\.sh' \
         || { echo "$output"; false; }
 }
 

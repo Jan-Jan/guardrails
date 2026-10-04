@@ -290,11 +290,17 @@ gr_writing_scan() {
     # the file, it is inside step 6a, and it comes before the removal command
     # that repeats it; mutate it and the first occurrence becomes the removal
     # line, which is not less than itself.
+    #
+    # Re-aimed 2026-09-29 under D4 of docs/plans/2026-09-28-agent-first-skills.md:
+    # the removal command is `task-worktree.sh remove review`, which takes the
+    # tag, so the dispatch is the only occurrence of the path.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
     b_at=$(grep -n '^6b\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
     path_at=$(grep -n '\.worktrees/<change-branch>-review' "$skill" | head -n 1 | cut -d: -f1)
-    remove_at=$(grep -n 'git worktree remove \.worktrees/<change-branch>-review' \
+    # Re-aimed 2026-10-01 under D4: the review worktree is retired with
+    # `remove review`, which merges nothing.
+    remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
     [ -n "$a_at" ]
     [ -n "$b_at" ]
@@ -320,7 +326,9 @@ gr_writing_scan() {
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
     b_at=$(grep -n '^6b\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    remove_at=$(grep -n 'git worktree remove \.worktrees/<change-branch>-review' \
+    # Re-aimed 2026-10-01 under D4: the review worktree is retired with
+    # `remove review`, which merges nothing.
+    remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
     [ -n "$a_at" ]
     [ -n "$b_at" ]
@@ -337,7 +345,9 @@ gr_writing_scan() {
     # with a verdict, `finish-merge.sh --check`, rather than a raw
     # `git worktree list` the author reads by eye. What this pin protects is
     # that 6d still checks the registry at all — not which spelling it uses.
-    sed -n "${d_at},${s_at}p" "$skill" | grep -q 'finish-merge.sh --check'
+    # Re-aimed 2026-09-29 under D4: the 6c pre-flight runs that check as
+    # NESTED-WORKTREE, and 6d is where its failure is answered.
+    sed -n "${d_at},${s_at}p" "$skill" | grep -q 'NESTED-WORKTREE'
     # worktree-discipline cross-references the removal's home, so it follows it
     # there rather than leaving the two skills to drift.
     wd="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
@@ -381,8 +391,9 @@ gr_writing_scan() {
     # as the only obvious way out of it, and `--force` is what destroys the
     # thing the guard exists to protect.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'fails on untracked files as well as modified ones' "$skill"
-    grep -q 'read the scratch, delete it, and remove the worktree again' "$skill"
+    # Re-aimed 2026-10-01 under D4: the removal is `task-worktree.sh remove`.
+    grep -q 'rejects untracked files as well as modified ones' "$skill"
+    grep -q 'read the scratch, delete it, and run `remove` again' "$skill"
     grep -q 'the remedy step 6a gives' "$skill"
     # The list of causes included "a test runner copied in because it was
     # gitignored and therefore absent" — the one entry that cannot cause the
@@ -446,7 +457,8 @@ gr_writing_scan() {
     [ -n "$b_at" ]
     sed -n "${a_at},${b_at}p" "$skill" | grep -q 'every round that created one'
     sed -n "${a_at},${b_at}p" "$skill" | grep -q 'Not every round creates one'
-    sed -n "${a_at},${b_at}p" "$skill" | grep -q 'fails on a path that was never created'
+    # Re-aimed 2026-10-01 under D4: `task-worktree.sh remove` takes a tag.
+    sed -n "${a_at},${b_at}p" "$skill" | grep -q 'fails on a tag that was never started'
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
@@ -484,8 +496,10 @@ gr_writing_scan() {
     # nested worktree; gitignored, it is invisible to `git status`, so step 6d
     # and guard 4 are what find it, late. The `fatal:` covers both cases
     # because git validates the new branch name before the worktree path.
-    grep -q '`git worktree remove` and then `git branch -d`' "$skill"
-    grep -q 'git validates the new branch name' "$rationale"
+    # Re-aimed 2026-10-01 under D4: `task-worktree.sh merge` does both after a
+    # green report, and its `start` rejects a path or branch that already exists.
+    grep -q 'task-worktree.sh merge <tag>' "$skill"
+    grep -q 'the next round cannot create its worktree on that path and branch' "$rationale"
     grep -q 'skipped cleanup also leaves a nested worktree still registered' "$rationale"
     grep -q 'guard 4 rejects at step 8' "$rationale"
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
@@ -580,7 +594,9 @@ gr_writing_scan() {
     # before the squash is staged, so the ordering is asserted and not merely
     # the presence of the command.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    remove_at=$(grep -n 'git worktree remove \.worktrees/<change-branch>-review' \
+    # Re-aimed 2026-10-01 under D4: the review worktree is retired with
+    # `remove review`, which merges nothing.
+    remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
     squash_at=$(grep -n 'git merge --squash <branch>' "$skill" | head -n 1 | cut -d: -f1)
     [ -n "$remove_at" ]
@@ -832,7 +848,6 @@ gr_writing_scan() {
     # verifies: PR-n274s7 — D1: hard cut, so the remedy must be stated where
     # the author reads, not only in the gate's message.
     root="$BATS_TEST_DIRNAME/.."
-    grep -q 'assesses:' "$root/skills/check-traceability/SKILL.md"
     grep -q 'assesses:' "$root/skills/analyze-risks/SKILL.md"
     grep -q 'assesses:' "$root/skills/grill-requirements/SKILL.md"
     grep -q 'assesses:' "$root/templates/rmf.md"
@@ -840,7 +855,6 @@ gr_writing_scan() {
     grep -q 'assesses:' "$root/templates/sad.md"
     grep -q 'assesses:' "$root/templates/AGENTS-block.md"
     grep -q 'assesses:' "$root/README.md"
-    ! grep -q 'never mentioned in the RMF' "$root/skills/check-traceability/SKILL.md"
     ! grep -q 'RMF never mentions' "$root/skills/analyze-risks/SKILL.md"
     ! grep -q 'the RMF must mention it' "$root/skills/grill-requirements/SKILL.md"
 }
@@ -856,12 +870,11 @@ gr_writing_scan() {
     # verifies: PR-58zsvf — D2
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'rewrote' "$skill"
-    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
     grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../README.md"
     grep -q 'reported as left' "$BATS_TEST_DIRNAME/../README.md"
     grep -q 'root-relative' "$BATS_TEST_DIRNAME/../README.md"
     grep -q 'root-relative' "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'relative link' "$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+    grep -q 'relative link' "$skill"
 }
 
 @test "clanker: the managed block bans the vocabulary by listing it" {
@@ -1388,33 +1401,6 @@ gr_writing_scan() {
     [ "$recorded" -lt "$compared" ]
 }
 
-@test "check-traceability: the problem limits state the accepted ruling too" {
-    # verifies: PR-9xxz3b, PR-4fwfjp
-    # STALE-PROBLEM and PROBLEM-BACKLOG offered the reporter's two choices —
-    # fix someone else's problem report under merge pressure, or raise a limit.
-    # The third answer reached main in d8502d1 and was stated only in
-    # resolve-problem and templates/problems.md, never at the gate that reddens.
-    skill="$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
-    stale=$(grep -n 'STALE-PROBLEM PR' "$skill" | cut -d: -f1)
-    backlog=$(grep -n 'PROBLEM-BACKLOG (n open' "$skill" | cut -d: -f1)
-    sed -n "${stale}p" "$skill" | grep -q 'status: accepted'
-    sed -n "${backlog}p" "$skill" | grep -q 'status: accepted'
-    # exempt from both limits, never exempt from the roll-call
-    sed -n "${stale}p" "$skill" | grep -q 'roll-call'
-}
-
-@test "check-traceability: MALFORMED-STATUS knows there are three values" {
-    # verifies: PR-4fwfjp
-    # d8502d1 added `accepted` as a third status and left this row behind, so
-    # the table listed wontfix and accepted alike as errors and told the author
-    # to pick one of two.
-    skill="$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
-    row=$(grep -n 'MALFORMED-STATUS PR' "$skill" | cut -d: -f1)
-    sed -n "${row}p" "$skill" | grep -q 'accepted'
-    ! sed -n "${row}p" "$skill" | grep -q 'neither .open. nor .resolved.'
-    ! sed -n "${row}p" "$skill" | grep -q 'Pick one of the two'
-}
-
 @test "merge-change: step 3 tells the author to read the unrewritten lines" {
     # verifies: PR-9zvb36
     # The report's entire value is a human ruling narration against link, and
@@ -1486,95 +1472,83 @@ gr_writing_scan() {
     ! grep -rq 'skips the suite, not the gates' "$(dirname "$skill")"
 }
 
-@test "check-traceability: every report a single-unit check-trace.sh run prints has a catalogue row" {
-    # verifies: PR-6d2jvt
-    # The skill's "Fixing each rule" table is the only place an author is told
-    # what a gate finding means and what to do about it, and nothing tied it
-    # to the script. d8502d1 added three reports and changed a fourth's
-    # accepted values, updating two other skills and the templates but not the
-    # catalogue: ACCEPTED-PR, MALFORMED-SUPERSESSION and
-    # NON-RECIPROCAL-SUPERSESSION had no row at all, so an author with a red
-    # gate had nowhere to look the finding up.
-    #
-    # EXTRACTION, both sides derived from the files rather than listed here —
-    # a list in this test would be a third copy of the catalogue and would rot
-    # the same way:
-    #   * the script side is its own roster, the `#   TOKEN ...` lines of the
-    #     header block, up to the `# Scoped (multi-unit) runs add:` heading
-    #     that the script itself uses to separate the reports a default run
-    #     prints from the ones only a scoped run adds. The catalogue documents
-    #     the default run, so the scan stops there; the heading is asserted to
-    #     exist, so renaming it fails here rather than silently changing this
-    #     test's scope. The six scoped reports are documented in neither this
-    #     skill nor any other, which is a wider gap and wants its own item.
-    #   * the skill side is the first cell of each catalogue row, `| \`TOKEN`.
-    #     Prose mentions are deliberately NOT counted: most rows name other
-    #     reports in passing, so counting a mention would let a report read as
-    #     documented on the strength of a sentence about something else —
-    #     the exact hole this test exists to close.
-    # The second scan below keeps the roster itself honest: a report printed
-    # by the script but absent from the header would otherwise be invisible to
-    # the first comparison.
-    root="$BATS_TEST_DIRNAME/.."
-    script="$root/scripts/check-trace.sh"
-    skill="$root/skills/check-traceability/SKILL.md"
+@test "merge-change: the mechanical checks are the pre-flight" {
+    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # merge-preflight.sh runs the checks steps 4 and 6c used to spell out one
+    # command at a time. Each step names the script, inside its own span, so a
+    # step that goes back to listing the commands is reported.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    four_at=$(grep -n '^4\. ' "$skill" | head -n 1 | cut -d: -f1)
+    five_at=$(grep -n '^5\. ' "$skill" | head -n 1 | cut -d: -f1)
+    c_at=$(grep -n '^6c\. ' "$skill" | head -n 1 | cut -d: -f1)
+    d_at=$(grep -n '^6d\. ' "$skill" | head -n 1 | cut -d: -f1)
+    [ -n "$four_at" ] || { echo "no step 4"; false; }
+    [ -n "$five_at" ] || { echo "no step 5"; false; }
+    [ -n "$c_at" ] || { echo "no step 6c"; false; }
+    [ -n "$d_at" ] || { echo "no step 6d"; false; }
+    sed -n "${four_at},${five_at}p" "$skill" | grep -qF 'merge-preflight.sh --before-review' \
+        || { echo "step 4 does not run merge-preflight.sh --before-review"; false; }
+    sed -n "${c_at},${d_at}p" "$skill" | grep -qF 'merge-preflight.sh <' \
+        || { echo "step 6c does not run merge-preflight.sh"; false; }
+}
 
-    grep -q '^# Scoped (multi-unit) runs add:' "$script"
+@test "develop-change: the dispatch prompt names task-worktree.sh" {
+    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # task-worktree.sh creates the task worktree and retires it. The dispatch
+    # prompt tells the subagent to run `start`, and the dispatcher runs
+    # `merge` after a green report, in place of the hand-written merge, remove
+    # and delete.
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    grep -qF 'task-worktree.sh start t3' "$skill" \
+        || { echo "the dispatch prompt does not name task-worktree.sh start"; false; }
+    grep -qF 'task-worktree.sh merge' "$skill" \
+        || { echo "Delegation does not name task-worktree.sh merge"; false; }
+}
 
-    emitted=$(
-        awk '/^# Scoped \(multi-unit\) runs add:/ { exit }
-             /^#   [A-Z]/ { print $2 }' "$script" \
-            | grep -E '^[A-Z][A-Z0-9]*(-[A-Z0-9]+)+$' | sort -u
-    )
-    documented=$(
-        grep -oE '^\| `[A-Z][A-Z0-9]*(-[A-Z0-9]+)+' "$skill" \
-            | sed 's/^| `//' | sort -u
-    )
-
-    # An empty set on either side makes the comparison below succeed having
-    # compared nothing, which is the vacuous green this test must not report.
-    # Floors, not exact counts: adding a report must not have to edit them.
-    n_emitted=$(printf '%s\n' "$emitted" | grep -c . || true)
-    n_documented=$(printf '%s\n' "$documented" | grep -c . || true)
-    if [ "$n_emitted" -lt 15 ] || [ "$n_documented" -lt 15 ]; then
-        printf 'extraction read %s script reports and %s catalogue rows, expected at least 15 of each\n' \
-            "$n_emitted" "$n_documented"
-        return 1
-    fi
-
-    missing=""
-    for _r in $emitted; do
-        printf '%s\n' "$documented" | grep -qx "$_r" || missing="$missing $_r"
+@test "merge-change: step 6d and the cleanup reference name remove and discard, and no remedy merges" {
+    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # A merge is the dispatcher's step after a green task report. A remedy for
+    # a rejection never names one: step 6d and the cleanup reference name
+    # remove, discard and the git commands that merge nothing.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    d_at=$(grep -n '^6d\. ' "$skill" | head -n 1 | cut -d: -f1)
+    s_at=$(grep -n '^7\. \*\*Squash onto the base branch' "$skill" | head -n 1 | cut -d: -f1)
+    [ -n "$d_at" ] || { echo "no step 6d"; false; }
+    [ -n "$s_at" ] || { echo "no step 7"; false; }
+    step_6d=$(sed -n "${d_at},${s_at}p" "$skill")
+    # Step 6d defers to the fix line in full: all three of its cases, not
+    # remove alone.
+    for wanted in 'task-worktree.sh remove <tag>' '`discard <tag>` after recording' \
+        'the plain git commands for a worktree `task-worktree.sh` did not create'; do
+        printf '%s\n' "$step_6d" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$wanted" \
+            || { echo "step 6d lacks '$wanted': $step_6d"; false; }
     done
-    if [ -n "$missing" ]; then
-        printf 'reports check-trace.sh prints with no row in skills/check-traceability/SKILL.md:%s\n' "$missing"
-        return 1
-    fi
-
-    # Every report the script actually prints must appear in its own header
-    # roster, or the roster the comparison above trusts could drift away from
-    # the script while staying green. The grading letter and age some lines
-    # print before the token (`F 0 `, `W %d `) are stepped over.
-    sites=$(
-        grep -oE '(echo|printf) "([A-Z] (-?[0-9]+|%d) )?[A-Z][A-Z0-9]*(-[A-Z0-9]+)+' "$script" \
-            | sed -E 's/^(echo|printf) "([A-Z] (-?[0-9]+|%d) )?//' | sort -u
-    )
-    roster=$(
-        grep -E '^#   [A-Z][A-Z0-9]*(-[A-Z0-9]+)+ ' "$script" | awk '{ print $2 }' | sort -u
-    )
-    n_sites=$(printf '%s\n' "$sites" | grep -c . || true)
-    if [ "$n_sites" -lt 18 ]; then
-        printf 'the emission scan found %s report sites, expected at least 18\n' "$n_sites"
-        return 1
-    fi
-    undeclared=""
-    for _r in $sites; do
-        printf '%s\n' "$roster" | grep -qx "$_r" || undeclared="$undeclared $_r"
+    run grep -qF 'task-worktree.sh merge' <<< "$step_6d"
+    [ "$status" -ne 0 ] || { echo "step 6d names merge: $step_6d"; false; }
+    reference="$(dirname "$skill")/references/cleanup-rejections.md"
+    row=$(grep -F 'a registered worktree lies inside' "$reference")
+    for wanted in 'task-worktree.sh remove <tag>' 'never gated or reviewed' \
+        'task-worktree.sh discard <tag>' 'git worktree remove <path>' 'git branch -D <branch>'; do
+        printf '%s\n' "$row" | grep -qF -- "$wanted" \
+            || { echo "the nested-worktree row lacks '$wanted': $row"; false; }
     done
-    if [ -n "$undeclared" ]; then
-        printf 'reports check-trace.sh prints that its own header does not list:%s\n' "$undeclared"
-        return 1
-    fi
+    # The command task-worktree.sh had before merge and remove replaced it.
+    retired_command=finish
+    for unwanted in 'task-worktree.sh merge' 'merge or abandon' "$retired_command <tag>"; do
+        run grep -qF -- "$unwanted" <<< "$row"
+        [ "$status" -ne 0 ] || { echo "the nested-worktree row names '$unwanted': $row"; false; }
+    done
+}
+
+@test "check-traceability: the fix table is a pointer to the remedy lines" {
+    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # check-trace.sh and check-ids.sh print one `fix <RULE>:` line per rule
+    # that fired (D8). A second copy of each remedy in the skill drifts from
+    # the script, so the skill points at the output instead.
+    skill="$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+    run grep -q '^## Fixing each rule' "$skill"
+    [ "$status" -ne 0 ] || { echo "the skill still has the Fixing each rule table"; false; }
+    grep -qF 'fix <RULE>:' "$skill"
 }
 
 # The skill shape (docs/plans/2026-09-28-agent-first-skills.md, D5 and D9).
@@ -1588,7 +1562,7 @@ gr_shape_exempt_skills() {
 # Skills over the D5 ceiling. Each name is removed by the change that brings
 # that skill under 2,000 words; a name stays only while the skill is over.
 gr_ceiling_exempt_skills() {
-    echo 'check-traceability develop-change merge-change ratchet worktree-discipline'
+    echo 'check-traceability develop-change ratchet worktree-discipline'
 }
 
 # The `## ` headings of a SKILL.md outside fenced code, joined with `|`.
@@ -1745,11 +1719,15 @@ gr_skill_words() {
     grep -q 'The reviewer still reads the record and raises what is' "$skill"
     grep -q 'name it so the user can run it' "$skill"
     grep -q 'consider two independent' "$skill"
+    # Review round 9: the advice applies to class C only.
+    grep -q 'C a thorough review; for class C,' "$skill"
     grep -q 'contains all four fields with values' "$skill"
     grep -q 'INCOMPLETE-RECORD' "$skill"
     grep -q 'With no worktree registered for the branch' "$skill"
     grep -q 'leave or remove it with the harness tool' "$skill"
-    grep -q 'exempts nothing from' "$skill"
+    # Moved 2026-09-29 with the documentation checklist of step 6a (D4).
+    grep -q 'exempts nothing from' \
+        "$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     grep -q 'not by its filename' "$skill"
     grep -q 'their shell has none of your variables' "$skill"
     grep -q 'Two open changes race on the base branch' "$rationale"
@@ -1803,4 +1781,18 @@ gr_skill_words() {
         echo "$output"
         return 1
     fi
+}
+
+@test "skill references: no blank line separates two rows of one table" {
+    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # A blank line ends a markdown table, so the rows after it render as plain
+    # text.
+    split_tables=$(awk '
+        FNR == 1 { previous = ""; blank_after_row = 0 }
+        /^\|/ && blank_after_row { print FILENAME ":" FNR }
+        /^\|/ { blank_after_row = 0; previous = "row"; next }
+        /^[ \t]*$/ { if (previous == "row") blank_after_row = 1; next }
+        { previous = ""; blank_after_row = 0 }
+    ' "$BATS_TEST_DIRNAME"/../skills/*/references/*.md)
+    [ -z "$split_tables" ] || { echo "a table row follows a blank line after a row: $split_tables"; false; }
 }

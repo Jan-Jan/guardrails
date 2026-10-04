@@ -768,15 +768,72 @@ gr_def_re_loose() {
 }
 
 # gr_base_branch — the branch checked out in the primary (non-worktree)
-# checkout, which is what a change merges into. Prints nothing if the
-# primary checkout is detached; never falls back to a linked worktree's
-# branch.
+# checkout, which is what a change merges into. Never falls back to a linked
+# worktree's branch. Return contract:
+#   status 0, the branch name   — the primary checkout is on a branch;
+#   status 0, no output         — the primary checkout is detached;
+#   git's non-zero status, no output — `git worktree list` failed, and git's
+#                                 error is on stderr.
+# A caller must take the status: an empty result with status 0 is detachment,
+# and the same empty result from a git failure is not.
 gr_base_branch() {
-    git worktree list --porcelain 2>/dev/null | awk '
+    gr_base_branch_listing=$(git worktree list --porcelain) || return
+    printf '%s\n' "$gr_base_branch_listing" | awk '
         /^worktree / { n++ }
         n > 1 { exit }
         sub(/^branch refs\/heads\//, "") { print; exit }
     '
+}
+
+# gr_nested_worktrees WT — every registered worktree path inside WT, one per
+# line, indented. Reads `$wt_list`, the porcelain listing captured and
+# status-checked by its caller. Shared by finish-merge.sh (--check and guard 4)
+# and task-worktree.sh start, merge, remove and discard: the check that loses
+# work if it answers wrong is not a check to write twice.
+#
+# Written in plain shell, with no awk, and that is the point. `awk -v k=v`
+# ESCAPE-PROCESSES the value on its way into the program: `-v inside='w\top/'`
+# arrives as `w<TAB>op/`. A change worktree whose path contained a backslash
+# therefore made the prefix test match nothing, the result come back empty, and
+# finish-merge.sh's guard 4 PASS — after which guard 3 removed the change
+# worktree and took the nested worktree's uncommitted work with it, at exit 0.
+# Every other rejection in finish-merge.sh fails CLOSED and merely withholds
+# cleanup; this is the one whose failure loses work, so it is built out of constructs that have no escape
+# layer to get wrong: `read -r` on whole lines, `${x#...}` for the prefix
+# strip, and a `case` pattern whose variable half is quoted and therefore
+# literal.
+#
+# The leading `(` on each pattern is critical, not style: callers use this
+# inside a $(...) command substitution, and bash 3.2 — macOS's /bin/sh —
+# mis-parses an unparenthesised pattern's closing `)` as the substitution's
+# own, failing the WHOLE SCRIPT at parse time (`syntax error near unexpected
+# token ';;'`), before any guard runs. POSIX makes the open paren optional;
+# that shell makes it mandatory here.
+#
+# The matches are PRINTED, not accumulated in a variable: a `while read` fed by
+# a pipe runs in a subshell, so an assignment inside it would not remain after
+# the loop, and a command substitution is how the result reaches the caller.
+# `printf` cannot fail on a string already in memory.
+#
+# The comparison is a prefix test of WT against the paths git RECORDS, not
+# against anything resolved afresh. WT is the caller's: finish-merge.sh passes a
+# path read from the same `git worktree list`, so both sides are spelled alike
+# whatever the platform did to symlinks; task-worktree.sh passes its task path,
+# built from gr_root, so a match depends on gr_root spelling the change
+# worktree as git records it. The trailing
+# `/` is critical — without it a sibling at `<wt>-sibling`, which is not
+# inside anything, would be reported as nested.
+gr_nested_worktrees() {
+    printf '%s\n' "$wt_list" | while IFS= read -r gr_line; do
+        case "$gr_line" in
+            ("worktree "*) ;;
+            (*) continue ;;
+        esac
+        gr_path=${gr_line#worktree }
+        case "$gr_path" in
+            ("$1"/*) printf '    %s\n' "$gr_path" ;;
+        esac
+    done
 }
 
 # gr_doc_files KEY — resolve a doc_* config value to a file list, one per

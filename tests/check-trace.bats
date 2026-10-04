@@ -29,26 +29,7 @@ EOF
 
 setup() {
     make_fixture_repo
-    cat > docs/requirements/0001-01-01-base.md <<'EOF'
-# SRS
-
-**REQ-001**: The system shall limit the dose. (implements: RC-001)
-EOF
-    cat > docs/risk/0001-01-01-base.md <<'EOF'
-# Risk Management File
-
-**HAZ-001**: Overdose delivered to patient.
-
-**RC-001**: Software limits dose to configured maximum. mitigates: HAZ-001
-EOF
-    cat > docs/architecture/0001-01-01-base.md <<'EOF'
-# Software Architecture
-
-**SDD-001**: Dose limiter module. traces: REQ-001
-
-**LLR-001**: Clamp requested dose to the configured maximum. satisfies: REQ-001
-EOF
-    printf '# verifies: LLR-001\ntrue\n' > tests/test_a.sh
+    write_traced_docs
     commit_all good
 }
 
@@ -2072,7 +2053,7 @@ SAD
     rm -f docs/requirements/0001-01-01-base.md
     commit_all overlap-single-report
     run sh .guardrails/scripts/check-trace.sh
-    n=$(printf '%s\n' "$output" | grep -c 'ORPHAN-ANNOTATION')
+    n=$(printf '%s\n' "$output" | grep -c '^ORPHAN-ANNOTATION ')
     [ "$n" -eq 1 ] || { echo "expected 1 orphan report, got $n: $output"; false; }
 }
 
