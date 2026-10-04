@@ -7,65 +7,79 @@ description: Write a bite-sized, trace-aware implementation plan for a change in
 
 **Announce at start:** "Using the plan-change skill to write the implementation plan."
 
-Write the plan for an engineer with no context, whose judgment you cannot
-rely on: exact paths, complete code in steps, exact commands with expected
-output.
-Save to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's worktree.
-
 ## Preconditions
 
-- The REQs this change implements exist in the SRS (else `grill-requirements`
-  first); safety-relevant changes have RMF coverage (else `analyze-risks`);
-  structural changes have SDD items (else `design-architecture`).
+- The REQs this change implements exist in the SRS. If not, run
+  `grill-requirements` first.
+- A safety-relevant change has RMF coverage. If not, run `analyze-risks`
+  first.
+- A structural change has SDD items. If not, run `design-architecture` first.
 - You are in a worktree (`worktree-discipline`).
 
-## Plan header (mandatory)
+## Steps
 
-```markdown
-# <Change> Implementation Plan
+1. **Write for an engineer with no context, whose judgment you cannot rely
+   on:** exact paths, complete code in steps, exact commands with expected
+   output. Save the plan to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's
+   worktree.
+2. **Open the plan with the mandatory plan header:**
 
-**Goal:** <one sentence>
-**Implements:** <REQ/RC/SDD IDs this change delivers>
-**Safety class:** <from .guardrails/config.yaml, plus per-item overrides>
-**Verification:** <the verify_commands that must pass>
-```
+   ```markdown
+   # <Change> Implementation Plan
 
-## Task rules
+   **Goal:** <one sentence>
+   **Implements:** <REQ/RC/SDD IDs this change delivers>
+   **Safety class:** <from .guardrails/config.yaml, plus per-item overrides>
+   **Verification:** <the verify_commands that must pass>
+   ```
 
-- Each task = smallest unit with its own test cycle: write failing test →
-  see it fail → minimal implementation → see it pass → commit.
-- **Every task lists its trace IDs.** The tests written in the task contain
-  `verifies: <IDs>` annotations — put the exact annotation text in the plan.
-- **Every task states its files and its parallelism.** Head each task with the
-  exact paths it touches and whether it may run alongside another:
+3. **Make each task the smallest unit with its own test cycle:** write the
+   failing test, see it fail, write the minimal implementation, see it pass,
+   commit.
+4. **List each task's trace IDs.** Put the exact `verifies: <IDs>` annotation
+   text of each test the task writes in the plan.
+5. **Head each task with its files and its parallelism:**
 
-  ```markdown
-  ### T<N> — <title>
+   ```markdown
+   ### T<N> — <title>
 
-  **Files touched:** <exact paths, one list, no globs>
-  **Parallel:** yes | no (serial, after T<N>)
-  ```
+   **Files touched:** <exact paths, one list, no globs>
+   **Parallel:** yes | no (serial, after T<N>)
+   ```
 
-  Fan-out is permitted only across tasks whose file sets do not intersect. Two
-  tasks that touch the same file run serially however independent they look —
-  the gate is the file sets, not your judgment about them.
-- Test deliverables are explicit steps with actual test code, never "add
-  tests later".
-- Steps that change documentation items (SRS/RMF/SAD) mint their IDs with
-  `.guardrails/scripts/new-id.sh <PREFIX>` and say so in the step. The IDs are
-  final from the moment they are minted, so the plan can name them.
-- No placeholders: "TBD", "handle edge cases", "similar to task N" are plan
-  failures.
+   Mark tasks parallel only where their file sets do not intersect. Two tasks
+   that touch the same file run serially, however independent they look: the
+   file sets decide, not your judgment about them.
+6. **Write test deliverables as explicit steps with the test code.** Never
+   "add tests later".
+7. **Mint documentation IDs in the step that writes the item.** A step that
+   changes an SRS, RMF or SAD item mints its ID with
+   `.guardrails/scripts/new-id.sh <PREFIX>` and states so. A minted ID is
+   final, so the plan names it.
+8. **Write no placeholders.** "TBD", "handle edge cases" and "similar to task
+   N" are plan failures.
+9. **Self-review before handing off:**
+   1. Every ID in **Implements:** has at least one task whose test verifies
+      it.
+   2. Every task's code steps show real code, real commands and expected
+      output.
+   3. Names and signatures used across tasks are consistent.
+   4. Every task states **Files touched:** and **Parallel:**, and no two tasks
+      marked parallel name the same file.
+10. **Hand off for execution:** `develop-change` (TDD) task by task, then
+    `check-traceability`, `verify-before-merge` and `merge-change`.
 
-## Self-review before handing off
+## Red flags
 
-1. Every ID in **Implements:** has at least one task whose test verifies it.
-2. Every task's code steps show real code, real commands, expected output.
-3. Names/signatures used across tasks are consistent.
-4. Every task states **Files touched:** and **Parallel:**, and no two tasks
-   marked parallel name the same file.
+| Thought | Reality |
+|---|---|
+| "These two tasks are independent, they can share a file in parallel" | Same file, serial. The file sets decide. |
+| "The tests can follow in a later task" | Each task contains its own test code. |
+| "Similar to task 2" | A placeholder. Write the steps out. |
 
-## Execution
+## Done when
 
-Execute with `develop-change` (TDD) task by task, then `check-traceability`,
-`verify-before-merge`, and `merge-change`.
+- The plan is saved under `docs/plans/` with the four header fields.
+- Every task states **Files touched:**, **Parallel:**, its `verifies:`
+  annotations and its test code.
+- The step 9 self-review passes.

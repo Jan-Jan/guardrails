@@ -379,7 +379,7 @@ function gr_kw_here(line, kw) {
 # for their own examples. An extended-regex grep over docs/, templates/ and
 # skills/ for the WIDENED marker rule followed by a block-parsed keyword —
 # ^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+ — returns nothing at all. That
-# is the pattern skills/ratchet hands adopters to size the upgrade, and it is
+# is the sizing grep in skills/ratchet/references/upgrade-notes.md, and it is
 # this function written out, so what it prints is what this steps over.
 function gr_kw_orphan_here(line, kw) {
     return (index(gr_kw_lead(line), kw) == 1)

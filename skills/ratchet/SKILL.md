@@ -7,40 +7,45 @@ description: Bootstrap or retrofit a project for IEC 62304 / ISO 14971 developme
 
 **Announce at start:** "Using the ratchet skill to set up guardrails in this project."
 
-A ratchet only turns one way. This skill installs the guardrails machinery and
-— on existing projects — tightens enforcement one tooth at a time, never
-loosening and never overwriting human work.
+## Preconditions
 
-## Step 0: Locate the guardrails source
+- The user invoked `/ratchet`, or asked to set up, retrofit or update guardrails in
+  a project. The current directory is that project.
+- This skill installs the guardrails machinery and, in an existing project,
+  tightens enforcement one step at a time. Never loosen a gate and never
+  overwrite human work.
 
-Templates and scripts come from the guardrails repo this skill belongs to
-(the directory containing this SKILL.md, two levels up: `<guardrails>/templates/`
-and `<guardrails>/scripts/`). Verify both directories exist before proceeding.
+## Steps
 
-## Step 1: Detect mode
+### Step 0: Locate the guardrails source
+
+Templates and scripts come from the guardrails repository this skill belongs
+to, two levels above this SKILL.md. Verify `<guardrails>/templates/` and
+`<guardrails>/scripts/` exist before proceeding.
+
+### Step 1: Detect mode
 
 **Greenfield** = no commits beyond scaffolding AND no source files AND no
-existing AGENTS.md/docs. Anything else is a **retrofit**.
+existing AGENTS.md/docs. Anything else is a **retrofit**. A project that has
+`.guardrails/scripts/` and wants newer ones is an **upgrade**.
 
 ```sh
 git rev-list --count HEAD 2>/dev/null   # missing repo or tiny history → likely greenfield
 ls src lib app AGENTS.md docs 2>/dev/null
 ```
 
-Then, for any repository that is not obviously one program, ask (one
-question, recommend an answer): **one system in many packages, or many systems
-in one repository?** Packages that version, release and take risk
-together are one system — a single-unit project gets no manifest and the
-rest of this skill reads exactly as before. Separately compliant systems
-sharing a repository get the units interview (step 1b) before any file is
-copied, because the answer decides where every config lives.
+For any repository that is not obviously one program, ask (one question,
+recommend an answer): **one system in many packages, or many systems in one
+repository?** Packages that version, release and take risk together are one
+system: a single-unit project gets no manifest, and the rest of this skill
+applies unchanged. Separately compliant systems get the units interview
+(step 1b) before any file is copied.
 
-## Step 1b: The units interview (multi-unit repositories only)
+### Step 1b: The units interview (multi-unit repositories only)
 
-D9 (docs/plans/2026-08-26-monorepo-support.md): `/ratchet`
-declares the facts; the rules are not configurable. Ask one question at a
-time, recommend
-an answer, and write each fact where the table directs:
+`/ratchet` declares the facts; the rules are not configurable. Ask one
+question at a time, recommend an answer, and write each fact where the table
+directs:
 
 | Ask | Write to |
 |---|---|
@@ -50,43 +55,33 @@ an answer, and write each fact where the table directs:
 | What does each unit depend on? | `depends_on:` in the consumer unit's config — each edge triggers the dependency assessment (`grill-requirements`, "Declaring a dependency") |
 | Is any dependency segregated, and under which control? | `segregated_from:` in the consumer unit's config, citing the control or ADR — `check-units.sh` reports an uncited entry as INCOMPLETE-SEGREGATION |
 
-It does **not** ask whether the class floor applies, whether a unit may see
-another's internals, or which units run at merge — those are D4, D5 and D6,
-and every configurable version of them is a gate that did not run while
-nothing in the output reported it.
+Do **not** ask whether the class floor applies, whether a unit may see
+another's internals, or which units run at merge.
 
-Adoption is a tooth ordering, not a package. Tooth one — mandatory — is the
-manifest, the per-unit configs and the disclaimers: a unit with an
-empty `depends_on:` is a freestanding guardrails project that happens to
-share a repository, and a manifest naming one unit with everything else disclaimed
-is a valid, passing first tooth on a repository of twelve packages. Declare
-edges (`depends_on:`, exports, expectations) later, when the coupling is real;
-until an edge exists those gates have nothing to read, so "not yet adopted"
-is visible in the manifest instead of being a switched-off gate.
+Adopt in order, one step at a time. The mandatory first step is the
+manifest, the per-unit configs and the disclaimers; a unit with an
+empty `depends_on:` is a freestanding guardrails project that shares a
+repository. A manifest naming one unit, with everything else disclaimed, is a
+valid, passing first step. Declare edges (`depends_on:`, exports,
+expectations) when the coupling is real.
 
-After writing, run `.guardrails/scripts/check-units.sh` — it validates the
-manifest and every unit's config in one pass, and its findings
-(UNCLAIMED-PATH above all) are the worklist for the disclaimers question.
+Then run `.guardrails/scripts/check-units.sh`. Its findings (UNCLAIMED-PATH
+above all) are the worklist for the disclaimers question.
 
-## Step 2 (greenfield): Scaffold
+### Step 2 (greenfield): Scaffold
 
-1. `git init` if not a repo (any default branch name works — the scripts
-   detect the base branch rather than assuming `main`); make an initial
+1. `git init` if not a repo (any default branch name works); make an initial
    commit if there is none (a worktree needs a base).
-2. Create a worktree for the scaffold work (use the `worktree-discipline`
-   skill — the scaffold is a change like any other).
-3. Copy in, from the guardrails repo — the destination depends on step 1b:
+2. Create a worktree for the scaffold (`worktree-discipline`).
+3. Copy in, from the guardrails repo:
    - single unit: `templates/config.yaml` → `.guardrails/config.yaml`
    - multi-unit: `templates/units.yaml` → `.guardrails/units.yaml`, filled in
      from the interview, and `templates/config.yaml` →
-     `<unit>/.guardrails/config.yaml` for **each** unit (adjust each copy's
-     `doc_*` paths and `verify_commands` to that unit). There is
-     **no root .guardrails/config.yaml** in a manifest repository — two
-     authorities over one tree is exit 2 at every gate. Scripts stay at the
-     root: `.guardrails/scripts/` serves every unit. The doc skeletons below
-     are copied **per unit** (into `<unit>/docs/...`); `docs/verification/`,
-     `docs/plans/`, `docs/adr/` and the interface glossary `docs/CONTEXT.md`
-     stay at the repository root.
+     `<unit>/.guardrails/config.yaml` for **each** unit, with its `doc_*`
+     paths and `verify_commands` adjusted. There is
+     **no root .guardrails/config.yaml** in a manifest repository: two
+     authorities over one tree is exit 2 at every gate.
+     `references/multi-unit.md` states which files go per unit.
    - `scripts/*.sh` → `.guardrails/scripts/` (keep executable bits)
    - `templates/srs.md` → `docs/requirements/README.md`
    - `templates/rmf.md` → `docs/risk/README.md`
@@ -97,27 +92,15 @@ manifest and every unit's config in one pass, and its findings
    - `templates/CLAUDE.md` → `CLAUDE.md` (skip if one exists)
    - `templates/AGENTS-block.md` → becomes the body of a new `AGENTS.md`
 
-   The requirements/risk/architecture/problems directories are **per-change
-   ledgers**: each merged change contributes one dated file
-   (`YYYY-MM-DD-<slug>.md`, dated when `merge-change` finalizes it), created in
-   the worktree as
-   `DRAFT-<branch>-<slug>.md` and renamed by `merge-change`. The README in
-   each directory contains the item grammar.
-4. Create `docs/adr/`, `docs/plans/`, and `docs/verification/` directories, and
-   copy `templates/verification.md` → `.guardrails/templates/verification.md`.
-   `docs/verification/` is where `merge-change` step 6b writes one record per
-   change and step 6c checks it; `doc_verification` in the config overrides the
-   location and defaults to it. The default is safe only because an absent
-   directory is exit 2 — so if you keep records elsewhere, set the key.
-
-   **The template goes into `.guardrails/`, never into `docs/verification/`.**
-   Every `*.md` directly in that directory is read as a record, and the
-   template contains the field names at column one because that is the shape it
-   teaches. Filed among the records it would be one — a document declaring a
-   `branch:`, a `reviewer:` and a `**finding-1**:` that nobody wrote about any
-   change. Leave the records directory containing records only.
-   Ensure `.gitignore` excludes worktree directories and sed backups — add
-   any of these that are missing:
+   The requirements, risk, architecture and problems directories are
+   per-change ledgers: each merged change adds one file, created as
+   `DRAFT-<branch>-<slug>.md` and renamed to `YYYY-MM-DD-<slug>.md` by
+   `merge-change`. Each README contains the item grammar.
+4. Create `docs/adr/`, `docs/plans/` and `docs/verification/`, and copy
+   `templates/verification.md` → `.guardrails/templates/verification.md`.
+   **Never put the template in `docs/verification/`**: every `*.md` there is
+   read as a record. If records are kept elsewhere, set `doc_verification`.
+   Add any of these missing from `.gitignore`:
 
    ```
    .worktrees/
@@ -125,502 +108,85 @@ manifest and every unit's config in one pass, and its findings
    *.bak
    ```
 
-   Both worktree entries earn their place, so add both even where the project
-   has only ever used one: `.claude/worktrees/` covers change worktrees a
-   harness creates, and `.worktrees/` covers both the manual fallback and
+   Add both worktree entries even where the project has only ever used
+   one: `.claude/worktrees/` covers change worktrees a harness creates, and
+   `.worktrees/` covers both the manual fallback and
    every task worktree, which is nested inside the change worktree
-   (`worktree-discipline` step 1). A missing `.worktrees/` entry does not stop
-   a subagent creating its task worktree — it makes the untracked directory
-   fail `verify-before-merge`'s clean `git status` check afterwards.
-5. **Make every configured path exist in the commit**, and every ledger
-   directory contain at least one `*.md`. `check-trace.sh` exits 2 otherwise —
-   that is what stops a typo'd path from silently disabling a gate. Git does
-   not track empty directories, so anything that exists only on your disk is
-   missing for everyone who clones the repo, and CI fails at exit 2. Two
-   different remedies, and they are not interchangeable:
+   (`worktree-discipline` step 1).
+5. **Make every configured path exist in the commit**; `check-trace.sh` exits
+   2 otherwise, and git does not track empty directories.
+   - `strict_paths` / `test_paths` entries are git pathspecs and must match at
+     least one committed file; a `.gitkeep` in an empty `src/` is enough.
+   - `doc_*` values are a file, or a directory whose `*.md` files are directly
+     in it. A directory needs a real `*.md`, not a `.gitkeep`: keep the README
+     from sub-step 3.
+   - Never leave a key out until its directory has content. To switch a gate
+     off, drop its prefix from `id_prefixes`, and record why.
+6. Run the **safety-class interview** (step 4), write the answer to
+   `safety_class:` in place of the `TBD` sentinel, and set `verify_commands`
+   to the project's real test command.
+7. Commit in the worktree, then integrate with `merge-change`. The check
+   scripts must pass on the result.
 
-   - `strict_paths` / `test_paths` entries need to **match at least one file
-     that is present in the working tree**, so a `.gitkeep` in an as-yet-empty
-     `src/` or `tests/` is enough. Each entry is a **git pathspec** handed to
-     `git grep` verbatim — a plain path, or a pattern like `*_test.sh` that git
-     matches recursively. The shell never expands it, so the pattern means the
-     same thing wherever it is run from.
-   - `doc_*` values are plain paths, not patterns: a file, or a directory whose
-     `*.md` files are directly in it (subdirectories are not read).
-   - `doc_*` directories need an actual `*.md` — a `.gitkeep` does **not**
-     satisfy them. Step 3 above already copies a README template into each of
-     the four ledger directories, which is what makes them valid; keep it.
+### Upgrading the scripts in an existing project
 
-   Do **not** use the other apparent option — leaving the key out of the
-   config until the directory has content. For any key a declared prefix
-   requires that is now exit 2, not a silent pass; and for the rest, a missing
-   key still reads as "this project does not use that". Point the key at a
-   real path. The one remaining way to switch a gate off is to drop its prefix
-   from `id_prefixes`, which is explicit but removes every gate for that
-   prefix — record why if you do.
-6. Run the **safety-class interview** (Step 4) and write the answer into
-   `.guardrails/config.yaml` (`safety_class:`), replacing the `TBD` sentinel.
-   Also set `verify_commands` to the project's real test command.
-7. Commit in the worktree, then integrate with the `merge-change` skill
-   (signed squash merge). The check scripts must pass on the result.
+Work in a worktree, as a change of its own.
 
-> **Upgrading the scripts in an existing project.** The config and layout
-> rules above are enforced from this version on, and several shapes the older
-> scripts accepted in silence are now exit 2. Before swapping in new
-> `scripts/`, run `check-trace.sh` once and work through whatever it reports:
->
-> | Exit-2 cause | Why it was never safe |
-> |---|---|
-> | A ledger directory with no `*.md`, or a configured path that was never committed | The gates reading it did nothing and the run still passed |
-> | A configured directory that is empty | It exists, but matches no file, so the gate reading it scanned nothing |
-> | An unrecognised key (`doc_rmff:`) | Nothing read it, so the gate it configured was never run |
-> | A key that is not `identifier:` at column one (`strict-paths:`, ` strict_paths:`, `strict_paths :`) | The config reader never saw it, so its value read as absent |
-> | A list item at column zero (`- src` unindented) | `cfg_list` never read those entries either |
-> | A list item orphaned from its key by a column-one comment or a `---` above it | Ambiguous: it either vanished with its list or was adopted by the block above, so `- src` under a commented-out `strict_paths:` could become a test path. **Commenting a list key out means commenting its items out too.** |
-> | A config saved with a UTF-8 BOM | The BOM made the first key unreadable, i.e. silently absent |
-> | `id_prefixes` naming none of REQ/HAZ/RC/SDD/LLR/PR | No traceability gate of its own would run for any prefix. Extra prefixes alongside the six stay valid and stay covered by DANGLING-REF, DUPLICATE-ID and MALFORMED-ID — do **not** remove them |
-> | A declared `id_prefixes` entry whose document is unconfigured — `REQ`/`RC` without `doc_srs`, `HAZ`/`RC` without `doc_rmf`, `SDD`/`LLR` without `doc_sad`, `PR` without `doc_problems`, or `REQ`/`LLR` with an empty `test_paths` | Without it the gate for that prefix was skipped and the run still passed. `RC` needs both: `UNIMPLEMENTED-CONTROL` reads `doc_srs`, where the *requirements* live, and `MISPLACED-ITEM` reads `doc_rmf`, the only document a control may be defined in |
-> | An `id_prefixes` entry that is not a bare identifier | It is interpolated into every scan pattern; an invalid pattern matches nothing, which looks like a clean tree |
->
-> **Updating the scripts updates the grammar's prose carriers too.** The
-> ledger READMEs, `.guardrails/templates/verification.md` and the AGENTS.md
-> managed block teach the grammar the scripts enforce, and nothing mechanical
-> notices when they drift apart. The managed block also contains the writing
-> rules, which no script enforces, so a stale block lacks those too.
-> Re-copy the four ledger READMEs and the verification template from the same
-> guardrails version the new scripts came from, and re-replace the managed
-> block between its markers — a refresh skipped here is how one commit ends up
-> with an AGENTS.md and a docs/problems/README.md that contradict each other
-> about a required field.
-> (Ledger READMEs are shipped grammar, not human work; if a project has
-> edited one, diff before re-copying and re-apply the project's additions.)
->
-> Some changes are **exit 1**, not exit 2, and so are easy to miss.
->
-> An item defined outside the document configured for its prefix now reports
-> `MISPLACED-ITEM`. It used to be counted in `checked:` while the gate that
-> would report it never parsed its block — `**SDD-001**:` in
-> `docs/design.md`, with no `traces:` line at all, passed. (Other gates did
-> still see it: a misplaced item has always drawn `MISSING-TEST`,
-> `UNMITIGATED-HAZARD` or `DANGLING-REF` where those applied. What it escaped
-> was the gate keyed on its own document.)
-> Move the definition into the configured document; adding the stray file to
-> `strict_paths` does **not** fix it, because that widens reference scanning
-> rather than the document a gate opens. A `doc_*` directory resolves to its
-> `*.md` files one level deep, so a `.md` in a subdirectory of one reports —
-> and so does a `.txt` directly in it; a `doc_*` configured as a
-> single file resolves to that file whatever its extension. Where the ID is
-> illustrative text rather than a real item — an example in a plan, changelog
-> or README at column one — the remedy is the reverse: indent it, or keep it
-> inline. Do not leave it at the start of a line, whatever body you give it:
-> `MALFORMED-ID` reports a definition form there whose ID is not valid.
-> Measured on a project already keeping its items in the configured ledgers,
-> this gate reports nothing at all.
->
-> `strict_paths` and `test_paths` entries are now handed to `git grep` as
-> pathspecs instead of being expanded by the shell first. Git's `*` crosses
-> `/` where a shell glob does not, so an entry like `src/*.c` now reaches into
-> subdirectories that were previously out of scope, and files there can raise
-> failures for the first time. The entry is behaving as written; narrow it if
-> the wider scope is not what you wanted.
->
-> An SDD
-> block now ends at the next definition line or markdown heading, the rule
-> low-level requirements already followed — so a `**Bold:**` aside or a fenced
-> block between an `**SDD-nnn**:` header and its `traces:` line now reports
-> `UNTRACED-DESIGN`. Move the annotation onto the header line or directly
-> beneath it.
->
-> And annotations are now read as lists, with only the IDs immediately
-> following the keyword counting.
-> `verifies: LLR-001 and REQ-002` credits `LLR-001` alone, where the older
-> scripts credited both. A project using prose-joined ID lists will see new
-> `MISSING-TEST` / `UNMITIGATED-HAZARD` failures. Rewrite them as
-> `verifies: LLR-001, REQ-002`.
->
-> **Item IDs are now random tokens.** From this version on an item gets its
-> ID when it is written — `.guardrails/scripts/new-id.sh REQ` prints
-> `REQ-a3k9z2` — instead of a sequential number assigned at merge. Existing
-> sequential IDs keep working, permanently and without conversion: every
-> pattern in the toolkit accepts both forms, and nothing renumbers an SRS.
-> Four things change at the upgrade:
->
-> * **Delete `.guardrails/scripts/finalize-ids.sh`.** It is replaced by
->   `finalize-docs.sh`, which renames the change's draft ledger FILE and does
->   nothing to IDs. Copying in the new `scripts/` leaves the old file behind;
->   remove it, or `merge-change` step 3 will find a script that still tries to
->   mint. Update any CI line that calls it.
-> * **Finish or discard drafts in flight before upgrading.** A
->   `REQ-DRAFT-<branch>-<n>` token is now a hard failure in `check-ids.sh`
->   under every flag, because nothing will ever turn it into a real ID. Run
->   the old `finalize-ids.sh` one last time, or replace each token by hand
->   with an ID from `new-id.sh`.
-> * **`check-ids.sh --allow-drafts` and `--base` are rejected, not ignored.**
->   The first is now `--allow-draft-files`, and it covers only ledger files
->   with a draft name. The second referred to a gate that no longer exists:
->   IDs are allocated against nothing, so two branches cannot mint the same
->   one, and the in-tree duplicate scan sees everything once `merge-change`
->   step 1 has merged the base branch in. `UNANCHORED-DEF` and
->   `SKIPPED-DUPLICATE-BASE` are gone with it.
-> * **`MALFORMED-ID` is new, and is exit 1.** It reports a line opening with a
->   definition form whose body is not a valid ID — including a legacy
->   `**REQ-01**:`, too short to have ever matched `[0-9]{3,}`. Such an item
->   was invisible to every gate under the old scripts too; this is the first
->   version that reports it. Give it a real ID.
->
-> **The review artefact is now checked.** `check-review.sh` is new. It reads
-> the verification record for the change under merge and reports
-> `MISSING-RECORD` when there is none, `INCOMPLETE-RECORD` when it omits
-> `reviewer:`, `verdict:` or `reproduced:`, and `UNDISPOSED-FINDING` when a
-> `**finding-N**:` block contains no `disposition:`. Three things to know at
-> the upgrade:
->
-> * **Records already written are left alone.** Only the record for the branch
->   under merge is read, so a ledger of sixty-nine legacy records does not go
->   red on the day you upgrade. The schema applies from the next change on,
->   and the migration cost is one record at a time.
-> * **`reproduced:` is required and its value is never judged.** `reproduced:
->   no — the root cause was measured directly, the end-to-end failure never
->   reproduced` is a passing record. The field exists so the absence of
->   evidence is a visible omission rather than an optional disclosure.
-> * **It is not a CI gate on the base branch.** There is no change under
->   review there, so it exits 2. Run it at `merge-change` step 6c from the
->   worktree, or in pull-request CI as `check-review.sh --branch <head>`.
->
-> **Problem reports are now triaged, and this one DOES touch the existing
-> ledger.** It is the only part of the upgrade that does. `check-trace.sh`
-> requires a column-one `status:` on every problem report, and
-> an `opened: YYYY-MM-DD` on every one that is **open**. Work through it in
-> this order, because the first item finds things the other two do not:
->
-> 1. `INCOMPLETE-PROBLEM … (no status: line in its block)` — an item whose
->    state the gate has never been able to read. Until now it counted as
->    resolved and was absent from every merge's known-problem list. **Read it
->    before you label it**; it may well still be open. On a real ledger of 159
->    items there was one of these, recorded in prose bullets.
-> 2. `MALFORMED-STATUS` — `closed`, `wontfix`, `Open`. Pick `open` or
->    `resolved`; an unrecognised status counted as resolved too.
-> 3. `INCOMPLETE-PROBLEM … (open, no opened:)` — the backfill. Only
->    the still-open items need it, so this is bounded and shrinks every time
->    one is resolved. For `opened:`, the date in the defining file's own
->    name (`docs/problems/YYYY-MM-DD-slug.md`) is the honest answer when the
->    real date is not recorded.
->
-> **Derived assessments are now declared, and this DOES touch the existing
-> ledger.** `UNANALYZED-DERIVED` no longer passes a derived REQ/LLR whose ID
-> merely appears in the RMF; it requires a line containing `assesses: <IDs>`
-> in the RMF files. Every derived item goes red at the first run after the
-> upgrade until the passage that assesses it contains the annotation. The cost
-> is bounded by the count of derived items — one project measured 26 items
-> across 11 risk files in about an hour, several assessments covering a group
-> — and the gate's line names the remedy. Put `assesses:` on the assessment,
-> never on a table row or a passing mention: that is the failure the change
-> exists to detect, and one of those 26 was exactly that.
->
-> **The managed block now states writing rules, and no gate enforces them.**
-> A new section, `## Writing: prose, names and messages`, states how prose,
-> identifiers and commit messages are written: a list of words to replace, no
-> metaphor, no anthropomorphism, active voice, and the instruction not to match
-> existing style where it disagrees. Nothing goes red at the upgrade — no check
-> script reads it, and none is planned. A project that upgrades the scripts and
-> skips the block never receives the rules, which is why the refresh
-> above names the block. Existing prose is not swept by the upgrade; the rules
-> bind what is written next.
->
-> **`finalize-docs.sh` now rewrites references to the files it renames**,
-> across the ledger directories and the SOUP file, printing each rewrite, and
-> `check-trace.sh` reports `DANGLING-FILE` for a `DRAFT-*.md` reference in
-> those files that names no existing file. Links left dangling by earlier
-> merges go red at the first run; fix each by writing the merged file's dated
-> name. Plans and verification records are neither rewritten nor scanned.
->
-> The two limits, `problem_age_days` and `problem_open_max`, are separate.
-> They ship set in `templates/config.yaml` but an existing config does not
-> gain them by upgrading the scripts — add them deliberately, with the numbers
-> your team will actually act on. Until you do, both print as `none` in the
-> `problems:` summary line on every run, which is the point: an unset limit is
-> a decision that stays visible.
->
-> **A problem report now has a third status, `accepted`, and this part of the
-> upgrade touches nothing you have already written.** It is purely additive:
-> no ledger in existence uses `accepted`, because until this version it was a
-> `MALFORMED-STATUS`, so nothing goes red on the day you upgrade and there is
-> no backfill. Three things to know:
->
-> * **`accepted` means investigated and ruled on** — the project has decided
->   the software is not changing. `check-trace.sh` prints it as `ACCEPTED-PR`
->   with the ruling on the line, counts it in the `problems:` summary as
->   `accepted N`, and exempts it from `problem_age_days` and from
->   `problem_open_max`. It is NOT exempt from the roll-call: a decision nobody
->   is reminded of decays back into a thing nobody remembers deciding.
-> * **`disposition:` is required on it, and that is what makes the status safe
->   to have.** Without it, `accepted` is a one-word escape from both limits,
->   reachable by anyone looking at a red `PROBLEM-BACKLOG`, and the gate would
->   ship its own bypass. `accepted` with no `disposition:` — or with no
->   `opened:` — is `INCOMPLETE-PROBLEM`. `disposition:` is the same keyword
->   `check-review.sh` already reads on a finding block; it is read here at
->   column one inside the item's block, first occurrence winning, like
->   `status:` and `opened:`, and an orphaned one is `ORPHAN-ANNOTATION`.
->   The `opened:` on an accepted item is judged as a date, exactly as an open
->   item's is — malformed or more than a day ahead is `MALFORMED-DATE`. It is
->   not aging against anything; the field records when the problem was RAISED,
->   which the roll-call prints, and a date after today falsifies that on a
->   ruled item as much as on an open one.
-> * **It is not a way to clear a backlog.** If you are reaching for it because
->   the count is red, the honest move is a ruling with a date you can defend,
->   or resolving the item. `resolve-problem` §4 has the form.
->
-> The `problems:` summary line gained a field: it now reads
-> `problems: open N, accepted N, oldest …`. Any CI step or record that greps
-> for the old spelling `problems: open N, oldest` needs the new one.
->
-> **Supersession is now checked for reciprocity, and unlike the status above,
-> this one CAN go red on a ledger you have already written.** `merge-change`
-> step 6a has always prescribed the pair — `supersedes: <old ID>` on the
-> replacement, `superseded-by: <new ID>` on the replaced item — and until this
-> version no script read either word, so any half-applied supersession already
-> in your ledgers goes red at the first run:
->
-> * `NON-RECIPROCAL-SUPERSESSION <ID> (supersedes: …,
->   which contains no superseded-by: …)` — and the mirror form for the other
->   direction. **The fix is to add the missing half**, at column one inside
->   the named item's block, never to delete the half that is there: the
->   annotation that exists is the true one, and deleting it loses the only
->   record that the replacement happened. Both annotations are lists, so one
->   item may replace several predecessors.
-> * An orphaned `supersedes:` or `superseded-by:` — one at column one
->   belonging to no item block — is `ORPHAN-ANNOTATION`, like `status:` and
->   `traces:` before it.
-> * `MALFORMED-SUPERSESSION <ID> (supersedes: <value> — no item ID in it)`, or
->   `(supersedes: has no value)`, for a half the reader cannot use. This is the
->   one that may surprise a ledger written in good faith: `supersedes: the
->   original dosing requirement` is prose, not a reference, and until this
->   version it recorded nothing at all while the run exited 0. Give it the ID.
-> * `MALFORMED-SUPERSESSION <ID> (supersedes: <token> — not an item ID)` for
->   ONE mistyped entry in a list that also contains good ones:
->   `supersedes: REQ-m7dq3v, REQ-nope` recorded half the supersession and
->   reported nothing until this version. The rule is the reference-side twin
->   of `MALFORMED-ID` — a token in list position with a declared prefix whose
->   body is not an ID. Prose and a parenthetical after the list end it and are
->   never reported: `supersedes: REQ-m7dq3v (was REQ-001)` is clean.
-> * The cost is bounded by the count of supersessions you have recorded, which
->   for most projects is small; each line names the item and the missing half.
->
-> **It checks reciprocity and nothing else, deliberately.** It does not sweep
-> the tree for other references to a superseded ID — an `affects:` or
-> `traces:` line may legitimately name an old ID as history, so there is no
-> unambiguous verdict there and none is invented. That sweep stays a review
-> job, as `merge-change` step 6a states. Existence is a separate question
-> already answered by `DANGLING-REF`.
->
-> **An annotation written as a list item is now REPORTED where it belongs to
-> no item — and, as before, it is never READ.** Until this version the
-> `ORPHAN-ANNOTATION` backstop matched a keyword only at byte one, while
-> `traces:` and `satisfies:` are read ANYWHERE on their line — so a bulleted
-> `- satisfies: REQ-a3k9z2` was credited to its LLR inside a block, while the
-> same line outside every block was not reported at all: exit 0 with a derived
-> item never checked against the RMF. A gate that reads a keyword where the
-> backstop does not is the case that backstop exists to catch. `lib.sh` has
-> stated it as a known asymmetry since 2026-08-23 and closed the
-> `status:`/`opened:` half of it on 2026-08-25. **This version NARROWS the rest
-> and does not close it**, by stepping the BACKSTOP — and only the backstop —
-> over leading list markers. The problem item it came from is still open, and
-> the paragraph below names what is still live, so size the upgrade by what is
-> stepped over rather than by the word closed.
->
-> **Two marker forms, and any depth of nesting — not every list form.** A
-> marker here is a bullet — `-`, `*` or `+` — or an ordered one: digits closed
-> by `.` or `)`.
-> The first cut of this rule knew the bullets alone, so `1. satisfies:` outside
-> every block stayed silent while the identical line inside one was credited —
-> the defect again, in the other half of the same syntax. Review measured it
-> and sent the change back. A run of markers is stepped over too, so
-> `- 1. status:` is no harder to report than `- status:`. A bare number is not
-> a marker: `1 status: of the bus` is prose and stays prose.
->
-> **The readers stay at column one, and that is the design rather than an
-> omission.** The rule is a containment: the backstop must see at least what
-> every reader sees. Widening in the other direction was tried inside this same
-> change and rejected in review, on two regressions that were demonstrated and
-> not imagined. Both turn on first-occurrence-wins. A problem item quoting
-> `- status: resolved` in its prose, above its own `status: open`, gave the
-> reader the quotation and dropped out of the known-problem list at exit 0. A
-> verification record declaring `branch: other-change` that quoted
-> `- branch: my-change` became the record FOR `my-change`, reporting a pass over
-> a review that never happened. A backstop wider than the readers can only
-> over-report; a reader wider than it means to be answers confidently and
-> wrongly.
->
-> So exactly one thing changes on the day you upgrade:
->
-> * **Outside every item block, a list-item annotation is now
->   `ORPHAN-ANNOTATION`** — the same report a column-one one has drawn since
->   that backstop shipped, and for the same keywords: `status:`, `opened:`,
->   `disposition:`, `traces:`, `satisfies:`, `supersedes:`, `superseded-by:`,
->   and under a unit manifest `exported:` and `expects:`. `check-review.sh`
->   reports an orphaned `disposition:` in a verification record the same way.
->   The fix: move the line inside the block it belongs to AND drop the marker,
->   or, if it is prose ABOUT the form rather than a use of it, put the form
->   inline in backticks. That is the convention the ledger templates already
->   state for their own examples, and it is what the shipped
->   `templates/problems.md` now does to a sentence of its own — so a project
->   that copied that file into `docs/problems/README.md` when it ratcheted has
->   the same line in its own tree and must fix it in place.
->
-> **Inside a block, nothing moves.** A list-item annotation was not read before
-> this version and is not read now. An item whose only `status:` is a list item
-> was `INCOMPLETE-PROBLEM` and stays `INCOMPLETE-PROBLEM`; a record whose only
-> `branch:` is a list item was not that branch's record and still is not. No
-> item changes state on upgrade day, no backlog count moves on its own, and
-> every such line the gate names has a short remedy — delete the marker.
->
-> **Size it with one grep before you upgrade.** Every line the change can
-> touch is a line whose first non-blank characters are one or more list markers
-> and whitespace, followed immediately by a block-parsed keyword. The pattern
-> below is the `gr_kw_lead` rule written out, marker for marker — a bullet or
-> an ordered marker, one or more of them — so what it prints is what the gate
-> will step over:
->
->     grep -rnE '^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+(status|opened|disposition|traces|satisfies|supersedes|superseded-by|exported|expects):' docs/ templates/
->
-> `docs/` already covers the verification records, where `disposition:` is the
-> one keyword this backstop reads. Whatever the grep prints is the whole
-> migration, and it is a list you can read before the gate reads it for you. In
-> the guardrails repository itself it now prints nothing: the two lines it once
-> found were the same shipped sentence in two files, and both give their
-> example inline in backticks instead.
->
-> **Bare indentation still declares nothing, and that is deliberate.** A
-> marker is required: `  - status: open` is now reportable where it is
-> orphaned, `  status: open` is inert at any position. The ledger templates
-> ship their item grammar indented and unmarked, and it stays quotation rather
-> than becoming something a gate has an opinion about, precisely because the
-> rule reaches for the marker and not for the indentation. An earlier attempt
-> at this widening was reverted for the other half of the problem — it fired on
-> a bulleted prose sentence in the shipped `templates/problems.md`, which is
-> why that line now gives its example inline in backticks instead.
->
-> **`traces:` and `satisfies:` are still read anywhere on their line**, and
-> that is not an oversight left behind. `templates/sad.md` ships the
-> annotation ON the definition line — `**LLR-a3k9z2**: <behavior>.
-> satisfies: REQ-m7dq3v` — so requiring column one of the READER would
-> reject the documented primary form and every SAD written against it. What
-> changed is that the backstop can now see the two marker forms above.
->
-> **What is still live, and it is not a short list.** This rule was published
-> as a closure three times and was not one each time: the first cut inverted
-> the design, the second knew bullets and not ordered markers, and the third
-> missed GFM task-list items — `- [x] satisfies: REQ-…` is stepped over as far
-> as the `-` and no further, so it is credited inside a block and reported by
-> nothing outside one, today, on this version. That form is NOT fixed here.
->
-> **So the residue is not enumerated, deliberately.** Three rounds of review
-> each found a form the round before had called the last one, so a list of
-> what remains would be a fourth guess wearing the shape of a specification.
-> What this version claims is only what it does: bullets and ordered markers,
-> in runs, are stepped over by the backstop. Every other position `gr_id_run`
-> accepts — task-list items, blockquote prefixes, table cells, emphasis, a
-> mid-sentence mention — is unenumerated and should be presumed live. If your
-> ledgers use any list form beyond the two named, this upgrade does not cover
-> them and the gate will stay silent on them exactly as before.
->
-> **On macOS, `check-review.sh` has never run at all.** From the version that
-> introduced it until this one, its record scan handed `awk -v` a value
-> containing literal newlines. The awk that ships with macOS — BWK, `awk version
-> 20200816`, the only awk on a stock box — rejects that outright: `awk:
-> newline in string ... at source line 1`, exit 2, before the program runs.
-> gawk, mawk and busybox awk all accept it, which is how it shipped. The
-> consequence is worse than a false pass and less visible: the gate never read
-> a record, and exit 2 reads as a *setup* error, so the natural response was
-> to go looking in the project's own configuration.
->
-> So any project where `/ratchet` was run on macOS has a `merge-change` step 6c
-> that has never executed. Those records may well satisfy the schema — but
-> nothing mechanical has ever confirmed it, and "it exited 2 every time" is
-> not evidence either way. After upgrading, run
-> `check-review.sh --branch <name>` once over each record the ledger already
-> contains. Run it; do not assume they were fine.
->
-> **The config schema gained five fatal rules, and every one applies in EVERY
-> gate**, not in one script — they are in `gr_check_config`, which runs before
-> any gate does. Each is a shape in which a key does not take effect as written
-> while the run used to exit 0:
->
-> | shape | example |
-> |---|---|
-> | a key set to nothing | `strict_paths:` with its items commented out — every scan then walks no path |
-> | a key in the wrong form | `strict_paths: src` (a list key as a scalar), or `doc_soup:` with `  - path` under it (a scalar key as a list) — read by nobody |
-> | a key set twice | a second `verify_commands:` appended below the first, which is what editing by appending produces: the real suite never runs |
-> | a list item with nothing after its `-` | dropped by every reader, so the list that takes effect is shorter than the one written |
-> | bare-CR line endings | a `\r`-only file is one single line to every reader here |
->
-> A CRLF file is now read correctly rather than truncated at its first blank
-> line, which is a fix rather than a new rule — before it, every item below that
-> line was read by nobody.
->
-> None of these is a compatibility break in the usual sense: each was already a
-> gate reading less than it was configured to. Run `check-trace.sh` once after
-> the upgrade and the diagnosis names the key and the shape.
->
-> Every one of these is a pre-existing gap the older scripts passed over, not
-> a new requirement invented by the upgrade. Fix the config or the layout;
-> **there is no compatibility flag, deliberately.** Almost every shape above
-> was a gate that did not run, so an opt-out would be a supported way to keep
-> a false green. The exception is an unrecognised key — a project-local
-> annotation was harmless before and is now rejected. That is accepted
-> deliberately: a typo and an extension are indistinguishable from here, and
-> guessing wrong on a typo is what this change exists to stop.
->
-> The fastest way through the list is to run `check-trace.sh` once and work
-> from the top: config errors are reported before any gate runs, so each fix
-> reveals the next.
+1. Read `references/upgrade-notes.md` and follow its order of work. Its
+   first three items (drafts in flight, the old `check-trace.sh` run, the
+   sizing grep) come before step 2.
+2. Copy `scripts/*.sh` → `.guardrails/scripts/`, keeping executable bits.
+   Delete `.guardrails/scripts/finalize-ids.sh` if present.
+3. **Update the files that document the grammar with the scripts.**
+   Re-copy the four ledger READMEs and the verification template from the
+   same guardrails version, and re-replace the AGENTS.md managed block between
+   its markers. If the project edited a README, diff first and re-apply its
+   additions.
+4. Run `check-trace.sh` and work from the top. Existing ledgers report on
+   problem `status:`/`opened:`, supersession reciprocity and `DANGLING-FILE`.
+   Derived assessments are now declared: a derived REQ/LLR without an
+   `assesses:` line in the RMF goes red.
+5. If `/ratchet` was ever run on macOS, run `check-review.sh --branch <name>`
+   once per existing verification record.
+6. Re-record the tool qualification (Step 5), then integrate with
+   `merge-change`.
 
-## Step 3 (retrofit): Gap analysis first, then tighten
+### Step 3 (retrofit): Gap analysis first, then tighten
 
 Never overwrite. Sequence:
 
-1. **Inventory** (read, don't write): existing AGENTS.md/CLAUDE.md content and
-   any rules that conflict with guardrails (e.g. "commit to the base branch
-   directly");
-   existing requirement/risk/architecture docs in any format; a bug tracker
-   or problem log (a source for the `docs/problems/` ledger); verification evidence
-   (test reports, coverage) worth archiving under `docs/verification/`;
-   test layout and command; CI config; signing status of recent commits
-   (`git log -20 --format='%h %G? %s'`); existing `.guardrails/` version if
+1. **Inventory** (read only): AGENTS.md/CLAUDE.md content and rules that
+   conflict with guardrails ("commit to the base branch directly"); existing
+   requirement, risk and architecture docs; a bug tracker or problem log;
+   verification evidence worth archiving under `docs/verification/`; test
+   layout and command; CI config; signing of recent commits
+   (`git log -20 --format='%h %G? %s'`); the `.guardrails/` version if
    re-ratcheting.
    - A managed block with no `## Writing: prose, names and messages` section
-     is a gap: the block predates the writing rules, and no check reports a
-     stale block. Record it in the gap analysis; the first tooth's block merge
-     is the remedy, since it replaces everything between the markers.
+     is a gap that no check reports. Record it in the gap analysis; the first
+     tooth's block merge replaces it.
 2. **Write the gap analysis** to `docs/plans/<YYYY-MM-DD>-ratchet-gap-analysis.md`:
    what exists, what is missing, what conflicts, and a proposed adoption order.
-3. **First tooth** (this change only): install `.guardrails/` (config +
-   scripts), merge the managed block into AGENTS.md, add missing doc
-   skeletons, and extend `.gitignore` to exclude worktree directories
-   (`.worktrees/`, `.claude/worktrees/`) and `*.bak`. Do NOT migrate
-   existing docs in this change. On a multi-unit repository the first tooth
-   installs the manifest and per-unit configs from step 1b instead of a root
-   config.
-   - AGENTS.md merging: if `<!-- guardrails:begin -->` exists, replace only
-     the block between the markers (script updates re-use this). Otherwise
-     append the whole block from `templates/AGENTS-block.md`, leaving existing
-     content untouched. Report any conflicting existing rules to the user rather
-     than deleting them.
-   - Set `strict_paths` to a SMALL list — only paths that are already clean
-     or new. Existing untraced code is grandfathered.
-4. **Later teeth** (separate worktree changes, listed in the gap analysis):
-   migrate legacy requirement/risk docs into ID'd form via
-   `grill-requirements` / `analyze-risks`; extend `strict_paths` as areas are
-   brought under trace discipline. Signing is **not** on this list — it is a
-   Step 5 prerequisite that the first merge already enforces.
-   **Monolith → ledger migration:** doc config keys accept a file or a
-   directory, so an existing single `srs.md` keeps working; for multi-developer
-   repos recommend switching each `doc_*` key to a directory (move the monolith
-   in as its first dated file, add the README) — new changes are then merged
-   as dated per-change files and stop conflicting.
-5. Integrate via `merge-change` like any other change.
+3. **First tooth** (this change only): install `.guardrails/` (config and
+   scripts, or the manifest and per-unit configs from step 1b), merge the
+   managed block into AGENTS.md, add missing doc skeletons, and extend
+   `.gitignore` as step 2.4 lists. Do NOT migrate existing docs in this change.
+   On a multi-unit repository, read `references/multi-unit.md` first.
+   - If `<!-- guardrails:begin -->` exists, replace only the block between the
+     markers. Otherwise append the whole of `templates/AGENTS-block.md`. Report
+     conflicting existing rules to the user; do not delete them.
+   - Set `strict_paths` to a SMALL list of paths that are already clean or
+     new. Existing untraced code is grandfathered.
+4. **Later teeth** (separate changes, listed in the gap analysis): migrate
+   legacy requirement and risk docs via `grill-requirements` /
+   `analyze-risks`; extend `strict_paths` area by area. Signing is not a later
+   tooth (Step 5). An existing single `srs.md` keeps working: each `doc_*`
+   key accepts a file or a directory. For a multi-developer repository,
+   recommend moving each monolithic `doc_*` file into a directory as its first
+   dated file, with the README, so changes stop conflicting.
+5. Integrate via `merge-change`.
 
-## Step 4: Safety-class interview (IEC 62304 4.3)
+### Step 4: Safety-class interview (IEC 62304 4.3)
 
 Ask one question at a time; recommend an answer for each:
 
@@ -629,106 +195,42 @@ Ask one question at a time; recommend an answer for each:
 2. If yes: could the resulting harm, after external risk controls outside the
    software are considered, be serious injury or death? If yes → **Class C**;
    non-serious injury → **Class B**.
-3. Record the rationale as an ADR in `docs/adr/` (this decision is hard to
-   reverse, surprising without context, and a real trade-off).
+3. Record the rationale as an ADR in `docs/adr/`.
 
-If the user is unsure, walk through their intended use, foreseeable misuse,
-and existing hardware safeguards before classifying. When in doubt between
-two classes, the higher class governs until justified otherwise.
+If the user is unsure, walk through intended use, foreseeable misuse and
+existing hardware safeguards first. Between two classes, the higher governs
+until justified otherwise.
 
 In a multi-unit repository, repeat this interview per unit and
-record each class in that unit's config — the per-unit class is the input
-to the class floor (D5), and this is the interview most likely to be skipped.
+record each class in that unit's config.
 
-## Step 5: Human setup checklist
+### Step 5: Human setup checklist
 
-Print this AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
+Copy `references/setup-checklist.md`, fill in the qualification basis, print
+it AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
 
-**The signing items are a gate on the ratchet itself, not a later tooth.**
-Every merge ends with `finish-merge.sh`, which runs `check-signing.sh --strict`
-before it removes the worktree and deletes the branch — strictness begins at
-the first merge, not in CI. A project that defers signing completes each merge
-and is then denied the cleanup, accumulating worktrees with no obvious cause.
-So ratchet is not complete until `check-signing.sh --setup` exits 0, and that
-includes ratchet's own scaffold change: satisfy the signing items before the
-integration in Step 2.7 / Step 3.5.
+**The signing items gate the ratchet.** It is not complete until
+`.guardrails/scripts/check-signing.sh --setup` exits 0, and that includes its
+own scaffold change: satisfy them before step 2.7 / step 3.5. For a retrofit,
+state early that **an existing project must configure commit signing before
+it can finish adopting guardrails**. If a committer's public key is not
+available, stop and name what is missing.
 
-For a retrofit, state this plainly and early rather than letting it be
-discovered at the first merge: **an existing project must configure commit
-signing before it can finish adopting guardrails.** Ratchet cannot do it alone
-— it needs each committer's public key. If those keys are not available yet,
-stop and name exactly what is missing instead of calling adoption done.
+**Tool qualification.** Record `guardrails_version` AND `guardrails_commit`
+(`git -C <guardrails> rev-parse HEAD`) in config and in the setup document,
+with the suite result. Re-record all three on every script update. Never
+modify the scripts in the target project.
 
-- [ ] Commit signing key: `git config gpg.format ssh`,
-      `git config user.signingkey <key>`, `git config commit.gpgsign true`
-      (GPG works too). Hardware keys require a physical touch per signature.
-- [ ] Signature verification: create an allowed_signers file listing each
-      committer (`<email> <key-type> <public-key>`), then
-      `git config gpg.ssh.allowedSignersFile <path>`. Without it every
-      signature reads as unverifiable, which `--strict` rejects.
-- [ ] **Prove the chain, and only then is the ratchet done:**
-      `.guardrails/scripts/check-signing.sh --setup` must exit 0. It checks
-      that `user.signingkey`, `commit.gpgsign`, `user.email` and the format's
-      trust root are set and readable, then makes a real signed commit in a
-      throwaway repository and confirms it reads `%G?` = `G` — configuration
-      being present proves nothing about whether the key can sign or the
-      signature verifies. Exit 1 is a failed proof, exit 2 a usage or
-      environment error. Each missing piece is reported separately; work through
-      them in order.
+**The suite runs in the guardrails repo, never in the target project, and
+bats is never installed.** Run `<guardrails>/tests/run-tests.sh` exactly once;
+it vendors bats-core into its own gitignored `tests/.bats-core/` when no
+system bats exists. Never add bats to the target project. If the run cannot
+complete, record `suite not run at install time: <reason>` and move on.
 
-      `gpg.format` is deliberately NOT on that list. Unset is not
-      unconfigured: git documents the default as `openpgp`, and a project that
-      leaves it alone signs perfectly well, so requiring it named a
-      non-problem — and, because a named gap returns before the proof, it
-      suppressed the only half of `--setup` that measures anything. Set it
-      explicitly when you want ssh; leave it alone for OpenPGP.
-- [ ] Branch protection on the base branch: no direct pushes, require signed
-      commits.
-- [ ] CI: run `verify_commands`, `check-ids.sh`, `check-trace.sh`, and
-      `check-signing.sh --strict <base>..HEAD` on every merge — a backstop for
-      what `finish-merge.sh` already enforced on the merging machine, not the
-      point at which strictness begins. **Not `check-review.sh`** — it asks
-      about the change under merge, so on the base branch it exits 2 rather
-      than reporting a pass over no question. It runs from the change worktree
-      at `merge-change` step 6c. To gate it in CI on a pull request, name the
-      branch: `check-review.sh --branch <head-branch>`.
-- [ ] Decide the human review/approval policy for merges (who signs off),
-      including who acts as the independent reviewer in `merge-change`
-      step 6a when a human is preferred over a fresh agent.
-- [ ] **Tool qualification (DO-330-lite):** the `.guardrails/scripts/` are
-      verification tools — their failure could mask errors. Qualification
-      basis: the guardrails bats suite at the `guardrails_version` AND
-      `guardrails_commit` recorded in config — the commit
-      (`git -C <guardrails> rev-parse HEAD`) is what makes the basis
-      checkable, because a version string alone moves: upstream can advance
-      mid-change while still reading the same number, and the reviewer is
-      then left establishing by hand which code "the suite passed" was
-      measured on. This document records both plus the suite result at
-      install time. When `/ratchet` updates the scripts, it re-records all
-      three. Do not modify the scripts in the target project; change them
-      upstream where the tests live.
-
-      **The suite runs in the guardrails repo, never in the target project,
-      and bats is never installed.** Run `<guardrails>/tests/run-tests.sh`
-      exactly once and capture its exit code — that script uses a system
-      bats if one exists and otherwise vendors bats-core into the guardrails
-      repo's own gitignored `tests/.bats-core/`. Do not `apt install bats`,
-      `brew install bats`, `npm/npx bats`, or add bats to the target
-      project's dependencies or `verify_commands`; the target repo records
-      the *outcome* (version, commit, pass/fail), not the tooling. If the
-      one run cannot complete (no network to vendor bats-core, say), record
-      `suite not run at install time: <reason>` in the setup document and
-      move on — recording an honest gap is better than installing a
-      dependency nobody asked for.
-
-      Capture the exit status from the run itself, never through a pipe:
-      `tests/run-tests.sh | tee ratchet.log` leaves `$?` set to tee's
-      status, so the recorded pass/fail is the wrong command's. Redirect
-      instead — `tests/run-tests.sh > ratchet.log 2>&1; status=$?` — and
-      read `$status` before anything else runs.
-- [ ] **Guardrails supports your QMS but is not itself regulatory
-      compliance.** Your quality manual, design controls, and human sign-offs
-      govern; keep your notified-body/auditor requirements authoritative.
+Capture the exit status from the run itself, never through a pipe:
+`tests/run-tests.sh | tee ratchet.log` leaves `$?` set to tee's status, so the
+recorded pass/fail is the wrong command's. Run
+`tests/run-tests.sh > ratchet.log 2>&1; status=$?` and read `$status` first.
 
 ## Red flags
 
@@ -736,6 +238,26 @@ stop and name exactly what is missing instead of calling adoption done.
 |---|---|
 | "I'll just overwrite their AGENTS.md" | Retrofit never overwrites. Managed block only. |
 | "Enable strict checks everywhere now" | That blocks all work on legacy code. Tighten one tooth. |
-| "Signing can be a later tooth" | The first merge enforces it. Without a proved signature the merge completes and the cleanup is rejected. `--setup` exits 0 or the ratchet is unfinished. |
-| "Skip the worktree for the scaffold" | Ratchet follows its own rules. Worktree + signed squash merge. |
-| "safety_class can stay TBD" | Nothing else scales correctly until it's set. Interview now. |
+| "Signing can be a later tooth" | The first merge enforces it; the cleanup is rejected without a proved signature. |
+| "Skip the worktree for the scaffold" | Worktree and signed squash merge, as for any change. |
+| "safety_class can stay TBD" | Nothing else scales correctly until it is set. |
+| "The scripts are copied, so the upgrade is done" | The READMEs, the template and the managed block are refreshed too. |
+
+## Done when
+
+- `safety_class` is set (per unit where there are units), with its ADR.
+- A retrofit has its gap analysis in `docs/plans/`.
+- The setup checklist is saved, with the qualification basis.
+- `check-signing.sh --setup` exits 0.
+- The change is merged through `merge-change`, and the check scripts pass.
+
+## References
+
+- `references/upgrade-notes.md` — read when updating `.guardrails/scripts/` in
+  a project that already has them, before copying the new scripts in.
+- `references/multi-unit.md` — read when step 1b found more than one unit,
+  before step 2.3 or step 3.3 installs any file.
+- `references/setup-checklist.md` — read when you reach step 5; it is the
+  checklist to print and save.
+- `references/rationale.md` — read when a rule here seems wrong for your case,
+  or before proposing to change one.

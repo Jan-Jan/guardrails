@@ -15,11 +15,11 @@
 # version of this comment asserted one budget for every platform without
 # measuring any. Measure before reasoning from it: `df -i "$TMPDIR"`.
 #
-# Measured on macOS, the host this suite was measured on and the one AGENTS.md
-# calls a stock box for its default awk: bats puts its run directory under $TMPDIR, which is /var/folders/…/T/ on
-# the APFS data volume, and on 2026-10-01 that volume reported over six billion
-# free inodes at 0% used. Nothing this suite does approaches it. `PR-2scmvn`
-# records a misdiagnosis that followed from the earlier wording.
+# Measured on macOS, the host this suite was measured on: bats puts its run
+# directory under $TMPDIR, which is /var/folders/…/T/ on the APFS data volume,
+# and on 2026-10-01 that volume reported over six billion free inodes at 0%
+# used. Nothing this suite does approaches it. `PR-2scmvn` records a
+# misdiagnosis that followed from the earlier wording.
 #
 # Not measured anywhere else. Where $TMPDIR is a tmpfs the budget is finite and
 # the reasoning below applies, but no such host was tested for this comment and

@@ -1,8 +1,28 @@
-# The documentation review checklist
+# The review severities and the documentation checklist
 
-Read this at `merge-change` step 6a when the diff touches documentation, and
-hand it to the reviewer with the diff. The reviewer checks each item and
-raises a finding for each one that fails.
+Read this at `merge-change` step 6a, and hand it to the reviewer with the diff
+every round. The severities apply to every review; the checklist applies when
+the diff touches documentation.
+
+## Severities
+
+Every `code` and `requirement` finding states one severity after its tag:
+`**finding-N**: code, medium — <text>`. A `record` finding states none.
+
+- `high`: loses or silently discards work, makes a gate pass that should fail,
+  or is a remedy that does damage when followed, in a state reached in normal
+  use.
+- `medium`: a wrong exit, message or remedy in normal use that misleads but
+  loses nothing, or a stated requirement that is not met.
+- `low`: needs a rare or contrived state, or the error printed alongside names
+  the true cause, or a documentation gap where the tree is right.
+
+A round whose `code` and `requirement` findings are all `low` is the last
+review round (`merge-change` step 6a).
+
+## The documentation checklist
+
+The reviewer checks each item and raises a finding for each one that fails.
 
 - New items are in this change's draft ledger file, and no definition moved
   to another file.

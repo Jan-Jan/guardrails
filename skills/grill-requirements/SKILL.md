@@ -7,168 +7,183 @@ description: Relentless one-question-at-a-time interview to define or refine sof
 
 **Announce at start:** "Using the grill-requirements skill to define requirements."
 
-Interview the user relentlessly about the capability until you reach shared
-understanding, writing requirements down as they crystallize. Requirements
-work is a change like any other: do it **in a worktree**
-(`worktree-discipline`) and integrate via `merge-change`.
+## Preconditions
 
-## Interview rules
+- You are in a change worktree (`worktree-discipline`). Requirements work is a
+  change like any other, and `merge-change` integrates it.
+- Read `doc_srs`, `doc_sad` and `safety_class` from `.guardrails/config.yaml`.
+- Where `.guardrails/units.yaml` exists, the unit rules under "Declaring a
+  dependency" and "The glossary" apply.
 
-- **One question per message.** Multiple questions at once are bewildering.
-- **Recommend an answer** with every question, with your reasoning.
-- **Facts vs decisions:** if the answer is discoverable in the environment
-  (code, docs, git history), look it up instead of asking. Decisions belong
-  to the user — put each one to them and wait.
-- Walk each branch of the decision tree; resolve dependencies between
+## Steps
+
+Interview the user about the capability until you reach shared understanding.
+Write each requirement down as soon as it is settled.
+
+### The interview
+
+- Ask one question per message.
+- Recommend an answer with every question, and give your reasoning.
+- Look up a fact the environment answers (code, docs, git history) instead of
+  asking it. Put each decision to the user and wait for the answer.
+- Walk each branch of the decision tree. Resolve dependencies between
   decisions one at a time.
-- Stress-test with concrete scenarios: invent edge cases that force precise
-  boundaries ("The pump loses power mid-bolus — what must the software
-  guarantee on restart?").
-- Do not start writing implementation code during the interview.
+- Stress-test answers with concrete scenarios: invent edge cases that force a
+  precise boundary.
+- Class B and C: for every capability, ask "what must happen when this
+  fails?" Each answer is a requirement too.
+- Class C: also question the boundaries between software items. The answers
+  are inputs to `design-architecture`.
+- Write no implementation code during the interview.
 
-## Write requirements as they crystallize
+### Probe before you write
 
-Update the requirements ledger (`doc_srs` in `.guardrails/config.yaml`)
-inline — don't batch. **New items go into this change's draft file**,
-`docs/requirements/DRAFT-<branch>-<slug>.md` (merge-change renames it to a
-dated name when it finalizes the draft). **Amendments to existing requirements are edited in the dated
-file that defines them** — definitions never move. On single-file projects
-(`doc_srs` points at a file), edit that file.
+Run both probes before a requirement is settled. Each is a subagent dispatch
+(a `Task` or `Agent` tool, an `/agent` command, whatever your harness offers).
+The ledgers must not enter this conversation's context.
 
-- **Probe for overlap before you write.** Dispatch a subagent (your harness's
-  subagent mechanism — e.g. a `Task` tool, an `/agents` command) to search the
-  requirements ledger for items that already cover this behavior. It returns
-  IDs, one-line summaries and `file:line` — nothing else. The ledger itself
-  must not enter this conversation's context. Overlap, ambiguity or
-  contradiction goes to the user and is resolved with them before the new item
-  is written.
-- **Supersession is recorded, never silent.** A new requirement may supersede
-  an old one — that is normal; performing it by deletion is not. The
-  superseded item keeps its place in the file that defines it and gains
-  `superseded-by: <new ID>`; the new item contains `supersedes: <old ID>`.
-  Because the old item stays where it is, `check-trace.sh` still resolves
-  every reference to it and the ledger still reads as a history.
-- **The supersession annotations are annotations, not exemptions.** The
-  superseded item keeps its definition, so a test is still required for it:
-  `check-trace.sh`'s MISSING-TEST gate walks every defined item and does not
-  read `superseded-by:`. Satisfy both items with the one test that
-  already exists — **the test that verified the superseded item gains the new
-  ID alongside the old**: `verifies: <old ID>, <new ID>`. MISSING-TEST is then
-  clean for both, the history remains, and no gate has to change.
-- **Superseding is not retiring.** Supersede when the behavior still exists in
-  some form — a rewording, a narrowing, a replacement — so one test can
-  honestly verify both IDs. Behavior that is genuinely gone is a *retirement*,
-  a different operation this skill does not cover today: with no
-  `superseded-by:` exemption in `check-trace.sh`, a retired item still requires
-  a test for behavior that no longer exists. Teaching the gate that exemption
-  is a separate change with its own tests. Until that change is merged, put a
-  retirement to the user as its own decision rather than recording it as a
-  supersession.
-- REQ items are **high-level requirements**: system-observable behavior,
-  written from outside the software. The "how", per software item, belongs
-  to low-level requirements (LLRs) in the SAD (`design-architecture`).
+- **Overlap.** The subagent searches the requirements ledger for items that
+  already cover the behavior, and returns IDs, one-line summaries and
+  `file:line`, nothing else. Put every overlap, ambiguity or contradiction to
+  the user and resolve it with them before you write the new item.
+- **Architecture.** The subagent reads `doc_sad` and answers three questions,
+  with `file:line` citations and not the document:
+  1. Does an existing software item already own this behavior? Then the
+     change amends that item's LLRs and adds no new item.
+  2. Does the requirement as worded force a structure the SAD forbids?
+     Segregation boundaries are the most common conflict.
+  3. Does satisfying it need a new software item, or new SOUP?
+
+  On a contradiction, state it and hand off to `design-architecture`. Never
+  edit the SAD from this skill.
+
+### Write requirements as they are settled
+
+Update the requirements ledger (`doc_srs`) one item at a time. Do not batch.
+
+- Write new items in this change's draft file,
+  `docs/requirements/DRAFT-<branch>-<slug>.md`. `merge-change` renames it to a
+  dated name when it finalizes the draft.
+- Edit an amendment to an existing requirement in the dated file that defines
+  it. Definitions never move. Where `doc_srs` points at a single file, edit
+  that file. An amendment that supersedes or retires an item follows
+  "Supersession" below.
 - Item form: `**<ID>**: The software shall <single, testable behavior>.`
-- A new item gets its ID from `.guardrails/scripts/new-id.sh REQ` as you
-  write it (see `worktree-discipline`). Never invent one by hand.
-- **Derived requirements:** when a requirement exists only because of how
-  the design turned out (no parent in system/user needs), do not invent a
-  fake parent — mark it `satisfies: derived` and send it to `analyze-risks`
-  for assessment (an `assesses:` line in the RMF must name it;
-  `check-trace.sh` enforces this as UNANALYZED-DERIVED).
+- Get each new item's ID from `.guardrails/scripts/new-id.sh REQ` as you write
+  it (`worktree-discipline`). Never write an ID by hand.
+- A REQ item is a high-level requirement: system-observable behavior, written
+  from outside the software. The "how", per software item, belongs to the
+  low-level requirements (LLRs) in the SAD (`design-architecture`).
 - One behavior per requirement, phrased so a test can verify it. "Fast",
-  "user-friendly", "robust" are not requirements — grill until they become
-  numbers or observable behavior.
-- A requirement that realizes a risk control ends with
-  `(implements: RC-…)`. If the discussion surfaces a new hazard or control,
-  switch to the `analyze-risks` skill, then come back.
+  "user-friendly" and "robust" are not requirements: question the user until
+  each becomes a number or an observable behavior.
+- **Derived requirements:** a requirement that exists only because of how the
+  design turned out has no parent in system or user needs. Do not invent a
+  parent. Mark it `satisfies: derived` and send it to `analyze-risks`: an
+  `assesses:` line in the RMF must name it, and `check-trace.sh` reports
+  UNANALYZED-DERIVED otherwise.
+- A requirement that realizes a risk control ends with `(implements: RC-…)`.
+  When the discussion surfaces a new hazard or control, switch to
+  `analyze-risks`, then return.
 
-## Declaring a dependency (multi-unit repositories)
+### Supersession
+
+Read `references/supersession.md` before you record a supersession or put a
+retirement to the user.
+
+- Record a supersession. Never perform it by deletion. The superseded item
+  stays in the file that defines it and gains `superseded-by: <new ID>`; the
+  new item contains `supersedes: <old ID>`.
+- The superseded item still requires a test. Add the new ID to the test that
+  verified the superseded item: `verifies: <old ID>, <new ID>`.
+- Supersede only when the behavior still exists in some form: a rewording, a
+  narrowing, a replacement. Behavior that is gone is a retirement, which this
+  skill does not cover: `check-trace.sh` has no `superseded-by:` exemption.
+  Until a change that adds that exemption is merged, put a retirement to the
+  user as its own decision, and do not record it as a supersession.
+
+### Declaring a dependency (multi-unit repositories)
 
 `depends_on:` is a decision, not a config line. Before an edge is added to the
 consumer's config, walk the provider's artefacts with the user, one question
-at a time (D10):
+at a time:
 
-- its export surface — `.guardrails/scripts/check-units.sh --exports <provider>`
-  lists every exported REQ with its defining file: is the behavior you need
-  on it?
-- its RMF — does its risk analysis consider this use, or is your use case
+- its export surface: `.guardrails/scripts/check-units.sh --exports <provider>`
+  lists every exported REQ with its defining file. Is the behavior you need on
+  it?
+- its RMF: does its risk analysis consider this use, or is your use case
   outside every analyzed situation?
-- its ADRs — a recorded decision may foreclose your requirement;
-- its open problem reports — the known anomalies of a supplied component;
-- transitively its SOUP — your dependency's dependencies are yours.
+- its ADRs: a recorded decision may foreclose your requirement.
+- its open problem reports: the known anomalies of a supplied component.
+- transitively its SOUP: your dependency's dependencies are yours.
 
-A gap found here is a requirement, so it gets requirement machinery: write a
-consumer REQ with `expects: <unit>` on its own line (the unit must be a
-declared dependency). Include `opened: YYYY-MM-DD` in the same item block, on
-its own line — an expectation without a usable date is INCOMPLETE-EXPECTATION
-at the consumer's own gate. The expectation is **met** when the provider
-defines an exported REQ with `satisfies:` naming your REQ; until then the
-consumer's run reports UNMET-EXPECTATION and the provider's run reports how
-many open expectations are outstanding against it — the prompt reaches the
-team that owes the work. Never model the gap as a problem report in the
-provider's ledger: a need is not an anomaly.
+Write a gap found here as a consumer REQ with `expects: <unit>` on its own
+line. The unit must be a declared dependency. Put `opened: YYYY-MM-DD` on its
+own line in the same item block; without a usable date, the consumer's own
+gate reports INCOMPLETE-EXPECTATION. The expectation is met when the provider
+defines an exported REQ with `satisfies:` naming your REQ. Until then the
+consumer's run reports UNMET-EXPECTATION, and the provider's run reports the
+count of open expectations against it. Never record the gap as a problem
+report in the provider's ledger: a need is not an anomaly.
 
-## Maintain the glossary inline
+### The glossary
 
-`docs/CONTEXT.md` is the project glossary — definitions only, no
-implementation detail. In a multi-unit repository, write to the unit's own
-`docs/CONTEXT.md` by default; the root glossary owns interface terms.
-Escalate a term to the root glossary the moment it appears in an exported REQ or an `expects:` item.
-A term defined in a unit glossary AND at root with different meanings is
-challenged, exactly like any other conflict. Two units disagreeing internally is not a conflict
-at all — "dose" in an infusion unit and in a reporting unit are different
-concepts, legitimately.
+`docs/CONTEXT.md` is the project glossary: definitions only, no
+implementation detail.
 
-- When the user uses a term that conflicts with the glossary, call it out
-  immediately: "CONTEXT.md defines 'dose' as X, you seem to mean Y — which?"
-- When language is fuzzy or overloaded, propose one canonical term, record
+- When the user uses a term that conflicts with the glossary, state the
+  conflict at once: "CONTEXT.md defines 'dose' as X, you seem to mean Y —
+  which?"
+- When a term is fuzzy or overloaded, propose one canonical term and record
   the rejected synonyms under `_Avoid_`.
-- Update CONTEXT.md the moment a term is resolved.
+- Update CONTEXT.md as soon as a term is resolved.
+- Multi-unit: write to the unit's own `docs/CONTEXT.md` by default;
+  the root glossary owns interface terms. Escalate a term to the root
+  glossary the moment it appears in an exported REQ or an `expects:` item:
+  add it there, and keep it in the unit glossary.
+  Challenge a term that a unit glossary and the root glossary define with
+  different meanings, like any other conflict.
+  Two units disagreeing internally is not a conflict.
 
-## Offer ADRs sparingly
+### ADRs
 
-Offer to record an ADR in `docs/adr/` only when all three hold:
-1. **Hard to reverse.**
-2. **Surprising without context.**
-3. **The result of a real trade-off.**
+Offer to record an ADR in `docs/adr/` only for a decision that is all three:
 
-Format: `docs/adr/NNNN-slug.md`, sequential numbering, 1–3 sentences
-(context, decision, why). That's enough; skip ceremony.
+1. hard to reverse;
+2. surprising without context;
+3. the result of a real trade-off.
 
-## Probe the architecture
+Format: `docs/adr/NNNN-slug.md`, numbered in sequence, one to three sentences
+(context, decision, why).
 
-Before a requirement is settled, dispatch a subagent to read the architecture
-ledger (`doc_sad`) and answer three questions. It returns the answers with
-`file:line` citations — not the document.
+## Red flags
 
-1. **Does an existing software item already own this behavior?** Then this is
-   an amendment to that item's LLRs, not a new item.
-2. **Does the requirement as worded force a structure the SAD forbids?**
-   Segregation boundaries are the most common conflict.
-3. **Does satisfying it need a new software item, or new SOUP?**
-
-On a contradiction, say so and hand off to `design-architecture`. **Never edit
-the SAD from this skill** — the REQ/LLR split is what keeps design decisions
-inside the skill that has the segregation and SOUP discipline. ADRs stay on
-the three-part test above.
-
-## Class awareness
-
-Read `safety_class` from `.guardrails/config.yaml`. For Class B and C, push
-harder on failure behavior: for every capability ask "what must happen when
-this fails?" — those answers become requirements too. For Class C, also grill
-the boundaries between software items (they are inputs to
-`design-architecture`).
+| Thought | Reality |
+|---|---|
+| "I'll ask the three open questions in one message" | One question per message. |
+| "The user will want X, I'll write it down" | A decision is the user's. Put it to them and wait. |
+| "I'll read the ledger myself to check for overlap" | Dispatch the probe. The ledger stays out of this context. |
+| "The old requirement is wrong, I'll delete it" | Supersede it: both annotations, both IDs on the one test. |
+| "The SAD needs a small fix, I'll edit it here" | Hand off to `design-architecture`. |
+| "The parent need is obvious, I'll name one" | No parent: `satisfies: derived`, then `analyze-risks`. |
 
 ## Done when
 
-- The user confirms shared understanding (ask explicitly).
-- Every overlap, ambiguity or contradiction the probes surfaced is
-  resolved with the user — superseded items annotated both ways and their
-  test annotated with both IDs, SAD contradictions handed to
-  `design-architecture`. An unresolved overlap means the interview is not
-  done.
-- Every new/changed REQ is a draft-ID item in the SRS, testable as written.
-- Glossary updated; ADRs recorded where warranted.
-- Hand off: risks → `analyze-risks`; design → `design-architecture`;
-  implementation planning → `plan-change`; integration → `merge-change`.
+- The user confirms shared understanding. Ask explicitly.
+- Every overlap, ambiguity or contradiction the probes found is resolved with
+  the user: superseded items annotated both ways and their test annotated with
+  both IDs, SAD contradictions handed to `design-architecture`. An unresolved
+  overlap means the interview is not done.
+- Every new or changed REQ is in the SRS with an ID from `new-id.sh`, testable
+  as written.
+- The glossary is updated, and ADRs are recorded where the three-part test is
+  met.
+- Hand off: risks to `analyze-risks`; design to `design-architecture`;
+  implementation planning to `plan-change`; integration to `merge-change`.
+
+## References
+
+- `references/supersession.md` — read when a new item supersedes or retires an
+  existing one, or before proposing to change the supersession rules.
+- `references/rationale.md` — read when a rule here seems wrong for your case,
+  or before proposing to change one.

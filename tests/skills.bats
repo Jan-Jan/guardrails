@@ -14,9 +14,7 @@
 gr_writing_table() {
     # The forms are narrowed by hand against this tree until every correct
     # English use stops matching, and that judgment cannot be derived from the
-    # replace list. The bare `hold` is in: its one correct use in this tree is
-    # the idiom `when all three hold`, which the exemption list drops by its
-    # full phrasing.
+    # replace list. The bare `hold` is in.
     #
     # The bare `say` is out, and it is the one form deliberately left
     # unscanned. The scan matches whole words, so `grep -Eiw say` also matches
@@ -76,7 +74,6 @@ tests/skills.bats|refusing to update checked out branch
 tests/skills.bats|refusing to fetch into branch
 *|says so
 *|said so
-*|when all three hold
 EXEMPT
 }
 
@@ -201,7 +198,7 @@ gr_writing_scan() {
     # commit contained an AGENTS.md and a docs/problems/README.md contradicting
     # each other about a required field.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
-    grep -q 'prose carriers' "$skill"
+    grep -q 'Update the files that document the grammar with the scripts' "$skill"
     grep -q 'Re-copy the four ledger READMEs' "$skill"
 }
 
@@ -474,8 +471,8 @@ gr_writing_scan() {
     # rule that it must not repeat is worth keeping — but its first
     # justification was false. Two findings rounds that both use the
     # natural `fix` cannot collide at creation: a task worktree and its branch
-    # are removed with their dispatch (`worktree-discipline`, "Inside the
-    # worktree"), so round 1's `-fix` branch is gone before round 2 dispatches.
+    # are removed with their dispatch (`worktree-discipline`, step 8), so
+    # round 1's `-fix` branch is gone before round 2 dispatches.
     # That is the same property step 6a rests on when it keeps the review tag
     # fixed, so the two rationales cannot both stand. The rule remains as
     # insurance against a cleanup that was missed, and the removal it insures
@@ -533,7 +530,7 @@ gr_writing_scan() {
     # its own harness pins.
     skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
     grep -q 'Where a harness isolates a dispatched subagent' "$skill"
-    grep -q 'one harness, measured once' "$skill"
+    grep -q 'measured once, on one harness' "$skill"
     grep -q 'does not pin its subagents' "$skill"
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
@@ -660,7 +657,7 @@ gr_writing_scan() {
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -qx '   \.worktrees/' "$skill"
     grep -qx '   \.claude/worktrees/' "$skill"
-    grep -q 'Both worktree entries earn their place' "$skill"
+    grep -q 'Add both worktree entries even where the project has only ever used' "$skill"
     grep -q 'every task worktree, which is nested inside the change worktree' "$skill"
 }
 
@@ -686,6 +683,17 @@ gr_writing_scan() {
     # passes on whatever it found. (As the final command its status does become
     # the test's — but that is a property of its position, not an assertion.)
     run grep -q 'a dispatch without one taking a tag instead' "$agents"
+    [ "$status" -ne 0 ]
+}
+
+@test "AGENTS.md: non-negotiable 5 states the rule and points to its ADR" {
+    # verifies: D10 (docs/plans/2026-09-28-agent-first-skills.md)
+    agents="$BATS_TEST_DIRNAME/../AGENTS.md"
+    adr="$BATS_TEST_DIRNAME/../docs/adr/2026-10-04-local-main-is-the-base.md"
+    grep -q 'Never consult `origin`' "$agents"
+    grep -q 'docs/adr/2026-10-04-local-main-is-the-base.md' "$agents"
+    grep -q 'GR_ID_ANY' "$adr"
+    run grep -q 'GR_ID_ANY' "$agents"
     [ "$status" -ne 0 ]
 }
 
@@ -746,7 +754,7 @@ gr_writing_scan() {
     # Without the ordering, adoption on a large repo reads as all-or-nothing
     # and the honest first tooth (manifest + disclaimers, no edges) is missed.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
-    grep -q 'a tooth ordering, not a package' "$skill"
+    grep -q 'Adopt in order, one step at a time' "$skill"
     grep -q 'empty `depends_on:` is a freestanding guardrails project' "$skill"
 }
 
@@ -1197,8 +1205,8 @@ gr_writing_scan() {
     # exemption is a phrase. Pin the count, so adding one is an edit in two
     # places and shows up in the diff as a changed expectation.
     exempt_count=$(gr_writing_exemptions | grep -c '|')
-    if [ "$exempt_count" -ne 7 ]; then
-        printf 'the scan has %s exemptions, expected 7\n' "$exempt_count"
+    if [ "$exempt_count" -ne 6 ]; then
+        printf 'the scan has %s exemptions, expected 6\n' "$exempt_count"
         return 1
     fi
 
@@ -1276,9 +1284,10 @@ gr_writing_scan() {
     # belonged to no item at all until PR-dr7k7k was written for it.
     # A mutation script embeds a line of the script it mutates as a literal
     # `old = '''…'''` and asserts one match, so a change that edits a quoted
-    # line leaves a mutation that cannot apply. No gate catches it —
-    # portability.bats reads that directory only for `sed -i` spellings — so
-    # the obligation lives in the TDD loop or nowhere.
+    # line leaves a mutation that cannot apply. tests/mutations.bats reports
+    # such a mutation, but only when the full suite is run, after the edit is
+    # complete; the grep in the TDD loop finds the hit while the edit is in
+    # progress.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     grep -q 'mutations' "$skill"
     # Re-cutting is the prescribed answer, and re-cutting without re-proving is
@@ -1361,14 +1370,22 @@ gr_writing_scan() {
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'Every finding opens with its tag' "$skill"
     grep -qF '`code`, `requirement` or `record`' "$skill"
+    grep -qF '`high`, `medium` or `low`' "$skill"
 }
 
-@test "merge-change: a round with no code or requirement finding is the last" {
+@test "merge-change: a round with nothing above low severity is the last" {
     # verifies: PR-3s74u3
-    # 27 review rounds across three changes, the majority of the later ones
-    # correcting prose with prose. One clean round, not two.
+    # Ruling of 2026-10-04 (docs/plans/2026-09-29-agent-first-skills-change-2.md):
+    # rounds 16 to 21 of agent-first-scripts each raised one to four low
+    # findings, so a clean-round rule did not converge.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'is the last review' "$skill"
+    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
+    grep -q 'are all `low` is the last review' "$skill"
+    grep -qF '`high`' "$checklist"
+    grep -qF '`medium`' "$checklist"
+    grep -qF '`low`' "$checklist"
+    run grep -q 'A round raising no `code` and no `requirement` finding is the last' "$skill"
+    [ "$status" -ne 0 ]
 }
 
 @test "the skills and templates name the finalize date, not the merge date" {
@@ -1417,7 +1434,11 @@ gr_writing_scan() {
     # finding's value, and the template a reviewer copies showed an untagged
     # finding-1 — the one place the shape is demonstrated rather than described.
     template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    grep -q '^\*\*finding-1\*\*: <code | requirement | record>' "$template"
+    grep -q '^\*\*finding-1\*\*: <code | requirement>, <high | medium | low> —' "$template"
+    # A `record` finding states no severity, and the template shows that shape
+    # rather than a severity on every tag.
+    grep -q '^\*\*finding-2\*\*: record — ' "$template"
+    ! grep -q '^\*\*finding-[0-9]*\*\*: [^—]*record[^—]*, <high' "$template"
     # and the field grammar states what the tag is for
 
     # The boundary itself, and not only the tag. Three formulations of this rule
@@ -1552,18 +1573,6 @@ gr_writing_scan() {
 }
 
 # The skill shape (docs/plans/2026-09-28-agent-first-skills.md, D5 and D9).
-#
-# Skills not yet rewritten into the D9 section order. D3 change 3 empties
-# this list; a name stays on it only while that skill is out of order.
-gr_shape_exempt_skills() {
-    echo 'analyze-risks check-traceability design-architecture develop-change grill-requirements plan-change ratchet resolve-problem verify-before-merge worktree-discipline'
-}
-
-# Skills over the D5 ceiling. Each name is removed by the change that brings
-# that skill under 2,000 words; a name stays only while the skill is over.
-gr_ceiling_exempt_skills() {
-    echo 'check-traceability develop-change ratchet worktree-discipline'
-}
 
 # The `## ` headings of a SKILL.md outside fenced code, joined with `|`.
 gr_skill_headings() {
@@ -1583,17 +1592,62 @@ gr_skill_words() {
     wc -w < "$1" | tr -d ' '
 }
 
+# 0 when a SKILL.md is at most 2,000 words (D5).
+gr_skill_within_word_ceiling() {
+    [ "$(gr_skill_words "$1")" -le 2000 ]
+}
+
+# Prints one ` <skill>:[...]` failure per References problem in the skill
+# directory $1 (with a trailing slash), and nothing when there is none. A
+# reference file no SKILL.md names is never read; a named one that does not
+# exist is a dead instruction. A file is listed only by an entry line, one
+# opening with "- `references/"; a name on a continuation line or in prose
+# does not list it (review round 6, finding 35).
+gr_skill_reference_failures() {
+    local skill_dir="$1" skill_name names_in_section files_on_disk malformed_entries
+    skill_name=$(basename "$skill_dir")
+    names_in_section=$(
+        awk '/^## / { in_references = ($0 ~ /^## References[[:space:]]*$/) } in_references' \
+            "${skill_dir}SKILL.md" \
+            | grep -E '^- `references/' \
+            | sed -E 's/^- `(references\/[a-z0-9-]+\.md)`.*/\1/' | LC_ALL=C sort -u
+    ) || true
+    files_on_disk=$(
+        cd "$skill_dir" && find references -name '*.md' 2>/dev/null | LC_ALL=C sort
+    ) || true
+    if [ "$names_in_section" != "$files_on_disk" ]; then
+        printf ' %s' "$skill_name:[listed: $(echo $names_in_section)][present: $(echo $files_on_disk)]"
+    fi
+    # D9: the section is omitted when the skill has no reference file.
+    # A trailing space after the heading is still the heading.
+    if [ -z "$files_on_disk" ] && grep -qE '^## References[[:space:]]*$' "${skill_dir}SKILL.md"; then
+        printf ' %s' "$skill_name:[a References heading and no reference file]"
+    fi
+    # D9: each entry names the file and the condition for reading it.
+    # Every non-blank line after the heading is an entry or an indented
+    # continuation of one, so a prose line or a `* ` bullet is reported,
+    # not skipped.
+    malformed_entries=$(
+        awk '/^## / { in_references = ($0 ~ /^## References[[:space:]]*$/); next }
+             in_references && NF' "${skill_dir}SKILL.md" \
+            | awk '/^- `references\/[a-z0-9-]+\.md` — read when / { in_entry = 1; next }
+                   in_entry && /^[[:space:]]+[^[:space:]]/ { next }
+                   { in_entry = 0; print }'
+    ) || true
+    if [ -n "$malformed_entries" ]; then
+        printf ' %s' "$skill_name:[entry without a file and a read-when condition: $malformed_entries]"
+    fi
+}
+
 @test "skill shape: every SKILL.md has the D9 sections in order" {
     # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
     # A fixed order lets an agent find the step it needs without reading the
-    # whole file. Exempt skills are the ones D3 change 3 has not rewritten.
+    # whole file.
     cd "$BATS_TEST_DIRNAME/.." || return 1
     failures=""
     for skill_file in skills/*/SKILL.md; do
         skill_name=$(basename "$(dirname "$skill_file")")
-        case " $(gr_shape_exempt_skills) " in
-            (*" $skill_name "*) continue ;;
-        esac
         if ! gr_skill_has_d9_order "$skill_file"; then
             failures="$failures $skill_name:[$(gr_skill_headings "$skill_file")]"
         fi
@@ -1604,38 +1658,16 @@ gr_skill_words() {
     fi
 }
 
-@test "skill shape: every shape exemption names a skill still out of order" {
-    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
-    # An exemption that outlives its reason hides the next regression.
-    cd "$BATS_TEST_DIRNAME/.." || return 1
-    stale=""
-    for skill_name in $(gr_shape_exempt_skills); do
-        skill_file="skills/$skill_name/SKILL.md"
-        if [ ! -f "$skill_file" ]; then
-            stale="$stale $skill_name:missing"
-        elif gr_skill_has_d9_order "$skill_file"; then
-            stale="$stale $skill_name:in-order"
-        fi
-    done
-    if [ -n "$stale" ]; then
-        echo "remove from gr_shape_exempt_skills:$stale"
-        return 1
-    fi
-}
-
 @test "skill shape: every SKILL.md is at most 2,000 words" {
     # verifies: D5 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
     # A ceiling nobody checks is how the skills reached their size.
     cd "$BATS_TEST_DIRNAME/.." || return 1
     failures=""
     for skill_file in skills/*/SKILL.md; do
         skill_name=$(basename "$(dirname "$skill_file")")
-        case " $(gr_ceiling_exempt_skills) " in
-            (*" $skill_name "*) continue ;;
-        esac
-        word_count=$(gr_skill_words "$skill_file")
-        if [ "$word_count" -gt 2000 ]; then
-            failures="$failures $skill_name:$word_count"
+        if ! gr_skill_within_word_ceiling "$skill_file"; then
+            failures="$failures $skill_name:$(gr_skill_words "$skill_file")"
         fi
     done
     if [ -n "$failures" ]; then
@@ -1644,70 +1676,125 @@ gr_skill_words() {
     fi
 }
 
-@test "skill shape: every ceiling exemption names a skill still over it" {
-    # verifies: D5 (docs/plans/2026-09-28-agent-first-skills.md)
-    cd "$BATS_TEST_DIRNAME/.." || return 1
-    stale=""
-    for skill_name in $(gr_ceiling_exempt_skills); do
-        skill_file="skills/$skill_name/SKILL.md"
-        if [ ! -f "$skill_file" ]; then
-            stale="$stale $skill_name:missing"
-        elif [ "$(gr_skill_words "$skill_file")" -le 2000 ]; then
-            stale="$stale $skill_name:$(gr_skill_words "$skill_file")"
-        fi
-    done
-    if [ -n "$stale" ]; then
-        echo "remove from gr_ceiling_exempt_skills:$stale"
-        return 1
-    fi
-}
-
 @test "skill shape: the References section lists exactly the reference files" {
     # verifies: D6, D9 (docs/plans/2026-09-28-agent-first-skills.md)
-    # A reference file no SKILL.md names is never read; a named one that does
-    # not exist is a dead instruction. A file is listed only by an entry line,
-    # one opening with "- `references/"; a name on a continuation line or in
-    # prose does not list it (review round 6, finding 35).
+    # The check and its reasons are in gr_skill_reference_failures.
     cd "$BATS_TEST_DIRNAME/.." || return 1
     failures=""
     for skill_dir in skills/*/; do
-        skill_name=$(basename "$skill_dir")
-        names_in_section=$(
-            awk '/^## / { in_references = ($0 ~ /^## References[[:space:]]*$/) } in_references' \
-                "${skill_dir}SKILL.md" \
-                | grep -E '^- `references/' \
-                | sed -E 's/^- `(references\/[a-z0-9-]+\.md)`.*/\1/' | LC_ALL=C sort -u
-        ) || true
-        files_on_disk=$(
-            cd "$skill_dir" && find references -name '*.md' 2>/dev/null | LC_ALL=C sort
-        ) || true
-        if [ "$names_in_section" != "$files_on_disk" ]; then
-            failures="$failures $skill_name:[listed: $(echo $names_in_section)][present: $(echo $files_on_disk)]"
-        fi
-        # D9: the section is omitted when the skill has no reference file.
-        # A trailing space after the heading is still the heading.
-        if [ -z "$files_on_disk" ] && grep -qE '^## References[[:space:]]*$' "${skill_dir}SKILL.md"; then
-            failures="$failures $skill_name:[a References heading and no reference file]"
-        fi
-        # D9: each entry names the file and the condition for reading it.
-        # Every non-blank line after the heading is an entry or an indented
-        # continuation of one, so a prose line or a `* ` bullet is reported,
-        # not skipped.
-        malformed_entries=$(
-            awk '/^## / { in_references = ($0 ~ /^## References[[:space:]]*$/); next }
-                 in_references && NF' "${skill_dir}SKILL.md" \
-                | awk '/^- `references\/[a-z0-9-]+\.md` — read when / { in_entry = 1; next }
-                       in_entry && /^[[:space:]]+[^[:space:]]/ { next }
-                       { in_entry = 0; print }'
-        ) || true
-        if [ -n "$malformed_entries" ]; then
-            failures="$failures $skill_name:[entry without a file and a read-when condition: $malformed_entries]"
-        fi
+        failures="$failures$(gr_skill_reference_failures "$skill_dir")"
     done
     if [ -n "$failures" ]; then
         echo "References section and references/ disagree:$failures"
         return 1
     fi
+}
+
+# Fixture SKILL.md files for the shape predicates. The shipped skills are in
+# the D9 shape, so the tests above never see a rejection; these tests write a
+# fixture of each kind the predicates must reject, and two they must accept.
+
+# Writes $1/SKILL.md with frontmatter and one `## ` section per remaining
+# argument. Each section except References gets one line of body text; the
+# caller appends References entries, since a body line there is malformed.
+gr_write_skill_fixture() {
+    local skill_dir="$1" heading
+    shift
+    mkdir -p "$skill_dir"
+    {
+        printf -- '---\nname: fixture\ndescription: A fixture skill.\n---\n\n# Fixture\n'
+        for heading in "$@"; do
+            printf '\n## %s\n\n' "$heading"
+            if [ "$heading" != "References" ]; then
+                printf 'One line of text.\n'
+            fi
+        done
+    } > "$skill_dir/SKILL.md"
+}
+
+@test "skill shape fixture: sections out of order are rejected" {
+    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Steps Preconditions "Red flags" "Done when"
+    run gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    [ "$status" -ne 0 ]
+}
+
+@test "skill shape fixture: a missing Red flags section is rejected" {
+    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Preconditions Steps "Done when"
+    run gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    [ "$status" -ne 0 ]
+}
+
+@test "skill shape fixture: a References heading with no reference file is rejected" {
+    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
+    run gr_skill_reference_failures "$skill_dir"
+    [[ "$output" == *"fixture:[a References heading and no reference file]"* ]]
+}
+
+@test "skill shape fixture: a References entry that names a missing file is rejected" {
+    # verifies: D6, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
+    printf -- '- `references/missing.md` — read when the fixture asks for it.\n' \
+        >> "${skill_dir}SKILL.md"
+    run gr_skill_reference_failures "$skill_dir"
+    [[ "$output" == *"fixture:[listed: references/missing.md][present: ]"* ]]
+}
+
+@test "skill shape fixture: a References entry with no read-when condition is rejected" {
+    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
+    mkdir -p "${skill_dir}references"
+    printf 'Reference text.\n' > "${skill_dir}references/notes.md"
+    printf -- '- `references/notes.md`\n' >> "${skill_dir}SKILL.md"
+    run gr_skill_reference_failures "$skill_dir"
+    [[ "$output" == *"fixture:[entry without a file and a read-when condition: - \`references/notes.md\`]"* ]]
+}
+
+@test "skill shape fixture: a 2,001-word SKILL.md is rejected, and 2,000 words is accepted" {
+    # verifies: D5 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when"
+    padding_words=$((2000 - $(gr_skill_words "${skill_dir}SKILL.md")))
+    printf 'word %.0s' $(seq "$padding_words") >> "${skill_dir}SKILL.md"
+    [ "$(gr_skill_words "${skill_dir}SKILL.md")" -eq 2000 ]
+    gr_skill_within_word_ceiling "${skill_dir}SKILL.md"
+    printf 'word\n' >> "${skill_dir}SKILL.md"
+    [ "$(gr_skill_words "${skill_dir}SKILL.md")" -eq 2001 ]
+    run gr_skill_within_word_ceiling "${skill_dir}SKILL.md"
+    [ "$status" -ne 0 ]
+}
+
+@test "skill shape fixture: a SKILL.md with no References section is accepted" {
+    # verifies: D5, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when"
+    gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    gr_skill_within_word_ceiling "${skill_dir}SKILL.md"
+    run gr_skill_reference_failures "$skill_dir"
+    [ -z "$output" ]
+}
+
+@test "skill shape fixture: a SKILL.md with a well-formed References section is accepted" {
+    # verifies: D5, D6, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    skill_dir="$BATS_TEST_TMPDIR/fixture/"
+    gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
+    mkdir -p "${skill_dir}references"
+    printf 'Reference text.\n' > "${skill_dir}references/notes.md"
+    printf -- '- `references/notes.md` — read when the fixture asks for it,\n  and on a\n  continuation line.\n' \
+        >> "${skill_dir}SKILL.md"
+    gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    gr_skill_within_word_ceiling "${skill_dir}SKILL.md"
+    run gr_skill_reference_failures "$skill_dir"
+    [ -z "$output" ]
 }
 
 @test "merge-change: text the first rewrite lost is stated again" {

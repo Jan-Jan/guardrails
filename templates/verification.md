@@ -64,9 +64,15 @@ One block per finding the reviewer raised, in the toolkit item shape, each with
 its disposition. A review that raised nothing is legal, and `verdict:` above
 states that.
 
-**finding-1**: <code | requirement | record> — <what the reviewer found, in
-their terms>
-disposition: <what changed, and the test that reddens without it>
+**finding-1**: <code | requirement>, <high | medium | low> — <what the
+reviewer found, in their terms>
+disposition: <what changed, and the test that reddens without it; or, for a
+finding recorded as an open problem item (`merge-change` step 6a), that item's
+ID, `PR-…`>
+
+**finding-2**: record — <what the reviewer found in the record; a `record`
+finding states no severity>
+disposition: <what changed in the record>
 
 ## Gaps
 
@@ -98,10 +104,12 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   not a claim about the review.
 - A field with no value after it is an omission, not compliance.
 - A finding's value OPENS with its tag — `code`, `requirement` or `record`
-  (`merge-change` step 6a). check-review.sh never reads the value, so the tag
-  costs no field and adds no malformed case. It exists for the convergence rule
-  at `merge-change` step 6a: a round raising no `code` and no `requirement`
-  finding is the last REVIEW round. The tag does not shorten the sequence —
+  (`merge-change` step 6a). A `code` or `requirement` tag is followed by its
+  severity, `high`, `medium` or `low`; a `record` finding states none.
+  check-review.sh never reads the value, so the tag and the severity cost no
+  field and add no malformed case. They exist for the convergence rule at
+  `merge-change` step 6a: a round whose `code` and `requirement` findings are
+  all `low` is the last REVIEW round. The tag does not shorten the sequence —
   every finding reruns from step 1, whatever its tag — it decides only whether
   another reviewer is dispatched.
 - A finding is `**finding-N**:` at column one, N digits, and its `disposition:`

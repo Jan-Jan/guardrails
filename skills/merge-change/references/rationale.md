@@ -112,11 +112,20 @@ whose worktree is unusable reports on a suite it could not run.
 The tag exists for the convergence rule, which needs to know whether a round
 found a defect in the software or in the account of it.
 
-The rule stops at one clean round, not two. A second clean round buys one
-independent read of the first round's corrections at the cost of a full review
-dispatch, and the regress has no end: the verification record is the one
-artifact this process does not verify. The gates are cheap and run again every
-round; the review and its round-trip are the cost.
+The rule stops at one round with nothing above `low`, not two. A second such
+round buys one independent read of the first round's corrections at the cost
+of a full review dispatch, and the regress has no end: the verification record
+is the one artifact this process does not verify. The gates are cheap and run
+again every round; the review and its round-trip are the cost.
+
+The stop is at `low` severity rather than at a round with no `code` or
+`requirement` finding, because a fresh reviewer finds something in every
+round: a rule that waits for an empty round does not end. A `low` finding
+needs a rare state, or is reported correctly by the error beside it, or is a
+documentation gap over a correct tree, so recording it as an open problem item
+loses nothing a further round would have found. A mechanical fix costs less
+than the item, so it is made in the same round. The ruling of 2026-10-04,
+in `docs/plans/2026-09-29-agent-first-skills-change-2.md`, set this rule.
 
 Bounding what a `record` finding costs inside a round, dispositioning it in
 place without a rerun, would need a class of files no gate reads. There is
