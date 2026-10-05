@@ -74,12 +74,25 @@ gr_bats_files() {
     find tests -name .bats-core -prune -o -name '*.bats' -print | sort
 }
 
-names_of() { grep -h '^@test' "$@" 2>/dev/null | sed 's/^@test "//; s/" {$//' | sort; }
+# The name as bats reports it. bats strips the quotes and evaluates the
+# rest as a double-quoted string, so a backslash before \ " $ or ` is
+# removed and every other backslash is kept. A $name in a test name would
+# be expanded; no test here has one, and this does not handle it.
+# Reads the named files, or standard input when none are named; prints the
+# names sorted.
+# One source form is supported: `@test` at column one, one space, a name in
+# `"` or `'`, one space, `{` at the end of the line, no CR, and the body on
+# the lines that follow. A test in any other form is not read here, while
+# bats and the `^@test` count in _want can still include it; the run then
+# exits 2 at the identity check below.
+test_names() {
+    sed -n 's/^@test ["'\'']//p' "$@" | sed 's/["'\''] {$//; s/\\\([\\"$`]\)/\1/g' | sort
+}
 
-names_of $(gr_bats_files) > "$work/cur.txt"
+test_names $(gr_bats_files) > "$work/cur.txt"
 for f in $(git ls-tree -r --name-only "$base" tests/ | grep '\.bats$'); do
     git show "$base:$f"
-done | grep -h '^@test' | sed 's/^@test "//; s/" {$//' | sort > "$work/base.txt"
+done | test_names > "$work/base.txt"
 comm -23 "$work/cur.txt" "$work/base.txt" > "$work/new.txt"
 
 # check-signing.bats is excluded from the base run: it adds no tests here and
@@ -124,7 +137,7 @@ _emitted=$(grep -Ec '^(ok|not ok) ' "$work/run.txt" || true)
 # suffix on a name — silently books those tests as going red.
 sed -n 's/^ok [0-9][0-9]* //p; s/^not ok [0-9][0-9]* //p' "$work/run.txt" \
     | sed 's/ # skip.*$//' | sort > "$work/emitted.txt"
-grep -h '^@test' $_files | sed 's/^@test "//; s/" {$//' | sort > "$work/measured.txt"
+test_names $_files > "$work/measured.txt"
 if ! cmp -s "$work/emitted.txt" "$work/measured.txt"; then
     echo "evidence: the base run did not report the tests it was given" >&2
     comm -3 "$work/measured.txt" "$work/emitted.txt" | sed 's/^/  /' >&2
