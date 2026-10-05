@@ -123,11 +123,12 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    again.
 
 6a. **Independent review** (DO-178C independence: the verifier is not the
-   author). Dispatch a fresh subagent, or a human reviewer where team policy
-   requires one, with the diff, the SRS/RMF/SAD excerpts and the plan, and
-   **no implementation narrative and no chat history**. Name its
-   worktree in the prompt: `.worktrees/<change-branch>-review`, created with
-   `task-worktree.sh start review`.
+   author). Dispatch a fresh subagent (or a human reviewer where team policy
+   requires one) with the diff, the plan and
+   `.guardrails/scripts/find-items.sh show` of each ID the change claims or
+   amends, and **no implementation narrative and no chat history**.
+   Name its worktree in the prompt: `.worktrees/<change-branch>-review`,
+   created with `task-worktree.sh start review`.
 
    The reviewer answers:
    - Does the code satisfy each REQ/LLR the change claims to implement?
@@ -139,7 +140,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    **Hand the reviewer `references/review-checklist.md`**, every round: it
    defines the severities.
 
-   **The reviewer runs the suite itself** in its own worktree and reports the
+   **The reviewer runs the suite itself** in its worktree and reports the
    counts it saw. Only a documentation-only diff may use the step 6 gate
    summary instead; the record states the substitution.
 
@@ -148,9 +149,8 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    skill or a template misstates or omits what the tree does; `record` when
    the record, plan or ledger misstates correct work. A `code` or
    `requirement` tag is followed by a severity, `high`, `medium` or `low`:
-   `**finding-N**: code, medium — <text>`. The reviewer also returns a
-   one-line verdict. Copy findings verbatim; a reworded finding is the
-   author's.
+   `**finding-N**: code, medium — <text>`. The reviewer returns a one-line
+   verdict. Copy findings verbatim; a reworded finding is the author's.
 
    **Every finding still sends the sequence back to step 1, whatever its tag.**
    The tag decides only whether **another reviewer is dispatched**.
@@ -161,7 +161,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    are all `low` is the last review round.** Fix each low finding whose fix is
    mechanical, record each other one as an open problem item, and rerun from
    step 1 — but no further reviewer is dispatched, and the rerun ends at 6b.
-   The reviewer still reads the record and raises what is wrong with it.
+   The reviewer still reads the record and raises what is wrong.
 
    **Remove the review worktree, every round that created one**, when the
    report arrives:
@@ -172,7 +172,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
 
    - `remove` rejects a review branch with commits. Record each as a
      finding, then run `task-worktree.sh discard review`; never merge them.
-   - Not every round creates one: a human reviewer uses their own checkout.
+   - Not every round creates one: a human reviewer uses their checkout.
      `remove` fails on a tag that was never started, so skip it there.
    - Remove it here: a round that returns any finding at all goes back to
      step 1 whatever the findings were tagged.
@@ -181,7 +181,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
      record, then read the scratch, delete it, and run `remove` again.
 
    Dispatch each fix into `.worktrees/<change-branch>-<tag>`, merged onto the
-   change branch, never onto the base branch. Class A may skip this step, B
+   change branch, never the base branch. Class A may skip this step, B
    needs one reviewer, C a thorough review; for class C,
    consider two independent reviewers for critical items.
 

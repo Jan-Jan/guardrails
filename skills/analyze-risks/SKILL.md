@@ -13,6 +13,11 @@ description: ISO 14971 risk analysis interview - identify hazards, hazardous sit
   integrated with `merge-change`.
 - The risk management ledger is `doc_rmf` in `.guardrails/config.yaml`.
   Update it as the analysis proceeds, not at the end.
+- Find existing hazards and controls with
+  `.guardrails/scripts/find-items.sh list --kind HAZ --kind RC`, read each one
+  you need with `find-items.sh show ID`, and find what cites an item with
+  `find-items.sh refs ID`. Read the RMF whole only when these do not answer
+  the question.
 - New HAZ and RC items and new derived assessments go into this change's draft
   file, `docs/risk/DRAFT-<branch>-<slug>.md`. Amend an existing item in the
   dated file that defines it.
@@ -68,8 +73,9 @@ Write items in the grammar `check-trace.sh` parses:
 a requirement that exists because of a design decision, not a system need. For
 each one:
 
-1. Assess whether it introduces a new hazard, affects an existing hazardous
-   situation, or changes the effectiveness of a risk control.
+1. Read the item with `find-items.sh show ID`. Assess whether it introduces a
+   new hazard, affects an existing hazardous situation, or changes the
+   effectiveness of a risk control.
 2. Write the assessment in the RMF under "Derived requirements assessment".
    "No hazard impact because <reason>" is a valid assessment; no assessment is
    not.

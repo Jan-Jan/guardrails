@@ -9,8 +9,12 @@ description: Write a bite-sized, trace-aware implementation plan for a change in
 
 ## Preconditions
 
-- The REQs this change implements exist in the SRS. If not, run
+- The REQs this change implements exist in the SRS:
+  `.guardrails/scripts/find-items.sh show ID` prints each one, and exits 1
+  with `NOT-FOUND` for an ID that is not defined. If one is missing, run
   `grill-requirements` first.
+- Read each item the plan cites with `find-items.sh show ID`, not by reading
+  the ledger files whole.
 - A safety-relevant change has RMF coverage. If not, run `analyze-risks`
   first.
 - A structural change has SDD items. If not, run `design-architecture` first.
