@@ -33,7 +33,7 @@ description: Run and interpret the guardrails traceability checker - orphaned re
    `check-trace.sh` run ends with what it found and what it read:
 
    ```
-   checked: REQ 90, HAZ 4, RC 7, SDD 20, LLR 23, PR 63
+   checked: REQ 90, HAZ 4, RC 7, SDD 20, LLR 23, PR 63, ADR 5
    sources: srs 18, rmf 6, sad 4, soup 1, problems 35; strict 5, tests 3
    ```
 
@@ -68,7 +68,7 @@ description: Run and interpret the guardrails traceability checker - orphaned re
 
 5. **Write item bodies to the block rule.** An item block opens at its
    definition form and closes at the next markdown heading or the next bold
-   line that contains an ASCII colon. `**ADR-0007**:`, `**Decision 7**:`,
+   line that contains an ASCII colon. `**Step 7**:`, `**Decision 7**:`,
    `**LLR-overflow:**` and `**Rationale**:` all close a block, whether or not
    they are valid items. `**21 of 35 inverted, 14 not.**` contains no colon and
    closes nothing; a full-width colon (U+FF1A) is not an ASCII colon.

@@ -153,10 +153,12 @@ fi
 # announces is invisible to every gate while the run still exits 0 — the exact
 # false green this project exists to remove.
 #
-# Anchored to the DECLARED prefixes so that ordinary bold markdown and another
-# project's conventions (**ADR-abcdef**:) are left alone, and to column one so
-# that a definition form quoted in prose is treated the same way a well-formed
-# one in prose is: as prose.
+# Anchored to the DECLARED prefixes, so that ordinary bold markdown and a
+# prefix the project does not declare are left alone: **ADR-abcdef**: is
+# MALFORMED-ID in a project whose id_prefixes lists ADR, as the shipped config
+# does, and is not reported in one that does not. Anchored also to column one,
+# so that a definition form quoted in prose is treated the same way a
+# well-formed one in prose is: as prose.
 #
 # One scan, not two. git grep composes the two patterns on the LINE — every
 # line that opens a definition form, minus every line that opens a VALID one —

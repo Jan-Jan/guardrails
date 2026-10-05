@@ -132,6 +132,130 @@ load helpers
     done
 }
 
+# Lower the provider's class and cite one segregation entry in the consumer, so
+# the citation decides both INCOMPLETE-SEGREGATION and the class floor.
+segregate_pump_from_hal() {
+    sed -i.bak 's/^safety_class: B$/safety_class: A/' platform/hal/.guardrails/config.yaml
+    rm -f platform/hal/.guardrails/config.yaml.bak
+    printf 'segregated_from:\n  - platform/hal (%s)\n' "$1" >> apps/pump/.guardrails/config.yaml
+}
+
+@test "check-units: an ADR ID citation resolves to a file in the root docs/adr" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    mkdir -p docs/adr
+    printf '**ADR-k3n8p2**: the pump reads the HAL through a checked interface.\n' > docs/adr/ADR-k3n8p2-hal-boundary.md
+    segregate_pump_from_hal ADR-k3n8p2
+    commit_all adr-root
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"INCOMPLETE-SEGREGATION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-units: an ADR ID citation resolves to a file in the consumer unit's docs/adr" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    mkdir -p apps/pump/docs/adr
+    printf '**ADR-k3n8p2**: the pump reads the HAL through a checked interface.\n' > apps/pump/docs/adr/ADR-k3n8p2-hal-boundary.md
+    segregate_pump_from_hal ADR-k3n8p2
+    commit_all adr-unit
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"INCOMPLETE-SEGREGATION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-units: an ADR ID citation with no file at the root or in the consumer unit is INCOMPLETE-SEGREGATION" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    # a file in the provider unit is in neither place the consumer's citation reads
+    mkdir -p platform/hal/docs/adr
+    printf '**ADR-k3n8p2**: the pump reads the HAL through a checked interface.\n' > platform/hal/docs/adr/ADR-k3n8p2-hal-boundary.md
+    segregate_pump_from_hal ADR-k3n8p2
+    commit_all adr-missing
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"INCOMPLETE-SEGREGATION apps/pump: 'platform/hal (ADR-k3n8p2)' (no file docs/adr/ADR-k3n8p2-*.md at the repository root or in apps/pump/docs/adr/)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-units: an ADR citation with a malformed token is INCOMPLETE-SEGREGATION, even where a file matches" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    mkdir -p docs/adr
+    printf '**ADR-aaaaaa**: no digit.\n' > docs/adr/ADR-aaaaaa-no-digit.md
+    printf '**ADR-k3n8p2**: a valid file that a glob token would match.\n' > docs/adr/ADR-k3n8p2-valid.md
+    commit_all adr-malformed
+    for token in aaaaaa 'k3n8p*' K3N8P2 k3n8p2x; do
+        cp apps/pump/.guardrails/config.yaml pump-cfg.bak
+        cp platform/hal/.guardrails/config.yaml hal-cfg.bak
+        segregate_pump_from_hal "ADR-$token"
+        run sh .guardrails/scripts/check-units.sh
+        [ "$status" -eq 1 ] || { echo "token $token: $output"; false; }
+        [[ "$output" == *"INCOMPLETE-SEGREGATION apps/pump: 'platform/hal (ADR-$token)' (ADR-$token is not a valid ID"* ]] || { echo "token $token: $output"; false; }
+        mv pump-cfg.bak apps/pump/.guardrails/config.yaml
+        mv hal-cfg.bak platform/hal/.guardrails/config.yaml
+    done
+}
+
+@test "check-units: a sequential ADR ID citation is INCOMPLETE-SEGREGATION, even where its file exists" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    mkdir -p docs/adr
+    printf '**ADR-0007**: a sequential header.
+' > docs/adr/ADR-0007-x.md
+    segregate_pump_from_hal ADR-0007
+    commit_all adr-sequential
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-SEGREGATION apps/pump: 'platform/hal (ADR-0007)' (ADR-0007 is not a valid ID"* ]] || { echo "$output"; false; }
+}
+
+@test "check-units: an ADR ID citation whose file defines another ID is INCOMPLETE-SEGREGATION" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    mkdir -p docs/adr
+    printf '**ADR-m4q7r9**: another decision.
+' > docs/adr/ADR-k3n8p2-x.md
+    segregate_pump_from_hal ADR-k3n8p2
+    commit_all adr-other-id
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-SEGREGATION apps/pump: 'platform/hal (ADR-k3n8p2)' (read docs/adr/ADR-k3n8p2-x.md: the file does not define ADR-k3n8p2; its first line is not **ADR-k3n8p2**:)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-units: an ADR ID citation whose file is empty is INCOMPLETE-SEGREGATION" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    mkdir -p apps/pump/docs/adr
+    : > apps/pump/docs/adr/ADR-k3n8p2-x.md
+    segregate_pump_from_hal ADR-k3n8p2
+    commit_all adr-empty
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-SEGREGATION apps/pump: 'platform/hal (ADR-k3n8p2)' (read apps/pump/docs/adr/ADR-k3n8p2-x.md: the file does not define ADR-k3n8p2; its first line is not **ADR-k3n8p2**:)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-units: an ADR ID citation whose file defines the ID below line 1 is INCOMPLETE-SEGREGATION" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    mkdir -p docs/adr
+    printf '# HAL boundary\n\n**ADR-k3n8p2**: the pump reads the HAL through a checked interface.\n' > docs/adr/ADR-k3n8p2-x.md
+    segregate_pump_from_hal ADR-k3n8p2
+    commit_all adr-definition-on-line-3
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-SEGREGATION apps/pump: 'platform/hal (ADR-k3n8p2)' (read docs/adr/ADR-k3n8p2-x.md: the file does not define ADR-k3n8p2; its first line is not **ADR-k3n8p2**:)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-units: an alien citation's message names all three accepted forms" {
+    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    make_units_fixture
+    segregate_pump_from_hal 'see the wiki'
+    commit_all alien
+    run sh .guardrails/scripts/check-units.sh
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"(citation is none of (RC-…), (ADR-…) or (adr: path))"* ]] || { echo "$output"; false; }
+}
+
 @test "check-units: a segregation entry naming a non-dependency is INCOMPLETE-SEGREGATION" {
     make_units_fixture
     printf 'segregated_from:\n  - apps/pump (RC-h3d8f4)\n' >> platform/hal/.guardrails/config.yaml

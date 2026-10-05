@@ -64,7 +64,10 @@ file.
    In a multi-unit repository, declare a cross-unit dependency in the
    consumer's `depends_on:`. A dependency on a lower-class unit requires
    `segregated_from:` in the consumer's config, citing the control or ADR that
-   states the mechanism. `check-units.sh` rejects an uncited entry
+   states the mechanism as `(RC-…)`, `(ADR-<token>)` or `(adr: <path>)`.
+   For `(ADR-<token>)`, the ADR file must be in the root `docs/adr/` or the
+   consumer unit's `docs/adr/`; a file in the provider unit is rejected.
+   `check-units.sh` rejects an uncited entry
    (INCOMPLETE-SEGREGATION) and an uncovered class gap
    (MISCLASSED-DEPENDENCY).
 
@@ -79,7 +82,9 @@ file.
 7. **Write an ADR** in `docs/adr/` only for a decision that is hard to
    reverse, surprising without context, and a real trade-off: all three.
    Examples are technology lock-in, integration patterns, and a deliberate
-   deviation from the obvious path.
+   deviation from the obvious path. Mint its ID with
+   `.guardrails/scripts/new-id.sh ADR`, and write it in the form
+   `grill-requirements` states under "ADRs".
 
 ## Red flags
 

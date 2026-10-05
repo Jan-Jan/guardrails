@@ -1,4 +1,4 @@
-# ADR: local `main` is the base branch, and `origin` is out of scope
+**ADR-y8jmes**: Agents in this repository never fetch, never push, and never read `origin/<branch>` as the base; local `main` is the base branch.
 
 Date: 2026-10-04
 Status: accepted

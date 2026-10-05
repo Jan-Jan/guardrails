@@ -1,4 +1,4 @@
-# ADR: guardrails runs per declared unit, not per directory
+**ADR-dy4qcm**: Guardrails runs per declared unit: a multi-unit repository declares its units in `.guardrails/units.yaml`, and every tracked path is a unit's or explicitly disclaimed.
 
 Date: 2026-08-31
 Status: accepted

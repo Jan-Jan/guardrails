@@ -1,4 +1,4 @@
-# ADR: guardrails is IEC 62304 software safety class A
+**ADR-q54hjw**: Guardrails is IEC 62304 software safety class A, and the risk that a check script masks an error in a project that uses it is handled as tool qualification.
 
 Date: 2026-08-22
 Status: accepted

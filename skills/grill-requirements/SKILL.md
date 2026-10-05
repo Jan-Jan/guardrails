@@ -156,8 +156,20 @@ Offer to record an ADR in `docs/adr/` only for a decision that is all three:
 2. surprising without context;
 3. the result of a real trade-off.
 
-Format: `docs/adr/NNNN-slug.md`, numbered in sequence, one to three sentences
-(context, decision, why).
+Mint the ID with `.guardrails/scripts/new-id.sh ADR`. Write one decision
+per file, `docs/adr/ADR-<token>-<slug>.md`, opening with the item line
+`**ADR-<token>**: <the decision in one sentence>`, then one to three sentences
+(context, decision, why). Cite an ADR by its ID. `new-id.sh` exits 2 until
+`ADR` is in `id_prefixes`; add it there first. In an existing project, read
+"`ADR` is a declared prefix" in `ratchet`'s `references/upgrade-notes.md`
+before adding it: it states which findings the existing ADRs produce.
+
+Multi-unit: a decision that a unit cites by ID is in that unit's
+`docs/adr/`, which `check-trace.sh` reads for the unit. A decision that spans
+units is in the root `docs/adr/`. A unit's documents cite a root ADR by path,
+because `check-trace.sh` scoped to the unit does not read the root. A
+`segregated_from:` entry may cite it by ID, `(ADR-<token>)`, because
+`check-units.sh` resolves it.
 
 ## Red flags
 

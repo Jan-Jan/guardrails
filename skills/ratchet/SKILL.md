@@ -21,7 +21,7 @@ description: Bootstrap or retrofit a project for IEC 62304 / ISO 14971 developme
 
 Templates and scripts come from the guardrails repository this skill belongs
 to, two levels above this SKILL.md. Verify `<guardrails>/templates/` and
-`<guardrails>/scripts/` exist before proceeding.
+`<guardrails>/scripts/` exist.
 
 ### Step 1: Detect mode
 
@@ -53,7 +53,7 @@ directs:
 | What is outside compliance, and why? | `not_a_unit:` in the manifest; the why as a `#` comment beside the entry |
 | What is each unit's safety class? | `safety_class:` in that unit's config — the step 4 interview, repeated per unit |
 | What does each unit depend on? | `depends_on:` in the consumer unit's config — each edge triggers the dependency assessment (`grill-requirements`, "Declaring a dependency") |
-| Is any dependency segregated, and under which control? | `segregated_from:` in the consumer unit's config, citing the control or ADR — `check-units.sh` reports an uncited entry as INCOMPLETE-SEGREGATION |
+| Is any dependency segregated, and under which control? | `segregated_from:` in the consumer's config, cited as `(RC-…)`, `(adr: <path>)` or `(ADR-<token>)` (file in root or consumer `docs/adr/`); `check-units.sh`: uncited is INCOMPLETE-SEGREGATION |
 
 Do **not** ask whether the class floor applies, whether a unit may see
 another's internals, or which units run at merge.
@@ -195,7 +195,7 @@ Ask one question at a time; recommend an answer for each:
 2. If yes: could the resulting harm, after external risk controls outside the
    software are considered, be serious injury or death? If yes → **Class C**;
    non-serious injury → **Class B**.
-3. Record the rationale as an ADR in `docs/adr/`.
+3. Record the rationale as an ADR (`grill-requirements`, "ADRs").
 
 If the user is unsure, walk through intended use, foreseeable misuse and
 existing hardware safeguards first. Between two classes, the higher governs

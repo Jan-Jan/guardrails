@@ -144,7 +144,7 @@ has one definition, shared by every keyword.
 
 Annotations are read *within an item*. An item **opens** at its definition
 form and **closes** at the next markdown heading or the next **bold line
-containing a colon** — `**PR-a3k9z2**:`, `**ADR-0007**:`, `**Decision 7**:`,
+containing a colon** — `**PR-a3k9z2**:`, `**Step 7**:`, `**Decision 7**:`,
 `**LLR-overflow:**` and an ordinary label like `**Rationale**:` all end an
 item, whatever their prefix and whether or not they are items themselves.
 `**21 of 35 inverted, 14 not.**` contains no colon, so it ends nothing — and

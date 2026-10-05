@@ -174,8 +174,27 @@ EOF
     body_new_id=0
     body_task_worktree=0
 
+    # The fourth pin: how many sites paste the library's random-token grammar
+    # in directly. GR_ID_TOKEN is GR_ID_BODY without the sequential form, so a
+    # site that takes it is a direct grammar use, reviewed as GR_ID_BODY's are.
+    # check-units.sh: 1 since D4 (docs/plans/2026-10-04-adr-ids.md): the
+    # `(ADR-<token>)` segregation citation accepts a random token only.
+    # lib.sh: 1, the GR_ID_BODY definition that composes it.
+    token_check_ids=0
+    token_check_review=0
+    token_check_signing=0
+    token_check_units=1
+    token_find_items=0
+    token_check_trace=0
+    token_finalize_docs=0
+    token_finish_merge=0
+    token_lib=1
+    token_merge_preflight=0
+    token_new_id=0
+    token_task_worktree=0
+
     # The two shared definitions added 2026-08-22, pinned for the same reason
-    # the three above are. gr_def_re_loose states which lines OPEN in definition
+    # the four above are. gr_def_re_loose states which lines OPEN in definition
     # shape whatever their body, and GR_AWK_ITEM_BLOCK states where an item
     # block starts and ends. Five gates read the second one; a sixth opinion
     # about where an item ends is precisely the defect that change fixed.
@@ -265,13 +284,14 @@ EOF
         eval "want_calls=\$calls_$key"
         eval "want_forms=\$forms_$key"
         eval "want_body=\$body_$key"
+        eval "want_token=\$token_$key"
         eval "want_loose=\$loose_$key"
         eval "want_block=\$block_$key"
         eval "want_fm=\$fm_$key"
         eval "want_civil=\$civil_$key"
         [ -n "$want_calls" ] && [ -n "$want_forms" ] && [ -n "$want_body" ] \
             && [ -n "$want_loose" ] && [ -n "$want_block" ] && [ -n "$want_fm" ] \
-            && [ -n "$want_civil" ] \
+            && [ -n "$want_civil" ] && [ -n "$want_token" ] \
             || { echo "unpinned script (add it to this test): $f"; false; }
 
         got_calls=$(grep -c '\$(gr_def_re ' "$f" || true)
@@ -283,6 +303,12 @@ EOF
         got_body=$(grep -cE '\$\{?GR_ID_BODY\}?' "$f" || true)
         [ "$got_body" -eq "$want_body" ] || {
             echo "$f: $got_body GR_ID_BODY uses, pinned at $want_body"
+            false
+        }
+
+        got_token=$(grep -cE '\$\{?GR_ID_TOKEN\}?' "$f" || true)
+        [ "$got_token" -eq "$want_token" ] || {
+            echo "$f: $got_token GR_ID_TOKEN uses, pinned at $want_token"
             false
         }
 
@@ -324,6 +350,7 @@ EOF
     # defines.
     [ "$(grep -c '^gr_def_re() {' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c '^GR_ID_BODY=' scripts/lib.sh)" -eq 1 ]
+    [ "$(grep -c '^GR_ID_TOKEN=' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c '^gr_def_re_loose() {' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c "^GR_AWK_ITEM_BLOCK='" scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c "^GR_AWK_FRONT_MATTER='" scripts/lib.sh)" -eq 1 ]

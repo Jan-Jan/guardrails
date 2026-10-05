@@ -88,7 +88,11 @@ safety_class: TBD
 # ID prefixes managed by the check/finalize scripts.
 # LLR = low-level requirements (design data, live in the SAD).
 # PR  = problem reports (docs/problems/log.md).
-id_prefixes: REQ HAZ RC SDD LLR PR
+# ADR = architecture decision records (docs/adr/ADR-<token>-<slug>.md), minted
+#       with `new-id.sh ADR`. The ID checks apply to ADR as to every
+#       prefix. check-units.sh also resolves `(ADR-<token>)` in
+#       `segregated_from:` to the file whose first line defines that ID.
+id_prefixes: REQ HAZ RC SDD LLR PR ADR
 
 # Canonical document locations.
 doc_srs: docs/requirements

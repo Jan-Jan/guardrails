@@ -38,7 +38,7 @@ For the capability under analysis, walk the ISO 14971 chain in this order:
    class (`safety_class` in config). If a harm exceeds what the current class
    assumes (for example S3 in a Class B project), stop and report it: the
    classification must change, not only the RMF. Rerun the `ratchet`
-   safety-class interview and record an ADR.
+   safety-class interview and record an ADR (`grill-requirements`, "ADRs").
 5. **Evaluate** the severity and probability against the acceptability matrix
    in the RMF. Where the risk is unacceptable, controls are mandatory, chosen in
    ISO 14971 priority order: inherent safety by design, then protective

@@ -14,7 +14,14 @@
 #                              segregation (D5)
 #   INCOMPLETE-SEGREGATION   — a segregated_from: entry that names a
 #                              non-dependency, cites a control nobody defined,
-#                              an ADR file that is absent, or nothing at all
+#                              cites an ADR file path that is absent, cites
+#                              nothing at all, or cites (ADR-<token>) where
+#                              <token> is not a random token, where no
+#                              docs/adr/ADR-<token>-*.md exists at the
+#                              repository root or in the consumer unit, or
+#                              where no such file's first line is
+#                              **ADR-<token>**:. The accepted citations are
+#                              (RC-<id>), (ADR-<token>) and (adr: <path>).
 #   DISCLAIMED-DRAFT         — a draft token or DRAFT-named file under a
 #                              not_a_unit: path (risk assessment 3,
 #                              2026-09-03): draft work has no legitimate home
@@ -107,7 +114,7 @@ $(printf '%s\n' "$strays" | sed 's/^/  /')
     # own directory, only the near-miss name class, only manifest-shaped
     # content. All three narrowings are critical — see the assessment for
     # what each one leaves as accepted residual.
-    set +f          # the script's one glob: `set -f` above would leave it
+    set +f          # a glob: `set -f` above would leave it
                     # a literal `.guardrails/*` and the scan silently dead
     for f in .guardrails/*; do
         [ -f "$f" ] || continue
@@ -312,7 +319,7 @@ for c in $units; do
     for s in $seg; do
         s_path=${s%% (*}
         if [ "$s_path" = "$s" ]; then
-            echo "INCOMPLETE-SEGREGATION $c: '$s' (no parenthesised citation — name the RC or ADR that argues the segregation)"
+            echo "INCOMPLETE-SEGREGATION $c: '$s' (no parenthesised citation — name the RC or ADR that argues the segregation: (RC-…), (ADR-…) or (adr: path))"
             fail=1
             continue
         fi
@@ -346,6 +353,39 @@ for c in $units; do
                         fail=1
                     fi
                 fi ;;
+            (ADR-*)
+                # D4 accepts a random token only: the token is checked against
+                # GR_ID_TOKEN, which excludes the sequential form, before it is
+                # pasted into a glob: `ADR-*` would otherwise match any file.
+                # The glob needs `set +f`; the script runs under `set -f`.
+                s_adr_token=${s_cite#ADR-}
+                if ! printf '%s\n' "$s_adr_token" | grep -Eqx "($GR_ID_TOKEN)"; then
+                    echo "INCOMPLETE-SEGREGATION $c: '$s' ($s_cite is not a valid ID: the token after ADR- does not match the random-token grammar in lib.sh)"
+                    fail=1
+                    continue
+                fi
+                # A file resolves the citation only if its first line is the
+                # item line that defines the cited ID (D1), as an (RC-…)
+                # citation requires its definition line.
+                s_adr_found=0
+                s_adr_read=
+                set +f
+                for s_adr_file in "docs/adr/ADR-$s_adr_token-"*.md "$c/docs/adr/ADR-$s_adr_token-"*.md; do
+                    [ -f "$s_adr_file" ] || continue
+                    if sed -n 1p "$s_adr_file" | grep -q "^\*\*$s_cite\*\*:"; then
+                        s_adr_found=1
+                        break
+                    fi
+                    s_adr_read="$s_adr_read${s_adr_read:+ }$s_adr_file"
+                done
+                set -f
+                if [ "$s_adr_found" -eq 0 ] && [ -n "$s_adr_read" ]; then
+                    echo "INCOMPLETE-SEGREGATION $c: '$s' (read $s_adr_read: the file does not define $s_cite; its first line is not **$s_cite**:)"
+                    fail=1
+                elif [ "$s_adr_found" -eq 0 ]; then
+                    echo "INCOMPLETE-SEGREGATION $c: '$s' (no file docs/adr/$s_cite-*.md at the repository root or in $c/docs/adr/)"
+                    fail=1
+                fi ;;
             (adr:*)
                 s_adr=${s_cite#adr:}
                 s_adr=${s_adr# }
@@ -354,7 +394,7 @@ for c in $units; do
                     fail=1
                 } ;;
             (*)
-                echo "INCOMPLETE-SEGREGATION $c: '$s' (citation is neither (RC-…) nor (adr: path))"
+                echo "INCOMPLETE-SEGREGATION $c: '$s' (citation is none of (RC-…), (ADR-…) or (adr: path))"
                 fail=1 ;;
         esac
     done

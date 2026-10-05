@@ -25,7 +25,8 @@ because a typo and an extension cannot be told apart.
    errors are reported before any gate runs, so each fix reveals the next.
 5. Work through the sections below that report on the existing ledger:
    problem reports, derived assessments, supersession, `DANGLING-FILE` and
-   list-item annotations.
+   list-item annotations. Read "`ADR` is a declared prefix" before adding
+   `ADR` to `id_prefixes`.
 
 ## Exit 2: config and layout
 
@@ -121,6 +122,49 @@ toolkit accepts both forms, and nothing renumbers an SRS.
   definition form whose body is not a valid ID, including a legacy
   `**REQ-01**:`, too short to have matched `[0-9]{3,}`. Such an item was
   invisible to every gate under the old scripts too. Give it a real ID.
+
+## `ADR` is a declared prefix
+
+The shipped `config.yaml` lists `ADR` in `id_prefixes`. An ADR is now an item:
+its ID is minted with `.guardrails/scripts/new-id.sh ADR`, its file is
+`docs/adr/ADR-<token>-<slug>.md`, and the file opens with the item line
+`**ADR-<token>**: <the decision in one sentence>` (`grill-requirements`,
+"ADRs"). Existing ADR files need no rename. `new-id.sh ADR` exits 2 until
+`ADR` is in the project's `id_prefixes`. Before adding it, list the numbered
+ADR headers and references:
+
+```sh
+git grep -nE 'ADR-[0-9]+'
+```
+
+What adding `ADR` changes, measured against the shipped scripts:
+
+| Existing form | Report with `ADR` declared |
+|---|---|
+| A dated or numbered ADR file with a heading and no item line | Nothing; it is not an item |
+| A header `**ADR-0007**:` (three or more digits) | A valid ID; references to it resolve |
+| A header `**ADR-07**:` (fewer than three digits) | `MALFORMED-ID` from `check-ids.sh` |
+| A reference `ADR-0007` with no item line that defines it | `DANGLING-REF` from `check-trace.sh` |
+| A reference `ADR-07` | Nothing; the reference pattern does not match it |
+
+For each `DANGLING-REF`, add the item line to the ADR file the number names,
+which keeps the number as a valid ID, or mint a new ID and update each
+citation. Give a `MALFORMED-ID` header an ID from `new-id.sh ADR`. The
+`checked:` line of `check-trace.sh` gains an `ADR` field.
+
+In a multi-unit repository, a decision that a unit cites by ID is in that
+unit's `docs/adr/`, and the unit's config declares `ADR`. A root ADR is outside
+every unit's scope, so a unit that cites it by ID gets `DANGLING-REF`. A
+decision that spans units remains in the root `docs/adr/` and is cited by
+path. A `segregated_from:` entry may cite it by ID, `(ADR-<token>)`, because
+`check-units.sh` resolves it. Move each root ADR that one unit cites by ID into that unit.
+
+`DANGLING-REF` does not scan `docs/adr/`, so an undefined ADR ID cited only
+from another ADR is not reported. `check-ids.sh` and `check-trace.sh` do not
+compare an ADR file name with the ID its item line defines. `check-units.sh`
+compares them for a `segregated_from:` citation `(ADR-<token>)` only: the first
+line of `docs/adr/ADR-<token>-*.md`, at the root or in the consumer unit, must
+be `**ADR-<token>**:`, or it reports `INCOMPLETE-SEGREGATION`.
 
 ## The review record is checked
 

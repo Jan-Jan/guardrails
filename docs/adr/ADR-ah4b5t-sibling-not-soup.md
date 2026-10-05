@@ -1,4 +1,4 @@
-# ADR: a consumed sibling unit is a supplied component, not SOUP
+**ADR-ah4b5t**: A consumed sibling unit is a supplied component: the consumer declares `depends_on:` and traces only to the provider's exported REQ items.
 
 Date: 2026-08-31
 Status: accepted

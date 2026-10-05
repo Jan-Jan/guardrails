@@ -1,4 +1,4 @@
-# ADR: a provider meets its consumers' safety class, or the consumer records segregation
+**ADR-tr72dr**: A provider meets its consumers' safety class, or the consumer declares `segregated_from:` naming the risk control or ADR that argues segregation.
 
 Date: 2026-08-31
 Status: accepted

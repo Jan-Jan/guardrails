@@ -750,7 +750,9 @@ gr_def_re() {
 # no third possibility — which is what makes "loose minus strict" a total
 # classification of DEFINITION-SHAPED lines. It is not a classification of
 # header-shaped ones, and that distinction is the whole of the 2026-08-23
-# amendment: `**ADR-0007**:` is a header this pattern does not match.
+# amendment: where ADR is not declared, `**ADR-0007**:` is a header this
+# pattern does not match. Where it is declared, as in the shipped config, both
+# this pattern and gr_def_re match it, and it is a valid item.
 #
 # ONE consumer: the MALFORMED-ID scan in check-ids.sh, which spelled the
 # pattern out by hand until 2026-08-23. There such a line is a document defect

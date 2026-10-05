@@ -43,7 +43,7 @@ Guardrails is developed under the rules it ships, without exception.
 
    **This overrides `merge-change` step 1's fetch**, and it makes step 4's
    `DUPLICATE-ID` scan check a smaller set of IDs.
-   `docs/adr/2026-10-04-local-main-is-the-base.md` states that cost, why it is
+   `docs/adr/ADR-y8jmes-local-main-is-the-base.md` states that cost, why it is
    accepted in this repository, and why the override does not apply to a
    project with sequential IDs or a shared remote.
 
