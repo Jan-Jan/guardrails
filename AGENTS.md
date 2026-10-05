@@ -50,26 +50,10 @@ Guardrails is developed under the rules it ships, without exception.
    State it in the verification record: "base merged from local `main` at
    `<commit>`, per AGENTS.md non-negotiable 5".
 
-## Writing: prose, names and messages
-
-Write dry, technical prose. Say what something is. This applies to everything
-written: messages to the user, documentation, strings in code, identifiers,
-and commit messages.
-
-- No metaphor, no anthropomorphism, no wordplay, no balanced contrast. A file
-  exists in a directory; it does not sit there. A gate rejects a commit; it
-  does not refuse one.
-- Active voice. Cut filler. Do not editorialize.
-- Replace these words: carries -> contains, lands -> is merged, survives ->
-  remains, says -> states, holds -> contains, refuses -> rejects,
-  load-bearing -> critical, ran -> was run, sits -> is in.
-- Do not match existing style when it disagrees with these rules.
-
-In code, additionally:
+## Code: names
 
 - No single-character names. No code golf.
-- Name in concrete terms, and do not use the past participle: write
-  `write_timestamp`, not `written_at`.
+- Name in concrete terms.
 
 ## Rules
 

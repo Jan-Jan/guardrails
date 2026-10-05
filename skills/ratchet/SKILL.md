@@ -162,9 +162,9 @@ Never overwrite. Sequence:
    layout and command; CI config; signing of recent commits
    (`git log -20 --format='%h %G? %s'`); the `.guardrails/` version if
    re-ratcheting.
-   - A managed block with no `## Writing: prose, names and messages` section
-     is a gap that no check reports. Record it in the gap analysis; the first
-     tooth's block merge replaces it.
+   - A managed block with no `## Code: names` section is a gap that no check
+     reports. Record it in the gap analysis; the first tooth's block merge
+     replaces it.
 2. **Write the gap analysis** to `docs/plans/<YYYY-MM-DD>-ratchet-gap-analysis.md`:
    what exists, what is missing, what conflicts, and a proposed adoption order.
 3. **First tooth** (this change only): install `.guardrails/` (config and

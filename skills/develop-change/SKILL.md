@@ -175,7 +175,7 @@ When the last task branch is merged and the suite is green, dispatch **one**
 subagent over the whole change diff before handing off:
 
 ```
-Review main...<change-branch> under the writing and naming rules in AGENTS.md.
+Review main...<change-branch> under the code rules in AGENTS.md.
 Work in the change worktree at <path>, on <change-branch>. Do NOT create a task
 worktree — this pass fixes on the change branch directly.
 Report and fix, on <change-branch>: slop, unclear names, duplication between

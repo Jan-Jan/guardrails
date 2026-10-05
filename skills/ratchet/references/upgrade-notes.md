@@ -293,14 +293,17 @@ no existing file. Links left dangling by earlier merges go red at the first
 run; fix each by writing the merged file's dated name. Plans and verification
 records are neither rewritten nor scanned.
 
-## Writing rules in the managed block
+## Prose rules removed from the managed block
 
-The managed block contains a section, `## Writing: prose, names and messages`:
-a list of words to replace, no metaphor, no anthropomorphism, active voice,
-and the instruction not to match existing style where it disagrees. No check
-script reads it and none is planned, so nothing goes red. A project that
-upgrades the scripts and skips the block refresh never receives the rules.
-Existing prose is not swept; the rules apply to what is written next.
+The managed block no longer contains the prose rules: the word list, the
+rules on metaphor, anthropomorphism and voice, and the instruction not to
+match existing style. The code rules remain, as the section `## Code: names`:
+no single-character names, no code golf, name in concrete terms. The naming
+rule against the past participle (`write_timestamp`, not `written_at`) is
+removed with the prose rules. No check script reads either section, so
+nothing goes red. A project that wants the prose rules keeps them in
+AGENTS.md outside the managed markers, because a block refresh replaces
+everything between them.
 
 ## Why the prose files are refreshed with the scripts
 
