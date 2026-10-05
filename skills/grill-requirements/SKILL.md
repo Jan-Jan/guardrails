@@ -42,12 +42,15 @@ Run both probes before a requirement is settled. Each is a subagent dispatch
 (a `Task` or `Agent` tool, an `/agent` command, whatever your harness offers).
 The ledgers must not enter this conversation's context.
 
-- **Overlap.** The subagent searches the requirements ledger for items that
-  already cover the behavior, and returns IDs, one-line summaries and
-  `file:line`, nothing else. Put every overlap, ambiguity or contradiction to
+- **Overlap.** The subagent finds the items that already cover the behavior
+  with `.guardrails/scripts/find-items.sh list --kind REQ`, then
+  `find-items.sh show ID` for each candidate, and does not read ledger files
+  whole. It returns IDs, one-line summaries and `file:line`, nothing else. Put every overlap, ambiguity or contradiction to
   the user and resolve it with them before you write the new item.
-- **Architecture.** The subagent reads `doc_sad` and answers three questions,
-  with `file:line` citations and not the document:
+- **Architecture.** The subagent finds the items in `doc_sad` with
+  `.guardrails/scripts/find-items.sh list --kind SDD --kind LLR`, reads each
+  candidate with `find-items.sh show ID`, and answers three questions, with
+  `file:line` citations and not the document:
   1. Does an existing software item already own this behavior? Then the
      change amends that item's LLRs and adds no new item.
   2. Does the requirement as worded force a structure the SAD forbids?

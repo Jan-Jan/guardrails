@@ -19,7 +19,12 @@ Steps 1 to 4 are cited as `resolve-problem` §1 to §4.
 
 ### 1. Record before you touch anything
 
-Add the problem to this change's draft file in the problems ledger,
+Check first that the problem is not already recorded:
+`.guardrails/scripts/find-items.sh list --kind PR --status open` lists the
+open problem reports, and `find-items.sh show ID` prints one. If an open item
+describes this problem, work under its ID and do not record a second one.
+
+Otherwise, add the problem to this change's draft file in the problems ledger,
 `docs/problems/DRAFT-<branch>-<slug>.md` (directory from `doc_problems` in
 `.guardrails/config.yaml`).
 

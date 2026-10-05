@@ -98,7 +98,8 @@ EOF
     # pass a message-only assertion while proving nothing.
     #
     # Covered: check-ids.sh, check-trace.sh, check-review.sh, finalize-docs.sh,
-    # new-id.sh. check-signing.sh calls no awk and is deliberately absent.
+    # new-id.sh, find-items.sh. check-signing.sh calls no awk and is not
+    # listed.
     # finish-merge.sh DOES call awk and is absent for a different reason: every
     # script here is asserted at exit 0, and finish-merge.sh has nothing to
     # verify on this tree, so it would reject the run — correctly, and the
@@ -154,11 +155,12 @@ check-trace.sh|
 check-review.sh|
 finalize-docs.sh|--dry-run
 new-id.sh|PR
+find-items.sh|list
 EOF
     # A loop over an empty list passes every assertion inside it. State how many
     # scripts were actually run, so a mangled here-document is a failure and
     # not a clean sweep of nothing.
-    [ "$swept" -eq 5 ] || { echo "swept $swept scripts, expected 5"; false; }
+    [ "$swept" -eq 6 ] || { echo "swept $swept scripts, expected 6"; false; }
 }
 
 # --- PR-yd2sft --------------------------------------------------------------

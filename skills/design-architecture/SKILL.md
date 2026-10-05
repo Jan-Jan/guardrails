@@ -23,9 +23,13 @@ description: Create or evolve the IEC 62304 software architecture - SDD items tr
 item in the dated file that defines it. Keep `soup.md` a single inventory
 file.
 
-1. **Read first:** the SRS (which REQs does this design serve?), the RMF
-   (which controls constrain it?), `CONTEXT.md` (use the project's language),
-   and the existing SAD.
+1. **Read first:** the REQs this design serves, the controls (RC) that
+   constrain it, `CONTEXT.md` (use the project's language), and the existing
+   SAD items (SDD, LLR). Find items with
+   `.guardrails/scripts/find-items.sh list --kind <PREFIX>`, read each one you
+   need with `find-items.sh show ID`, and find where an item is already used
+   with `find-items.sh refs ID`. Read a ledger file whole only when these do
+   not answer the question.
 2. **Decompose into software items.** Each item is one responsibility with a
    defined interface. Item grammar, checked by `check-trace.sh`:
 

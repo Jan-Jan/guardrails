@@ -89,6 +89,14 @@ In code, additionally:
 ## Check scripts (run from repo root)
 
 - `.guardrails/scripts/new-id.sh PREFIX [COUNT]` — mint item IDs
+- `.guardrails/scripts/find-items.sh list [--kind PREFIX]... [--status open|accepted|resolved] | show ID | refs ID`
+  — find an item without reading a ledger file: `list` prints one line per
+  item (ID, status, `file:line`, the rest of the definition line), and a
+  repeated `--kind` keeps the items of each prefix it names; `show` prints
+  the block of each definition of an ID, `refs` prints every line in the
+  working tree that names an ID as a whole word, except its definition lines.
+  Read a ledger file whole only when this does not answer the question. It
+  checks nothing: exit 1 states only that `show` found no definition
 - `.guardrails/scripts/check-ids.sh [--allow-draft-files]` — draft, duplicate and
   malformed IDs
 - `.guardrails/scripts/check-trace.sh` — traceability gates
