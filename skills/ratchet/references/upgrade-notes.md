@@ -3,12 +3,13 @@
 Read this when `ratchet` updates `.guardrails/scripts/` in a project that
 already has them, before the new scripts are copied in.
 
-Each section below is a change in what the scripts accept. Most are shapes the
-older scripts passed while a gate read less than it was configured to. None is
-a new requirement, and there is **no compatibility flag**: an opt-out would be
-a supported way to keep a false green. The one exception is an unrecognised
-key: a project-local annotation was harmless before and is now rejected,
-because a typo and an extension cannot be told apart.
+Each section below is a change in what the scripts accept, or in how the
+skills use them. Most are shapes the older scripts passed while a gate read
+less than it was configured to. None is a new requirement, and there is
+**no compatibility flag**: an opt-out would be a supported way to keep a false
+green. The one exception is an unrecognised key: a project-local annotation
+was harmless before and is now rejected, because a typo and an extension
+cannot be told apart.
 
 ## Order of work
 
@@ -348,6 +349,29 @@ removed with the prose rules. No check script reads either section, so
 nothing goes red. A project that wants the prose rules keeps them in
 AGENTS.md outside the managed markers, because a block refresh replaces
 everything between them.
+
+## The skills call `find-items.sh`
+
+`grill-requirements`, `design-architecture`, `analyze-risks`, `plan-change`,
+`resolve-problem` and `merge-change` read ledger items with
+`.guardrails/scripts/find-items.sh list`, `show` and `refs` instead of reading
+ledger files whole. By default `install.sh` links the skills into
+`~/.claude/skills`, so they change when guardrails is pulled, while a
+project's `.guardrails/scripts/` changes only when it is upgraded. In a
+project whose scripts predate `find-items.sh`, each of those calls exits
+127, and the path form prints `No such file or directory`. The upgrade's copy
+of `scripts/*.sh` adds the script, and the managed-block refresh adds the
+AGENTS.md line that names it. No gate reads it, so nothing goes red.
+
+`find-items.sh` runs the config check the gates run first, so it exits 2 on
+every shape in "Exit 2: the config schema's fatal rules" and on every row of
+"Exit 2: config and layout" that is about the config file. Of the rows about
+ledger paths, `list` and `show` exit 2 on a `doc_*` path that does not exist
+or contains no `*.md`, and `refs`, which reads no ledger file, does not. None
+of the three checks that a ledger file is committed. Under
+`.guardrails/units.yaml` a call with no `GR_CONFIG` exits 2, because there is
+no root config to read; set `GR_CONFIG` to the unit's config, as for the
+gates.
 
 ## Why the prose files are refreshed with the scripts
 
