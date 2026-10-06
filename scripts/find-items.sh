@@ -8,14 +8,18 @@
 # Finds items in the ledgers, so that an agent reads one item and not a whole
 # ledger file.
 #
-#   list  One line per item defined in the doc_* files of this config:
-#         ID, status, file:line of the definition, and the rest of the
-#         definition line. The status is the first column-one `status:` line in
-#         the item block, the line check-trace.sh reads, or `-` when the block
-#         has none. --kind keeps the items of one declared prefix; given
-#         more than once, it keeps the items of each prefix it names. --status
-#         keeps the items with that status, and is given at most once. An
-#         empty --kind or --status is a usage error.
+#   list  One line per item defined in the doc_* files of this config and,
+#         when id_prefixes declares ADR, in the ADR files: docs/adr/ADR-*.md
+#         at the repository root and, when GR_CONFIG names a unit, also
+#         <unit>/docs/adr/ADR-*.md, in that order. Each line gives the ID,
+#         status, file:line of the definition, and the rest of the definition
+#         line. The status is the first column-one `status:` line in the item
+#         block, the line check-trace.sh reads, or `-` when the block has
+#         none. An ADR's `Status:` line is not a `status:` line, so an ADR's
+#         status is `-` and --status keeps no ADR. --kind keeps the items of
+#         one declared prefix; given more than once, it keeps the items of
+#         each prefix it names. --status keeps the items with that status, and
+#         is given at most once. An empty --kind or --status is a usage error.
 #   show  The block of every definition of ID, each after a line
 #         `==> file:line`, with a blank line between two blocks. A block ends
 #         where the gates end it, by the shared GR_AWK_ITEM_BLOCK fragment in
@@ -149,6 +153,27 @@ for doc_key in doc_srs doc_rmf doc_sad doc_soup doc_problems; do
     [ -z "$key_files" ] || ledger_files="$ledger_files$key_files
 "
 done
+# add_adr_files DIRECTORY: appends the ADR-*.md files in DIRECTORY to
+# ledger_files. DIRECTORY is quoted, so a blank or a glob character in it is
+# literal. An unmatched pattern stays literal and a directory can match, so
+# each path is tested to be a regular file.
+add_adr_files() {
+    for adr_file in "$1"/ADR-*.md; do
+        [ -f "$adr_file" ] || continue
+        ledger_files="$ledger_files$adr_file
+"
+    done
+}
+# The ADR files are read only when id_prefixes declares ADR. No config key
+# names their directory, so the paths are fixed where check-units.sh resolves
+# an ADR citation: the root docs/adr/, then the unit's. GR_UNIT, set by
+# gr_unit_engage, is the unit's root-relative path, or empty without units.
+case "|$prefix_re|" in
+    (*'|ADR|'*)
+        add_adr_files docs/adr
+        [ -z "${GR_UNIT:-}" ] || add_adr_files "$GR_UNIT/docs/adr"
+        ;;
+esac
 # doc_soup is commonly a file inside the doc_sad directory, which gr_doc_files
 # resolves to its *.md files, so the same file can be listed twice. Read it
 # once, or every item in it is printed twice. The dedupe compares strings, so

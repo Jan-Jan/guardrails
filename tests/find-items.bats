@@ -476,3 +476,202 @@ status: open'
     [ "$output" = "SDD-001 - docs/architecture/soup.md:3 Dose limiter module." ] \
         || { echo "$output"; false; }
 }
+
+# declare_adr_prefix CONFIG: adds ADR to the id_prefixes line of CONFIG, which
+# the fixtures do not declare.
+declare_adr_prefix() {
+    sed -i.bak 's|^id_prefixes: REQ HAZ RC SDD LLR PR$|id_prefixes: REQ HAZ RC SDD LLR PR ADR|' "$1"
+    rm -f "$1.bak"
+    grep -qx 'id_prefixes: REQ HAZ RC SDD LLR PR ADR' "$1" || { cat "$1"; false; }
+}
+
+# run_find_items_stderr_to FILE ARGUMENT...: runs find-items.sh with ARGUMENTs
+# under bats `run`, with its standard error written to FILE and kept out of
+# $output. It needs no `run --separate-stderr`, which older bats lacks.
+run_find_items_stderr_to() {
+    stderr_file=$1
+    shift
+    run sh -c 'stderr_file=$1; shift; sh .guardrails/scripts/find-items.sh "$@" 2>"$stderr_file"' \
+        find-items "$stderr_file" "$@"
+}
+
+# write_adr_fixture: an ADR file in docs/adr, and a README there with an item
+# line that is not an ADR file.
+write_adr_fixture() {
+    declare_adr_prefix .guardrails/config.yaml
+    mkdir -p docs/adr
+    cat > docs/adr/ADR-x7k2m9-dose-limit-source.md <<'ADR'
+**ADR-x7k2m9**: The dose limit is read from the pump configuration.
+
+Date: 2026-01-02
+Status: accepted
+
+## Context
+
+The limit differs per pump model.
+ADR
+    printf '# Decisions\n\n**ADR-q3w8e4**: An item line outside an ADR file.\n' > docs/adr/README.md
+    commit_all adrs
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: list --kind ADR prints an ADR defined in docs/adr" {
+    write_adr_fixture
+    run sh .guardrails/scripts/find-items.sh list --kind ADR
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = "ADR-x7k2m9 - docs/adr/ADR-x7k2m9-dose-limit-source.md:1 The dose limit is read from the pump configuration." ] \
+        || { echo "$output"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: show prints an ADR block and ends it at the heading" {
+    write_adr_fixture
+    run sh .guardrails/scripts/find-items.sh show ADR-x7k2m9
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "==> docs/adr/ADR-x7k2m9-dose-limit-source.md:1" ] || { echo "$output"; false; }
+    [[ "$output" == *"Status: accepted"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"## Context"* ]] || { echo "$output"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: show does not read an item line in a docs/adr file that is not named ADR-*.md" {
+    write_adr_fixture
+    run sh .guardrails/scripts/find-items.sh show ADR-q3w8e4
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "NOT-FOUND ADR-q3w8e4" ] || { echo "$output"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: list in a multi-unit repository reads the root ADRs and those of the unit that GR_CONFIG names" {
+    make_units_fixture
+    declare_adr_prefix apps/pump/.guardrails/config.yaml
+    mkdir -p apps/pump/docs/adr platform/hal/docs/adr docs/adr
+    printf '**ADR-p8w3n5**: The pump reads its limit from its own config.\n' \
+        > apps/pump/docs/adr/ADR-p8w3n5-pump-limit.md
+    printf '**ADR-h7c4t6**: The HAL owns the flow-rate contract.\n' \
+        > platform/hal/docs/adr/ADR-h7c4t6-hal-contract.md
+    printf '**ADR-r9e5u2**: The repository has two units.\n' \
+        > docs/adr/ADR-r9e5u2-two-units.md
+    commit_all unit-adrs
+    unit_run find-items.sh apps/pump list --kind ADR
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    # The root docs/adr/ is read before the unit's, as check-units.sh tries
+    # them; the platform/hal ADR is another unit's and is not read.
+    expected='ADR-r9e5u2 - docs/adr/ADR-r9e5u2-two-units.md:1 The repository has two units.
+ADR-p8w3n5 - apps/pump/docs/adr/ADR-p8w3n5-pump-limit.md:1 The pump reads its limit from its own config.'
+    [ "$output" = "$expected" ] || { echo "$output"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: the ADR files are not read when id_prefixes does not declare ADR" {
+    mkdir -p docs/adr
+    printf '**REQ-002**: A requirement line inside an ADR file.\n' \
+        > docs/adr/ADR-p8w3n5-x.md
+    commit_all undeclared-adr
+    run sh .guardrails/scripts/find-items.sh list
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"REQ-002"* ]] || { echo "$output"; false; }
+    run sh .guardrails/scripts/find-items.sh show REQ-002
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "NOT-FOUND REQ-002" ] || { echo "$output"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: a directory whose name matches docs/adr/ADR-*.md is not read" {
+    write_adr_fixture
+    mkdir docs/adr/ADR-x7k2m9-dir.md
+    run_find_items_stderr_to "$BATS_TEST_TMPDIR/stderr" list --kind ADR
+    [ "$status" -eq 0 ] || { echo "$output"; cat "$BATS_TEST_TMPDIR/stderr"; false; }
+    [ "$output" = "ADR-x7k2m9 - docs/adr/ADR-x7k2m9-dose-limit-source.md:1 The dose limit is read from the pump configuration." ] \
+        || { echo "$output"; false; }
+    [ ! -s "$BATS_TEST_TMPDIR/stderr" ] || { cat "$BATS_TEST_TMPDIR/stderr"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: list with ADR declared and no docs/adr directory prints the other items and no error" {
+    # templates/config.yaml declares ADR, and a new project has no docs/adr.
+    declare_adr_prefix .guardrails/config.yaml
+    commit_all declare-adr
+    [ ! -e docs/adr ]
+    run_find_items_stderr_to "$BATS_TEST_TMPDIR/stderr" list
+    [ "$status" -eq 0 ] || { echo "$output"; cat "$BATS_TEST_TMPDIR/stderr"; false; }
+    expected='REQ-001 - docs/requirements/0001-01-01-base.md:3 The system shall limit the dose.
+REQ-a3k9z2 - docs/requirements/0001-01-01-base.md:5 The system shall log the dose.
+HAZ-001 - docs/risk/0001-01-01-base.md:3 Overdose delivered to patient.
+RC-001 - docs/risk/0001-01-01-base.md:5 Software limits dose to configured maximum. mitigates: HAZ-001
+PR-001 open docs/problems/0001-01-01-base.md:3 The dose display rounds down.
+PR-002 resolved docs/problems/0001-01-01-base.md:7 The log omits the unit.
+PR-003 accepted docs/problems/0001-01-01-base.md:14 The alarm is silent.
+PR-004 - docs/problems/0001-01-01-base.md:19 The unit label is truncated.'
+    [ "$output" = "$expected" ] || { echo "$output"; false; }
+    [ ! -s "$BATS_TEST_TMPDIR/stderr" ] || { cat "$BATS_TEST_TMPDIR/stderr"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: list in a multi-unit repository with ADR declared and no docs/adr directory prints the unit's items and no error" {
+    make_units_fixture
+    declare_adr_prefix apps/pump/.guardrails/config.yaml
+    commit_all declare-adr
+    [ ! -e docs/adr ] && [ ! -e apps/pump/docs/adr ]
+    GR_CONFIG=apps/pump/.guardrails/config.yaml \
+        run_find_items_stderr_to "$BATS_TEST_TMPDIR/stderr" list
+    [ "$status" -eq 0 ] || { echo "$output"; cat "$BATS_TEST_TMPDIR/stderr"; false; }
+    expected='REQ-p2m4k7 - apps/pump/docs/requirements/0001-01-01-base.md:3 The software shall limit the dose. (implements: RC-p4q7t3)
+HAZ-p3v8n2 - apps/pump/docs/risk/0001-01-01-base.md:3 Overdose delivered to patient.
+RC-p4q7t3 - apps/pump/docs/risk/0001-01-01-base.md:5 Software limits dose to configured maximum. mitigates: HAZ-p3v8n2
+SDD-p5w2x8 - apps/pump/docs/architecture/0001-01-01-base.md:3 Dose limiter module. traces: REQ-p2m4k7
+LLR-p6r3z9 - apps/pump/docs/architecture/0001-01-01-base.md:5 Clamp requested dose to the configured maximum. satisfies: REQ-p2m4k7'
+    [ "$output" = "$expected" ] || { echo "$output"; false; }
+    [ ! -s "$BATS_TEST_TMPDIR/stderr" ] || { cat "$BATS_TEST_TMPDIR/stderr"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: the ADR files are not read when id_prefixes declares a prefix that contains ADR but not ADR" {
+    sed -i.bak 's|^id_prefixes: REQ HAZ RC SDD LLR PR$|id_prefixes: REQ HAZ RC SDD LLR PR XADR|' .guardrails/config.yaml
+    rm -f .guardrails/config.yaml.bak
+    grep -qx 'id_prefixes: REQ HAZ RC SDD LLR PR XADR' .guardrails/config.yaml || { cat .guardrails/config.yaml; false; }
+    mkdir -p docs/adr
+    printf '**REQ-002**: A requirement line inside an ADR file.\n' \
+        > docs/adr/ADR-p8w3n5-x.md
+    commit_all xadr-prefix
+    run sh .guardrails/scripts/find-items.sh list --kind REQ
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"REQ-002"* ]] || { echo "$output"; false; }
+    run sh .guardrails/scripts/find-items.sh show REQ-002
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "NOT-FOUND REQ-002" ] || { echo "$output"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: the ADR files are not read when id_prefixes declares a prefix that begins with ADR but is not ADR" {
+    sed -i.bak 's|^id_prefixes: REQ HAZ RC SDD LLR PR$|id_prefixes: REQ HAZ RC SDD LLR PR ADRX|' .guardrails/config.yaml
+    rm -f .guardrails/config.yaml.bak
+    grep -qx 'id_prefixes: REQ HAZ RC SDD LLR PR ADRX' .guardrails/config.yaml || { cat .guardrails/config.yaml; false; }
+    mkdir -p docs/adr
+    printf '**REQ-002**: A requirement line inside an ADR file.\n' \
+        > docs/adr/ADR-p8w3n5-x.md
+    commit_all adrx-prefix
+    run sh .guardrails/scripts/find-items.sh list --kind REQ
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"REQ-002"* ]] || { echo "$output"; false; }
+    run sh .guardrails/scripts/find-items.sh show REQ-002
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "NOT-FOUND REQ-002" ] || { echo "$output"; false; }
+}
+
+# verifies: PR-ka8w9m
+@test "find-items: a docs/adr file named ADR-* that does not end in .md is not read" {
+    write_adr_fixture
+    printf '**ADR-x7k2m9**: An older copy of the decision.\n' \
+        > docs/adr/ADR-x7k2m9-old.md.orig
+    commit_all adr-orig
+    run sh .guardrails/scripts/find-items.sh list --kind ADR
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = "ADR-x7k2m9 - docs/adr/ADR-x7k2m9-dose-limit-source.md:1 The dose limit is read from the pump configuration." ] \
+        || { echo "$output"; false; }
+    run sh .guardrails/scripts/find-items.sh show ADR-x7k2m9
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "${lines[0]}" = "==> docs/adr/ADR-x7k2m9-dose-limit-source.md:1" ] || { echo "$output"; false; }
+    block_count=$(printf '%s\n' "$output" | grep -c '^==> ')
+    [ "$block_count" -eq 1 ] || { echo "$output"; false; }
+}
