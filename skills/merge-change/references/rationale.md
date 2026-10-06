@@ -235,15 +235,15 @@ can check them against the diff without a ledger to compare them to.
 A path from the caller is a chance to remove the wrong directory. A branch
 name identifies at most one registered worktree.
 
-## Step 8: `--strict`
+## Step 8: no re-verification
 
-Without `--strict`, step 8 would confirm nothing on exactly the machine where
-confirmation matters.
-
-Guard 1 made the same check under `--strict` moments earlier, in the compound.
-Step 8 therefore costs
-one re-read of a commit whose signature is known good, and it cannot report
-success where that guard would have rejected the commit.
+Step 8 used to re-run the signature check under `--strict` after the user
+reported success. Guard 1 makes that check moments earlier, in the
+compound, in the user's shell, so a pass added nothing. A failure was usually
+the agent's own environment: a sandbox with a read-only `~/.gnupg` makes gpg
+read a good signature as `N`. The agent takes the user's word, and acts only
+on a reported problem or a non-zero exit. Step 7 tells the user what success
+prints, so a rejection does not pass for success.
 
 ## Step 8: re-running the cleanup alone
 

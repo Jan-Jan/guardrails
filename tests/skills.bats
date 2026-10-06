@@ -483,6 +483,52 @@
     [ "$status" -ne 0 ]
 }
 
+@test "merge-change: step 8 reports without re-verifying the signature" {
+    # verifies: D1, D2, D3 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
+    # Guard 1 of finish-merge.sh verifies the signature under --strict in the
+    # user's shell before it removes anything. Step 8 re-ran the same check
+    # from the agent's shell, where a read-only ~/.gnupg reads a good
+    # signature as N. On success step 8 now reports from the message file;
+    # it investigates only a reported problem or a non-zero exit.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    step8=$(awk '/^8\. \*\*/ { inside = 1 } /^## / { inside = 0 } inside' "$skill")
+    [ -n "$step8" ]
+    printf '%s\n' "$step8" | grep -q 'closing line from the message file'
+    printf '%s\n' "$step8" | grep -q 'Run no git command: `finish-merge.sh` verified the signature'
+    printf '%s\n' "$step8" | grep -q 'branch, IDs, record'
+    printf '%s\n' "$step8" | grep -q 'the worktree alone when only the branch deletion'
+    printf '%s\n' "$step8" | grep -q 'If the user reports a problem or `finish-merge.sh` exited non-zero'
+    printf '%s\n' "$step8" | grep -q 'references/cleanup-rejections.md'
+    printf '%s\n' "$step8" | grep -q 're-run the script alone'
+    # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
+    # negated command.
+    run grep -q -e '%G?' -e 'check-signing' -e '`git ' <<< "$step8"
+    [ "$status" -ne 0 ]
+}
+
+@test "merge-change: step 7 tells the user what success looks like" {
+    # verifies: D4 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
+    # Step 8 no longer checks, so the user is the one who notices a guard's
+    # rejection. Step 7 names the success output, and that output is what
+    # finish-merge.sh prints at exit 0: three lines prefixed `finish-merge:`.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    script="$BATS_TEST_DIRNAME/../scripts/finish-merge.sh"
+    step7=$(awk '/^7\. \*\*/ { inside = 1 } /^8\. \*\*/ { inside = 0 } inside' "$skill")
+    [ -n "$step7" ]
+    printf '%s\n' "$step7" | tr '\n' ' ' | grep -q 'Success ends with three *`finish-merge:` lines'
+    printf '%s\n' "$step7" | tr '\n' ' ' | grep -q 'otherwise, they paste the output'
+    [ "$(grep -c '^echo "finish-merge: ' "$script")" -eq 3 ]
+}
+
+@test "merge-change: Done when names finish-merge.sh as the verifier" {
+    # verifies: D5 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    done_when=$(awk '/^## Done when/ { inside = 1; next } /^## / { inside = 0 } inside' "$skill")
+    printf '%s\n' "$done_when" | grep -q 'verified by `finish-merge.sh`'
+    run grep -q 'check-signing' <<< "$done_when"
+    [ "$status" -ne 0 ]
+}
+
 @test "verify-before-merge: the fix dispatch names the nested task worktree path" {
     # verifies: PR-n57ayn
     # Three skills dispatch a fix into a task worktree of its own, and this is
@@ -1420,7 +1466,7 @@ gr_write_skill_fixture() {
     grep -q 'No script parses the message' "$rationale"
     grep -q 'starts a blocking wait on the user' "$rationale"
     grep -q 'a chance to remove the wrong directory' "$rationale"
-    grep -q 'one re-read of a commit whose signature is known good' "$rationale"
+    grep -q 'so a pass added nothing' "$rationale"
     grep -q 'only the cleanup is outstanding' "$rationale"
     # Finding 23 of review round 4: the step 1 paragraph stated that two
     # branches cannot collide by construction.

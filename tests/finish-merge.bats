@@ -249,6 +249,9 @@ STUB
     make_squashed_change
     run sh .guardrails/scripts/finish-merge.sh my-change
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    # merge-change step 7 tells the user that success ends with these lines.
+    [ "$(printf '%s\n' "$output" | tail -n 3 | grep -c '^finish-merge: ')" -eq 3 ] \
+        || { echo "$output"; false; }
     [ ! -d "$BATS_TEST_TMPDIR/wt" ] || { echo "worktree still on disk"; false; }
     ! branch_exists my-change || { echo "branch still exists"; false; }
 }

@@ -252,7 +252,8 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    ```
 
    **Never run `git commit -S` yourself.** Signing may need the user's
-   hardware-key touch; tell them so.
+   hardware-key touch; tell them so. Success ends with three
+   `finish-merge:` lines; otherwise, they paste the output.
    `finish-merge.sh` proves four things before it removes anything. Pass it
    the branch name, never a path. If the harness created the worktree,
    leave or remove it with the harness tool.
@@ -261,19 +262,14 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
 
    If signing fails because no key is configured, **stop** and point to the
    ratchet setup checklist. There is no unsigned fallback.
-8. **Confirm, then report.** On the user's word that the command succeeded,
-   confirm it:
-
-   ```sh
-   git log -1 --format='%h %G? %s'
-   .guardrails/scripts/check-signing.sh --strict   # verifies the new HEAD
-   ```
-
-   Report the squash commit, the IDs it implements and the record it cites.
-   Recommend compacting before the next change; if the harness offers a
+8. **Report.** On the user's word of success, write one
+   closing line from the message file: branch, IDs, record.
+   Run no git command: `finish-merge.sh` verified the signature.
+   Recommend compacting before the next change; if the harness has a
    compaction step, such as `/compact`, name it so the user can run it.
 
-   If `finish-merge.sh` exited non-zero, read `references/cleanup-rejections.md`.
+   If the user reports a problem or `finish-merge.sh` exited non-zero, read
+   `references/cleanup-rejections.md`.
    The signed commit is on the base branch either way. The message states what
    was removed: nothing, or the worktree alone when only the branch deletion
    failed. Fix the cause, then re-run the script alone, never the whole
@@ -294,7 +290,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
 ## Done when
 
 - The base branch HEAD is one squash commit for this change, whose message
-  names the plan and the record, and `check-signing.sh --strict` verifies it.
+  names the plan and the record, verified by `finish-merge.sh`.
 - The change worktree and branch are gone, removed by `finish-merge.sh` and
   not by hand with `--force` or `-D`.
 - You reported the merge and recommended compacting.
