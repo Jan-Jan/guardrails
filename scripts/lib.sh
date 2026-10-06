@@ -737,6 +737,10 @@ GR_DRAFT_FILE_RE='(^|/)DRAFT-[^/]*$'
 # for the unanchored form. The verification record contains the measurement and
 # the corpus commit it was taken on; a bare number here could not be re-derived
 # and drifted into three different values.
+#
+# Two behavioural tests hold every gate to this one form: "poisoning gr_def_re"
+# (tests/check-ids.bats) and "widening GR_ID_BODY" (tests/check-trace.bats).
+# A scan with its own copy of the form fails both. Never spell it out again.
 gr_def_re() {
     printf '%s' "${2-^}\\*\\*(${1})-${GR_ID_BODY}\\*\\*:"
 }

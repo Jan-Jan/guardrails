@@ -825,7 +825,6 @@
     grep -q 'assesses:' "$root/templates/srs.md"
     grep -q 'assesses:' "$root/templates/sad.md"
     grep -q 'assesses:' "$root/templates/AGENTS-block.md"
-    grep -q 'assesses:' "$root/README.md"
     ! grep -q 'RMF never mentions' "$root/skills/analyze-risks/SKILL.md"
     ! grep -q 'the RMF must mention it' "$root/skills/grill-requirements/SKILL.md"
 }
@@ -841,9 +840,9 @@
     # verifies: PR-58zsvf — D2
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'rewrote' "$skill"
-    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../README.md"
-    grep -q 'reported as left' "$BATS_TEST_DIRNAME/../README.md"
-    grep -q 'root-relative' "$BATS_TEST_DIRNAME/../README.md"
+    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../scripts/finalize-docs.sh"
+    grep -q 'reported as left' "$BATS_TEST_DIRNAME/../scripts/finalize-docs.sh"
+    grep -q 'root-relative' "$BATS_TEST_DIRNAME/../scripts/finalize-docs.sh"
     grep -q 'root-relative' "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'relative link' "$skill"
 }

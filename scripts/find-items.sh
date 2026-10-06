@@ -20,6 +20,7 @@
 #         one declared prefix; given more than once, it keeps the items of
 #         each prefix it names. --status keeps the items with that status, and
 #         is given at most once. An empty --kind or --status is a usage error.
+#         A doc_soup file inside the doc_sad directory is read once.
 #   show  The block of every definition of ID, each after a line
 #         `==> file:line`, with a blank line between two blocks. A block ends
 #         where the gates end it, by the shared GR_AWK_ITEM_BLOCK fragment in

@@ -593,8 +593,9 @@ done
 #     no false green — but the loss is real.
 #
 # What is true for all six is the rule itself: an item belongs in the files
-# its key resolves to. The exceptions above are stated where there is room for
-# them — the MISPLACED-ITEM entry in the header roster above, and README.md.
+# its key resolves to. The exceptions above are stated here, where there is
+# room for them; the MISPLACED-ITEM entry in the header roster above states the
+# rule.
 # `**SDD-001**:` in docs/design.md passed with no `traces:` at all, and moving
 # that same file into doc_sad turned the run red without changing a character
 # of it.

@@ -15,6 +15,11 @@
 # sentence about history must stay true. A bare name glued to a longer token
 # or wrapped in emphasis (aDRAFT-x.md, _DRAFT-x.md_) is not rewritten either —
 # it is not the file's name — and check-trace.sh reports it after the merge.
+# A relative link (../risk/DRAFT-x.md) is not rewritten either; check-trace.sh
+# reports it as DANGLING-FILE after the merge.
+# A draft whose dated name is already taken, on disk or by another draft in
+# this run, gets a -2 suffix (-3 for the next). A bare name that two renames share is
+# then reported as left, for the author to write as a path.
 # Then scans the WHOLE tree for each old basename and prints one
 # "unrewritten FILE:LINE: NAME" block per occurrence the rewrite pass did not
 # reach ("would leave unrewritten" under --dry-run) — a plan or a verification

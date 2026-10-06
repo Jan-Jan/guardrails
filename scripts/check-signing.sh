@@ -29,6 +29,13 @@
 #   UNREADABLE  — the trust root is configured but cannot be read
 #   UNPROVED    — configured, but a real signed commit did not come out of it
 #
+# The settings are user.signingkey, commit.gpgsign, user.email and the trust
+# root of the signing format. gpg.format is not one: unset, it is git's
+# documented openpgp default. Each missing setting is named on its own line.
+# Only when none is missing is the proof made: a signed commit in a throwaway
+# repository, read back at %G? = G. ratchet does not complete until --setup
+# exits 0.
+#
 # A trust root that is configured and present but that the process lacks
 # permission to read — a chmod'd signers file, an unreadable ~/.gnupg — is
 # exit 2 in EVERY mode, never UNVERIFIED/UNREADABLE at exit 1: exit 1 states

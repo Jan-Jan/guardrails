@@ -19,6 +19,9 @@
 # At a thousand items the probability of one is under 0.1%, and the failure
 # mode is a loud red rather than a wrong ID.
 #
+# A PREFIX not declared in id_prefixes is rejected. With no entropy source the
+# script mints nothing; it never falls back to the pid and the clock.
+#
 # Exit codes: 0 success, 2 usage/environment error.
 set -u
 

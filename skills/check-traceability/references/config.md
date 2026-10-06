@@ -9,6 +9,11 @@ Exit 2 is an environment error and always fatal, because each of these would
 otherwise let a gate pass without running. Fix the config; never work around
 it by removing the prefix.
 
+Every gate that reads the config validates it, `check-ids.sh` included. There
+is no compatibility flag. An unrecognised key may be a project-local
+annotation rather than a typo, but the two cannot be told apart, so it is
+exit 2 too. A CRLF config is read correctly.
+
 | Message | Cause |
 |---|---|
 | `doc_rmf is configured as 'docs/risk', which does not exist` | A configured path that is absent. |
@@ -29,7 +34,28 @@ it by removing the prefix.
 | `id_prefixes declares RC but doc_srs is not configured` | A declared prefix needs the documents its gates READ, which is not always where it is defined: `UNIMPLEMENTED-CONTROL` looks for a REQ that implements each RC, so RC needs `doc_srs`. |
 | `id_prefixes declares RC but doc_rmf is not configured` | A prefix also needs the one document it may be DEFINED in, because `MISPLACED-ITEM` reads it. A control is defined in the RMF, so `RC` needs `doc_rmf` as well — unconfigured, every control in the project would be misplaced. |
 | `id_prefixes declares REQ/LLR but test_paths is empty` | Nothing would be searched for `verifies:`. |
-| `strict_paths entry matches no file present in the working tree: src/*.rs` | A `strict_paths`/`test_paths` entry matching nothing. These are **git pathspecs** — a plain path, or a pattern like `*_test.sh` that git matches recursively. An entry matching nothing scans nothing, and an empty directory matches no file. |
+| `strict_paths entry matches no file present in the working tree: src/*.rs` | A `strict_paths`/`test_paths` entry matching nothing. These are **git pathspecs** — a plain path, or a pattern like `*_test.sh` that git matches recursively. An entry matching nothing scans nothing, and an empty directory matches no file. A `doc_*` value is not a pathspec: it is a plain path, either a file or a directory whose `*.md` files are directly in it. |
+
+## Where a ledger must not live
+
+The scans exclude `.guardrails/scripts/` and nothing else, because the
+installed scripts contain a draft token and definition-form examples in their
+comments. A ledger elsewhere under `.guardrails/` is read normally.
+
+The scans cannot see `.guardrails/scripts/`, `.git/`, gitignored paths, or a
+symlink that points outside the repository. A `doc_*` aimed at one of those is
+still accepted: `checked:` counts its items as zero, and `finalize-docs.sh`
+renames a draft ledger there as it would anywhere else. Whether any gate warns
+first depends on the location, on whether git tracks or ignores the file, and
+on whether the ledger still has its `DRAFT-` name. Some combinations are
+silent. The measured matrix is in the guardrails repository, at
+`docs/verification/2026-08-20-scan-pathspec.md`. It was measured before IDs
+became tokens, so its rows about minting describe a step that no longer
+exists; its rows about what the scans can see still hold. Do not configure a
+ledger in any of those locations.
+
+A symlink to a directory inside the repository is scanned under the target's
+real path, so its items are counted and their placement is checked.
 
 ## What config validation does not catch
 

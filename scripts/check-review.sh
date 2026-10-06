@@ -47,6 +47,20 @@
 # on it would be theatre. It knows whether a review is claimed, by whom, with
 # what conclusion, and whether every finding it raised was answered.
 #
+# The record is found by content, not by file name. It is the record whose
+# FIRST `branch:` line names this change, matched whole. It must also be one
+# this change wrote: committed on this branch since it left the base, modified
+# in the working tree, or not yet tracked. `--branch` skips that provenance
+# check, and the summary line says so. The value of `reproduced:` is never
+# judged. Only the record for the change under merge is checked, so records
+# written before this schema existed are left alone. doc_verification is the
+# one doc_* key with a default, docs/verification; an absent directory is
+# exit 2, never an empty scan (gr_verification_dir in lib.sh).
+#
+# Every run ends with `checked:` (records read, records for this change,
+# findings, and whether provenance was checked). Run on the base branch, or
+# with --branch naming it, it exits 2, never 0: the base is not a change.
+#
 # Exit codes: 0 pass, 1 violations, 2 usage/environment error.
 set -u
 
