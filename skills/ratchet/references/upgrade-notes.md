@@ -18,8 +18,8 @@ cannot be told apart.
    `new-id.sh`, and update any CI line that calls `finalize-ids.sh`. Do this
    before the new `scripts/` are copied and `finalize-ids.sh` is deleted
    ("Item IDs are random tokens" below states why).
-2. Before copying the new `scripts/`, run `check-trace.sh` once and work
-   through what it reports.
+2. Before copying the new `scripts/`, run `check-trace.sh` once,
+   keep its output for item 7, and work through what it reports.
 3. Run the sizing grep in "List-item annotations" below. What it prints is the
    whole migration for that rule.
 4. After copying, run `check-trace.sh` again and work from the top. Config
@@ -28,6 +28,18 @@ cannot be told apart.
    problem reports, derived assessments, supersession, `DANGLING-FILE` and
    list-item annotations. Read "`ADR` is a declared prefix" before adding
    `ADR` to `id_prefixes`.
+6. If `/ratchet` was ever run on macOS, run `check-review.sh --branch <name>`
+   once per existing verification record ("On macOS, older versions of
+   `check-review.sh` never executed" below).
+7. Fix each failure, and list each new warning in a plan in `docs/plans/`;
+   an upgrade is complete only then (`ratchet` Done when). A failure cannot
+   be listed instead: the upgrade change merges through `merge-change`, whose
+   gate needs `check-trace.sh` to pass. A warning is a finding printed without
+   failing the run: `UNRESOLVED-PR`, `ACCEPTED-PR`, and an `UNMET-EXPECTATION`
+   inside its age budget that implements no risk control (the header of
+   `check-trace.sh` lists them). A new warning is one the run in item 2,
+   with the old scripts, did not print;
+   an older one is already recorded in its ledger.
 
 ## Exit 2: config and layout
 

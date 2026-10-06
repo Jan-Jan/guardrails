@@ -39,6 +39,19 @@ worktree (`worktree-discipline` step 1). A missing `.worktrees/` entry does not
 stop a subagent creating its task worktree; the untracked directory then fails
 `verify-before-merge`'s clean `git status` check.
 
+## Upgrade is its own mode
+
+A project that already has `.guardrails/scripts/` is not re-inventoried.
+Retrofit step 3 asks what in a codebase is not yet under guardrails; the first
+ratchet answered that, and its gap analysis lists the later teeth. An upgrade
+asks what the new scripts reject that the old ones passed, and `check-trace.sh`
+answers that after the copy. A second inventory would not find those findings.
+The plan that lists the new warnings the upgrade leaves does for an upgrade what
+the gap analysis does for a retrofit. A failure is fixed, never listed: the
+upgrade merges through `merge-change`, whose gate needs `check-trace.sh` to
+pass. The decision is `ADR-3h4dky` in the guardrails repository
+(`docs/adr/ADR-3h4dky-upgrade-is-its-own-mode.md`).
+
 ## Every configured path exists in the commit
 
 `check-trace.sh` exits 2 on a configured path that does not exist, so a

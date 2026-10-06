@@ -19,15 +19,16 @@ description: Bootstrap or retrofit a project for IEC 62304 / ISO 14971 developme
 
 ### Step 0: Locate the guardrails source
 
-Templates and scripts come from the guardrails repository this skill belongs
-to, two levels above this SKILL.md. Verify `<guardrails>/templates/` and
-`<guardrails>/scripts/` exist.
+Templates and scripts come from the guardrails repository two levels above
+this SKILL.md. Verify `<guardrails>/templates/` and `<guardrails>/scripts/`
+exist.
 
 ### Step 1: Detect mode
 
 **Greenfield** = no commits beyond scaffolding AND no source files AND no
 existing AGENTS.md/docs. Anything else is a **retrofit**. A project that has
-`.guardrails/scripts/` and wants newer ones is an **upgrade**.
+`.guardrails/scripts/` and wants newer ones is an **upgrade**: its own
+procedure below, with no gap analysis (`references/rationale.md`).
 
 ```sh
 git rev-list --count HEAD 2>/dev/null   # missing repo or tiny history → likely greenfield
@@ -142,13 +143,12 @@ Work in a worktree, as a change of its own.
    same guardrails version, and re-replace the AGENTS.md managed block between
    its markers. If the project edited a README, diff first and re-apply its
    additions.
-4. Run `check-trace.sh` and work from the top. Existing ledgers report on
-   problem `status:`/`opened:`, supersession reciprocity and `DANGLING-FILE`.
+4. Run `check-trace.sh`; fix each failure, and list each new warning in a plan
+   in `docs/plans/`. Existing ledgers report on problem
+   `status:`/`opened:`, supersession reciprocity and `DANGLING-FILE`.
    Derived assessments are now declared: a derived REQ/LLR without an
    `assesses:` line in the RMF goes red.
-5. If `/ratchet` was ever run on macOS, run `check-review.sh --branch <name>`
-   once per existing verification record.
-6. Re-record the tool qualification (Step 5), then integrate with
+5. Re-record the tool qualification (Step 5), then integrate with
    `merge-change`.
 
 ### Step 3 (retrofit): Gap analysis first, then tighten
@@ -160,8 +160,7 @@ Never overwrite. Sequence:
    requirement, risk and architecture docs; a bug tracker or problem log;
    verification evidence worth archiving under `docs/verification/`; test
    layout and command; CI config; signing of recent commits
-   (`git log -20 --format='%h %G? %s'`); the `.guardrails/` version if
-   re-ratcheting.
+   (`git log -20 --format='%h %G? %s'`).
    - A managed block with no `## Code: names` section is a gap that no check
      reports. Record it in the gap analysis; the first tooth's block merge
      replaces it.
@@ -180,10 +179,11 @@ Never overwrite. Sequence:
 4. **Later teeth** (separate changes, listed in the gap analysis): migrate
    legacy requirement and risk docs via `grill-requirements` /
    `analyze-risks`; extend `strict_paths` area by area. Signing is not a later
-   tooth (Step 5). An existing single `srs.md` keeps working: each `doc_*`
-   key accepts a file or a directory. For a multi-developer repository,
-   recommend moving each monolithic `doc_*` file into a directory as its first
-   dated file, with the README, so changes stop conflicting.
+   tooth (Step 5).
+   Each `doc_*` key accepts a file or a directory, so `srs.md` keeps working;
+   in a multi-developer repository, recommend moving each
+   monolithic `doc_*` file into a directory as its first dated file, with the
+   README, so changes stop conflicting.
 5. Integrate via `merge-change`.
 
 ### Step 4: Safety-class interview (IEC 62304 4.3)
@@ -247,6 +247,8 @@ recorded pass/fail is the wrong command's. Run
 
 - `safety_class` is set (per unit where there are units), with its ADR.
 - A retrofit has its gap analysis in `docs/plans/`.
+- An upgrade copied scripts and grammar files from one guardrails version,
+  fixed each failure, and listed each new warning in a plan.
 - The setup checklist is saved, with the qualification basis.
 - `check-signing.sh --setup` exits 0.
 - The change is merged through `merge-change`, and the check scripts pass.

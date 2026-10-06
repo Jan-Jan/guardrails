@@ -48,6 +48,77 @@
     grep -q 'Re-copy the four ledger READMEs' "$skill"
 }
 
+@test "ratchet: Done when states when an upgrade is complete" {
+    # verifies: PR-s8dcmp
+    # Upgrade became a third mode with no completion check: Done when asked a
+    # retrofit for a gap analysis and asked an upgrade for nothing, so
+    # "the scripts are copied" could count as done.
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    done_when=$(awk '/^## Done when/ { inside = 1; next } /^## / { inside = 0 } inside' "$skill")
+    printf '%s\n' "$done_when" | grep -q 'An upgrade copied scripts and grammar files from one guardrails version,'
+    printf '%s\n' "$done_when" | grep -q 'fixed each failure, and listed each new warning in a plan.'
+}
+
+@test "ratchet: upgrade step 4 fixes each failure and lists each new warning in a plan" {
+    # verifies: PR-s8dcmp
+    # Done when checks that each failure is fixed and each warning listed, so
+    # the upgrade procedure has to say so. A failure cannot be listed instead:
+    # the upgrade merges through merge-change, whose gate needs check-trace.sh
+    # to pass (review round 1, finding-1).
+    # Only new warnings are listed: the old ones are already in the problem
+    # ledger (round 2, finding-5).
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    upgrade=$(awk '/^### Upgrading the scripts/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill")
+    printf '%s\n' "$upgrade" | grep -q '^4\. Run `check-trace.sh`; fix each failure, and list each new warning in a plan$'
+    ! grep -q 'or list it in a plan' "$skill" \
+        || { echo "SKILL.md still lets a failure be listed instead of fixed"; false; }
+    ! grep -q 'each warning' "$skill" \
+        || { echo "SKILL.md lists every warning, not only the new ones"; false; }
+}
+
+@test "ratchet: upgrade is a mode resting on ADR-3h4dky, and retrofit no longer inventories a re-ratchet" {
+    # verifies: PR-s8dcmp
+    # No decision created the upgrade mode. The decision is recorded now, and
+    # step 1 points to the reason. The retrofit inventory's "if re-ratcheting"
+    # clause sent an installed project to the mode that it no longer belongs to.
+    root="$BATS_TEST_DIRNAME/.."
+    skill="$root/skills/ratchet/SKILL.md"
+    adr="$root/docs/adr/ADR-3h4dky-upgrade-is-its-own-mode.md"
+    grep -q 'procedure below, with no gap analysis (`references/rationale.md`)' "$skill"
+    ! grep -q 're-ratcheting' "$skill" \
+        || { echo "the retrofit inventory still names a re-ratchet"; false; }
+    head -n 1 "$adr" | grep -q '^\*\*ADR-3h4dky\*\*: '
+    grep -q 'ADR-3h4dky' "$root/skills/ratchet/references/rationale.md"
+}
+
+@test "ratchet: the upgrade order of work has the macOS pass and defines a new warning" {
+    # verifies: PR-s8dcmp
+    # Moved out of SKILL.md's upgrade steps to make room for the Done when
+    # entry; the order of work is what upgrade step 1 has the agent follow.
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    order=$(awk '/^## Order of work/ { inside = 1; next } /^## / { inside = 0 } inside' "$notes")
+    printf '%s\n' "$order" | grep -q 'ever run on macOS, run `check-review.sh --branch <name>`'
+    printf '%s\n' "$order" | grep -q '^7\. Fix each failure, and list each new warning in a plan in `docs/plans/`;'
+    printf '%s\n' "$order" | grep -q 'A warning is a finding printed without'
+    printf '%s\n' "$order" | grep -q 'A new warning is one the run in item 2'
+    printf '%s\n' "$order" | grep -q 'failing the run: `UNRESOLVED-PR`, `ACCEPTED-PR`, and an `UNMET-EXPECTATION`'
+    printf '%s\n' "$order" | grep -q 'keep its output for item 7'
+    printf '%s\n' "$order" | grep -q 'an older one is already recorded in its ledger'
+    ! grep -q 'If `/ratchet` was ever run on macOS' "$skill" \
+        || { echo "SKILL.md still carries the macOS step"; false; }
+}
+
+@test "ratchet: the retrofit still advises splitting each monolithic ledger file, and why" {
+    # verifies: PR-s8dcmp
+    # The word trim for the upgrade entry shortened this sentence to srs.md
+    # alone and dropped its reason (review round 1, finding-3).
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q 'monolithic `doc_\*` file into a directory as its first dated file' "$skill"
+    grep -q 'README, so changes stop conflicting' "$skill"
+    grep -q 'Each `doc_\*` key accepts a file or a directory, so `srs.md` keeps' "$skill"
+}
+
 @test "ratchet: the qualification basis names a commit, not just a version" {
     # verifies: PR-dcn2xc
     # "435 tests at 0.5.1" is nominal the moment upstream advances without a
