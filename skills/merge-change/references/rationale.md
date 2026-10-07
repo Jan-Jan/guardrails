@@ -171,10 +171,12 @@ than the item, so it is made in the same round. The ruling of 2026-10-04,
 in `docs/plans/2026-09-29-agent-first-skills-change-2.md`, set this rule.
 
 Bounding what a `record` finding costs inside a round, dispositioning it in
-place without a rerun, would need a class of files no gate reads. There is
-none: the `DUPLICATE-ID` scan reads every file in the tree but the toolkit's
-installed scripts. Every formulation of that boundary so far has failed review
-on that point.
+place without a rerun, by a class of files no gate reads fails: there is none,
+because the `DUPLICATE-ID` scan reads every file in the tree but the toolkit's
+installed scripts. Every formulation of that boundary has failed review on
+that point. `PR-kc2pzm` records two candidates that answer it per gate
+instead, by running the cheap gates (P8) or by scoping the reviewer's run to
+the round's delta (P9); neither is adopted.
 
 ## Step 6a: where the review worktree is removed
 

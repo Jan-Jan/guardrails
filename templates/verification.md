@@ -58,14 +58,27 @@ merge — so this table is where that observation becomes durable evidence.
 <the defect, measured; then the change. A record that only states that the
 tests pass records nothing about the defect.>
 
+Write this section and the Gaps once, after the final round, as the change
+stands at merge, with no round-by-round account. The finding blocks are the
+round history; prose rewritten each round restates them, goes stale against
+them, and draws findings of its own.
+
 ## Review
 
 One block per finding the reviewer raised, in the toolkit item shape, each with
 its disposition. A review that raised nothing is legal, and `verdict:` above
 states that.
 
+Put each review round's blocks under its own `### Round <N>` heading. The
+`### Round <N>` headings and the `**finding-` blocks are the count. State no
+number of rounds, findings or dispositions in prose, here or elsewhere in this
+record: the next commit that adds a finding block falsifies it, the commit that
+writes it included.
+
 Where a `shared:` line at `merge-change` step 1 sent the change to a fresh
 reviewer, name the shared files and that review round here.
+
+### Round 1
 
 **finding-1**: <code | requirement>, <high | medium | low> — <what the
 reviewer found, in their terms>

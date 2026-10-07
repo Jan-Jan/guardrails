@@ -360,6 +360,32 @@ per file, and probably answered by running the cheap gates rather than by
 reasoning about them. That is more than a wording fix, which is why it is an item
 rather than a sixth attempt.
 
+**Candidate formulations, neither adopted.** Added 2026-10-08 under D10 of
+`docs/plans/2026-10-06-salvage-churn-and-parallel.md`: a parallel suite
+run measured 650 s (`docs/verification/2026-10-07-test-runner.md`), over
+the five minutes below which a cheaper `record` lane would not pay for
+itself. Since this item was opened, step 6a dispatches no further reviewer
+after the first round with nothing above `low`, so what a later `record`
+finding still costs is the rerun from step 1, the suite included. Both
+candidates come from the parallel-session proposals of 2026-09-18, which
+never merged.
+
+* **P8, per gate, by running the gates.** After that converging round, a
+  `record` disposition is checked by `check-ids.sh`, `check-trace.sh`,
+  `check-review.sh` and `tests/skills.bats`, about a minute, with no suite
+  run; a `code` or `requirement` finding still reruns from step 1. It
+  answers the question the paragraph above names, per gate, and is
+  untried.
+* **P9, the reviewer's run scoped to the round's delta.** Step 6a lets
+  only a documentation-only diff stand on the step 6 gate summary. P9
+  extends that from the diff to the round's delta: when
+  `git diff --name-only <last reviewed commit> HEAD -- scripts tests` is
+  empty, the reviewer rests on the tree-named gate summary. Its known
+  defect: a delta confined to `README.md`, `AGENTS.md`, `skills/` or
+  `templates/` is empty under that pathspec and can still turn the suite
+  red, as round 5 above showed with a `README.md`-only edit reddening
+  `tests/skills.bats`.
+
 **PR-9xxz3b**: `check-trace.sh` evaluates `PROBLEM-BACKLOG` and `STALE-PROBLEM`
 — properties of the ledger and of the calendar — at merge time, against a change
 that may not touch the ledger, so another session's merge or the passage of a

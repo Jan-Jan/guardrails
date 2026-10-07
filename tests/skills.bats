@@ -1242,6 +1242,45 @@ gr_all_sh_fences() {
     grep -q 'describes the repository rather than this change' "$template"
 }
 
+@test "verification template: a record does not count itself, and narrates once" {
+    # verifies: D9 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # A count of a record's own rounds or findings, written in that record,
+    # is falsified by the next commit that adds a finding block, the commit
+    # that writes the count included (G1 of the churn proposal). Prose
+    # rewritten each round restates earlier rounds and draws findings of its
+    # own (P12 of the parallel-session proposals).
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    text=$(tr '\n' ' ' < "$template" | tr -s ' ')
+    printf '%s\n' "$text" | grep -qF 'The `### Round <N>` headings and the `**finding-` blocks are the count'
+    printf '%s\n' "$text" | grep -qF 'State no number of rounds, findings or dispositions in prose'
+    printf '%s\n' "$text" | grep -qF 'Write this section and the Gaps once, after the final round'
+    printf '%s\n' "$text" | grep -qF 'with no round-by-round account'
+    round_line=$(grep -n '^### Round 1$' "$template" | cut -d: -f1)
+    finding_line=$(grep -n '^\*\*finding-1\*\*:' "$template" | cut -d: -f1)
+    [ -n "$round_line" ] && [ -n "$finding_line" ] && [ "$round_line" -lt "$finding_line" ]
+}
+
+@test "PR-kc2pzm carries P8 and P9 as candidates, with P9's defect" {
+    # verifies: D10 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # A parallel suite run measured 650 s, over D10's five minutes, so the
+    # cheaper record lane still pays for itself and both proposals are kept
+    # on the item that owns the question, rather than lost with the branch
+    # that carried them.
+    ledger="$BATS_TEST_DIRNAME/../docs/problems/2026-09-15-field-report-two.md"
+    item=$(awk '/^\*\*PR-kc2pzm\*\*:/ { inside = 1; print; next }
+                inside && /^\*\*[A-Z]+-[a-z0-9]+\*\*:/ { exit }
+                inside' "$ledger" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$item" ]
+    printf '%s\n' "$item" | grep -q '^\*\*PR-kc2pzm\*\*:'
+    printf '%s\n' "$item" | grep -qF 'Candidate formulations, neither adopted'
+    printf '%s\n' "$item" | grep -qF '**P8, per gate, by running the gates.**'
+    printf '%s\n' "$item" | grep -qF '**P9, the reviewer'"'"'s run scoped to the round'"'"'s delta.**'
+    printf '%s\n' "$item" | grep -qF 'is empty under that pathspec and can still turn the suite red'
+    printf '%s\n' "$item" | grep -q '^.*status: open'
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -qF '`PR-kc2pzm` records two candidates that answer it per gate instead'
+}
+
 @test "resolve-problem: a backlog figure in a document is a red flag" {
     # verifies: PR-hkc376
     skill="$BATS_TEST_DIRNAME/../skills/resolve-problem/SKILL.md"
