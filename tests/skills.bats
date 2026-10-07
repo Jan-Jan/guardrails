@@ -26,6 +26,14 @@
     grep -q "the wrong command's" "$skill"
 }
 
+@test "ratchet: the setup checklist installs GNU parallel for the qualification suite" {
+    # verifies: PR-hrx4vf
+    checklist="$BATS_TEST_DIRNAME/../skills/ratchet/references/setup-checklist.md"
+    grep -q 'GNU `parallel`' "$checklist" || { echo "no GNU parallel item"; false; }
+    grep -q 'brew install parallel' "$checklist" || { echo "no macOS install line"; false; }
+    grep -q 'apt install parallel' "$checklist" || { echo "no Debian install line"; false; }
+}
+
 @test "verification template warns that a range in a finding header opens no block" {
     # verifies: PR-geb5db
     # check-review.sh already reports a range-shaped header (finding-2..4) as

@@ -44,7 +44,10 @@ setup() {
         '}' \
         >> tests/probe.bats
 
-    bats_path=$(command -v bats || echo "$BATS_TEST_DIRNAME/.bats-core/bin/bats")
+    # outside_bats: the enclosing run's PATH holds bats' internal entry point
+    # (PR-2nxadp).
+    bats_path=$(outside_bats sh -c 'command -v bats' \
+        || echo "$BATS_TEST_DIRNAME/.bats-core/bin/bats")
     ln -s "$bats_path" "$BATS_TEST_TMPDIR/bin/bats"
     PATH="$BATS_TEST_TMPDIR/bin:$PATH"
 }

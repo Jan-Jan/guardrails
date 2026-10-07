@@ -70,6 +70,21 @@ EOF
     printf '# verifies: LLR-001\ntrue\n' > tests/test_a.sh
 }
 
+# outside_bats COMMAND... — COMMAND with PATH as it was before this bats run.
+# bats puts its internal libexec directory on PATH
+# (tests/.bats-core/libexec/bats-core/bats:117), so a nested `command -v bats`
+# finds the internal `bats` there instead of bin/bats. That entry point needs
+# the bats_readlinkf function bin/bats exports, and under `--jobs` GNU
+# parallel starts each file without it: the nested run fails with
+# `bats_readlinkf: command not found` (PR-2nxadp). Any test that starts a bats
+# run of its own resolves bats through this.
+outside_bats() {
+    local outer_path=":$PATH:"
+    outer_path=${outer_path//":$BATS_LIBEXEC:"/:}
+    outer_path=${outer_path#:}
+    env PATH="${outer_path%:}" "$@"
+}
+
 # output_has TEXT / output_lacks TEXT — $output contains, or does not contain,
 # TEXT anywhere; on failure both are printed. Functions rather than `[[ ]]`,
 # whose status bash 3.2 discards mid-test.

@@ -488,7 +488,9 @@ $f"
     # system bats when one is on PATH and only then vendors tests/.bats-core,
     # which is gitignored — so hard-coding the vendored path makes this test
     # fail on any host that has bats installed.
-    probe_bats=$(command -v bats \
+    # outside_bats: the enclosing run's PATH holds bats' internal entry point
+    # (PR-2nxadp).
+    probe_bats=$(outside_bats sh -c 'command -v bats' \
         || echo "$BATS_TEST_DIRNAME/.bats-core/bin/bats")
     run "$probe_bats" "$BATS_TEST_TMPDIR/probe.bats"
     [ "$status" -ne 0 ] \
