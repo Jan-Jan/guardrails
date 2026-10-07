@@ -3,8 +3,9 @@
 Read this when `finish-merge.sh` exits non-zero at `merge-change` step 7 or 8.
 A non-zero exit removed nothing and deleted nothing, with one exception: when
 guard 3 removed the worktree and `git branch -D` then failed, the worktree is
-gone and the branch remains. The message states which of the two happened. The
-signed commit is on the base branch either way; only the cleanup is withheld.
+gone and the branch remains. The message states what was removed: nothing, or
+the worktree alone when only the branch deletion failed. The signed commit is
+on the base branch either way; only the cleanup is withheld.
 
 | Rejection | What it means | What fixes it |
 |---|---|---|

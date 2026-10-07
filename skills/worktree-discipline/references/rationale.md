@@ -11,7 +11,11 @@ permit it. Git will not update a branch that another worktree has checked out,
 and the change branch is checked out in the change worktree. From a task
 worktree every route fails: `git merge <change-branch>` merges into the task
 branch, leaves the change branch where it was, and exits 0 as if it had
-worked; `git checkout`, `git push .` and `git fetch .` are rejected. The one
+worked; `git checkout <change-branch>` fails with
+`is already used by worktree`; `git push .` fails with
+`refusing to update checked out branch`, and `git fetch .` with
+`refusing to fetch into branch ... checked out at`. Any of these means the
+subagent took a route that does not exist. The one
 place the merge is possible is the change worktree, and a task subagent must
 not work there, because parallel subagents in one tree collide. So the
 subagent commits and reports, and the dispatcher merges.
@@ -93,4 +97,6 @@ Scrollback is not durable: it is summarized away, it is dropped, and a
 subagent never had it. A decision that exists only in the transcript is
 already lost. Written to the plan, the ledger and the record as the work
 happens, the state of a change is independent of the conversation, which is
-also what makes compacting between changes cost nothing.
+also what makes compacting between changes cost nothing. Compacting the
+conversation (e.g. a `/compact` command) or starting a fresh session after a
+change is merged and before the next one is permitted, not required.

@@ -5,11 +5,48 @@ proposing to change one. Each heading names the step or rule it explains. This
 file gives the reasons behind the rules only. What a script does is stated in
 the script's own comments; read the script.
 
-## Preconditions: one change at a time
+## Changes open in parallel
 
-Two open changes race on the base branch, on the duplicate scan in step 4,
-and on the verification record. Each race surfaces here, at merge, rather
-than where it was created.
+Several changes may be open at once, each in its own change worktree. Step 1
+merges the latest base every round, so a change merged before that round
+reaches every other change before its gate runs again. Step 1 alone does not
+close the gap: a change signed after another change's last step 1 and before
+its step 7 is not in the tree that change's gate saw. Step 7's tree comparison
+catches that base move (see "Step 7: the agent stages the squash"). Item IDs
+are random tokens, so two worktrees do not contend for an ID, and
+`DUPLICATE-ID` catches the improbable collision after the base merge. Each
+change writes its own verification record, and the gate finds it by its
+`branch:` field, not by its filename.
+
+A base that moved also changes what the review saw. When the base and the
+change edited different files, each side's review still holds, and the gate
+rerun tests the combination. When they edited the same file, git may merge it
+cleanly and still break what the reviewer checked: two changes that each add
+tests to one file can contradict each other's assumptions. So step 1 lists the
+files the base edited after the last reviewed commit that this change also
+edits, and any shared file sends the whole change to a fresh reviewer, even
+after the last review round. A conflict is not the test: a clean merge of a
+shared file carries the same risk. The maintainer ruled this on 2026-10-07.
+
+Step 1 compares against the last reviewed commit, not the last base merge,
+because the obligation must survive a rerun. A shared merge followed by a
+failed gate and a fix reruns step 1, and that run merges nothing: a list taken
+against the last base merge is empty there, and the merge would be signed
+unreviewed. The empty `review dispatched` commit 6a makes marks the reviewed
+commit on the change branch itself. Every rerun finds it again, it changes no
+tree, so no gate summary goes stale, and the squash drops it. The base side
+starts at the base the reviewed commit contained, so a later reviewer moves
+that start forward. The change side is everything the change edits now, so a
+file a fix touched after the review counts too. Before any reviewer there is
+no marker and nothing to list: the first review sees the whole change.
+`--no-renames` makes a file the base renamed show under its old path, which is
+the path the change edited; `grep -Fx` matches whole paths, so `tests.bats`
+does not match `my-tests.bats`.
+
+Two changes meet at step 1, where the second merges the first in once the
+first is on the base and resolves any conflict there, and at step 7. The
+primary checkout's index holds one staged squash only because step 7 checks
+the index before staging its own.
 
 ## Steps, opening paragraph: the fix dispatch tag is unique
 
@@ -96,6 +133,12 @@ step 1 merged a base already merged. The tree is the tree step 2 measured, and
 a second suite run would reproduce an answer already in hand. The hash makes
 that a mechanical test rather than a judgment about what the round touched.
 
+## Step 6a: independence, and findings copied verbatim
+
+The review is DO-178C independence: the verifier is not the author. A finding
+the author rewords is the author's, no longer the reviewer's, so the record
+copies each one verbatim.
+
 ## Step 6a: the reviewer runs the suite
 
 Independence covers the evidence as well as the code. The reviewer reports
@@ -138,9 +181,10 @@ on that point.
 The dispatcher removes each task worktree when its dispatch ends
 (`worktree-discipline`). For the review worktree, the dispatcher is `merge-change`.
 
-The review worktree's path and branch are fixed. A round that returns findings
-goes back to step 1 and never reaches a later step, and the round that does
-reach 6b dispatches no reviewer. A removal placed downstream would therefore
+The review worktree's path and branch are fixed. A round that returns
+any finding at all goes back to step 1, whatever the findings were tagged,
+and never reaches a later step. The round that does reach 6b dispatches no
+reviewer, unless step 1 printed a `shared:` line. A removal placed downstream would therefore
 leave every intermediate round's worktree behind, until the next dispatch
 fails on the existing branch.
 
@@ -192,7 +236,8 @@ test would fail if the behavior broke.
 ## Step 6b: the `reproduced:` field
 
 The field exists so that a change with no reproduction states so, and the
-missing evidence is visible in the record.
+missing evidence is visible in the record. An honest "not reproduced" passes:
+the gate never judges the value.
 
 ## Step 6b: the units in a multi-unit record
 
@@ -220,9 +265,76 @@ spent a key touch. Found at 6c, it costs one removal.
 A message file inside the repository is one `git add -A` from being committed
 by the commit it describes.
 
+The command is handed over with real paths and the branch name, because
+their shell has none of your variables.
+
 Signing may need the user's hardware-key touch. An agent that runs
 `git commit -S` itself starts a blocking wait on the user's behalf, and the
 hand-over exists to replace that wait.
+
+## Step 7: the agent stages the squash
+
+The staged squash in the primary index is a lock, first come, first served.
+`git merge --squash` does not refuse to run over one already staged. When the
+two changes touch different files and the second squash fast-forwards, it
+exits 0 and stacks its files onto the first. When they share a file, git
+refuses with "Your local changes to the following files would be overwritten
+by merge", fast-forward or not, even when the edits are on different lines.
+So the squash is a lock only if the agent checks the index before staging its
+own. The check is joined to the squash with `&&`: run as two lines in one
+shell call, a failed check does not stop the squash.
+
+A gate result describes the branch's tree, and nothing else. Whatever the
+index holds beyond that tree was never verified, so it must not be signed.
+`git diff --cached --quiet <branch>` runs after every squash, not only when
+the index check fails, because an empty index does not prove the squash is the
+branch's tree. If another change was signed onto the base after this change's
+last step 1, the squash is a three-way merge: it exits 0 and stages the branch
+plus the other change. Only the comparison sees that. It exits 0 only when
+the index holds exactly the branch's tree.
+
+When the comparison fails, the first line's output says which case applies.
+Git prints its merge output whenever the squash ran: "Squash commit -- not
+updating HEAD", and a `CONFLICT` line when it stopped on a conflict. Either
+way the base moved after step 1, and the staged tree is this change's own, so
+the agent clears it. One output is not that case: "Your local changes to the
+following files would be overwritten" or "untracked working tree files would
+be overwritten" means the primary checkout has an edit or a file in the
+squash's way. `git reset --merge` keeps that edit, so the rerun would meet the
+same refusal and loop. The user decides what the edit is. `git reset --merge` resets the index to HEAD, removes the
+conflicted entries, and keeps unstaged edits to files the squash did not
+touch; `git merge --abort` does not work here, because a squash records no
+`MERGE_HEAD`. Step 1 then merges the new base in and the gate runs on the
+result.
+
+When the first line prints nothing, the index check stopped it: a squash was
+staged before. Comparing file names cannot tell whose it is, because parallel
+changes often edit the same files. `git diff --cached --quiet <branch>` can:
+step 1 merged the base into the branch, so this change's squash stages exactly
+the branch's tree, and the command exits 0. Then the squash is this change's
+own, left when its signing failed, and waiting on it would wait forever. The
+command exits 1 when another change's squash is staged, and when an outdated
+squash of this change is: the branch has moved since it was staged. Signing
+either under this change's message would put the wrong content on the base
+branch, and the cleanup's tree check would catch it only after the signed
+commit landed. So the agent stops and the user signs or clears it. A session
+that finds another change's squash waits for the user to sign it, then reruns
+from step 1, which merges the new base in.
+
+Two sessions that run step 7 at the same instant can still race: the index
+check and the squash are two commands, so both may find the index empty. The
+second squash then stacks onto the first, or git refuses it on a shared file.
+Either way its comparison exits 1, so it never hands over the stacked tree.
+But on a stack, its `git reset --merge` also clears the first session's
+squash, and that session's signing then fails with "nothing to commit". If
+the user signed in the seconds between the second squash and its reset, the
+signed commit holds both changes; the cleanup's tree check catches that, after
+the commit landed. This is accepted because step 7 takes seconds and a
+second, simultaneous session is rare.
+
+Staging the squash inside the handed-over command instead would leave the
+index empty until the key touch, so no other session could see that a squash
+was pending.
 
 ## Step 7: `Resolves:` and `Opens:`
 

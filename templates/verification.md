@@ -64,6 +64,9 @@ One block per finding the reviewer raised, in the toolkit item shape, each with
 its disposition. A review that raised nothing is legal, and `verdict:` above
 states that.
 
+Where a `shared:` line at `merge-change` step 1 sent the change to a fresh
+reviewer, name the shared files and that review round here.
+
 **finding-1**: <code | requirement>, <high | medium | low> — <what the
 reviewer found, in their terms>
 disposition: <what changed, and the test that reddens without it; or, for a

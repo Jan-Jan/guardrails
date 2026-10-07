@@ -67,7 +67,8 @@ Three rules define the whole system:
 
 Within a change, the main agent orchestrates. Each plan task goes to a
 subagent in its own task worktree, and the dispatcher merges the task branch
-back. Changes are sequential; parallel work happens only inside a change.
+back. Changes may run in parallel, each in its own change worktree;
+`merge-change` step 1 merges the latest base into each one every round.
 
 ## Check scripts
 

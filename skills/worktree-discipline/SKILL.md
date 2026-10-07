@@ -38,13 +38,9 @@ description: Mandatory isolation for every change in a guardrails project - crea
      `git status` check reads that worktree's uncommitted state.
 
    The subagent cannot merge its own task branch: git rejects an update to a
-   branch another worktree has checked out. From a task worktree,
-   `git merge <change-branch>` merges the wrong direction and exits 0;
-   `git checkout <change-branch>` fails with `is already used by worktree`;
-   `git push .` fails with `refusing to update checked out branch`, and
-   `git fetch .` with `refusing to fetch into branch ... checked out at`. Any
-   of these means you took a route that does not exist. Commit, report, and
-   stop.
+   branch another worktree has checked out. Do not try `git merge`,
+   `checkout`, `push .` or `fetch .` of the change branch
+   (`references/rationale.md`). Commit, report, and stop.
 
    Fan out only across tasks whose **Files touched:** sets are disjoint
    (`plan-change`), so their task branches merge without conflict. Never share
@@ -105,11 +101,18 @@ description: Mandatory isolation for every change in a guardrails project - crea
 
    **The containment rule was measured once, on one harness.** Follow it
    wherever a harness isolates dispatched subagents. A harness that
-   does not pin its subagents may put a task worktree anywhere; nest anyway,
-   because nesting works there too. To tell whether yours pins, follow
-   `references/harness-pin-test.md`.
+   does not pin its subagents may put a task worktree anywhere; nest anyway.
+   To tell whether yours pins, follow `references/harness-pin-test.md`.
 
-2. **Harness tool first.** If your harness has a worktree tool (e.g.
+2. **Check what is already open.** Before you create the change worktree, run
+   the two checks in `references/before-opening.md`: (a) a status line per
+   registered worktree, with its branch, commits ahead of the base branch,
+   dirty-file count and last commit date; (b) for each item ID this change
+   will resolve or amend, whether an unmerged local branch's diff against the
+   base branch adds or removes a line containing the ID. A hit means another
+   change claims the item: stop and ask the user.
+
+   **Harness tool first.** If your harness has a worktree tool (e.g.
    `EnterWorktree`, a `/worktree` command), use it to create the change
    worktree.
 3. **Fallback:**
@@ -124,8 +127,7 @@ description: Mandatory isolation for every change in a guardrails project - crea
    (`add-dose-limits`, `rmf-overdose-hazards`).
 
    Steps 2 and 3 create the **change** worktree, from the primary checkout.
-   They do not govern task worktrees: those follow step 1, always nested in the
-   change worktree's own `.worktrees/`.
+   Task worktrees follow step 1.
 4. **Baseline:** run the project's `verify_commands`
    (`.guardrails/config.yaml`) immediately. If the baseline is red, report it
    and get an explicit decision before building on it.
@@ -191,10 +193,6 @@ description: Mandatory isolation for every change in a guardrails project - crea
      references;
    - **the verification record** written by `merge-change` — what was run and
      what it reported.
-
-   Because the artifacts contain the state, compacting the conversation (e.g.
-   a `/compact` command) or starting a fresh session after a change is merged
-   and before the next one costs nothing. It is permitted, not required.
 10. **Leave the change worktree to `merge-change`.** It is removed after a
     verified signed squash merge, not before, and never with unmerged work in
     it without the user's explicit say-so. Task worktrees are removed by their
@@ -231,5 +229,7 @@ description: Mandatory isolation for every change in a guardrails project - crea
 
 - `references/rationale.md` — read when a rule here seems wrong for your case,
   or before proposing to change one.
+- `references/before-opening.md` — read when you reach step 2, before you
+  create a change worktree.
 - `references/harness-pin-test.md` — read when you need to know whether your
   harness pins dispatched subagents to a subtree.

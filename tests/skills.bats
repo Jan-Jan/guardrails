@@ -2,6 +2,9 @@
 # a skill instruction that quietly loses a critical phrase fails here
 # rather than in some target project months later.
 
+# The scratch repositories of the tests that run a skill's snippets.
+load helpers
+
 @test "ratchet: tool qualification states how and where the suite runs" {
     # verifies: PR-ac96zf
     # The step-5 checklist item asks the installer to record the suite result
@@ -379,6 +382,9 @@
     [ -n "$b_at" ]
     sed -n "${a_at},${b_at}p" "$skill" | grep -q 'every round that created one'
     sed -n "${a_at},${b_at}p" "$skill" | grep -q 'Not every round creates one'
+    # The skip names when no review worktree exists (review round 4, finding
+    # 18): a cut left "skip it there" with no antecedent.
+    sed -n "${a_at},${b_at}p" "$skill" | grep -q 'Not every round creates one: a human reviewer uses their checkout'
     # Re-aimed 2026-10-01 under D4: `task-worktree.sh remove` takes a tag.
     sed -n "${a_at},${b_at}p" "$skill" | grep -q 'fails on a tag that was never started'
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
@@ -497,6 +503,190 @@
     [ "$status" -ne 0 ]
 }
 
+# Prints the last sh fence under the `## ` heading that starts with $2 in file
+# $1. Each before-opening check is one sh fence under its heading; (b) sets
+# item_ids on that fence's first line.
+gr_last_sh_fence() {
+    awk -v heading="$2" '
+        /^## / { inside = (index($0, heading) == 1); next }
+        inside && /^```sh$/ { fenced = 1; block = ""; next }
+        inside && fenced && /^```$/ { fenced = 0; last = block; next }
+        inside && fenced { block = block $0 "\n" }
+        END { printf "%s", last }
+    ' "$1"
+}
+
+# Prints every sh fence under the `## ` heading that starts with $2 in file
+# $1, in order: the text a user pastes to run that check.
+gr_all_sh_fences() {
+    awk -v heading="$2" '
+        /^## / { inside = (index($0, heading) == 1); next }
+        inside && /^```sh$/ { fenced = 1; next }
+        inside && fenced && /^```$/ { fenced = 0; next }
+        inside && fenced { print }
+    ' "$1"
+}
+
+@test "worktree-discipline: a change opens after checking the worktrees and the claimed items" {
+    # verifies: D4 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # Changes may run in parallel, so two sessions can resolve the same item
+    # unless the second looks first. Before step 2 creates the change worktree,
+    # the skill has the agent list every registered worktree and ask whether an
+    # unmerged branch already claims an item the new change will touch. The
+    # claim check reads each branch's diff against the base branch: the ID is
+    # defined on the base branch, so a plain `git grep` finds it everywhere.
+    skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
+    reference="$BATS_TEST_DIRNAME/../skills/worktree-discipline/references/before-opening.md"
+    # Prose wraps and indents, so a phrase is matched on the step with its lines
+    # joined and its runs of spaces squeezed.
+    step2=$(awk '/^2\. \*\*/ { inside = 1 } /^3\. \*\*/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$step2" ]
+    printf '%s\n' "$step2" | grep -q 'a status line per registered worktree'
+    printf '%s\n' "$step2" | grep -q 'adds or removes a line containing the ID'
+    printf '%s\n' "$step2" | grep -q 'claims the item: stop and ask the user'
+    # The check is an instruction to act before the worktree exists, so it
+    # comes before step 2 tells the agent to create it.
+    check_at=$(printf '%s\n' "$step2" | awk '{ print index($0, "status line per registered worktree") }')
+    create_at=$(printf '%s\n' "$step2" | awk '{ print index($0, "Harness tool first") }')
+    [ "$check_at" -gt 0 ]
+    [ "$create_at" -gt 0 ]
+    [ "$check_at" -lt "$create_at" ]
+    grep -qE '^- `references/before-opening\.md` — read when ' "$skill"
+    [ -f "$reference" ]
+    grep -q 'git worktree list --porcelain' "$reference"
+    # The snippet, not the file: the prose below it quotes the same command
+    # (review round 2, finding 9).
+    gr_last_sh_fence "$reference" '## (b) ' | grep -qF 'git diff "$BASE...$branch"'
+    tr '\n' ' ' < "$reference" | grep -q 'plain `git grep`'
+    # The claim check cannot see an uncommitted claim; the doc ties that to
+    # the dirty count (a) prints (review round 1, finding 6).
+    tr '\n' ' ' < "$reference" | tr -s ' ' | grep -q 'The check reads committed history only'
+    tr '\n' ' ' < "$reference" | tr -s ' ' | grep -q 'with a dirty count above 0 may hold one'
+}
+
+@test "worktree-discipline: the before-opening snippets run, and the claim check reads the diff" {
+    # verifies: D4 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # The two snippets in before-opening.md are run, not only grepped (review
+    # round 1, finding 4). A scratch repository has a branch that claims an
+    # item, a branch that does not, and a worktree with an uncommitted file.
+    # Check (a) must print each worktree's ahead and dirty counts; check (b)
+    # must name the claiming branch and not the clean one. A plain
+    # `git grep "$id" "$branch"` finds the ID on every branch, because the
+    # item is defined on the base branch, so it reports the clean branch too.
+    reference="$BATS_TEST_DIRNAME/../skills/worktree-discipline/references/before-opening.md"
+    scratch="$BATS_TEST_TMPDIR"
+    gr_last_sh_fence "$reference" '## (a) ' > "$scratch/worktrees.sh"
+    gr_last_sh_fence "$reference" '## (b) ' > "$scratch/claims.sh"
+    grep -q 'git worktree list --porcelain' "$scratch/worktrees.sh"
+    grep -q 'for-each-ref' "$scratch/claims.sh"
+    # Every case pattern opens with `(` (AGENTS.md): after `case ... in` and
+    # after each `;;`, the next non-blank line is a pattern or `esac`.
+    unparenthesized=$(awk '
+        /^[[:space:]]*(#|$)/ { next }
+        armed { armed = 0; if ($0 !~ /^[[:space:]]*(\(|esac)/) print FILENAME ": " $0 }
+        /(^|[[:space:]])case[[:space:]].*[[:space:]]in[[:space:]]*$/ || /;;[[:space:]]*$/ { armed = 1 }
+    ' "$scratch/worktrees.sh" "$scratch/claims.sh")
+    [ -z "$unparenthesized" ] || { echo "parenless case pattern: $unparenthesized"; false; }
+    grep -q 'case ' "$scratch/worktrees.sh"
+
+    repo="$scratch/repo"
+    mkdir -p "$repo"
+    cd "$repo"
+    git init -q -b main --template=
+    git config user.name test
+    git config user.email test@example.com
+    git config commit.gpgsign false
+    printf '# PR-abc123: an item defined on the base branch\n' > ledger.md
+    git add -A
+    git commit -qm base
+    git branch claimer
+    git branch clean
+    git worktree add -q "$scratch/wt-claimer" claimer
+    git worktree add -q "$scratch/wt-clean" clean
+    printf 'resolves: PR-abc123\n' > "$scratch/wt-claimer/plan.md"
+    git -C "$scratch/wt-claimer" add -A
+    git -C "$scratch/wt-claimer" commit -qm claim
+    printf 'unrelated\n' > "$scratch/wt-clean/notes.md"
+    git -C "$scratch/wt-clean" add -A
+    git -C "$scratch/wt-clean" commit -qm notes
+    printf 'uncommitted\n' > "$scratch/wt-clean/scratch.txt"
+    # A branch whose only edit sits next to the ID line, not on it: its diff
+    # shows the ID line as context, which is not a claim. A worktree on a
+    # detached HEAD, and one whose directory is gone, so git lists it as
+    # prunable. Each pins a line of the snippets that before-opening.md
+    # documents (review round 3, finding 14).
+    git branch neighbour
+    git worktree add -q "$scratch/wt-neighbour" neighbour
+    printf 'status: open\n' >> "$scratch/wt-neighbour/ledger.md"
+    git -C "$scratch/wt-neighbour" commit -qam 'status line below the ID line'
+    git worktree add -q --detach "$scratch/wt-detached" main
+    git worktree add -q -b gone "$scratch/wt-gone"
+    rm -r "$scratch/wt-gone"
+
+    # The checks are pasted into whatever shell the caller has, with BASE set
+    # but not exported by the detection line. zsh does not word-split an
+    # unquoted variable, and its `path` is tied to PATH, so the doc runs each
+    # check under sh (review round 4, finding 15). Each check runs as pasted
+    # under sh and, where installed, under zsh.
+    gr_all_sh_fences "$reference" '## (a) ' > "$scratch/worktrees.pasted"
+    gr_all_sh_fences "$reference" '## (b) ' \
+        | sed 's/PR-<token> REQ-<token>/PR-abc123 REQ-zzz999/' > "$scratch/claims.pasted"
+    grep -q 'PR-abc123 REQ-zzz999' "$scratch/claims.pasted"
+    shells=sh
+    if command -v zsh >/dev/null 2>&1; then
+        shells="sh zsh"
+    fi
+
+    for shell in $shells; do
+        run "$shell" -c "BASE=main; $(cat "$scratch/worktrees.pasted")"
+        [ "$status" -eq 0 ] || { echo "(a) under $shell: $output"; false; }
+        [ "$(printf '%s\n' "$output" | grep -c .)" -eq 6 ] || { echo "(a) under $shell: $output"; false; }
+        printf '%s\n' "$output" | grep -qE '^main  ahead 0  dirty 0  last [0-9-]+  '
+        printf '%s\n' "$output" | grep -qE '^claimer  ahead 1  dirty 0  last [0-9-]+  .*/wt-claimer$'
+        printf '%s\n' "$output" | grep -qE '^clean  ahead 1  dirty 1  last [0-9-]+  .*/wt-clean$'
+        printf '%s\n' "$output" | grep -qE '^neighbour  ahead 1  dirty 0  last [0-9-]+  .*/wt-neighbour$'
+        # A detached worktree prints `(detached)` for its branch; a prunable one
+        # prints no counts.
+        printf '%s\n' "$output" | grep -qE '^\(detached\)  ahead 0  dirty 0  last [0-9-]+  .*/wt-detached$'
+        printf '%s\n' "$output" | grep -qE '^gone  prunable  .*/wt-gone$'
+    done
+
+    # The base branch moves on after the branches were cut: another change
+    # that resolved the item merged. A two-dot `"$BASE..$branch"` diff shows
+    # that line as removed on every older branch and reports each as a claim;
+    # the three-dot diff starts where the branch left the base (review round
+    # 2, finding 9).
+    printf 'status: resolved\n# PR-abc123: resolved by another change\n' >> ledger.md
+    git commit -qam 'another change resolves PR-abc123'
+
+    # Exactly one line: the neighbour branch, whose diff carries the ID line
+    # only as context, is not reported.
+    # Run as pasted, with two IDs: under zsh an unsplit list matched nothing,
+    # and the check printed nothing, the answer for an unclaimed item.
+    for shell in $shells; do
+        run "$shell" -c "BASE=main; $(cat "$scratch/claims.pasted")"
+        [ "$status" -eq 0 ]
+        [ "$output" = 'CLAIMED  PR-abc123  by claimer' ] || { echo "(b) under $shell: $output"; false; }
+    done
+
+    # Base detection failed, and the block was pasted whole: with BASE empty,
+    # (a) printed `ahead 0` for every worktree, which reads as valid data, and
+    # (b) printed no CLAIMED line, the answer for an unclaimed item. Each check
+    # stops first and names the cause (review round 6, finding 26).
+    for shell in $shells; do
+        for pasted in worktrees claims; do
+            run "$shell" -c "BASE=; $(cat "$scratch/$pasted.pasted")"
+            [ "$status" -ne 0 ] || { echo "$pasted under $shell, BASE empty: $output"; false; }
+            printf '%s\n' "$output" | grep -qF 'BASE is empty: detect the base branch first' \
+                || { echo "$pasted under $shell, BASE empty: $output"; false; }
+            if printf '%s\n' "$output" | grep -qE 'ahead|prunable|CLAIMED'; then
+                echo "$pasted under $shell, BASE empty: $output"
+                false
+            fi
+        done
+    done
+}
+
 @test "the repository ignores the nested task-worktree directory exactly once" {
     # verifies: PR-n57ayn
     # This change added `.worktrees/` while the base branch added the same
@@ -575,7 +765,10 @@
     printf '%s\n' "$step8" | grep -q 'closing line from the message file'
     printf '%s\n' "$step8" | grep -q 'Run no git command: `finish-merge.sh` verified the signature'
     printf '%s\n' "$step8" | grep -q 'branch, IDs, record'
-    printf '%s\n' "$step8" | grep -q 'the worktree alone when only the branch deletion'
+    # Re-aimed 2026-10-07 (parallel-changes review round 4): what the message
+    # states was removed moved to cleanup-rejections.md, which step 8 names.
+    grep -q 'the worktree alone when only the branch deletion' \
+        "$(dirname "$skill")/references/cleanup-rejections.md"
     printf '%s\n' "$step8" | grep -q 'If the user reports a problem or `finish-merge.sh` exited non-zero'
     printf '%s\n' "$step8" | grep -q 'references/cleanup-rejections.md'
     printf '%s\n' "$step8" | grep -q 're-run the script alone'
@@ -657,7 +850,7 @@
     [ "$status" -ne 0 ]
 }
 
-@test "AGENTS.md: non-negotiable 5 states the rule and points to its ADR" {
+@test "AGENTS.md: non-negotiable 4 states the rule and points to its ADR" {
     # verifies: D10 (docs/plans/2026-09-28-agent-first-skills.md)
     agents="$BATS_TEST_DIRNAME/../AGENTS.md"
     adr="$BATS_TEST_DIRNAME/../docs/adr/ADR-y8jmes-local-main-is-the-base.md"
@@ -666,6 +859,32 @@
     grep -q 'GR_ID_ANY' "$adr"
     run grep -q 'GR_ID_ANY' "$agents"
     [ "$status" -ne 0 ]
+}
+
+@test "AGENTS.md: changes may run in parallel; the non-negotiables run 1 to 4" {
+    # verifies: D1 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    root="$BATS_TEST_DIRNAME/.."
+    agents="$root/AGENTS.md"
+    run grep -n -e 'Open one change at a time' -e 'never across changes' "$agents"
+    [ "$status" -ne 0 ]
+    numbers=$(awk '
+        /^## Non-negotiables/ { inside = 1; next }
+        /^## / { inside = 0 }
+        inside && /^[0-9]+\. / { sub(/\..*/, ""); printf "%s ", $0 }
+    ' "$agents")
+    [ "$numbers" = "1 2 3 4 " ]
+    run grep -rn 'non-negotiable 5' "$agents" "$root/README.md" \
+        "$root/docs/adr" "$root/skills" "$root/templates"
+    [ "$status" -ne 0 ]
+    run grep -n 'Changes are sequential' "$root/README.md"
+    [ "$status" -ne 0 ]
+    # The old rule must not return in another wording, and the README must
+    # state the new one (review round 1, finding 5).
+    run grep -n -e 'Bring a change to its signed squash before' \
+        -e 'before opening the next' "$agents"
+    [ "$status" -ne 0 ]
+    tr '\n' ' ' < "$root/README.md" | tr -s ' ' |
+        grep -q 'Changes may run in parallel, each in its own change worktree'
 }
 
 @test "problem grammar prose: no shipped file still contains owner:" {
@@ -1188,8 +1407,10 @@
     [ "$status" -ne 0 ]
     run grep -rq 'never reaches a later step\.\*\* The paragraph below sends' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
-    grep -q 'any finding at' "$skill"
-    grep -q 'whatever the findings were tagged' "$skill"
+    # Re-aimed 2026-10-07 (parallel-changes review round 4): this reason for
+    # removing the review worktree in 6a moved to the rationale.
+    grep -q 'any finding at' "$(dirname "$skill")/references/rationale.md"
+    grep -q 'whatever the findings were tagged' "$(dirname "$skill")/references/rationale.md"
     # and the red-flag row does not offer the saving either
     ! grep -rq 'skips the suite, not the gates' "$(dirname "$skill")"
 }
@@ -1516,9 +1737,12 @@ gr_write_skill_fixture() {
     # Moved 2026-09-29 with the documentation checklist of step 6a (D4).
     grep -q 'exempts nothing from' \
         "$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
-    grep -q 'not by its filename' "$skill"
-    grep -q 'their shell has none of your variables' "$skill"
-    grep -q 'Two open changes race on the base branch' "$rationale"
+    # Re-aimed 2026-10-07 (parallel-changes review round 4): two reasons moved
+    # to the rationale to make room for instructions.
+    grep -q 'not by its filename' "$rationale"
+    # Review round 4, finding 18: a cut dropped where an exit 2 can come from.
+    grep -q 'usage or environment error from the pre-flight or a tool it runs' "$skill"
+    grep -q 'their shell has none of your variables' "$rationale"
     grep -q 'cannot be re-identified one round' "$rationale"
     grep -q 'an unconditional commit exits 1 with nothing to' "$rationale"
     grep -q 'Nothing later repeats the `unrewritten` report' "$rationale"
@@ -1552,6 +1776,292 @@ gr_write_skill_fixture() {
     [ "$status" -ne 0 ]
     run grep -q 'with two independent reviewers for critical' "$skill"
     [ "$status" -ne 0 ]
+}
+
+@test "merge-change: changes may run in parallel, and the rationale says why" {
+    # verifies: D2 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # Nothing may bar a second change from opening, since AGENTS.md allows
+    # parallel changes (D1). The rationale must state why that is safe: step 1
+    # merges the base every round, IDs are random tokens, and each change's
+    # record is found by its branch: field.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    # Prose wraps, so a phrase is matched on the file with its lines joined.
+    rationale_text=$(tr '\n' ' ' < "$rationale")
+    # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
+    # negated command.
+    run grep -qi 'one change at a time' "$skill" "$rationale"
+    [ "$status" -ne 0 ]
+    # The same precondition may return in other words, such as "Only one open
+    # change" (review round 2, finding 10). The Preconditions section keeps
+    # its three bullets, and none of its lines pairs "change" with "open",
+    # "one" or "next".
+    preconditions=$(awk '/^## / { inside = ($0 == "## Preconditions"); next } inside' "$skill")
+    [ "$(printf '%s\n' "$preconditions" | grep -c '^- ')" -eq 3 ]
+    one_change=$(printf '%s\n' "$preconditions" | awk '{
+        line = tolower($0)
+        if (line ~ /change/ && line ~ /(^|[^a-z])(open|one|next)([^a-z]|$)/) print
+    }')
+    [ -z "$one_change" ] || { echo "precondition limits open changes: $one_change"; false; }
+    grep -q '^## Changes open in parallel$' "$rationale"
+    printf '%s\n' "$rationale_text" | grep -q 'reaches every other change before its gate'
+    printf '%s\n' "$rationale_text" | grep -q 'two worktrees do not contend for an ID'
+    printf '%s\n' "$rationale_text" | grep -q '`DUPLICATE-ID` catches the improbable collision'
+    printf '%s\n' "$rationale_text" | grep -q 'the gate finds it by its `branch:` field'
+}
+
+@test "merge-change: a base merge that shares a file with the change gets a fresh review" {
+    # verifies: D2 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # With changes open in parallel, the base can move after the last
+    # reviewer was dispatched: on the rerun after an all-low round, or after
+    # step 7's base-moved remedy. The gate reruns on the merged tree, but no
+    # reviewer saw the merge (review round 4, finding 16). The maintainer
+    # ruled on 2026-10-07: when the base and the change edited the same file,
+    # the whole change goes to a fresh reviewer; when the files are disjoint,
+    # the gate rerun covers it. Step 1 lists the files the base edited after
+    # the commit 6a marked as reviewed that the change also edits. It compares
+    # against that marker, not the last base merge, so a rerun after a failed
+    # gate lists the file again (review round 5, finding 21). This test runs
+    # step 1's fence and 6a's marker against one fixture, scenario by scenario.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill")
+    [ -n "$step1" ]
+    step1_text=$(printf '%s\n' "$step1" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$step1_text" | grep -qF 'A `shared:` line names a file this change edits that the base edited after the last reviewed commit: 6a then reviews the whole change again, even after the last review round. Otherwise the gate rerun covers it.'
+    rationale_text=$(tr '\n' ' ' < "$rationale" | tr -s ' ')
+    printf '%s\n' "$rationale_text" | grep -q 'A base that moved also changes what the review saw'
+    printf '%s\n' "$rationale_text" | grep -q 'any shared file sends the whole change to a fresh reviewer'
+    printf '%s\n' "$rationale_text" | grep -q 'A conflict is not the test'
+    printf '%s\n' "$rationale_text" | grep -q 'because the obligation must survive a rerun'
+    tr '\n' ' ' < "$template" | tr -s ' ' | grep -q 'name the shared files and that review round'
+
+    sh_fence() {
+        awk '
+            /^ *```sh$/ { fenced = 1; next }
+            fenced && /^ *```$/ { exit }
+            fenced { sub(/^   /, ""); print }
+        '
+    }
+    fence=$(printf '%s\n' "$step1" | sh_fence)
+    printf '%s\n' "$fence" | grep -q 'git merge "\$base_ref"'
+    review_step=$(awk '/^6a\. \*\*/ { inside = 1 } /^6b\. \*\*/ { inside = 0 } inside' "$skill")
+    mark=$(printf '%s\n' "$review_step" | sh_fence)
+    printf '%s\n' "$mark" | grep -q -- '--allow-empty'
+    # Runs step 1's fence and leaves its `shared:` lines in $shared.
+    run_step1() {
+        run env GIT_MERGE_AUTOEDIT=no sh -c "BASE=main; $fence"
+        [ "$status" -eq 0 ] || { echo "$output"; false; }
+        shared=$(printf '%s\n' "$output" | grep '^shared: ' || true)
+    }
+    on_main() {
+        git checkout -q main
+        "$@"
+        git checkout -q change
+    }
+    edit_line() { sed -i.bak "s/^$2\$/$3/" "$1" && rm "$1.bak"; }
+
+    make_fixture_repo
+    printf '1\n2\n3\n4\n5\n6\n7\n8\n' > shared.txt
+    printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n' > tests.bats
+    printf 'notes\n' > notes.txt
+    printf 'my notes\n' > my-notes.txt
+    printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n' > old-name.txt
+    commit_all 'files both sides will edit'
+    git checkout -q -b change
+    edit_line shared.txt 1 one
+    edit_line tests.bats 2 two
+    printf 'own notes\n' > notes.txt
+    git mv old-name.txt new-name.txt
+    commit_all 'the change'
+
+    # No reviewer yet: the first review will see everything, so nothing lists.
+    on_main eval 'edit_line shared.txt 8 eight && commit_all "base edits the shared file"'
+    run_step1
+    [ -z "$shared" ] || { echo "$shared"; false; }
+
+    # A reviewer is dispatched; then the base edits the shared file.
+    sh -c "$mark" >/dev/null
+    on_main eval 'edit_line shared.txt 5 five && commit_all "base edits the shared file again"'
+    run_step1
+    [ "$shared" = 'shared: shared.txt' ] || { echo "$output"; false; }
+    # The gate fails and a fix lands. The rerun merges nothing, and still
+    # lists the file: no reviewer has seen that merge.
+    printf 'fix\n' > fix.txt
+    commit_all 'fix after the gate failed'
+    run_step1
+    [ "$shared" = 'shared: shared.txt' ] || { echo "$output"; false; }
+
+    # A fresh reviewer sees the merged tree: nothing lists for the same base.
+    sh -c "$mark" >/dev/null
+    run_step1
+    [ -z "$shared" ] || { echo "$shared"; false; }
+
+    # A base move on disjoint files lists nothing.
+    on_main eval 'printf "disjoint\n" > disjoint.txt && commit_all "base edits its own file"'
+    run_step1
+    [ -z "$shared" ] || { echo "$shared"; false; }
+    [ -f disjoint.txt ]
+
+    # The base renames a file the change edits: it lists under the old path.
+    sh -c "$mark" >/dev/null
+    on_main eval 'git mv tests.bats moved.bats && edit_line moved.bats 9 nine && commit_all "base renames"'
+    run_step1
+    [ "$shared" = 'shared: tests.bats' ] || { echo "$output"; false; }
+    grep -qx two moved.bats
+    grep -qx nine moved.bats
+
+    # The change renamed a file the base then edits: the old path lists.
+    sh -c "$mark" >/dev/null
+    on_main eval 'edit_line old-name.txt 9 nine && commit_all "base edits a file the change renamed"'
+    run_step1
+    [ "$shared" = 'shared: old-name.txt' ] || { echo "$output"; false; }
+    grep -qx nine new-name.txt
+
+    # A base file whose name contains a changed file's name is not shared.
+    sh -c "$mark" >/dev/null
+    on_main eval 'printf "their notes\n" > my-notes.txt && commit_all "base edits my-notes.txt"'
+    run_step1
+    [ -z "$shared" ] || { echo "$shared"; false; }
+}
+
+@test "merge-change: step 7 checks for a staged squash before staging its own" {
+    # verifies: D5 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # With one squash already staged in the primary index, a second
+    # `git merge --squash` exits 0 and stacks its files onto the first when
+    # the two touch different files and it fast-forwards; on a shared file git
+    # refuses. The staged squash is a lock only if step 7 looks for it before
+    # staging. The check is joined to the squash with `&&`: run as two lines in
+    # one shell call, a non-empty index fails the check and the squash runs
+    # anyway (review round 1, finding 1).
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    # Prose wraps, so a phrase is matched on the file with its lines joined.
+    rationale_text=$(tr '\n' ' ' < "$rationale")
+    step7=$(awk '/^7\. \*\*/ { inside = 1 } /^8\. \*\*/ { inside = 0 } inside' "$skill")
+    [ -n "$step7" ]
+    printf '%s\n' "$step7" | grep -qE '^ *git diff --cached --quiet && git merge --squash <branch>$'
+    # The squash command appears only in its joined form.
+    [ "$(printf '%s\n' "$step7" | grep -c 'git merge --squash <branch>')" -eq 1 ]
+    # The second line compares the index with the branch after every squash,
+    # not only when the index check fails: a base that moved after the last
+    # step 1 makes the squash a three-way merge that exits 0 and stages a
+    # tree the gate never saw (review round 3, finding 11).
+    printf '%s\n' "$step7" | grep -qE '^ *git diff --cached --quiet <branch>$'
+    squash_at=$(printf '%s\n' "$step7" | grep -n 'git merge --squash <branch>$' | cut -d: -f1)
+    compare_at=$(printf '%s\n' "$step7" | grep -n '^ *git diff --cached --quiet <branch>$' | cut -d: -f1)
+    [ "$compare_at" -eq $((squash_at + 1)) ]
+    step7_text=$(printf '%s\n' "$step7" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$step7_text" | grep -qF "The second line exits 0 when the index holds exactly the branch's tree: go on to the message."
+    # Which case a failed comparison is follows from the first line's
+    # output, not its exit status: a conflicted squash of this change also
+    # exits 1 (review round 3, finding 13). A squash that ran is cleared and
+    # the sequence reruns from step 1. A squash git refused because the
+    # primary checkout is dirty is not a moved base: `git reset --merge` keeps
+    # the edit, and the rerun would loop (review round 4, finding 17).
+    printf '%s\n' "$step7_text" | grep -qF 'The first line printed that files "would be overwritten": the primary checkout is dirty. Stop and tell the user.'
+    printf '%s\n' "$step7_text" | grep -qF "It printed other output: the base moved after step 1. Run \`git reset --merge\`, then rerun from step 1."
+    # A squash staged before is another change's or an outdated one of this
+    # change: the agent stops and the user decides (review round 2, findings
+    # 8 and 10).
+    printf '%s\n' "$step7_text" | grep -qF "It printed nothing: a squash was already staged, another change's or an outdated one of this change. Stop and tell the user; once they sign or clear it, rerun from step 1."
+    run grep -q 'staged files are' "$skill" "$rationale"
+    [ "$status" -ne 0 ]
+    grep -q '^## Step 7: the agent stages the squash$' "$rationale"
+    printf '%s\n' "$rationale_text" | grep -q 'first come, first served'
+    printf '%s\n' "$rationale_text" | grep -q 'stacks its files onto the first'
+    printf '%s\n' "$rationale_text" | grep -q 'would leave the index empty until the key touch'
+    printf '%s\n' "$rationale_text" | grep -q 'Comparing file names cannot tell'
+    printf '%s\n' "$rationale_text" | grep -qF '`git diff --cached --quiet <branch>` can'
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'when an outdated squash of this change is'
+    # The parallel section must not claim the index holds one squash by
+    # itself; it holds one because step 7 checks (review round 1, finding 3).
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'holds one staged squash only because step 7 checks'
+    # Step 1 alone does not close the parallel-change race; step 7's tree
+    # comparison does (review round 3, finding 11).
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'Step 1 alone does not close the gap'
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q "Step 7's tree comparison catches that base move"
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'A gate result describes the branch.s tree, and nothing else'
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'runs after every squash, not only when the index check fails'
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -qF '`git reset --merge` resets the index to HEAD'
+    # A squash over a staged one stacks only when the two touch different
+    # files; on a shared file git refuses, fast-forward or not (review round
+    # 3, finding 12).
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'touch different files and the second squash fast-forwards'
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'fast-forward or not'
+    run sh -c 'printf "%s\n" "$1" | tr -s " " | grep -q "When it fast-forwards, it exits 0"' _ "$rationale_text"
+    [ "$status" -ne 0 ]
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'means the primary checkout has an edit or a file in the squash.s way'
+    # Two step 7s at the same instant can still race; the rationale states
+    # what catches each outcome (review round 4, finding 17).
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'Two sessions that run step 7 at the same instant can still race'
+    printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'that session.s signing then fails with "nothing to commit"'
+
+    # Step 7's two lines run against git, not only as prose (review round 4,
+    # finding 19). Each case is set up in the primary checkout of a scratch
+    # repository, with the change branch `feature` already merged with main.
+    fence=$(printf '%s\n' "$step7" | awk '
+        /^ *```sh$/ { fenced = 1; next }
+        fenced && /^ *```$/ { exit }
+        fenced { sub(/^ +/, ""); gsub(/<branch>/, "feature"); print }
+    ')
+    [ "$(printf '%s\n' "$fence" | grep -c .)" -eq 2 ]
+    squash_line=$(printf '%s\n' "$fence" | sed -n 1p)
+    compare_line=$(printf '%s\n' "$fence" | sed -n 2p)
+    make_fixture_repo
+    git checkout -q -b feature
+    printf 'feature\n' > feature.txt
+    commit_all 'the change'
+    git checkout -q -b other main
+    printf 'other\n' > other.txt
+    commit_all 'another change'
+    git checkout -q main
+
+    # A clean squash: the index holds exactly the branch's tree.
+    run sh -c "$squash_line"
+    [ -n "$output" ]
+    run sh -c "$compare_line"
+    [ "$status" -eq 0 ]
+    # This change's own squash, left staged when its signing failed: the
+    # index check stops the first line, and the comparison exits 0.
+    run sh -c "$squash_line"
+    [ -z "$output" ]
+    run sh -c "$compare_line"
+    [ "$status" -eq 0 ]
+    git reset -q --merge
+
+    # Another change's squash is staged: the first line prints nothing and
+    # the comparison exits 1.
+    git merge -q --squash other
+    run sh -c "$squash_line"
+    [ -z "$output" ]
+    run sh -c "$compare_line"
+    [ "$status" -eq 1 ]
+    git reset -q --merge
+
+    # The primary checkout has an untracked file in the squash's way: git
+    # refuses, says so, and the comparison exits 1.
+    printf 'in the way\n' > feature.txt
+    run sh -c "$squash_line"
+    printf '%s\n' "$output" | grep -q 'would be overwritten'
+    run sh -c "$compare_line"
+    [ "$status" -eq 1 ]
+    rm feature.txt
+
+    # The base moved after the branch merged it: the squash is a three-way
+    # merge that exits 0, prints git's output, and stages more than the
+    # branch's tree. `git reset --merge` returns the index to HEAD.
+    printf 'moved\n' > moved.txt
+    commit_all 'the base moves after step 1'
+    run sh -c "$squash_line"
+    [ "$status" -eq 0 ]
+    [ -n "$output" ]
+    run sh -c "$compare_line"
+    [ "$status" -eq 1 ]
+    git reset -q --merge
+    git diff --cached --quiet HEAD
+    [ -z "$(git status --porcelain)" ]
 }
 
 @test "merge-change: the rationale file describes no script" {

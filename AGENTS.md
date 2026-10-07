@@ -31,10 +31,7 @@ Guardrails is developed under the rules it ships, without exception.
    Dispatch it to a subagent, which runs the gate and returns the gate summary
    (`verify-before-merge`); do not run it in your own context. Read the verdict
    from the reported pass and fail counts. Exit 0 is not a pass.
-4. **Open one change at a time.** Bring a change to its signed squash before
-   opening the next. Run tasks in parallel only inside a change, across tasks
-   whose file sets do not intersect, never across changes.
-5. **Use local `main` as the base branch. Never consult `origin`.** No
+4. **Use local `main` as the base branch. Never consult `origin`.** No
    `git fetch`, no `git push`, no reading `origin/<branch>` as authoritative.
    A change branches from local `main`, `merge-change` step 1 merges local
    `main` in, and the signed squash is merged onto local `main`. Pushing is the
@@ -48,7 +45,7 @@ Guardrails is developed under the rules it ships, without exception.
    project with sequential IDs or a shared remote.
 
    State it in the verification record: "base merged from local `main` at
-   `<commit>`, per AGENTS.md non-negotiable 5".
+   `<commit>`, per AGENTS.md non-negotiable 4".
 
 ## Code: names
 

@@ -18,9 +18,6 @@ description: The compliance chokepoint - integrate a worktree into the base bran
   BASE=$(. .guardrails/scripts/lib.sh && gr_base_branch) && [ -n "$BASE" ]
   ```
 
-- **One change at a time.** Take this change to its signed squash before the
-  next change opens.
-
 ## Steps
 
 Halt on any failure. You decide the fix, and dispatch it into a nested task
@@ -32,27 +29,32 @@ to merge the task branch, remove the worktree and delete the task branch. Then
 rerun from step 1.
 
 The tag must be unique per dispatch: date it, number it, or name it after the
-finding. With a repeated tag, a missed cleanup makes the next `start` fail.
+finding.
 
-1. **Merge the latest base branch into the worktree branch.** Latest means
-   latest on the remote:
+1. **Merge the latest base branch into the worktree branch:**
 
    ```sh
    if [ -n "$(git remote)" ]; then
        git fetch origin || { echo "fetch failed — fix it before merging" >&2; exit 1; }
-       git merge "origin/$BASE"
+       base_ref="origin/$BASE"
    else
-       git merge "$BASE"
+       base_ref=$BASE
    fi
+   reviewed=$(git rev-list -1 --grep='^review dispatched$' "$base_ref..HEAD")
+   [ -z "$reviewed" ] || git diff --name-only --no-renames "$(git merge-base "$reviewed" "$base_ref")" "$base_ref" |
+       grep -Fx "$(git diff --name-only --no-renames "$base_ref...HEAD")" | sed 's/^/shared: /'
+   git merge "$base_ref"
    ```
 
    - A failed fetch is a **stop**. Fetch from a session that can, or record
      the local ref and commit the base was merged from.
    - A project may put the remote out of scope only if its own AGENTS.md states
-     why, and the record states it too. Never adopt that by analogy
-     (`references/rationale.md`).
+     why, and the record states it too. Never adopt that by analogy.
    - Run this step every round. Resolve conflicts here, never on the base
      branch.
+   - A `shared:` line names a file this change edits that the base edited
+     after the last reviewed commit: 6a then reviews the whole change again,
+     even after the last review round. Otherwise the gate rerun covers it.
 2. **Dispatch the verification suite** as `verify-before-merge` describes, and
    read the verdict from the pass and fail counts of the **gate summary** it
    returns. Do not run it in your own context.
@@ -60,7 +62,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    **Record the tree the summary describes**, beside the summary:
 
    ```sh
-   git rev-parse HEAD^{tree}   # clean worktree, at the moment of the dispatch
+   git rev-parse HEAD^{tree}   # clean worktree, at dispatch
    ```
 
 3. **Finalize the draft doc files.** Preview, then run:
@@ -72,17 +74,16 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
 
    Read every line it prints:
 
-   - `rewrote FILE: old -> new` — prose somebody else wrote was edited. Check it.
+   - `rewrote FILE: old -> new` — check the edited prose.
    - `left FILE: …` — write the reference as a path by hand.
    - `unrewritten FILE:LINE: NAME` (`would leave unrewritten` under
      `--dry-run`) — narration of the rename stays; a citation meant to resolve
-     is dead, so repair it. Nothing later repeats this line.
+     is dead, so repair it.
    - A rename you do not recognise is a draft another change left behind.
      Stop: its repair is a separate change.
 
-   Only root-relative paths and bare names are rewritten. A relative link such
-   as `../risk/DRAFT-x.md` is reported at step 4 as `DANGLING-FILE`; write the
-   dated name by hand.
+   Only root-relative paths and bare names are rewritten. Step 4 reports a
+   relative link as `DANGLING-FILE`; write the dated name by hand.
 
    Commit the renames **only where there were renames**:
 
@@ -103,8 +104,8 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    Each check prints `ok` or `skipped (<reason>)`. Read the warnings a passing
    check prints. The first failing check prints its tool's output and a
    `fix <CHECK>:` line, and stops the run: exit 1 is a failed check, exit 2 a
-   usage or environment error from the pre-flight or a tool it runs. Follow the
-   `fix` lines, except where step 5 rules otherwise.
+   usage or environment error from the pre-flight or a tool it runs. Follow
+   the `fix` lines, except where step 5 rules otherwise.
 5. **Rule on what the pre-flight cannot.**
 
    - `MALFORMED-ID`: give the item an ID from `new-id.sh`. Never widen a
@@ -118,17 +119,20 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    git rev-parse HEAD^{tree}   # compare with the hash recorded at step 2
    ```
 
-   Same hash and a clean worktree: **the step 2 summary stands**, and 6b
-   records which tree the figures describe. Otherwise dispatch the suite
-   again.
+   Same hash and a clean worktree: **the step 2 summary stands**. Otherwise
+   dispatch the suite again.
 
-6a. **Independent review** (DO-178C independence: the verifier is not the
-   author). Dispatch a fresh subagent (or a human reviewer where team policy
-   requires one) with the diff, the plan and
+6a. **Independent review** — dispatch a fresh subagent (or a human reviewer
+   where team policy requires one) with the diff, the plan and
    `.guardrails/scripts/find-items.sh show` of each ID the change claims or
    amends, and **no implementation narrative and no chat history**.
    Name its worktree in the prompt: `.worktrees/<change-branch>-review`,
-   created with `task-worktree.sh start review`.
+   created with `task-worktree.sh start review`. First mark the commit it
+   reviews:
+
+   ```sh
+   git -c commit.gpgsign=false commit --allow-empty -m 'review dispatched'
+   ```
 
    The reviewer answers:
    - Does the code satisfy each REQ/LLR the change claims to implement?
@@ -137,8 +141,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    - Are abnormal-input cases present for every claimed ID (class B/C)?
    - Is there behavior with no requirement (unmarked derived work)?
 
-   **Hand the reviewer `references/review-checklist.md`**, every round: it
-   defines the severities.
+   **Hand the reviewer `references/review-checklist.md`**, every round.
 
    **The reviewer runs the suite itself** in its worktree and reports the
    counts it saw. Only a documentation-only diff may use the step 6 gate
@@ -150,7 +153,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    the record, plan or ledger misstates correct work. A `code` or
    `requirement` tag is followed by a severity, `high`, `medium` or `low`:
    `**finding-N**: code, medium — <text>`. The reviewer returns a one-line
-   verdict. Copy findings verbatim; a reworded finding is the author's.
+   verdict. Copy findings verbatim.
 
    **Every finding still sends the sequence back to step 1, whatever its tag.**
    The tag decides only whether **another reviewer is dispatched**.
@@ -174,8 +177,6 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
      finding, then run `task-worktree.sh discard review`; never merge them.
    - Not every round creates one: a human reviewer uses their checkout.
      `remove` fails on a tag that was never started, so skip it there.
-   - Remove it here: a round that returns any finding at all goes back to
-     step 1 whatever the findings were tagged.
    - `remove` rejects untracked files as well as modified ones.
      Nothing gitignored is among them. Copy anything worth keeping into the
      record, then read the scratch, delete it, and run `remove` again.
@@ -189,23 +190,19 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    `docs/verification/<date>-<branch>.md`, fill it in, and commit it unsigned:
    the gate summary's totals and the tree they describe, coverage if
    configured, each check's result, the IDs this change
-   resolves, accepts or opens (never the open count or the oldest age, which
-   the next merge makes false), the `red -> green:` attestations from the plan, and the reviewer's
-   verdict and every finding with its disposition.
+   resolves, accepts or opens (never the open count or the oldest age), the
+   `red -> green:` attestations from the plan, and the reviewer's verdict and
+   every finding with its disposition.
 
    Four fields are required, each a plain annotation at column one. 6c
    rejects a record unless it contains all four fields with values
    (`INCOMPLETE-RECORD`):
 
-   - `branch:` — the change, matched whole. The gate finds the record by this
-     field, not by its filename.
+   - `branch:` — the change, matched whole.
    - `reviewer:` — who performed step 6a.
    - `verdict:` — the review's conclusion, including "nothing found".
    - `reproduced:` — whether and how the defect was reproduced before the fix,
-     or why not. An honest "not reproduced" passes.
-
-   Each finding gets a `disposition:` line: what changed, and the test that
-   reddens without it.
+     or why not.
 
 6c. **Run the pre-flight again, with the review check:**
 
@@ -226,8 +223,20 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    checkout, with the base branch checked out:
 
    ```sh
-   git merge --squash <branch>
+   git diff --cached --quiet && git merge --squash <branch>
+   git diff --cached --quiet <branch>
    ```
+
+   The second line exits 0 when the index holds exactly the branch's tree:
+   go on to the message. Otherwise:
+
+   - The first line printed that files "would be overwritten": the primary
+     checkout is dirty. Stop and tell the user.
+   - It printed other output: the base moved after step 1. Run
+     `git reset --merge`, then rerun from step 1.
+   - It printed nothing: a squash was already staged, another change's or an
+     outdated one of this change. Stop and tell the user; once they sign or
+     clear it, rerun from step 1.
 
    Write the commit message to a file **outside the repository**, such as
    `/tmp/merge-<branch>.msg`:
@@ -245,7 +254,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
    `Resolves:` and `Opens:` repeat the 6b delta. Leave out an empty line.
 
    Hand the user exactly one command, with real paths and branch name
-   substituted, because their shell has none of your variables, and **stop**:
+   substituted, and **stop**:
 
    ```sh
    git commit -S -F /tmp/merge-<branch>.msg && sh .guardrails/scripts/finish-merge.sh <branch>
@@ -270,9 +279,7 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
 
    If the user reports a problem or `finish-merge.sh` exited non-zero, read
    `references/cleanup-rejections.md`.
-   The signed commit is on the base branch either way. The message states what
-   was removed: nothing, or the worktree alone when only the branch deletion
-   failed. Fix the cause, then re-run the script alone, never the whole
+   Fix the cause, then re-run the script alone, never the whole
    compound:
 
    ```sh
@@ -285,7 +292,6 @@ finding. With a repeated tag, a missed cleanup makes the next `start` fail.
 |---|---|
 | "I'll run `git commit -S` myself, it's one command" | The commit is the user's. Hand over the compound and stop (step 7). |
 | "The script rejected the cleanup, I'll remove the change worktree and branch by hand" | A guard caught something. `--force` and `-D` on them destroy it. Fix the cause and re-run the script (step 8). |
-| "Drop the finding, I decided it was wrong" | Its disposition states that, with the reason. |
 
 ## Done when
 

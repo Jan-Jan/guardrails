@@ -10,9 +10,9 @@ change branch, so that the `DUPLICATE-ID` scan at step 4 reads every ID merged
 anywhere. In this repository an agent fetch or push needs a hardware key that
 only the maintainer can touch, and the agent blocks on it.
 
-`AGENTS.md` non-negotiable 5 stated this argument in full until D10 of
-`docs/plans/2026-09-28-agent-first-skills.md` moved it here. `AGENTS.md` keeps
-the rule and points to this file.
+`AGENTS.md`'s non-negotiable on the base branch stated this argument in full
+until D10 of `docs/plans/2026-09-28-agent-first-skills.md` moved it here.
+`AGENTS.md` keeps the rule and points to this file.
 
 ## Decision
 
@@ -22,7 +22,7 @@ branches from it, `merge-change` step 1 merges it in, and the signed squash is
 merged onto it. Pushing is the maintainer's, done when they choose.
 
 This overrides `merge-change` step 1's fetch. The verification record states
-"base merged from local `main` at `<commit>`, per AGENTS.md non-negotiable 5",
+"base merged from local `main` at `<commit>`, per AGENTS.md non-negotiable 4",
 so a later reader knows the remote was out of scope by policy.
 
 ## Cost
