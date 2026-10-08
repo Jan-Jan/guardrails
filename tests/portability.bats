@@ -14,33 +14,96 @@ setup() { make_fixture_repo; }
 # The stub is the instrument every other test in this file depends on. An
 # instrument that never fires reports a clean bill of health for a broken
 # tree, so it is calibrated first, in both directions.
+#
+# Each assertion is a function that takes the directory whose awk it checks,
+# so the same assertions run against the stub and, as a contract test,
+# against the real BWK awk where this machine has one (D11 of
+# docs/plans/2026-10-07-test-seams.md). A stub checked only against its own
+# specification drifts from the tool it imitates.
 
-@test "strict awk: rejects a literal newline in a -v assignment" {
-    # verifies: PR-v3j4s2
-    bin=$(make_strict_awk)
-    run env PATH="$bin:$PATH" awk -v kws='a:
+awk_rejects_newline_in_assignment() {
+    run env PATH="$1:$PATH" awk -v kws='a:
 b:' 'BEGIN { print "ok" }' /dev/null
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
     [[ "$output" == *"newline in string"* ]] || { echo "$output"; false; }
 }
 
-@test "strict awk: accepts the same list flattened to spaces" {
-    # verifies: PR-v3j4s2
+awk_accepts_flattened_list() {
     # The fix's premise: `split()` under the default FS splits on runs of
     # space, tab and newline alike, so the flattened list is the same list.
-    bin=$(make_strict_awk)
-    run env PATH="$bin:$PATH" awk -v kws='a: b:' \
-        'BEGIN { n = split(kws, K); print "fields:", n, K[1], K[2] }' /dev/null
+    run env PATH="$1:$PATH" awk -v kws='a: b:' \
+        'BEGIN { count = split(kws, keywords); print "fields:", count, keywords[1], keywords[2] }' /dev/null
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
     [ "$output" = "fields: 2 a: b:" ] || { echo "$output"; false; }
+}
+
+awk_passes_plain_assignment() {
+    run env PATH="$1:$PATH" awk -v assigned=plain 'BEGIN { print assigned }' /dev/null
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = plain ] || { echo "$output"; false; }
+}
+
+# The directory of a real BWK awk, or status 1. BWK awk answers `-version`
+# with "awk version <date>"; gawk, mawk and busybox awk reject it as a
+# malformed -v assignment, so they never match.
+real_bwk_awk_dir() {
+    for candidate in /usr/bin/awk "$(command -v awk)"; do
+        [ -x "$candidate" ] || continue
+        "$candidate" -version 2>/dev/null | grep -q '^awk version ' || continue
+        dirname "$candidate"
+        return 0
+    done
+    return 1
+}
+
+# A contract test's tool directory, in $contract_dir, or a skip where the tool
+# is absent. Status 1 from the detector means absent; any other status is a
+# broken detector and fails, so a renamed or undefined detector cannot pass as
+# a skip. Both tools ship with macOS, so "absent" there fails too.
+contract_tool_dir() {
+    contract_dir=$("$1") && return 0
+    detector_status=$?
+    [ "$detector_status" -eq 1 ] \
+        || { echo "$1 failed with status $detector_status"; return 1; }
+    [ "$(uname -s)" != Darwin ] \
+        || { echo "$1 found no $2 on macOS, where it ships"; return 1; }
+    skip "no $2 on this machine"
+}
+
+@test "strict awk: rejects a literal newline in a -v assignment" {
+    # verifies: PR-v3j4s2
+    bin=$(make_strict_awk)
+    awk_rejects_newline_in_assignment "$bin"
+}
+
+@test "strict awk: accepts the same list flattened to spaces" {
+    # verifies: PR-v3j4s2
+    bin=$(make_strict_awk)
+    awk_accepts_flattened_list "$bin"
 }
 
 @test "strict awk: passes every other invocation through to the real awk" {
     # verifies: PR-v3j4s2
     bin=$(make_strict_awk)
-    run env PATH="$bin:$PATH" awk -v k=plain 'BEGIN { print k }' /dev/null
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$output" = plain ]
+    awk_passes_plain_assignment "$bin"
+}
+
+@test "strict awk contract: the real BWK awk rejects a literal newline in a -v assignment" {
+    # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
+    contract_tool_dir real_bwk_awk_dir "BWK awk"
+    awk_rejects_newline_in_assignment "$contract_dir"
+}
+
+@test "strict awk contract: the real BWK awk accepts the same list flattened to spaces" {
+    # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
+    contract_tool_dir real_bwk_awk_dir "BWK awk"
+    awk_accepts_flattened_list "$contract_dir"
+}
+
+@test "strict awk contract: the real BWK awk takes a plain -v assignment" {
+    # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
+    contract_tool_dir real_bwk_awk_dir "BWK awk"
+    awk_passes_plain_assignment "$contract_dir"
 }
 
 # --- PR-v3j4s2 --------------------------------------------------------------
@@ -165,20 +228,42 @@ EOF
 
 # --- PR-yd2sft --------------------------------------------------------------
 
+# Calibrated like the awk stub, and for the same reason: on macOS the real
+# date already behaves this way, so an instrument that never fired would be
+# invisible here and useless on the GNU box it exists for. The assertion is
+# shared with the contract test below.
+bsd_date_rejects_gnu_spellings() {
+    run env PATH="$1:$PATH" date -d "3 days ago" +%Y-%m-%d
+    [ "$status" -ne 0 ] || { echo "-d was accepted: $output"; false; }
+    run env PATH="$1:$PATH" date -v--1d +%Y-%m-%d
+    [ "$status" -ne 0 ] || { echo "-v--1d was accepted: $output"; false; }
+    run env PATH="$1:$PATH" date -v-3d +%Y-%m-%d
+    [ "$status" -eq 0 ] || { echo "a valid adjustment was rejected: $output"; false; }
+    run env PATH="$1:$PATH" date +%Y-%m-%d
+    [ "$status" -eq 0 ] || { echo "a plain call was rejected: $output"; false; }
+}
+
+# The directory of a real BSD date, or status 1. Only BSD date takes `-v`.
+real_bsd_date_dir() {
+    for candidate in /bin/date /usr/bin/date "$(command -v date)"; do
+        [ -x "$candidate" ] || continue
+        "$candidate" -v+0d +%Y-%m-%d >/dev/null 2>&1 || continue
+        dirname "$candidate"
+        return 0
+    done
+    return 1
+}
+
 @test "bsd date stub: rejects -d and a doubled sign in -v" {
     # verifies: PR-yd2sft
-    # Calibrated like the awk stub, and for the same reason: on macOS the real
-    # date already behaves this way, so an instrument that never fired would be
-    # invisible here and useless on the GNU box it exists for.
     bin=$(make_bsd_date)
-    run env PATH="$bin:$PATH" date -d "3 days ago" +%Y-%m-%d
-    [ "$status" -ne 0 ] || { echo "-d was accepted: $output"; false; }
-    run env PATH="$bin:$PATH" date -v--1d +%Y-%m-%d
-    [ "$status" -ne 0 ] || { echo "-v--1d was accepted: $output"; false; }
-    run env PATH="$bin:$PATH" date -v-3d +%Y-%m-%d
-    [ "$status" -eq 0 ] || { echo "a valid adjustment was rejected: $output"; false; }
-    run env PATH="$bin:$PATH" date +%Y-%m-%d
-    [ "$status" -eq 0 ] || { echo "a plain call was rejected: $output"; false; }
+    bsd_date_rejects_gnu_spellings "$bin"
+}
+
+@test "bsd date contract: the real BSD date rejects -d and a doubled sign in -v" {
+    # verifies: PR-yd2sft, D11 (docs/plans/2026-10-07-test-seams.md)
+    contract_tool_dir real_bsd_date_dir "BSD date"
+    bsd_date_rejects_gnu_spellings "$contract_dir"
 }
 
 @test "days_ago produces a date in the future as well as one in the past" {

@@ -72,6 +72,39 @@ the same violation.
 with the REQ it violates, then fix it. If the bug reveals a hazard the RMF
 missed, run `analyze-risks` before closing.
 
+### Where a test attaches
+
+**A test calls only an interface that a REQ or LLR describes.** A private
+helper is covered through the interface above it. Without LLRs, the seam is
+the REQ level: the public interface. A user journey is a REQ only when it
+states an outcome none of its steps states; otherwise it verifies theirs.
+
+**A deeper interface gets a direct test only once it has an LLR**
+(`design-architecture`). It earns one only when a case cannot be triggered
+from above without faking code the project owns, when its cases multiply past
+enumeration from above, or when it is maths, parsing, encoding or a numerical
+transform. A case reachable from above is tested there.
+
+**Test doubles.** Never mock code the project owns or assert how it was
+called. Fake only at the codebase boundary, behind an adapter the project
+owns, and give every fake a contract test that runs against the real
+dependency wherever it is reachable. A service the project owns runs for real
+on the normal path; its failures may be injected or faked. Assert an
+interaction only where the interaction is the requirement.
+
+**Permutations and evidence.** Prefer a property test where cases are
+combinatorial or the code is maths, parsing or encoding;
+fix or print its seed, and pin each counterexample as an
+example test before the fix. A surviving mutant means a missing test at the
+seam, or dead code: never a test below the seam.
+
+**UI.** The REQ interface is what the user perceives and does, plus what the
+app sends out. A markup snapshot carries no `verifies:` annotation.
+
+These rules bind the tests a change writes or edits. An existing test that
+breaks them and must be edited moves to the seam; one that still passes is
+left alone.
+
 ### Delegation: dispatch every plan task
 
 You orchestrate the loop: a subagent runs it for one plan task, and you keep
@@ -214,6 +247,7 @@ any finding.
 | "The result line is green, so every test was red once" | Only a `red -> green:` line states that. |
 | "Re-dispatch with the same prompt" | Change the approach first. |
 | "Fix the names at `merge-change` step 6a" | That reruns the merge sequence. Run the deslop pass here. |
+| "This helper is complex, I'll test it directly" | Give it an LLR first, or test it through the interface above (`references/test-seams.md`). |
 
 ## Done when
 
@@ -226,5 +260,8 @@ any finding.
 ## References
 
 - `references/mutation-anchors.md` — read when the step 6 grep finds a hit.
+- `references/test-seams.md` — read when you are about to add an LLR to get a
+  test seam or write a test double, or when a mutant survives.
+- `references/ui-seams.md` — read when the change has a user interface.
 - `references/rationale.md` — read when a rule here seems wrong for your case,
   or before proposing to change one.

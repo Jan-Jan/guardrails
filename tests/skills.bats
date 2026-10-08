@@ -2211,3 +2211,136 @@ adr_file_is_named_by_its_item() {
     run adr_file_is_named_by_its_item "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
     [ "$status" -eq 1 ]
 }
+
+# --- test seams (docs/plans/2026-10-07-test-seams.md) ------------------------
+
+@test "develop-change: a test attaches only to an interface a REQ or LLR describes" {
+    # verifies: D1, D2, D3 (docs/plans/2026-10-07-test-seams.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
+    grep -qF '**A test calls only an interface that a REQ or LLR describes.**' "$skill"
+    grep -qF '**A deeper interface gets a direct test only once it has an LLR**' "$skill"
+    grep -qF 'A case reachable from above is tested there.' "$skill"
+    grep -qF 'It earns one only when a case cannot be triggered' "$skill"
+    grep -qF 'A user journey is a REQ only when it' "$skill"
+    grep -qF 'A journey is a REQ of its own only when it states an' "$seams"
+    grep -qF '1. **Unreachable.**' "$seams"
+    grep -qF '2. **Combinatorial.**' "$seams"
+    grep -qF '3. **Intrinsic.**' "$seams"
+    grep -qF 'Convenience is not on the list.' "$seams"
+    grep -qxF 'states an outcome none of its steps states; otherwise it verifies theirs.' "$skill"
+    grep -qxF '1. **Unreachable.** A case cannot be triggered through the REQ interface' "$seams"
+    grep -qxF '   without faking code the project owns. A retry policy whose third attempt' "$seams"
+    grep -qxF 'helper is covered through the interface above it. Without LLRs, the seam is' "$skill"
+    grep -qxF 'the REQ level: the public interface. A user journey is a REQ only when it' "$skill"
+    grep -qxF 'from above without faking code the project owns, when its cases multiply past' "$skill"
+    grep -qxF 'enumeration from above, or when it is maths, parsing, encoding or a numerical' "$skill"
+    grep -qxF '   multiplies past what is practical to enumerate. As guidance, not a rule:' "$seams"
+    grep -qxF '3. **Intrinsic.** Maths, parsing, encoding or a numerical transform whose' "$seams"
+    grep -qxF '   algorithm has a contract worth stating independently of its caller.' "$seams"
+}
+
+@test "develop-change: doubles fake only at the codebase boundary, each with a contract test" {
+    # verifies: D4, D8, D9, D14 (docs/plans/2026-10-07-test-seams.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
+    grep -qF '**Test doubles.** Never mock code the project owns or assert how it was' "$skill"
+    grep -qF 'give every fake a contract test' "$skill"
+    grep -qF 'A service the project owns runs for real' "$skill"
+    grep -qF 'its failures may be injected or faked.' "$skill"
+    grep -qxF 'on the normal path; its failures may be injected or faked. Assert an' "$skill"
+    grep -qF 'interaction only where the interaction is the requirement.' "$skill"
+    grep -qF '4. **An interaction is asserted only where it is the requirement.**' "$seams"
+    grep -qF '3. **Every fake has a contract test.**' "$seams"
+    grep -qF 'The faked successes are then setup, not evidence.' "$seams"
+    grep -qF -- '- **A fake**, with a contract test: a double that imitates service-specific' "$seams"
+    grep -qF -- '- **A fault injector**, with none: a transport- or OS-level failure, such as' "$seams"
+    grep -qxF 'called. Fake only at the codebase boundary, behind an adapter the project' "$skill"
+    grep -qxF 'owns, and give every fake a contract test that runs against the real' "$skill"
+    grep -qxF '   reachable in the test environment, and are skipped where it is not. A fake' "$seams"
+    grep -qxF 'first sync that succeeds before the second times out, where each of those' "$seams"
+    grep -qxF 'successes is verified against the real service by a normal-case test in the' "$seams"
+    grep -qxF -- '- a fake of the service, under the same contract test as any fake, so that' "$seams"
+    grep -qxF '   implements the adapter'"'"'s interface. A fake at the HTTP layer, intercepting' "$seams"
+    grep -qxF '   the network calls to a service outside the codebase, is a boundary fake' "$seams"
+    grep -qxF '   too, under the same contract test; the adapter above it then runs for' "$seams"
+    grep -qxF '   real. The clock and randomness are fakeable in the same way.' "$seams"
+    grep -qxF 'dependency wherever it is reachable. A service the project owns runs for real' "$skill"
+    grep -qxF '   the adapter, never the third-party interface directly, and the fake' "$seams"
+    grep -qxF '   fake and against the real dependency, wherever the real dependency is' "$seams"
+}
+
+@test "develop-change: property tests repeat and pin, and a survivor never goes below the seam" {
+    # verifies: D5, D6 (docs/plans/2026-10-07-test-seams.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
+    grep -qF 'Prefer a property test where cases are' "$skill"
+    grep -qF 'encoding (criteria 2 and 3 above), prefer a property test: generated inputs,' "$seams"
+    grep -qF 'fix or print its seed, and pin each counterexample' "$skill"
+    grep -qF 'seam, or dead code: never a test below the seam.' "$skill"
+    grep -qF -- '- **Repeatable.**' "$seams"
+    grep -qF -- '- **Pinned.**' "$seams"
+    grep -qF 'A survivor never justifies a test below the seam' "$seams"
+    grep -qxF -- '- the mutated code is dead: delete it.' "$seams"
+    grep -qxF 'example test before the fix. A surviving mutant means a missing test at the' "$skill"
+    grep -qxF '  beside it, with its `verifies:` annotation, before the fix. It then stays' "$seams"
+    grep -qxF 'A survivor never justifies a test below the seam unless one of the three' "$seams"
+    grep -qxF 'criteria above holds. Whether a project must run mutation testing, with which' "$seams"
+    grep -qxF 'combinatorial or the code is maths, parsing or encoding;' "$skill"
+}
+
+@test "develop-change: a UI's interface is what the user perceives, and a markup snapshot verifies nothing" {
+    # verifies: D7 (docs/plans/2026-10-07-test-seams.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    ui="$BATS_TEST_DIRNAME/../skills/develop-change/references/ui-seams.md"
+    grep -qF 'A markup snapshot carries no `verifies:` annotation.' "$skill"
+    grep -qF 'The REQ interface of a UI is what the user perceives and does' "$ui"
+    grep -qF -- '- **A markup snapshot carries no `verifies:` annotation.**' "$ui"
+    grep -qxF '## Keep the UI layer thin' "$ui"
+    grep -qF 'text, not by test identifier or class name.' "$ui"
+    grep -qF -- '- Visual regression verifies a REQ only where the REQ is about appearance' "$ui"
+    grep -qF 'A service the project owns runs for real on the normal path' "$ui"
+    grep -qxF '  A service the project owns runs for real on the normal path' "$ui"
+    grep -qxF -- '- Fake only what is outside the codebase, plus the clock and randomness. A' "$ui"
+    grep -qxF '  fake at the HTTP layer, by network interception, is a boundary fake under' "$ui"
+    grep -qxF '  the same contract test as any fake.' "$ui"
+    grep -qxF '## Enumerate the states' "$ui"
+    grep -qxF 'List the states each screen can be in and test each: loading, empty, error,' "$ui"
+    grep -qxF '## What only a real browser shows' "$ui"
+    grep -qxF 'Keep a small suite in a real browser for what a simulated DOM cannot do: the' "$ui"
+    grep -qxF '**UI.** The REQ interface is what the user perceives and does, plus what the' "$skill"
+    grep -qxF 'app sends out. A markup snapshot carries no `verifies:` annotation.' "$skill"
+    grep -qxF 'application sends to the outside world. Components, props, hooks, store shape' "$ui"
+    grep -qxF 'and CSS classes are implementation: a test that names them breaks on a' "$ui"
+}
+
+@test "develop-change: the seam rules bind new and edited tests, not the existing suite" {
+    # verifies: D10 (docs/plans/2026-10-07-test-seams.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
+    grep -qF 'These rules bind the tests a change writes or edits.' "$skill"
+    grep -qF 'An existing test that' "$skill"
+    grep -qF 'breaks them and must be edited moves to the seam; one that still passes is' "$skill"
+    grep -qF 'No change rewrites a suite wholesale' "$seams"
+    grep -qxF 'moves it to the seam instead of repairing it in place: such a test usually' "$seams"
+    grep -qxF 'left alone.' "$skill"
+    grep -qxF 'breaks the rules and still passes is left alone, since deleting it without a' "$seams"
+}
+
+@test "merge-change: the review checklist asks where each new test attaches and which doubles it uses" {
+    # verifies: D12, D14 (docs/plans/2026-10-07-test-seams.md)
+    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
+    grep -qF 'checklist applies when the diff touches documentation, and the test' "$checklist"
+    grep -qxF '## The test checklist' "$checklist"
+    grep -qF -- '- It calls an interface that a REQ or LLR describes, not a private' "$checklist"
+    grep -qF -- '- Every test double is one of three kinds: a fake at the codebase boundary' "$checklist"
+    grep -qF 'with a contract test; a fake of a service the project owns, in a failure' "$checklist"
+    grep -qxF '  makes a transport or OS operation fail, or a command exit with no output' "$checklist"
+    grep -qxF '  the code reads, and imitates nothing service-specific; a double that' "$checklist"
+    grep -qF -- '- A service the project owns runs for real on the normal path.' "$checklist"
+    grep -qF -- '- No markup snapshot carries a `verifies:` annotation.' "$checklist"
+    grep -qxF '  helper. A direct test of a deeper interface has an LLR behind it.' "$checklist"
+    grep -qxF '  project owns or asserts how owned code was called, unless the interaction' "$checklist"
+    grep -qxF '  is the requirement.' "$checklist"
+    grep -qxF '  case only, under its contract test; or a fault injector. A fault injector' "$checklist"
+}

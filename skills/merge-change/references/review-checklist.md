@@ -1,8 +1,9 @@
-# The review severities and the documentation checklist
+# The review severities and the documentation and test checklists
 
 Read this at `merge-change` step 6a, and hand it to the reviewer with the diff
-every round. The severities apply to every review; the checklist applies when
-the diff touches documentation.
+every round. The severities apply to every review; the documentation
+checklist applies when the diff touches documentation, and the test
+checklist when it touches tests.
 
 ## Severities
 
@@ -41,3 +42,22 @@ The reviewer checks each item and raises a finding for each one that fails.
   supersession pair (`NON-RECIPROCAL-SUPERSESSION`, `MALFORMED-SUPERSESSION`)
   and only the pair. An `affects:`, `traces:` or table row may name an old ID
   as history, so that sweep stays a review job.
+
+## The test checklist
+
+The reviewer checks each new or edited test and raises a finding for each one
+that fails (`develop-change`, "Where a test attaches").
+
+- It calls an interface that a REQ or LLR describes, not a private
+  helper. A direct test of a deeper interface has an LLR behind it.
+- Every test double is one of three kinds: a fake at the codebase boundary
+  with a contract test; a fake of a service the project owns, in a failure
+  case only, under its contract test; or a fault injector. A fault injector
+  makes a transport or OS operation fail, or a command exit with no output
+  the code reads, and imitates nothing service-specific; a double that
+  imitates content the code interprets, such as an error body or a parsed
+  message, is a fake. No test mocks code the
+  project owns or asserts how owned code was called, unless the interaction
+  is the requirement.
+- A service the project owns runs for real on the normal path.
+- No markup snapshot carries a `verifies:` annotation.
