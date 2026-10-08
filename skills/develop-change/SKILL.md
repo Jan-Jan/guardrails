@@ -161,6 +161,7 @@ files touched: <paths>
 tests added: <test name — verifies: <IDs>>   (one per line)
 red -> green: <test name> — watched fail for the right reason before the
 implementation existed   (one per line, one per test)
+inherited: <test name> — from <old ID>
 result: <N passed, N failed>
 surprises: <anything unexpected, or "none">
 ```
@@ -172,11 +173,10 @@ surprises: <anything unexpected, or "none">
   task again. `discard` acts only on the nested path, and rejects a task
   branch checked out anywhere else.
 - The `red -> green:` lines are the only record that each test failed before
-  its implementation existed; a pass count shows only that it passes now.
-  Require one line per test. `verify-before-merge` check 4 reads them back.
-- **Write the `red -> green:` lines into the plan as each report arrives**,
-  beside their task, and mark the task done. `merge-change` step 6b copies
-  them from the plan into the verification record.
+  its implementation existed. Require one line per new test. `verify-before-merge` check 4 reads them back.
+- **Write these and any `inherited:` lines into the plan as each report
+  arrives**, beside their task, and mark the task done. `merge-change` step
+  6b copies them from the plan into the verification record.
 
 ### Derailment: the one stop this skill adds
 

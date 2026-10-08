@@ -1521,19 +1521,24 @@ gr_req_scan() {
     return 0
 }
 
-# gr_unit_srs UNIT — the unit's doc_srs files, one per line. The same
+# gr_unit_doc_files UNIT KEY — the unit's KEY files, one per line. The same
 # emptiness rules gr_doc_files applies, with the unit named in the error.
-gr_unit_srs() {
-    _uv=$(cfg_get doc_srs "$1/.guardrails/config.yaml")
+gr_unit_doc_files() {
+    _uv=$(cfg_get "$2" "$1/.guardrails/config.yaml")
     [ -n "$_uv" ] || return 0
     if [ -d "$_uv" ]; then
-        gr_md_files "$_uv" "doc_srs of unit $1 is configured as directory"
+        gr_md_files "$_uv" "$2 of unit $1 is configured as directory"
     elif [ -f "$_uv" ]; then
         printf '%s\n' "$_uv"
     else
-        gr_die "unit $1: doc_srs is configured as '$_uv', which does not exist"
+        gr_die "unit $1: $2 is configured as '$_uv', which does not exist"
     fi
     return 0
+}
+
+# gr_unit_srs UNIT — the unit's doc_srs files (gr_unit_doc_files above).
+gr_unit_srs() {
+    gr_unit_doc_files "$1" doc_srs
 }
 
 # gr_unit_req_scan UNIT — gr_req_scan over the unit's SRS. Call in a command

@@ -53,6 +53,11 @@ merge — so this table is where that observation becomes durable evidence.
 | --- | --- | --- |
 | `<ID this change implements>` | `<the test that verifies it>` | <watched failing for the right reason before the implementation existed> |
 
+A test of a superseded item that this change pointed at its successor is
+inherited: list it below the table as `inherited: <test name> — from <old ID>`,
+or delete this paragraph. It is coverage, never a row in the table: the
+successor still has its own row.
+
 ## What was wrong, and what was built
 
 <the defect, measured; then the change. A record that only states that the

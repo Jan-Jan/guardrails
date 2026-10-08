@@ -2107,13 +2107,29 @@ SAD
     [[ "$output" == *"problem-report scan failed"* ]] || { echo "$output"; false; }
 }
 
-@test "check-trace: an unreadable architecture ledger fails the orphan scan" {
-    # The orphan backstop's half of the pair above. doc_sad is read by
-    # check_orphans and by nothing else that opens the working-tree file, so
-    # this is the only fixture in which its error path is reachable.
+@test "check-trace: an unreadable architecture ledger fails the out-of-force scan" {
+    # An error-path test of the scan, not of a plan decision, so it carries
+    # no verifies: line (review round 2, finding-4).
+    # The out-of-force scan is the first awk to open a SAD file, and its
+    # status is kept: an errored scan would otherwise read as a tree with
+    # nothing out of force, which is every item owing its test — or, read the
+    # other way, a MALFORMED-RETIREMENT never reported.
     chmod 000 docs/architecture/0001-01-01-base.md
     run sh .guardrails/scripts/check-trace.sh
     chmod 644 docs/architecture/0001-01-01-base.md
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"out-of-force scan failed"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an unreadable risk ledger fails the orphan scan" {
+    # The orphan backstop's half of the problems-ledger test above. doc_rmf is
+    # read by check_orphans and by nothing else that opens the working-tree
+    # file with awk (the line-wise readers go through git grep), so this is
+    # the fixture in which its error path is reachable. It was the SAD until
+    # the out-of-force scan began opening that first.
+    chmod 000 docs/risk/0001-01-01-base.md
+    run sh .guardrails/scripts/check-trace.sh
+    chmod 644 docs/risk/0001-01-01-base.md
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
     [[ "$output" == *"orphan scan failed"* ]] || { echo "$output"; false; }
 }
@@ -2231,11 +2247,12 @@ POISON
 
 # verifies: PR-zt5c2v
 @test "check-trace: a reciprocal supersession pair is silent" {
-    # `superseded-by:` exempts nothing, so both items keep their tests — the
-    # supersession itself is the only thing under examination here.
+    # Only the successor is tested: a superseded item owes no test
+    # (docs/plans/2026-10-08-out-of-force-items.md, D2), and the supersession
+    # itself is the only thing under examination here.
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     commit_all reciprocal-pair
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
@@ -2385,7 +2402,7 @@ POISON
     # convicted this would be unusable on the ledgers already written.
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p — the original dosing requirement\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     commit_all supersedes-trailing-prose
     run sh .guardrails/scripts/check-trace.sh
     [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
@@ -2399,7 +2416,7 @@ POISON
     # the run has already ended at the parenthesis.
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p (was REQ-001)\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     commit_all supersedes-parenthetical
     run sh .guardrails/scripts/check-trace.sh
     [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
@@ -2413,7 +2430,7 @@ POISON
     # it must stay tested.
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s, REQ-a3k9z2x\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     commit_all superseded-by-overlong-token
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
@@ -2425,7 +2442,7 @@ POISON
 @test "check-trace: a superseded-by: list mixing a valid ID with a too-short one is reported" {
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s, REQ-nope\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     commit_all superseded-by-short-token
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
@@ -2440,7 +2457,7 @@ POISON
     # ledger.
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s — the clamping rewrite\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     commit_all superseded-by-trailing-prose
     run sh .guardrails/scripts/check-trace.sh
     [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
@@ -2472,7 +2489,7 @@ POISON
     # one leaves the other silent.
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s, REQ-\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     commit_all superseded-by-truncated-prefix
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
@@ -2546,13 +2563,536 @@ POISON
     # tree-wide reference sweep stays a review job (merge-change step 6a).
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
         >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-t6gm2s\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
     printf '**PR-p3xz6b**: Rate clamp was off by one, against the old wording.\naffects: REQ-w9hk3p\nopened: %s\nstatus: resolved\n' \
         "$(days_ago 4)" > docs/problems/0001-01-01-base.md
     commit_all stale-reference-not-swept
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [[ "$output" != *"NON-RECIPROCAL-SUPERSESSION"* ]] || { echo "$output"; false; }
+}
+
+# --- Out-of-force items: docs/plans/2026-10-08-out-of-force-items.md -------
+# A REQ or LLR whose block contains a reciprocated `superseded-by:`, or a
+# well-formed `retired:`, is out of force: it owes no test (D2), discharges
+# nothing (D3), and a `verifies:` line naming nothing else verifies nothing
+# (D4). The exemption is keyed on forms another gate already checks, so it
+# cannot be taken by writing one line.
+
+@test "check-trace: a superseded REQ with a reciprocal pair owes no test" {
+    # verifies: D2 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all superseded-req-untested
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a superseded LLR with a reciprocal pair owes no test" {
+    # verifies: D2 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '\n**LLR-t6gm2s**: Clamp the rate to the configured maximum. satisfies: REQ-001\nsupersedes: LLR-w9hk3p\n\n**LLR-w9hk3p**: Limit the rate. satisfies: REQ-001\nsuperseded-by: LLR-t6gm2s\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all superseded-llr-untested
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"MISSING-TEST LLR-w9hk3p"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a superseded-by: with no reciprocal supersedes: exempts nothing" {
+    # verifies: D2 (docs/plans/2026-10-08-out-of-force-items.md)
+    # One line is not a supersession. The half that is present is reported, and
+    # the item it was written on still owes its test.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all half-supersession-untested
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-w9hk3p"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired REQ owes no test" {
+    # verifies: D2, D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Both separators the form allows, and the one day ahead it tolerates.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nretired: %s — the rate limit moved to the pump firmware\n\n**REQ-k2vt8n**: The software shall bound the infusion rate.\nretired: %s: the bound was dropped with the bolus mode\n' \
+        "$(days_ago 3)" "$(days_ago -1)" >> docs/requirements/0001-01-01-base.md
+    commit_all retired-req-untested
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MISSING-TEST REQ-k2vt8n"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a tested out-of-force LLR covers no REQ" {
+    # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
+    # REQ-k2vt8n is satisfied only by the superseded LLR. That LLR's test once
+    # covered it transitively; out of force, it covers nothing.
+    printf '\n**REQ-k2vt8n**: The software shall bound the infusion rate.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '\n**LLR-t6gm2s**: Clamp the rate to the configured maximum. satisfies: REQ-001\nsupersedes: LLR-w9hk3p\n\n**LLR-w9hk3p**: Bound the rate. satisfies: REQ-k2vt8n\nsuperseded-by: LLR-t6gm2s\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-t6gm2s\ntrue\n# verifies: LLR-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all out-of-force-llr-covers-nothing
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-k2vt8n"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an RC implemented only by an out-of-force REQ is unimplemented" {
+    # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Without D3 this is the false green: the control's only implementing REQ
+    # owes no test any more, so nothing verifies the control at all.
+    printf '\n**RC-r5jw4h**: Software bounds the infusion rate. mitigates: HAZ-001\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nimplements: RC-r5jw4h\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all out-of-force-req-implements-nothing
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-r5jw4h"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a verifies: line naming only a superseded item is reported with its file and line" {
+    # verifies: D4 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n# verifies: REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all verifies-out-of-force
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    printf '%s\n' "$output" | grep -qxF 'OUT-OF-FORCE-VERIFIES tests/test_sup.sh:3 (verifies: names only out-of-force items: REQ-w9hk3p)' \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a verifies: line naming a superseded item beside its successor is silent" {
+    # verifies: D4 (docs/plans/2026-10-08-out-of-force-items.md)
+    # SCOPE CONTROL: the dual-ID form the old supersession rule prescribed is
+    # history, not a finding, so a tree that followed it stays green.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s, REQ-w9hk3p\ntrue\n' > tests/test_sup.sh
+    commit_all verifies-successor-and-predecessor
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"OUT-OF-FORCE-VERIFIES"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired: with no date, a bad date, a far date or no reason is malformed" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '\n**REQ-a2b3c4**: The software shall log the rate.\nretired: the log moved to the pump\n\n**REQ-d5e6f7**: The software shall log the dose.\nretired: 2026-02-30 — the log moved to the pump\n\n**REQ-g8h9j2**: The software shall log the alarm.\nretired: %s — the log moved to the pump\n\n**REQ-k3m4n5**: The software shall log the bolus.\nretired: 2026-01-05\n\n**REQ-p6q7r8**: The software shall log the occlusion.\nretired:\n' \
+        "$(days_ago -2)" >> docs/requirements/0001-01-01-base.md
+    commit_all malformed-retirements
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-a2b3c4 (retired: the log moved to the pump — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "no date: $output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-d5e6f7 (retired: 2026-02-30 — the log moved to the pump — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "impossible date: $output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-g8h9j2 (retired: $(days_ago -2) — the log moved to the pump — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "two days ahead: $output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-k3m4n5 (retired: 2026-01-05 — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "no reason: $output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-p6q7r8 (retired: — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "empty value: $output"; false; }
+}
+
+@test "check-trace: retired: beside superseded-by: in one block is malformed" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\nretired: %s — replaced by the clamp\n' \
+        "$(days_ago 3)" >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all retired-and-superseded
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-w9hk3p (retired: and superseded-by: REQ-t6gm2s — an item is retired or superseded, not both)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: an orphaned retired: is reported" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '# Notes\n\nretired: 2026-01-05 — the log moved to the pump\n' > docs/requirements/2026-01-02-notes.md
+    commit_all orphan-retired
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/requirements/2026-01-02-notes.md:3 (retired: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired: in an SDD block retires nothing and is an orphan" {
+    # verifies: D1, D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The SDD header closes the LLR block above it, so the line is not the
+    # LLR's: the LLR still owes its test, and the line is read by nothing.
+    printf '\n**LLR-k2vt8n**: Bound the rate. satisfies: REQ-001\n\n**SDD-r5jw4h**: Rate bounding module. traces: REQ-001\nretired: 2026-01-05 — folded into the dose limiter\n' \
+        >> docs/architecture/0001-01-01-base.md
+    commit_all retired-in-sdd
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST LLR-k2vt8n"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/architecture/0001-01-01-base.md:10 (retired: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired: date running straight into its reason is malformed" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The separator after the date is required: without it the value is a
+    # date-shaped prefix of one word, not a date and a reason.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nretired: 2026-01-05reason\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all retired-no-separator
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-w9hk3p (retired: 2026-01-05reason — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: the first retired: in a block is the one read" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # First occurrence wins, as for every scalar annotation: a valid line
+    # written below a malformed one does not repair it, and the item keeps
+    # its obligation until the first line is right.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nretired: the log moved to the pump\nretired: %s — the rate limit moved to the pump firmware\n' \
+        "$(days_ago 3)" >> docs/requirements/0001-01-01-base.md
+    commit_all retired-twice
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-w9hk3p (retired: the log moved to the pump — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an implements: in the architecture ledger does not keep a control implemented" {
+    # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The control's only requirement-side implements: is in a retired REQ.
+    # An implements: in an LLR block of the SAD is not a requirement's, so it
+    # does not stand in for the retired one: the out-of-force scan reads
+    # implements: over doc_srs alone, as the line-wise reader does.
+    printf '\n**RC-r5jw4h**: Software bounds the infusion rate. mitigates: HAZ-001\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nimplements: RC-r5jw4h\nretired: %s — the rate limit moved to the pump firmware\n' \
+        "$(days_ago 3)" >> docs/requirements/0001-01-01-base.md
+    printf '\n**LLR-k2vt8n**: Bound the rate. satisfies: REQ-001\nimplements: RC-r5jw4h\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-k2vt8n\ntrue\n' > tests/test_sup.sh
+    commit_all sad-implements-not-read
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-r5jw4h"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: doc_srs and doc_sad on one directory report a malformed retirement once" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The out-of-force scan reads the SAD files the SRS list does not already
+    # hold, so a file both resolve to is read, and reported, once.
+    cat > .guardrails/config.yaml <<'CFG'
+guardrails_version: 0.2.0
+safety_class: B
+id_prefixes: REQ HAZ RC SDD LLR PR
+doc_srs: docs/architecture
+doc_rmf: docs/risk
+doc_sad: docs/architecture
+doc_soup: docs/architecture/soup.md
+doc_problems: docs/problems
+strict_paths:
+  - src
+test_paths:
+  - tests
+verify_commands:
+  - make test
+CFG
+    cat > docs/architecture/0001-01-01-base.md <<'SAD'
+# Software Architecture
+
+**REQ-001**: The system shall limit the dose. (implements: RC-001)
+
+**REQ-w9hk3p**: The system shall log the dose.
+retired: 2026-01-05
+
+**SDD-001**: Dose limiter module. traces: REQ-001
+
+**LLR-001**: Clamp requested dose to the configured maximum.
+satisfies: REQ-001
+SAD
+    rm -f docs/requirements/0001-01-01-base.md
+    commit_all overlap-retirement-once
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    retirement_reports=$(printf '%s\n' "$output" | grep -c '^MALFORMED-RETIREMENT REQ-w9hk3p ')
+    [ "$retirement_reports" -eq 1 ] || { echo "expected 1 MALFORMED-RETIREMENT, got $retirement_reports: $output"; false; }
+}
+
+@test "check-trace: a retired: in a later ledger file's front matter retires nothing" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Review round 2, finding-1. The open block used to run on across the file
+    # boundary, so a `retired:` in the next file's front matter was read as
+    # REQ-k2vt8n's, and the orphan backstop skips front matter: exit 0 with an
+    # untested REQ. A block cannot span files.
+    printf '\n**REQ-k2vt8n**: The software shall bound the infusion rate.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf -- '---\ntitle: Archived requirements\nretired: 2026-01-05 — superseded by the v2 ledger\n---\n# Archive\n' \
+        > docs/requirements/2026-01-02-archive.md
+    commit_all front-matter-retired
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-k2vt8n"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired: opening a later ledger file belongs to no item" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The same boundary without front matter: line 1 of the next file is in no
+    # block, so the REQ ending the previous file keeps its obligation and the
+    # line is the orphan the backstop reports.
+    printf '\n**REQ-k2vt8n**: The software shall bound the infusion rate.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf 'retired: 2026-01-05 — superseded by the v2 ledger\n\n# Archive\n' \
+        > docs/requirements/2026-01-02-archive.md
+    commit_all leading-retired
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-k2vt8n"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/requirements/2026-01-02-archive.md:1 (retired: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a superseded-by: in a later ledger file's front matter completes no pair" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The supersession scan had the same carry-over: the front-matter line was
+    # read as REQ-w9hk3p's missing half, so the one-sided pair read as
+    # reciprocal and the predecessor as out of force.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf -- '---\ntitle: Archived requirements\nsuperseded-by: REQ-t6gm2s\n---\n# Archive\n' \
+        > docs/requirements/2026-01-02-archive.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all front-matter-superseded-by
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION REQ-t6gm2s (supersedes: REQ-w9hk3p, which contains no superseded-by: REQ-t6gm2s)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired: with a date and a bare separator is malformed" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The separator is present and nothing follows it: a date and no reason.
+    # Stripping the separator, the em dash included, must leave the reason
+    # empty for this to be read as what it is.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nretired: 2026-01-05 —\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all retired-bare-separator
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-w9hk3p (retired: 2026-01-05 — — needs a YYYY-MM-DD date and a reason)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a valid retired: beside a one-sided superseded-by: exempts nothing" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # retired: and superseded-by: in one block is malformed whatever the
+    # retired: line says, so a well-formed date and reason do not take the
+    # item out of force — and with no reciprocal supersedes:, nothing else
+    # does either. The item keeps its test obligation.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\nretired: %s — replaced by the clamp\n' \
+        "$(days_ago 3)" >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all retired-beside-one-sided
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-w9hk3p (retired: and superseded-by: REQ-t6gm2s — an item is retired or superseded, not both)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an implements: in a gitignored requirements file implements nothing" {
+    # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
+    # The line-wise implements: reader reads doc_srs through git grep, which
+    # skips ignored files, and the out-of-force scan now drops them too
+    # (review round 3, finding-3); a control also counts only when both
+    # readers credit it. An ignored file's line keeps nothing implemented —
+    # the verdict the tree had before the out-of-force scan existed. Either
+    # guard alone keeps this green; it goes red only with both removed.
+    printf '\n**RC-r5jw4h**: Software bounds the infusion rate. mitigates: HAZ-001\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf 'docs/requirements/2026-01-02-scratch.md\n' > .gitignore
+    printf '**REQ-k2vt8n**: The software shall bound the infusion rate.\nimplements: RC-r5jw4h\n' \
+        > docs/requirements/2026-01-02-scratch.md
+    commit_all ignored-srs-implements
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-r5jw4h"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired REQ and a gitignored requirements file do not implement a control between them" {
+    # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Review round 3, finding-3. The tracked line is in a retired REQ, so the
+    # line-wise reader alone credits RC-r5jw4h; the ignored line is in a REQ
+    # in force, so the block pass alone credited it. A control is credited
+    # per RC, so each reader's half made a whole: exit 0 on a control no
+    # item in force implements. The block pass now reads only the files git
+    # grep reads.
+    printf '\n**RC-r5jw4h**: Software bounds the infusion rate. mitigates: HAZ-001\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nimplements: RC-r5jw4h\nretired: %s — the rate limit moved to the pump firmware\n' \
+        "$(days_ago 3)" >> docs/requirements/0001-01-01-base.md
+    printf 'docs/requirements/2026-01-02-scratch.md\n' > .gitignore
+    printf '**REQ-k2vt8n**: The software shall bound the infusion rate.\nimplements: RC-r5jw4h\n' \
+        > docs/requirements/2026-01-02-scratch.md
+    commit_all retired-and-ignored-implements
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-r5jw4h"* ]] || { echo "$output"; false; }
+}
+
+# Review round 3, finding-1: a supersession takes an item out of force only
+# when its chain TERMINATES in a different item that is in force or validly
+# retired. A self-pair or a cycle is reciprocal on every edge, so neither
+# supersession report fires on it; without the rule it exempted the item and a
+# run red on main went green.
+
+@test "check-trace: an item that supersedes itself owes its test and is reported" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsupersedes: REQ-w9hk3p\nsuperseded-by: REQ-w9hk3p\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all self-supersession
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p (supersedes itself)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: two items superseding each other both owe their tests and are reported" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsupersedes: REQ-t6gm2s\nsuperseded-by: REQ-t6gm2s\n\n**REQ-t6gm2s**: The software shall clamp the infusion rate.\nsupersedes: REQ-w9hk3p\nsuperseded-by: REQ-w9hk3p\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all supersession-cycle
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-t6gm2s"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-t6gm2s (supersession cycle with no successor in force or retired: REQ-t6gm2s REQ-w9hk3p)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p (supersession cycle with no successor in force or retired: REQ-t6gm2s REQ-w9hk3p)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a chain of supersessions ending in a tested item in force is silent" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Scope control: the chain terminates, so both predecessors are out of
+    # force and nothing is malformed.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n\n**REQ-t6gm2s**: The software shall clamp the infusion rate.\nsupersedes: REQ-w9hk3p\nsuperseded-by: REQ-k2vt8n\n\n**REQ-k2vt8n**: The software shall bound the infusion rate.\nsupersedes: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-k2vt8n\ntrue\n' > tests/test_sup.sh
+    commit_all supersession-chain
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a supersession ending in a retired item is silent" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Scope control: a validly retired successor terminates the chain.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n\n**REQ-t6gm2s**: The software shall clamp the infusion rate.\nsupersedes: REQ-w9hk3p\nretired: %s — the clamp moved to the pump firmware\n' \
+        "$(days_ago 3)" >> docs/requirements/0001-01-01-base.md
+    commit_all supersession-to-retired
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"MALFORMED-SUPERSESSION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a supersession cycle of tested items fails the run on its own" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Review round 4, finding-2. Both items are tested, so no MISSING-TEST
+    # fires: the cycle report is the only finding, and it alone fails the run.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsupersedes: REQ-t6gm2s\nsuperseded-by: REQ-t6gm2s\n\n**REQ-t6gm2s**: The software shall clamp the infusion rate.\nsupersedes: REQ-w9hk3p\nsuperseded-by: REQ-w9hk3p\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-w9hk3p\ntrue\n' > tests/test_cycle_a.sh
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_cycle_b.sh
+    commit_all tested-cycle
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MISSING-TEST"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an item leading into a supersession cycle is reported with every ID sorted" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Review round 4, finding-3. REQ-w9hk3p leads into the cycle
+    # REQ-t6gm2s <-> REQ-k2vt8n; its report names the three IDs it reaches in
+    # sorted order, whatever order awk walks them in.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n\n**REQ-t6gm2s**: The software shall clamp the infusion rate.\nsupersedes: REQ-w9hk3p REQ-k2vt8n\nsuperseded-by: REQ-k2vt8n\n\n**REQ-k2vt8n**: The software shall bound the infusion rate.\nsupersedes: REQ-t6gm2s\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all lead-into-cycle
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-w9hk3p (supersession cycle with no successor in force or retired: REQ-k2vt8n REQ-t6gm2s REQ-w9hk3p)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired item with a reciprocal superseded-by: stays in force" {
+    # verifies: D5 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Review round 4, finding-4a, ruled 2026-10-08: retired: beside
+    # superseded-by: is MALFORMED-RETIREMENT, and a malformed retirement
+    # retires nothing — nor does the supersession it sits beside. The item
+    # owes its test.
+    printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\nretired: %s — replaced by the clamp\n' \
+        "$(days_ago 3)" >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh
+    commit_all retired-and-reciprocal
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-RETIREMENT REQ-w9hk3p (retired: and superseded-by: REQ-t6gm2s"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-w9hk3p"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an item superseded into both a terminating chain and a cycle is out of force" {
+    # verifies: D1 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Scope control (review round 4, finding-4b, ruled 2026-10-08), green
+    # when written: REQ-w9hk3p has one successor in force (REQ-p6q7r8), so
+    # it is out of force and owes no test; only the cycle's members,
+    # REQ-t6gm2s and REQ-k2vt8n, are reported.
+    printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-p6q7r8 REQ-t6gm2s\n\n**REQ-p6q7r8**: The software shall cap the infusion rate.\nsupersedes: REQ-w9hk3p\n\n**REQ-t6gm2s**: The software shall clamp the infusion rate.\nsupersedes: REQ-w9hk3p REQ-k2vt8n\nsuperseded-by: REQ-k2vt8n\n\n**REQ-k2vt8n**: The software shall bound the infusion rate.\nsupersedes: REQ-t6gm2s\nsuperseded-by: REQ-t6gm2s\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-p6q7r8 REQ-t6gm2s REQ-k2vt8n\ntrue\n' > tests/test_sup.sh
+    commit_all two-successors-one-cycle
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-t6gm2s"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION REQ-k2vt8n"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"REQ-w9hk3p ("* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MISSING-TEST"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a config with no requirements or architecture ledger runs the out-of-force scan on nothing" {
+    # Regression test for an error path (review round 4, finding-1), so no
+    # verifies: line. With neither doc_srs nor doc_sad configured, the scan's
+    # file lists are empty and `git check-ignore --` with no path exits 128:
+    # the run exited 2 where main exits 0.
+    cat > .guardrails/config.yaml <<'CFG'
+guardrails_version: 0.2.0
+safety_class: B
+id_prefixes: PR
+doc_problems: docs/problems
+strict_paths:
+  - src
+test_paths:
+  - tests
+verify_commands:
+  - make test
+CFG
+    rm docs/requirements/0001-01-01-base.md docs/risk/0001-01-01-base.md \
+        docs/architecture/0001-01-01-base.md
+    printf 'true\n' > tests/test_a.sh
+    commit_all no-ledgers
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"checked: PR 0"* ]] || { echo "$output"; false; }
 }
 
 # --- Problem-report triage: practice-feedback finding 09a -------------------
@@ -3627,6 +4167,72 @@ EOF
     unit_run check-trace.sh apps/pump
     [ "$status" -eq 0 ]
     [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an out-of-force exported REQ meets no expectation" {
+    # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Review round 2, finding-2. hal's answer is exported and satisfies the
+    # expectation, but it is retired: an out-of-force item discharges
+    # nothing, so the expectation stays open on both sides of the edge.
+    make_units_fixture
+    add_expectation
+    satisfy_expectation "$(printf 'exported: yes\nretired: %s — the slew bound moved to the motor driver' "$(days_ago 3)")"
+    commit_all retired-answer
+    unit_run check-trace.sh apps/pump
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MISSING-TEST REQ-e7x2m4"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    unit_run check-trace.sh platform/hal
+    [[ "$output" == *"expectations against this unit: 1 open"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an exported REQ superseded by a provider LLR meets no expectation" {
+    # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
+    # Review round 3, finding-2. The successor's supersedes: is in hal's
+    # architecture ledger, so the consumer has to read the provider's SAD as
+    # well as its SRS to see that the answer is out of force.
+    make_units_fixture
+    add_expectation
+    satisfy_expectation "$(printf 'exported: yes\nsuperseded-by: LLR-q3n8w5')"
+    printf '\n**LLR-q3n8w5**: Bound the actuator slew rate in the driver. satisfies: REQ-h4m2p9\nsupersedes: REQ-h8s3t2\n' \
+        >> platform/hal/docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-q3n8w5\ntrue\n' > platform/hal/tests/test_b.sh
+    commit_all superseded-answer
+    unit_run check-trace.sh apps/pump
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a provider whose doc_sad does not exist fails the consumer's run" {
+    # An error-path test, so no verifies: line (review round 4, finding-9),
+    # as its doc_srs twin below. Review round 3, finding-2. The provider's SAD is read to judge an
+    # expectation met, so a missing one is exit 2 naming the unit and the
+    # key — as a missing provider doc_srs already is.
+    make_units_fixture
+    add_expectation
+    satisfy_expectation
+    sed -i.bak 's#^doc_sad: .*#doc_sad: platform/hal/docs/no-such-architecture#' platform/hal/.guardrails/config.yaml
+    rm platform/hal/.guardrails/config.yaml.bak
+    commit_all provider-sad-missing
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"unit platform/hal: doc_sad is configured as 'platform/hal/docs/no-such-architecture', which does not exist"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a provider whose doc_srs does not exist fails the consumer's run" {
+    # Review round 3, finding-2: the behavior the doc_sad case above matches.
+    # Pre-existing, pinned here so the two stay alike.
+    make_units_fixture
+    add_expectation
+    satisfy_expectation
+    sed -i.bak 's#^doc_srs: .*#doc_srs: platform/hal/docs/no-such-requirements#' platform/hal/.guardrails/config.yaml
+    rm platform/hal/.guardrails/config.yaml.bak
+    commit_all provider-srs-missing
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"unit platform/hal: doc_srs is configured as 'platform/hal/docs/no-such-requirements', which does not exist"* ]] \
+        || { echo "$output"; false; }
 }
 
 @test "check-trace: missing-test-exemption-ends-when-met" {

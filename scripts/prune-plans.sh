@@ -32,9 +32,9 @@
 # a line inside a fence is never a heading and never opens another fence.
 #
 # Kept: every heading and every line outside a fence, every fence outside a
-# task section, a fence with a line that opens with `red -> green`, after
-# optional indentation and a `-`, `*` or `+` list marker and `**`
-# (merge-change step 6b copies those attestations into the record), and a
+# task section, a fence with a line that opens with `red -> green` or
+# `inherited:`, after optional indentation and a `-`, `*` or `+` list marker
+# and `**` (merge-change step 6b copies those lines into the record), and a
 # fence with no closing line. A fence that names `red -> green` only mid-line,
 # such as a skill draft, is pruned. A plan that any tracked *.md file cites as
 # `<basename>:<line>` or `<basename> line <line>` (a backtick may close the
@@ -221,8 +221,9 @@ END {
             if (fence_closes(text)) {
                 in_fence = 0
                 fence_end[fence_count] = line
-            } else if (text ~ /^[ \t]*([-*+][ \t]+)?(\*\*)?red -> green/) {
-                # An attestation line opens with `red -> green`, after
+            } else if (text ~ /^[ \t]*([-*+][ \t]+)?(\*\*)?(red -> green|inherited:)/) {
+                # An attestation line opens with `red -> green`, and the
+                # line naming an inherited test with `inherited:`, after
                 # optional indentation and a list or bold marker, on any line
                 # of the fence (the develop-change dispatch report opens with
                 # `task:`); a fence that names it only mid-line is a draft.

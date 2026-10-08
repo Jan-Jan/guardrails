@@ -166,7 +166,8 @@ EOF
     # exists to encourage, so the count moves up and the pin keeps its teeth.
     # Worth noting where this reddened: nothing in check-trace.bats,
     # portability.bats or skills.bats sees it, so only the full suite does.
-    body_check_trace=8
+    # 9 since the out-of-force scan (PR-kzst5n): its awk takes the same body.
+    body_check_trace=9
     body_finalize_docs=0
     body_finish_merge=0
     # 3 since gr_req_scan (units change): its awk takes body="$GR_ID_BODY"
@@ -224,7 +225,8 @@ EOF
     # 6 since the supersession scan (PR-zt5c2v): it reads item blocks through
     # the shared fragment rather than forming a sixth opinion about where an
     # item ends, which is the whole point of pinning this.
-    block_check_trace=6
+    # 7 since the out-of-force scan (PR-kzst5n): it reads blocks the same way.
+    block_check_trace=7
     block_finalize_docs=0
     block_finish_merge=0
     # 1 since gr_req_scan (units change): its awk composes the shared
@@ -266,7 +268,9 @@ EOF
     # date arithmetic, third reader.
     civil_check_units=0
     civil_find_items=0
-    civil_check_trace=3
+    # 4 since the out-of-force scan (PR-kzst5n): it checks a `retired:` date
+    # with the shared gr_date_ok rather than its own calendar.
+    civil_check_trace=4
     civil_finalize_docs=0
     civil_finish_merge=0
     civil_lib=0

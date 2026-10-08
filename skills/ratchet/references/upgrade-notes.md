@@ -25,8 +25,8 @@ cannot be told apart.
 4. After copying, run `check-trace.sh` again and work from the top. Config
    errors are reported before any gate runs, so each fix reveals the next.
 5. Work through the sections below that report on the existing ledger:
-   problem reports, derived assessments, supersession, `DANGLING-FILE` and
-   list-item annotations. Read "`ADR` is a declared prefix" before adding
+   problem reports, derived assessments, supersession, out-of-force items,
+   `DANGLING-FILE` and list-item annotations. Read "`ADR` is a declared prefix" before adding
    `ADR` to `id_prefixes`.
 6. If `/ratchet` was ever run on macOS, run `check-review.sh --branch <name>`
    once per existing verification record ("On macOS, older versions of
@@ -282,6 +282,62 @@ references to a superseded ID, because an `affects:` or `traces:` line may name
 an old ID as history. That sweep stays a review job (`merge-change` step 6a).
 `DANGLING-REF` already answers existence.
 
+## Out-of-force items
+
+A REQ or LLR whose block contains a column-one `superseded-by:` naming a REQ
+or LLR whose own block names it back with `supersedes:` (the reciprocal pair),
+or a well-formed column-one `retired:`, is out of force. It owes no test:
+`MISSING-TEST` skips it. A one-sided `superseded-by:` or a malformed
+`retired:` exempts nothing, and so does a supersession whose chain never
+reaches a successor in force. The skills used to tell you to add the new ID to
+the old item's test (`verifies:` naming both); they now say the successor
+owes its own red-first test. This can go red on an existing ledger.
+
+* `OUT-OF-FORCE-VERIFIES <file>:<line> (verifies: names only out-of-force
+  items: <IDs>)`. The test verifies only behavior the software no longer
+  promises. **Delete the test, or point it at the item in force** and list it
+  as `inherited: <test name> — from <old ID>` in that change's verification
+  record. A line that names an in-force item beside an out-of-force one is
+  silent, so a ledger that followed the old dual-ID rule stays green; leave
+  those lines alone.
+* `MALFORMED-SUPERSESSION <ID> (supersedes itself)` and
+  `MALFORMED-SUPERSESSION <ID> (supersession cycle with no successor in force
+  or retired: <IDs>)`. Every edge of the chain is reciprocal, but it ends in no item in
+  force or validly retired, so the item stays in force and also reports
+  `MISSING-TEST` if untested. Point the chain at the item that states the
+  behavior now, and remove the lines that make it loop.
+* `MALFORMED-RETIREMENT <ID> (retired: <value> — needs a YYYY-MM-DD date and a
+  reason)`. Write `retired: YYYY-MM-DD — <reason>` at column one in the item's
+  block: a real date at most one day ahead, then any non-blank reason.
+* `MALFORMED-RETIREMENT <ID> (retired: and superseded-by: <IDs> — an item is
+  retired or superseded, not both)`. Keep the one that is true: the
+  supersession if a successor states what the behavior became, the retirement
+  otherwise, and delete the other line. Removing `superseded-by:` means
+  removing the successor's `supersedes:` too, or the pair reports
+  `NON-RECIPROCAL-SUPERSESSION`.
+* In the SRS and SAD files, a `retired:` at column one outside every REQ or
+  LLR block, an SDD block included, is `ORPHAN-ANNOTATION`. Move it into the
+  item it retires; an SDD is not retired this way. A `retired:` in any other
+  ledger, on an RC, HAZ or PR, retires nothing and is not reported.
+* **An out-of-force item discharges nothing.** A tested LLR that is out of
+  force no longer covers the REQs its `satisfies:` names, and an
+  `implements:` in an out-of-force REQ no longer implements its RC. A REQ
+  covered only through such an LLR now reports `MISSING-TEST`, and an RC
+  implemented only by such a REQ reports `UNIMPLEMENTED-CONTROL`. Each is a
+  real gap that was hidden: give the parent a successor in force that covers
+  it, or test it directly. Never remove the `superseded-by:` to make the
+  finding go away; that is the deletion the pair exists to prevent.
+* **An out-of-force exported REQ meets no `expects:`.** In a monorepo, a
+  consumer's expectation that only a retired or superseded exported REQ
+  satisfies reports `UNMET-EXPECTATION` again, and the provider's
+  `expectations against this unit` count includes it. Export a REQ in force
+  that satisfies it.
+
+A ledger that never wrote `retired:` gets neither `MALFORMED-RETIREMENT` form
+and no orphaned `retired:`. `OUT-OF-FORCE-VERIFIES` appears on the first run
+wherever a test still names only a superseded item, and the discharge
+findings wherever coverage ran only through one.
+
 ## List-item annotations
 
 Outside every item block, an annotation written as a list item is now
@@ -394,7 +450,7 @@ heading such as `### T1 —` or `## Task 2 —`) with one pointer line that name
 the block's line count and quotes the task's `**Files touched:**` value where
 it has one. The merged code is in the change's squash commit. Headings, prose,
 fences outside task sections and a fence with a line that opens with
-`red -> green` are kept. No gate reads the plans' code, so nothing goes red.
+`red -> green` or `inherited:` are kept. No gate reads the plans' code, so nothing goes red.
 
 An absent `prune_plans` is `on`, and so is a project with no config file.
 `prune_plans: off` in `.guardrails/config.yaml` opts out: the script prints

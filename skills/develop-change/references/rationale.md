@@ -61,6 +61,14 @@ delegation. The subagent that executed the loop is the only party that saw the
 test fail, and this line is the only channel by which that observation reaches
 the dispatcher and the gate.
 
+## An inherited line is coverage, not evidence
+
+An `inherited:` line names a pre-existing test of a superseded item that the
+task pointed at its successor. It is coverage, not red-first evidence: the
+successor still needs its own `red -> green:` test. Any other test that was
+green before the task is not re-annotated with a new ID
+(`verify-before-merge` check 4).
+
 ## Write the red -> green lines into the plan
 
 `merge-change` step 6b copies them into the verification record, many steps

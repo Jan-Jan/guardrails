@@ -27,6 +27,23 @@ the `red -> green:` lines of the dispatch reports state that, and a green run
 does not imply it. Re-annotating a test that was green from the start makes
 the first half pass with no evidence behind the second.
 
+## Check 4 reads per ID, and an inherited test is named
+
+The check asks whether each Implements ID has red-first evidence, not whether
+every test that names it does. One `verifies:` test with a `red -> green:`
+line per ID answers it.
+
+A supersession is the one case where a pre-existing green test may gain a new
+ID. The test verified the superseded item, which is now out of force, and
+`OUT-OF-FORCE-VERIFIES` fails a test that names only out-of-force items. The
+author either deletes it or points it at the successor. Pointed at the
+successor, it is still coverage worth keeping, but it was never watched
+failing against the new behavior. So it is listed as
+`inherited: <test name> — from <old ID>` in the dispatch report and the
+verification record, and it never stands in for the successor's own red-first
+test. Naming it keeps the exception visible: an unlisted green test that
+gained an Implements ID is still a re-annotation, and still fails the check.
+
 ## Check 8 is the dispatcher's
 
 The tree records no difference between a diff the deslop pass reviewed and a

@@ -25,7 +25,9 @@ D11 of `docs/plans/2026-10-06-salvage-churn-and-parallel.md`, as built in
   `*(Code pruned at merge: <N> lines.)*` where the task has none. Every
   heading and every line of prose stays. Fences outside task sections stay,
   and so does a fence with a line that opens with `red -> green`: the
-  attestations `merge-change` step 6b copies into the record.
+  attestations `merge-change` step 6b copies into the record. (Amended
+  2026-10-08 for PR-kzst5n: a line that opens with `inherited:` keeps its
+  fence too, since step 6b copies those lines as well.)
 - `merge-change` step 1 runs it only after a base merge that succeeded,
   diffing against the ref it merged, and commits the plans it changed,
   unsigned and only where something changed; the commit takes nothing outside

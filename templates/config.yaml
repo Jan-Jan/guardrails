@@ -114,10 +114,10 @@ doc_problems: docs/problems
 # pointer naming its line count and quoting the task's `**Files touched:**`
 # where it has one. Kept: every heading and every line of prose, fences
 # outside task sections, a fence with a line that opens with `red -> green`
-# (merge-change copies those into the record), and every plan that a tracked
-# *.md file cites by line at or after its first pruned fence. The merged code
-# stays in the change's squash commit. `on` when absent; `off` opts out. Any
-# other value is exit 2.
+# or `inherited:` (merge-change copies those into the record), and every plan
+# that a tracked *.md file cites by line at or after its first pruned fence.
+# The merged code stays in the change's squash commit. `on` when absent; `off`
+# opts out. Any other value is exit 2.
 prune_plans: on
 
 # Paths where traceability is enforced. On retrofit projects this list

@@ -192,9 +192,9 @@ The tag must be unique per dispatch.
    `docs/verification/<date>-<branch>.md`, fill it in, and commit it unsigned:
    the gate summary's totals and the tree they describe, coverage if
    configured, each check's result, the IDs this change
-   resolves, accepts or opens (never the open count or the oldest age), the
-   `red -> green:` attestations from the plan, and the reviewer's verdict and
-   every finding with its disposition.
+   resolves, accepts or opens (never the open count or oldest age),
+   `red -> green:` and any `inherited:` lines from the plan, the reviewer's
+   verdict and every finding with its disposition.
 
    Four fields are required, each a plain annotation at column one. 6c
    rejects a record unless it contains all four fields with values

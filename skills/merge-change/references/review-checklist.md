@@ -31,13 +31,18 @@ The reviewer checks each item and raises a finding for each one that fails.
 - Item form: `**<ID>**: The software shall <single, testable behavior>`.
 - `satisfies:` / `implements:` references resolve; derived items are marked.
 - Terms match `docs/CONTEXT.md`.
-- Anything removed or reworded is superseded, not deleted: the old item
-  keeps its place and gains `superseded-by: <new ID>`, and the new item
-  contains `supersedes: <old ID>`. A requirement that disappeared is a
+- Anything reworded or replaced is superseded, and anything dropped is
+  retired, never deleted: the old item keeps its place and gains
+  `superseded-by: <new ID>` (the new item contains `supersedes: <old ID>`), or
+  `retired: YYYY-MM-DD — <reason>`. A requirement that disappeared is a
   finding.
-- The test that verified the superseded item names both IDs:
-  `verifies: <old ID>, <new ID>`. `superseded-by:` exempts nothing from
-  `MISSING-TEST`, so the dual annotation keeps it clean for both.
+- The successor has its own test with a `red -> green:` attestation. The new
+  ID was not added to the old item's green test; a test pointed from the old
+  item to the successor is listed as `inherited: <test name> — from <old ID>`
+  in the record. An inherited test is reviewed as an edited test under the
+  test checklist, and the reviewer confirms it verifies the successor's
+  behavior, since it carries no red-first evidence and no gate reads
+  `inherited:`.
 - Every other site that names the superseded ID. The trace gate enforces the
   supersession pair (`NON-RECIPROCAL-SUPERSESSION`, `MALFORMED-SUPERSESSION`)
   and only the pair. An `affects:`, `traces:` or table row may name an old ID

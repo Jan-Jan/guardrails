@@ -94,16 +94,23 @@ Update the requirements ledger (`doc_srs`) one item at a time. Do not batch.
 Read `references/supersession.md` before you record a supersession or put a
 retirement to the user.
 
-- Record a supersession. Never perform it by deletion. The superseded item
-  stays in the file that defines it and gains `superseded-by: <new ID>`; the
-  new item contains `supersedes: <old ID>`.
-- The superseded item still requires a test. Add the new ID to the test that
-  verified the superseded item: `verifies: <old ID>, <new ID>`.
-- Supersede only when the behavior still exists in some form: a rewording, a
-  narrowing, a replacement. Behavior that is gone is a retirement, which this
-  skill does not cover: `check-trace.sh` has no `superseded-by:` exemption.
-  Until a change that adds that exemption is merged, put a retirement to the
-  user as its own decision, and do not record it as a supersession.
+- Record a supersession or a retirement. Never perform either by deletion.
+  The old item stays in the file that defines it.
+- **Supersede** when a successor states what the behavior became: a
+  rewording, a narrowing, a replacement, a reversal. The old item gains
+  `superseded-by: <new ID>`; the new item contains `supersedes: <old ID>`.
+- **Retire** when the behavior is gone and nothing replaces it. The old item
+  gains `retired: YYYY-MM-DD — <reason>` at column one in its block. An item
+  is retired or superseded, never both. Put a retirement to the user as its
+  own decision.
+- A superseded or retired REQ or LLR is out of force. It owes no test, and it
+  discharges nothing: it covers no REQ through `satisfies:`, implements no
+  RC, and, exported, meets no `expects:`.
+- The successor owes its own test, written red-first (`develop-change`).
+  Never add the new ID to the old item's green test. A test that verified
+  only the old item now fails as `OUT-OF-FORCE-VERIFIES`: delete it, or point
+  it at the successor and record it as inherited (`verify-before-merge`
+  check 4).
 
 ### Declaring a dependency (multi-unit repositories)
 
@@ -178,7 +185,7 @@ because `check-trace.sh` scoped to the unit does not read the root. A
 | "I'll ask the three open questions in one message" | One question per message. |
 | "The user will want X, I'll write it down" | A decision is the user's. Put it to them and wait. |
 | "I'll read the ledger myself to check for overlap" | Dispatch the probe. The ledger stays out of this context. |
-| "The old requirement is wrong, I'll delete it" | Supersede it: both annotations, both IDs on the one test. |
+| "The old requirement is wrong, I'll delete it" | Supersede it with both annotations, or retire it with a dated reason. The successor gets its own red-first test. |
 | "The SAD needs a small fix, I'll edit it here" | Hand off to `design-architecture`. |
 | "The parent need is obvious, I'll name one" | No parent: `satisfies: derived`, then `analyze-risks`. |
 
@@ -186,8 +193,9 @@ because `check-trace.sh` scoped to the unit does not read the root. A
 
 - The user confirms shared understanding. Ask explicitly.
 - Every overlap, ambiguity or contradiction the probes found is resolved with
-  the user: superseded items annotated both ways and their test annotated with
-  both IDs, SAD contradictions handed to `design-architecture`. An unresolved
+  the user: superseded items annotated both ways, retired items carrying a
+  dated reason, each successor left to owe its own test, SAD contradictions
+  handed to `design-architecture`. An unresolved
   overlap means the interview is not done.
 - Every new or changed REQ is in the SRS with an ID from `new-id.sh`, testable
   as written.

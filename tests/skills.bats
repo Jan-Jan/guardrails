@@ -1774,7 +1774,9 @@ gr_write_skill_fixture() {
     grep -q 'With no worktree registered for the branch' "$skill"
     grep -q 'leave or remove it with the harness tool' "$skill"
     # Moved 2026-09-29 with the documentation checklist of step 6a (D4).
-    grep -q 'exempts nothing from' \
+    # Re-aimed 2026-10-08 (out-of-force items D7): the dual-ID rule it pinned
+    # is gone; the checklist item now states the successor's own test.
+    grep -q 'The successor has its own test' \
         "$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     # Re-aimed 2026-10-07 (parallel-changes review round 4): two reasons moved
     # to the rationale to make room for instructions.
@@ -2210,6 +2212,50 @@ adr_file_is_named_by_its_item() {
         > "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
     run adr_file_is_named_by_its_item "$BATS_TEST_TMPDIR/$adr_id-flat-config.md"
     [ "$status" -eq 1 ]
+}
+
+@test "skills: no skill tells a superseded item's test to carry both IDs" {
+    # verifies: D7 (docs/plans/2026-10-08-out-of-force-items.md)
+    root="$BATS_TEST_DIRNAME/.."
+    run grep -rnE 'verifies: <old ID>, <new ID>|both IDs on the one test' "$root/skills"
+    [ "$status" -ne 0 ] || { echo "$output"; false; }
+}
+
+@test "skills: check 4 reads per ID and names an inherited test as coverage" {
+    # verifies: D6 (docs/plans/2026-10-08-out-of-force-items.md)
+    # A test of a superseded item pointed at its successor passes check 4 only
+    # when it is listed as inherited, and is coverage, never red-first
+    # evidence. The rule is prose in four places that must agree: the check,
+    # the dispatch report form, the record template and step 6b's copy.
+    root="$BATS_TEST_DIRNAME/.."
+    check="$root/skills/verify-before-merge/SKILL.md"
+    grep -qF 'Read it per ID. Every Implements ID needs at least one `verifies:` test' "$check" \
+        || { echo "check 4 does not read per ID"; false; }
+    grep -qF 'with a `red -> green:` attestation; an ID with none fails the check' "$check" \
+        || { echo "check 4 does not fail an ID with no attested test"; false; }
+    grep -qF 'inherited: <test name> — from <old ID>' "$check" \
+        || { echo "check 4 does not name the inherited: form"; false; }
+    grep -qF 'coverage, never red-first evidence' "$check" \
+        || { echo "check 4 does not call an inherited test coverage"; false; }
+
+    report="$root/skills/develop-change/SKILL.md"
+    grep -qxF 'inherited: <test name> — from <old ID>' "$report" \
+        || { echo "the dispatch report form has no inherited: line"; false; }
+    grep -qF 'any `inherited:` lines into the plan' "$report" \
+        || { echo "develop-change does not write the inherited: lines into the plan"; false; }
+    # Moved to the rationale when main's test-seams change left no room in the
+    # SKILL.md word budget (2026-10-08).
+    grep -qF 'It is coverage, not red-first evidence' "$root/skills/develop-change/references/rationale.md" \
+        || { echo "develop-change does not call an inherited test coverage"; false; }
+
+    record="$root/templates/verification.md"
+    grep -qF 'list it below the table as `inherited: <test name> — from <old ID>`' "$record" \
+        || { echo "the verification template does not say where inherited: goes"; false; }
+    grep -qF 'It is coverage, never a row in the table' "$record" \
+        || { echo "the verification template puts an inherited test in the table"; false; }
+
+    grep -qF 'any `inherited:` lines from the plan' "$root/skills/merge-change/SKILL.md" \
+        || { echo "merge-change step 6b does not copy the inherited: lines"; false; }
 }
 
 @test "merge-change: step 1 prunes the plans after the base merge and commits what changed" {

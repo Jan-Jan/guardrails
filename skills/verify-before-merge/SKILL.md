@@ -79,10 +79,14 @@ for it.
      dispatch reports (`develop-change`). The gate subagent watched nothing
      fail, and a green run cannot imply it.
 
-   An Implements ID with no `verifies:` test fails the check; so does a
-   `verifies:` test with no `red -> green:` attestation behind it. Fix either
-   in the change worktree and re-dispatch. Never re-annotate a test that was
-   green from the start.
+   Read it per ID. Every Implements ID needs at least one `verifies:` test
+   with a `red -> green:` attestation; an ID with none fails the check. Any
+   other `verifies:` test of an Implements ID also needs one, unless the
+   dispatch report lists it as `inherited: <test name> — from <old ID>`: a
+   test of a superseded item pointed at its successor. An inherited test is
+   coverage, never red-first evidence. Fix a failure in the change worktree
+   and re-dispatch. Never re-annotate a test that was green from the start,
+   except as an inherited test.
 5. **Coverage gate:** if `coverage_command` is configured, run it and judge
    the report against the class target: **A** none required · **B**
    statement coverage · **C** statement + decision coverage (MC/DC beyond
@@ -132,8 +136,8 @@ to investigate, not a pass to assume.
    A green summary is not a green gate until both are answered.
 2. Quote the gate summary in your completion report and cite the log path.
    Do not re-run the commands to see the output; the summary is the report.
-3. Copy the `red -> green:` lines into the verification record
-   `merge-change` step 6b writes.
+3. Copy the `red -> green:` and `inherited:` lines into the verification
+   record `merge-change` step 6b writes.
 4. Anything that record needs from the gate (totals, per-command results,
    coverage summary, verdict) must be in the gate summary. If a figure is
    missing, ask the subagent for it rather than running the command again.

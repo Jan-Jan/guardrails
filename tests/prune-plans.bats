@@ -856,6 +856,19 @@ PLAN_EOF
     grep -q 'red -> green: t1' "$PLAN"
 }
 
+@test "prune: a fence holding only an inherited: line keeps its fence" {
+    # verifies: D6 (docs/plans/2026-10-08-out-of-force-items.md)
+    # merge-change step 6b copies `inherited:` lines from the plan as it
+    # copies `red -> green:` ones, and step 1 prunes first, so an inherited:
+    # line keeps its fence by the same rule.
+    printf '### T1 \342\200\224 do it\n\n```text\n- inherited: test one \342\200\224 from REQ-w9hk3p\n```\n' > "$PLAN"
+    commit_all plan
+    prune
+    [ "$status" -eq 0 ]
+    [ -z "$output" ] || { echo "$output"; false; }
+    grep -q 'inherited: test one' "$PLAN" || { cat "$PLAN"; false; }
+}
+
 @test "prune: seven hashes, or a hash with no space after it, is not a heading" {
     # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
     # `####### T1` opens no task section, so its fence is kept; `#Notes`
