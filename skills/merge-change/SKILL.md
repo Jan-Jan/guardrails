@@ -81,7 +81,7 @@ The tag must be unique per dispatch.
    - `unrewritten FILE:LINE: NAME` (`would leave unrewritten` under
      `--dry-run`) — narration of the rename stays; a citation meant to resolve
      is dead, so repair it.
-   - A rename you do not recognise is a draft another change left behind.
+   - A rename you do not recognise is another change's leftover draft.
      Stop: its repair is a separate change.
 
    Only root-relative paths and bare names are rewritten. Step 4 reports a
@@ -113,7 +113,7 @@ The tag must be unique per dispatch.
    - `MALFORMED-ID`: give the item an ID from `new-id.sh`. Never widen a
      pattern to accept the token.
    - `DRAFT-FILE` on a path this change did not create is another change's
-     unfinished step 3. Its repair is a separate change.
+     unfinished step 3, repaired by a separate change.
 6. **Dispatch the verification suite again, where step 3 renamed something.**
 
    ```sh
@@ -146,7 +146,7 @@ The tag must be unique per dispatch.
    **Hand the reviewer `references/review-checklist.md`**, every round.
 
    **The reviewer runs the suite itself** in its worktree and reports the
-   counts it saw. Only a documentation-only diff may use the step 6 gate
+   counts. Only a documentation-only diff may use the step 6 gate
    summary instead; the record states the substitution.
 
    **Every finding opens with its tag** — `code`, `requirement` or `record`:
@@ -193,8 +193,9 @@ The tag must be unique per dispatch.
    the gate summary's totals and the tree they describe, coverage if
    configured, each check's result, the IDs this change
    resolves, accepts or opens (never the open count or oldest age),
-   `red -> green:` and any `inherited:` lines from the plan, the reviewer's
-   verdict and every finding with its disposition.
+   `red -> green:` and any `inherited:` lines from the plan, its guideline
+   reviews (`## Guideline reviews`), the reviewer's verdict and every finding
+   with its disposition.
 
    Four fields are required, each a plain annotation at column one. 6c
    rejects a record unless it contains all four fields with values
@@ -253,7 +254,7 @@ The tag must be unique per dispatch.
    Verified: docs/verification/<record file>
    ```
 
-   Leave out an empty `Resolves:` or `Opens:` line.
+   Omit an empty `Resolves:` or `Opens:` line.
 
    Hand the user exactly one command, paths and branch substituted, and
    **stop**:

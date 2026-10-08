@@ -90,7 +90,7 @@ description: Mandatory isolation for every change in a guardrails project - crea
    worktree's own path with the same tool.
 
    Then edit, run the project's `verify_commands`, commit on the task branch
-   (unsigned, step 7), report, and stop. The dispatcher merges.
+   (unsigned, `develop-change` step 6), report, and stop. The dispatcher merges.
 
    **A fresh task worktree contains only tracked files.** `start` copies the
    change worktree's ignored entries into it: a vendored test runner, installed

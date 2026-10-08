@@ -472,3 +472,14 @@ managed block teach the grammar the scripts enforce, and nothing mechanical
 reports when they drift apart. A skipped refresh produces a commit whose
 AGENTS.md and `docs/problems/README.md` contradict each other about a required
 field.
+
+## Test guidelines are a project file
+
+The test rules `develop-change` stated are now preferences in a guidelines
+file, apart from the floor the skills keep. An upgraded project with no
+`docs/TEST_GUIDELINES.md` follows the installed default, which states the
+rules `develop-change` stated before, so its behavior does not change and
+nothing goes red. The default reaches `.guardrails/templates/` with the
+scripts. Run `tailor-guidelines` for `TEST` to make the file the project's
+own; on later upgrades, its upgrade mode walks each changed clause of the new
+default before it is copied.

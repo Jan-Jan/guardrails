@@ -54,19 +54,23 @@ The reviewer checks each item and raises a finding for each one that fails.
 
 ## The test checklist
 
-The reviewer checks each new or edited test and raises a finding for each one
-that fails (`develop-change`, "Where a test attaches").
+The reviewer checks each new or edited test against the floor, which no
+guidelines file changes, and raises a finding for each one that fails. The
+project's guidelines file states where a test attaches and which doubles it
+may use, and `review-guidelines` checked those rules before this step.
+That each new test was watched red is `verify-before-merge` check 4's, from
+the `red -> green:` lines.
 
-- It calls an interface that a REQ or LLR describes, not a private
-  helper. A direct test of a deeper interface has an LLR behind it.
-- Every test double is one of three kinds: a fake at the codebase boundary
-  with a contract test; a fake of a service the project owns, in a failure
-  case only, under its contract test; or a fault injector. A fault injector
-  makes a transport or OS operation fail, or a command exit with no output
-  the code reads, and imitates nothing service-specific; a double that
-  imitates content the code interprets, such as an error body or a parsed
-  message, is a fake. No test mocks code the
-  project owns or asserts how owned code was called, unless the interaction
-  is the requirement.
-- A service the project owns runs for real on the normal path.
-- No markup snapshot carries a `verifies:` annotation.
+- It carries a `verifies:` annotation naming the lowest requirement level
+  that exists.
+- It fails when the behavior it verifies breaks: an assertion only that a
+  double was called meets this only where the call is the requirement.
+- At class B and C, every REQ and LLR has abnormal-input tests as well as
+  normal-case tests: bad input, boundary values, resource exhaustion,
+  dependency failure.
+- At class C, every SDD item the change touches is tested at its own
+  interface, not only end-to-end.
+- Once for the change: the plan lists a guideline review for each file
+  `guidelines-file.sh TEST` prints for the diff, every finding with a
+  disposition, and so does the record's `## Guideline reviews` where the
+  record exists.

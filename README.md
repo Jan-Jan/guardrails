@@ -42,6 +42,7 @@ protection, CI).
 ```mermaid
 flowchart TD
     R[ratchet<br/>bootstrap / retrofit] --> G[grill-requirements<br/>REQ items + glossary]
+    R --> TG[tailor-guidelines<br/>the project's TEST_GUIDELINES.md]
     G <--> A[analyze-risks<br/>HAZ / RC items]
     G --> D[design-architecture<br/>SDD items + SOUP]
     A --> D
@@ -49,7 +50,8 @@ flowchart TD
     P --> W[worktree-discipline<br/>isolate + draft IDs]
     W --> DEV[develop-change<br/>TDD, verifies: annotations,<br/>plan tasks dispatched to subagents]
     B[resolve-problem<br/>PR items for every bug] --> DEV
-    DEV --> CT[check-traceability]
+    DEV --> RG[review-guidelines<br/>one review per project guidelines file]
+    RG --> CT[check-traceability]
     CT --> V[verify-before-merge<br/>dispatched evidence + coverage gate]
     V --> M[merge-change<br/>finalize ledger files, independent review,<br/>verification record + check-review.sh,<br/>signed squash merge, cleanup worktree]
 ```
@@ -85,6 +87,7 @@ rules, reports and exit codes in full.
 | `check-units.sh` | The multi-unit repository: manifest validation, unit claims, the class floor, the impact set. |
 | `check-review.sh` | The verification record of the change under merge, and its findings. |
 | `check-signing.sh` | Commit signatures, and with `--setup` proof that the project can sign. |
+| `guidelines-file.sh` | Print the one guidelines file that governs each path: the unit's, the project's, or the installed default. |
 | `finalize-docs.sh` | Rename this change's draft ledger files to dated names and rewrite references to them. |
 | `prune-plans.sh` | Replace the fenced code in this change's plan tasks with pointers, at `merge-change` step 1. |
 | `merge-preflight.sh` | The mechanical checks of `merge-change` steps 4 and 6c, in one command. |

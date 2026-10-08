@@ -35,3 +35,7 @@ is the point: it is the price of freezing an interface, paid once, in the
 open. Mutation testing, not line coverage, is the evidence that tests at the
 seam reach the internals below it; a surviving mutant calls for a test at the
 seam or for deleting dead code, never for a test below the seam.
+
+Amended by ADR-me39p4 (2026-10-08): this rule is the shipped default of
+`templates/TEST_GUIDELINES.md`, which a project may change in its own
+`docs/TEST_GUIDELINES.md`; it is not part of the compliance floor.

@@ -1197,8 +1197,8 @@ gr_all_sh_fences() {
     ! grep -q 'writing and naming rules' "$skill"
 }
 
-@test "develop-change: the loop greps the mutation anchors for a changed line" {
-    # verifies: PR-dr7k7k
+@test "develop-change: the mutation-anchor rule lives in this repository's TEST_GUIDELINES.md, not develop-change" {
+    # verifies: PR-dr7k7k, PR-ttg99p
     # Was annotated PR-4fwfjp, which is the `status: accepted` item and states
     # nothing about mutation anchors: this test asserts an obligation that
     # belonged to no item at all until PR-dr7k7k was written for it.
@@ -1208,11 +1208,19 @@ gr_all_sh_fences() {
     # such a mutation, but only when the full suite is run, after the edit is
     # complete; the grep in the TDD loop finds the hit while the edit is in
     # progress.
+    # Only this repository has docs/verification/*.mutations/, so the rule is
+    # stated in its own docs/TEST_GUIDELINES.md and not in the shipped skill,
+    # where an adopter's grep matched nothing (PR-ttg99p).
+    guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -q 'mutations' "$skill"
+    grep -q 'mutations' "$guidelines"
     # Re-cutting is the prescribed answer, and re-cutting without re-proving is
     # the failure it invites: an anchor can match again and kill nothing.
-    grep -q 'kills tests' "$skill"
+    grep -q 'kills tests' "$guidelines"
+    if grep -q 'mutations' "$skill"; then
+        echo "develop-change still states the repository-only anchor rule"
+        false
+    fi
 }
 
 @test "merge-change: the record states the ledger delta, not the open count" {
@@ -2400,135 +2408,145 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$adr_text" | grep -q '`merge-change` step 1' || { echo "no step 1"; false; }
 }
 
-# --- test seams (docs/plans/2026-10-07-test-seams.md) ------------------------
+# --- test guidelines (docs/plans/2026-10-08-test-guidelines.md) --------------
+# The seam and double rules moved to templates/TEST_GUIDELINES.md (T2 pins
+# them there); develop-change keeps the floor and reads one guidelines file.
 
-@test "develop-change: a test attaches only to an interface a REQ or LLR describes" {
-    # verifies: D1, D2, D3 (docs/plans/2026-10-07-test-seams.md)
+@test "develop-change: every test fails when the behavior it verifies breaks" {
+    # verifies: D2 (docs/plans/2026-10-08-test-guidelines.md)
+    # The floor rule no guidelines file may override: a test that passes
+    # whatever the code does is no verification evidence.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-    grep -qF '**A test calls only an interface that a REQ or LLR describes.**' "$skill"
-    grep -qF '**A deeper interface gets a direct test only once it has an LLR**' "$skill"
-    grep -qF 'A case reachable from above is tested there.' "$skill"
-    grep -qF 'It earns one only when a case cannot be triggered' "$skill"
-    grep -qF 'A user journey is a REQ only when it' "$skill"
-    grep -qF 'A journey is a REQ of its own only when it states an' "$seams"
-    grep -qF '1. **Unreachable.**' "$seams"
-    grep -qF '2. **Combinatorial.**' "$seams"
-    grep -qF '3. **Intrinsic.**' "$seams"
-    grep -qF 'Convenience is not on the list.' "$seams"
-    grep -qxF 'states an outcome none of its steps states; otherwise it verifies theirs.' "$skill"
-    grep -qxF '1. **Unreachable.** A case cannot be triggered through the REQ interface' "$seams"
-    grep -qxF '   without faking code the project owns. A retry policy whose third attempt' "$seams"
-    grep -qxF 'helper is covered through the interface above it. Without LLRs, the seam is' "$skill"
-    grep -qxF 'the REQ level: the public interface. A user journey is a REQ only when it' "$skill"
-    grep -qxF 'from above without faking code the project owns, when its cases multiply past' "$skill"
-    grep -qxF 'enumeration from above, or when it is maths, parsing, encoding or a numerical' "$skill"
-    grep -qxF '   multiplies past what is practical to enumerate. As guidance, not a rule:' "$seams"
-    grep -qxF '3. **Intrinsic.** Maths, parsing, encoding or a numerical transform whose' "$seams"
-    grep -qxF '   algorithm has a contract worth stating independently of its caller.' "$seams"
+    grep -qxF '**Every test fails when the behavior it `verifies:` breaks.**' "$skill"
+    grep -qF 'An assertion only that a double was called meets this only where the' "$skill"
+    grep -qxF 'call is the requirement.' "$skill"
 }
 
-@test "develop-change: doubles fake only at the codebase boundary, each with a contract test" {
-    # verifies: D4, D8, D9, D14 (docs/plans/2026-10-07-test-seams.md)
+@test "develop-change: before RED, guidelines-file.sh picks the one guidelines file" {
+    # verifies: D8, D6 (docs/plans/2026-10-08-test-guidelines.md)
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-    grep -qF '**Test doubles.** Never mock code the project owns or assert how it was' "$skill"
-    grep -qF 'give every fake a contract test' "$skill"
-    grep -qF 'A service the project owns runs for real' "$skill"
-    grep -qF 'its failures may be injected or faked.' "$skill"
-    grep -qxF 'on the normal path; its failures may be injected or faked. Assert an' "$skill"
-    grep -qF 'interaction only where the interaction is the requirement.' "$skill"
-    grep -qF '4. **An interaction is asserted only where it is the requirement.**' "$seams"
-    grep -qF '3. **Every fake has a contract test.**' "$seams"
-    grep -qF 'The faked successes are then setup, not evidence.' "$seams"
-    grep -qF -- '- **A fake**, with a contract test: a double that imitates service-specific' "$seams"
-    grep -qF -- '- **A fault injector**, with none: a transport- or OS-level failure, such as' "$seams"
-    grep -qxF 'called. Fake only at the codebase boundary, behind an adapter the project' "$skill"
-    grep -qxF 'owns, and give every fake a contract test that runs against the real' "$skill"
-    grep -qxF '   reachable in the test environment, and are skipped where it is not. A fake' "$seams"
-    grep -qxF 'first sync that succeeds before the second times out, where each of those' "$seams"
-    grep -qxF 'successes is verified against the real service by a normal-case test in the' "$seams"
-    grep -qxF -- '- a fake of the service, under the same contract test as any fake, so that' "$seams"
-    grep -qxF '   implements the adapter'"'"'s interface. A fake at the HTTP layer, intercepting' "$seams"
-    grep -qxF '   the network calls to a service outside the codebase, is a boundary fake' "$seams"
-    grep -qxF '   too, under the same contract test; the adapter above it then runs for' "$seams"
-    grep -qxF '   real. The clock and randomness are fakeable in the same way.' "$seams"
-    grep -qxF 'dependency wherever it is reachable. A service the project owns runs for real' "$skill"
-    grep -qxF '   the adapter, never the third-party interface directly, and the fake' "$seams"
-    grep -qxF '   fake and against the real dependency, wherever the real dependency is' "$seams"
+    grep -qF 'sh .guardrails/scripts/guidelines-file.sh TEST <the paths the task touches>' "$skill"
+    grep -qF 'read no other guidelines file' "$skill"
+    grep -qF 'the guidelines file `guidelines-file.sh TEST` printed for' "$skill"
 }
 
-@test "develop-change: property tests repeat and pin, and a survivor never goes below the seam" {
-    # verifies: D5, D6 (docs/plans/2026-10-07-test-seams.md)
+@test "develop-change: the guideline reviews follow the deslop pass, before merge-change" {
+    # verifies: D1 (docs/plans/2026-10-08-test-guidelines.md)
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-    grep -qF 'Prefer a property test where cases are' "$skill"
-    grep -qF 'encoding (criteria 2 and 3 above), prefer a property test: generated inputs,' "$seams"
-    grep -qF 'fix or print its seed, and pin each counterexample' "$skill"
-    grep -qF 'seam, or dead code: never a test below the seam.' "$skill"
-    grep -qF -- '- **Repeatable.**' "$seams"
-    grep -qF -- '- **Pinned.**' "$seams"
-    grep -qF 'A survivor never justifies a test below the seam' "$seams"
-    grep -qxF -- '- the mutated code is dead: delete it.' "$seams"
-    grep -qxF 'example test before the fix. A surviving mutant means a missing test at the' "$skill"
-    grep -qxF '  beside it, with its `verifies:` annotation, before the fix. It then stays' "$seams"
-    grep -qxF 'A survivor never justifies a test below the seam unless one of the three' "$seams"
-    grep -qxF 'criteria above holds. Whether a project must run mutation testing, with which' "$seams"
-    grep -qxF 'combinatorial or the code is maths, parsing or encoding;' "$skill"
+    headings=$(grep '^### ' "$skill")
+    following=$(printf '%s\n' "$headings" | grep -A1 -xF '### The deslop pass' | sed -n 2p)
+    [ "$following" = '### The guideline reviews' ] \
+        || { echo "after the deslop pass: '$following'"; false; }
+    section=$(awk '/^### The guideline reviews$/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill")
+    printf '%s\n' "$section" | grep -qF '`review-guidelines`'
+    printf '%s\n' "$section" | grep -qF '`## Guideline reviews`'
+    printf '%s\n' "$section" | grep -qF 'before `merge-change`'
 }
 
-@test "develop-change: a UI's interface is what the user perceives, and a markup snapshot verifies nothing" {
-    # verifies: D7 (docs/plans/2026-10-07-test-seams.md)
+@test "develop-change: guideline review findings go into the plan as they arrive, and step 6b copies them" {
+    # verifies: D1, D9 (docs/plans/2026-10-08-test-guidelines.md)
+    # The reviews run before merge-change, so their findings wait in the plan
+    # as the red -> green lines do; 6a reads them there, and 6b copies them
+    # into the record it writes after 6a (finding-4, review round 1).
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    ui="$BATS_TEST_DIRNAME/../skills/develop-change/references/ui-seams.md"
-    grep -qF 'A markup snapshot carries no `verifies:` annotation.' "$skill"
-    grep -qF 'The REQ interface of a UI is what the user perceives and does' "$ui"
-    grep -qF -- '- **A markup snapshot carries no `verifies:` annotation.**' "$ui"
-    grep -qxF '## Keep the UI layer thin' "$ui"
-    grep -qF 'text, not by test identifier or class name.' "$ui"
-    grep -qF -- '- Visual regression verifies a REQ only where the REQ is about appearance' "$ui"
-    grep -qF 'A service the project owns runs for real on the normal path' "$ui"
-    grep -qxF '  A service the project owns runs for real on the normal path' "$ui"
-    grep -qxF -- '- Fake only what is outside the codebase, plus the clock and randomness. A' "$ui"
-    grep -qxF '  fake at the HTTP layer, by network interception, is a boundary fake under' "$ui"
-    grep -qxF '  the same contract test as any fake.' "$ui"
-    grep -qxF '## Enumerate the states' "$ui"
-    grep -qxF 'List the states each screen can be in and test each: loading, empty, error,' "$ui"
-    grep -qxF '## What only a real browser shows' "$ui"
-    grep -qxF 'Keep a small suite in a real browser for what a simulated DOM cannot do: the' "$ui"
-    grep -qxF '**UI.** The REQ interface is what the user perceives and does, plus what the' "$skill"
-    grep -qxF 'app sends out. A markup snapshot carries no `verifies:` annotation.' "$skill"
-    grep -qxF 'application sends to the outside world. Components, props, hooks, store shape' "$ui"
-    grep -qxF 'and CSS classes are implementation: a test that names them breaks on a' "$ui"
+    section=$(awk '/^### The guideline reviews$/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    if printf '%s\n' "$section" | grep -qF 'which `merge-change` step 6b fills in'; then
+        echo "still says step 6b fills in the guideline reviews"; false
+    fi
+    printf '%s\n' "$section" | grep -qF 'Write each finding and its disposition into the plan as it arrives, as the `red -> green:` lines are'
+    printf '%s\n' "$section" | grep -qF '`merge-change` step 6b copies them into the record'"'"'s `## Guideline reviews`'
+    merge="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    record_step=$(awk '/^6b\. / { inside = 1 } /^6c\. / { inside = 0 } inside' "$merge" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$record_step" | grep -qF 'any `inherited:` lines from the plan, its guideline reviews (`## Guideline reviews`)'
 }
 
-@test "develop-change: the seam rules bind new and edited tests, not the existing suite" {
-    # verifies: D10 (docs/plans/2026-10-07-test-seams.md)
+@test "develop-change: a missing or broken guidelines-file.sh stops the task" {
+    # verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)
+    # Exit 2 means the install is broken; no task proceeds on a guess at the
+    # guidelines (finding-5, review round 1).
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-    grep -qF 'These rules bind the tests a change writes or edits.' "$skill"
-    grep -qF 'An existing test that' "$skill"
-    grep -qF 'breaks them and must be edited moves to the seam; one that still passes is' "$skill"
-    grep -qF 'No change rewrites a suite wholesale' "$seams"
-    grep -qxF 'moves it to the seam instead of repairing it in place: such a test usually' "$seams"
-    grep -qxF 'left alone.' "$skill"
-    grep -qxF 'breaks the rules and still passes is left alone, since deleting it without a' "$seams"
+    section=$(awk '/^### Test guidelines$/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$section" | grep -qF 'If it exits 2 or is missing, stop and reinstall the guardrails scripts and templates (`ratchet`'"'"'s upgrade); never proceed without a guidelines file.'
 }
 
-@test "merge-change: the review checklist asks where each new test attaches and which doubles it uses" {
-    # verifies: D12, D14 (docs/plans/2026-10-07-test-seams.md)
+@test "develop-change: the dispatch prompt names the guidelines file for each of the task's paths" {
+    # verifies: D3, D8 (docs/plans/2026-10-08-test-guidelines.md)
+    # A task whose paths span units has more than one governing file; the
+    # prompt carries every line guidelines-file.sh printed (finding-6c,
+    # review round 1).
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    prompt=$(awk '/^  Execute task 3 of/ { inside = 1 } inside && /^  ```$/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$prompt" ] || { echo "no dispatch prompt template"; false; }
+    printf '%s\n' "$prompt" | grep -qF 'For each of the task'"'"'s paths, follow the guidelines file `guidelines-file.sh TEST` printed for it'
+    printf '%s\n' "$prompt" | grep -qF '<file>: <paths> (one line per file it printed)'
+}
+
+@test "develop-change: a clause that contradicts the skill is a finding against the clause" {
+    # verifies: D2 (docs/plans/2026-10-08-test-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    grep -qF 'is a finding against the clause' "$skill"
+}
+
+@test "develop-change: the seam reference files are gone" {
+    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # Their content moved to templates/TEST_GUIDELINES.md, so each rule has
+    # one home.
+    skill_dir="$BATS_TEST_DIRNAME/../skills/develop-change"
+    references=$(awk '/^## References/ { inside = 1; next } /^## / { inside = 0 } inside' "$skill_dir/SKILL.md")
+    run sh -c 'printf "%s\n" "$1" | grep -E "test-seams\.md|ui-seams\.md"' _ "$references"
+    [ "$status" -ne 0 ]
+    [ ! -e "$skill_dir/references/test-seams.md" ]
+    [ ! -e "$skill_dir/references/ui-seams.md" ]
+}
+
+@test "merge-change: the review checklist's test section is the floor, and checks the guideline reviews ran" {
+    # verifies: D2, D9 (docs/plans/2026-10-08-test-guidelines.md)
+    # The seam and double rules are a project's preference, checked by
+    # review-guidelines against its own file; 6a holds the floor alone and
+    # checks that each guideline review ran and was dispositioned.
     checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     grep -qF 'checklist applies when the diff touches documentation, and the test' "$checklist"
     grep -qxF '## The test checklist' "$checklist"
-    grep -qF -- '- It calls an interface that a REQ or LLR describes, not a private' "$checklist"
-    grep -qF -- '- Every test double is one of three kinds: a fake at the codebase boundary' "$checklist"
-    grep -qF 'with a contract test; a fake of a service the project owns, in a failure' "$checklist"
-    grep -qxF '  makes a transport or OS operation fail, or a command exit with no output' "$checklist"
-    grep -qxF '  the code reads, and imitates nothing service-specific; a double that' "$checklist"
-    grep -qF -- '- A service the project owns runs for real on the normal path.' "$checklist"
-    grep -qF -- '- No markup snapshot carries a `verifies:` annotation.' "$checklist"
-    grep -qxF '  helper. A direct test of a deeper interface has an LLR behind it.' "$checklist"
-    grep -qxF '  project owns or asserts how owned code was called, unless the interaction' "$checklist"
-    grep -qxF '  is the requirement.' "$checklist"
-    grep -qxF '  case only, under its contract test; or a fault injector. A fault injector' "$checklist"
+    section=$(awk '/^## The test checklist$/ { inside = 1; next } /^## / { inside = 0 } inside' "$checklist" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$section" ]
+    # `! cmd` does not fail a bats test under errexit; fail explicitly.
+    if printf '%s\n' "$section" | grep -qF 'Where a test attaches'; then echo "still cites Where a test attaches"; false; fi
+    printf '%s\n' "$section" | grep -qF -- '- It carries a `verifies:` annotation naming the lowest requirement level that exists.'
+    printf '%s\n' "$section" | grep -qF -- '- It fails when the behavior it verifies breaks: an assertion only that a double was called meets this only where the call is the requirement.'
+    printf '%s\n' "$section" | grep -qF -- '- At class B and C, every REQ and LLR has abnormal-input tests'
+    printf '%s\n' "$section" | grep -qF -- '- At class C, every SDD item the change touches is tested at its own interface'
+    # The plan holds the guideline reviews when 6a runs; 6b copies them into
+    # the record afterwards (finding-4, review round 1).
+    printf '%s\n' "$section" | grep -qF 'the plan lists a guideline review for each file `guidelines-file.sh TEST` prints for the diff'
+    printf '%s\n' "$section" | grep -qF 'every finding with a disposition'
+    printf '%s\n' "$section" | grep -qF 'and so does the record'"'"'s `## Guideline reviews` where the record exists'
+    for removed in 'three kinds' 'markup snapshot' 'runs for real on the normal path'; do
+        if grep -qF "$removed" "$checklist"; then echo "checklist still states: $removed"; false; fi
+    done
+}
+
+@test "verification template: guideline reviews have their own section" {
+    # verifies: D9 (docs/plans/2026-10-08-test-guidelines.md)
+    # Kept apart from ## Review so an auditor can tell a compliance finding
+    # from a preference finding.
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    review_line=$(grep -n '^## Review$' "$template" | cut -d: -f1)
+    guideline_line=$(grep -n '^## Guideline reviews$' "$template" | cut -d: -f1)
+    gaps_line=$(grep -n '^## Gaps$' "$template" | cut -d: -f1)
+    [ -n "$review_line" ]
+    [ -n "$guideline_line" ]
+    [ -n "$gaps_line" ]
+    [ "$review_line" -lt "$guideline_line" ]
+    [ "$guideline_line" -lt "$gaps_line" ]
+    section=$(awk '/^## Guideline reviews$/ { inside = 1; next } /^## / { inside = 0 } inside' "$template")
+    printf '%s\n' "$section" | grep -qx '### <guidelines file>'
+    # `<N>`, not 1: the record-counting test pins the one `### Round 1` and
+    # `**finding-1**:` of ## Review.
+    printf '%s\n' "$section" | grep -qxF '### Round <N>'
+    printf '%s\n' "$section" | grep -qF '**finding-<N>**: guideline, <low | medium | high> — '
+    printf '%s\n' "$section" | grep -q '^disposition: '
+    flat=$(printf '%s\n' "$section" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$flat" | grep -qF 'guidelines-file.sh TEST'
+    printf '%s\n' "$flat" | grep -qF 'kept apart from `## Review` so compliance and preference findings stay distinguishable'
+    printf '%s\n' "$flat" | grep -qF 'State no number of rounds, findings or dispositions in prose, as under `## Review`'
 }

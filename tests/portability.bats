@@ -170,6 +170,10 @@ EOF
     # file instead: "derives the worktree path under an awk that rejects a
     # newline in -v" (tests/finish-merge.bats), which builds the squash this
     # needs.
+    # guidelines-file.sh is absent because it needs an installed default in
+    # .guardrails/templates/ and a units manifest to reach its unit lookup;
+    # it has its own test below, "guidelines-file.sh resolves a unit's file
+    # under an awk that rejects a newline in -v".
     # A script added to scripts/ that calls awk belongs in one place or the
     # other; absent from both, nothing measures it.
     cat > docs/requirements/0001-01-01-base.md <<'EOF'
@@ -224,6 +228,34 @@ EOF
     # scripts were actually run, so a mangled here-document is a failure and
     # not a clean sweep of nothing.
     [ "$swept" -eq 6 ] || { echo "swept $swept scripts, expected 6"; false; }
+}
+
+# verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)
+@test "guidelines-file.sh resolves a unit's file under an awk that rejects a newline in -v" {
+    # The fixture tests/guidelines-file.bats builds: an installed default, a
+    # root file, a units manifest with one unit carrying its own file and a
+    # not_a_unit entry, so every route through the resolver is taken — the
+    # unit lookup's awk, the root fallback and the grouping awk at the end.
+    mkdir -p .guardrails/templates apps/pump/docs apps/ui vendor
+    printf '# Test guidelines (installed default)\n' > .guardrails/templates/TEST_GUIDELINES.md
+    printf '# Test guidelines (project)\n' > docs/TEST_GUIDELINES.md
+    cat > .guardrails/units.yaml <<'MANIFEST'
+units:
+  - apps/pump
+  - apps/ui
+not_a_unit:
+  - vendor
+MANIFEST
+    printf '# Test guidelines (pump)\n' > apps/pump/docs/TEST_GUIDELINES.md
+    bin=$(make_strict_awk)
+    PATH="$bin:$PATH" run sh .guardrails/scripts/guidelines-file.sh TEST \
+        apps/pump/x.c apps/ui/y.ts apps/pump/z.c vendor/v.c
+    [[ "$output" != *"newline in string"* ]] \
+        || { echo "guidelines-file.sh hit the -v newline: $output"; false; }
+    [ "$status" -eq 0 ] || { echo "exited $status: $output"; false; }
+    expected="apps/pump/docs/TEST_GUIDELINES.md: apps/pump/x.c apps/pump/z.c
+docs/TEST_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
+    [ "$output" = "$expected" ] || { echo "$output"; false; }
 }
 
 # --- PR-yd2sft --------------------------------------------------------------

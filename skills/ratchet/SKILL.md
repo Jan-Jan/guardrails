@@ -11,17 +11,15 @@ description: Bootstrap or retrofit a project for IEC 62304 / ISO 14971 developme
 
 - The user invoked `/ratchet`, or asked to set up, retrofit or update guardrails in
   a project. The current directory is that project.
-- This skill installs the guardrails machinery and, in an existing project,
-  tightens enforcement one step at a time. Never loosen a gate and never
-  overwrite human work.
+- In an existing project, tighten enforcement one step at a time. Never
+  loosen a gate and never overwrite human work.
 
 ## Steps
 
 ### Step 0: Locate the guardrails source
 
-Templates and scripts come from the guardrails repository two levels above
-this SKILL.md. Verify `<guardrails>/templates/` and `<guardrails>/scripts/`
-exist.
+`<guardrails>`, the repository two levels above this SKILL.md, must contain
+`templates/` and `scripts/`.
 
 ### Step 1: Detect mode
 
@@ -35,7 +33,7 @@ git rev-list --count HEAD 2>/dev/null   # missing repo or tiny history → likel
 ls src lib app AGENTS.md docs 2>/dev/null
 ```
 
-For any repository that is not obviously one program, ask (one question,
+Unless the repository is obviously one program, ask (one question,
 recommend an answer): **one system in many packages, or many systems in one
 repository?** Packages that version, release and take risk together are one
 system: a single-unit project gets no manifest, and the rest of this skill
@@ -90,13 +88,14 @@ above all) are the worklist for the disclaimers question.
    - `templates/soup.md` → `docs/architecture/soup.md`
    - `templates/problems.md` → `docs/problems/README.md`
    - `templates/CONTEXT.md` → `docs/CONTEXT.md`
+   - `templates/TEST_GUIDELINES.md` → `.guardrails/templates/TEST_GUIDELINES.md`
    - `templates/CLAUDE.md` → `CLAUDE.md` (skip if one exists)
    - `templates/AGENTS-block.md` → becomes the body of a new `AGENTS.md`
 
    The requirements, risk, architecture and problems directories are
-   per-change ledgers: each merged change adds one file, created as
-   `DRAFT-<branch>-<slug>.md` and renamed to `YYYY-MM-DD-<slug>.md` by
-   `merge-change`. Each README contains the item grammar.
+   per-change ledgers: each merged change adds one file,
+   `DRAFT-<branch>-<slug>.md` until `merge-change` renames it
+   `YYYY-MM-DD-<slug>.md`. Each README contains the item grammar.
 4. Create `docs/adr/`, `docs/plans/` and `docs/verification/`, and copy
    `templates/verification.md` → `.guardrails/templates/verification.md`.
    **Never put the template in `docs/verification/`**: every `*.md` there is
@@ -110,8 +109,8 @@ above all) are the worklist for the disclaimers question.
    ```
 
    Add both worktree entries even where the project has only ever used
-   one: `.claude/worktrees/` covers change worktrees a harness creates, and
-   `.worktrees/` covers both the manual fallback and
+   one: `.claude/worktrees/` covers a harness's change worktrees, and
+   `.worktrees/` the manual fallback and
    every task worktree, which is nested inside the change worktree
    (`worktree-discipline` step 1).
 5. **Make every configured path exist in the commit**; `check-trace.sh` exits
@@ -124,8 +123,10 @@ above all) are the worklist for the disclaimers question.
    - Never leave a key out until its directory has content. To switch a gate
      off, drop its prefix from `id_prefixes`, and record why.
 6. Run the **safety-class interview** (step 4), write the answer to
-   `safety_class:` in place of the `TBD` sentinel, and set `verify_commands`
+   `safety_class:`, replacing the `TBD` sentinel, and set `verify_commands`
    to the project's real test command.
+   Run `tailor-guidelines` for `TEST` (once more per unit that wants its own
+   file).
 7. Commit in the worktree, then integrate with `merge-change`. The check
    scripts must pass on the result.
 
@@ -133,11 +134,13 @@ above all) are the worklist for the disclaimers question.
 
 Work in a worktree, as a change of its own.
 
-1. Read `references/upgrade-notes.md` and follow its order of work. Its
-   first three items (drafts in flight, the old `check-trace.sh` run, the
-   sizing grep) come before step 2.
-2. Copy `scripts/*.sh` → `.guardrails/scripts/`, keeping executable bits.
-   Delete `.guardrails/scripts/finalize-ids.sh` if present.
+1. Follow the order of work in `references/upgrade-notes.md`; its first
+   three items come before step 2.
+2. Before copying, run `tailor-guidelines` in upgrade mode for each
+   guidelines file. Then copy `scripts/*.sh` → `.guardrails/scripts/`,
+   keeping executable bits, and
+   `templates/*_GUIDELINES.md` → `.guardrails/templates/`. Delete
+   `.guardrails/scripts/finalize-ids.sh` if present.
 3. **Update the files that document the grammar with the scripts.**
    Re-copy the four ledger READMEs and the verification template from the
    same guardrails version, and re-replace the AGENTS.md managed block between
@@ -166,19 +169,20 @@ Never overwrite. Sequence:
      replaces it.
 2. **Write the gap analysis** to `docs/plans/<YYYY-MM-DD>-ratchet-gap-analysis.md`:
    what exists, what is missing, what conflicts, and a proposed adoption order.
-3. **First tooth** (this change only): install `.guardrails/` (config and
-   scripts, or the manifest and per-unit configs from step 1b), merge the
-   managed block into AGENTS.md, add missing doc skeletons, and extend
-   `.gitignore` as step 2.4 lists. Do NOT migrate existing docs in this change.
+3. **First tooth** (this change only): install `.guardrails/` (config,
+   scripts and templates, or the manifest and per-unit configs from step
+   1b), merge the managed block into AGENTS.md, add missing doc skeletons,
+   and extend `.gitignore` as step 2.4 lists. Do NOT migrate existing docs in this change.
    On a multi-unit repository, read `references/multi-unit.md` first.
    - If `<!-- guardrails:begin -->` exists, replace only the block between the
-     markers. Otherwise append the whole of `templates/AGENTS-block.md`. Report
+     markers. Otherwise append `templates/AGENTS-block.md` whole. Report
      conflicting existing rules to the user; do not delete them.
    - Set `strict_paths` to a SMALL list of paths that are already clean or
      new. Existing untraced code is grandfathered.
 4. **Later teeth** (separate changes, listed in the gap analysis): migrate
    legacy requirement and risk docs via `grill-requirements` /
-   `analyze-risks`; extend `strict_paths` area by area. Signing is not a later
+   `analyze-risks`; run `tailor-guidelines` for each guidelines file; extend
+   `strict_paths` area by area. Signing is not a later
    tooth (Step 5).
    Each `doc_*` key accepts a file or a directory, so `srs.md` keeps working;
    in a multi-developer repository, recommend moving each
@@ -207,17 +211,17 @@ record each class in that unit's config.
 ### Step 5: Human setup checklist
 
 Copy `references/setup-checklist.md`, fill in the qualification basis, print
-it AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
+AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
 
-**The signing items gate the ratchet.** It is not complete until
-`.guardrails/scripts/check-signing.sh --setup` exits 0, and that includes its
-own scaffold change: satisfy them before step 2.7 / step 3.5. For a retrofit,
+**The signing items gate the ratchet.** It is not complete, its own scaffold
+change included, until `.guardrails/scripts/check-signing.sh --setup` exits 0:
+satisfy them before step 2.7 / step 3.5. For a retrofit,
 state early that **an existing project must configure commit signing before
-it can finish adopting guardrails**. If a committer's public key is not
-available, stop and name what is missing.
+it finishes adopting guardrails**. If a committer's public key is missing,
+stop and name it.
 
 **Tool qualification.** Record `guardrails_version` AND `guardrails_commit`
-(`git -C <guardrails> rev-parse HEAD`) in config and in the setup document,
+(`git -C <guardrails> rev-parse HEAD`) in config and the setup document,
 with the suite result. Re-record all three on every script update. Never
 modify the scripts in the target project.
 
@@ -225,7 +229,8 @@ modify the scripts in the target project.
 bats is never installed.** Run `<guardrails>/tests/run-tests.sh` exactly once;
 it vendors bats-core into its own gitignored `tests/.bats-core/` when no
 system bats exists. Never add bats to the target project. If the run cannot
-complete, record `suite not run at install time: <reason>` and move on.
+complete, record
+`suite not run at install time: <reason>` and move on.
 
 Capture the exit status from the run itself, never through a pipe:
 `tests/run-tests.sh | tee ratchet.log` leaves `$?` set to tee's status, so the

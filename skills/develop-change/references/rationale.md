@@ -3,13 +3,6 @@
 Read this when a rule in `develop-change` seems wrong for your case, or before
 proposing to change one. Each heading names the rule it explains.
 
-## The mutation-anchor grep (step 6)
-
-A mutation that no longer applies is past evidence that can no longer be
-reproduced. Most changes edit no quoted line, so the step costs one grep.
-`references/mutation-anchors.md` states what the suite checks and what it does
-not.
-
 ## Dispatch every plan task
 
 Dispatching does not save wall-clock time. It keeps the code, the diffs and

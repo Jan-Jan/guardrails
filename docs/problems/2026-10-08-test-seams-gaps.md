@@ -7,7 +7,8 @@ ledger of its own.
 **PR-ttg99p**: `develop-change` step 6 tells every project to grep `docs/verification/*.mutations/` for each changed script line, but only the guardrails repository has that directory, so in an adopter project the grep matches nothing and the step reads as an obligation it cannot meet.
 affects: skills/develop-change/SKILL.md (step 6), skills/develop-change/references/mutation-anchors.md.
 opened: 2026-10-08
-status: open
+status: resolved
+Resolved: the anchor rule was a guardrails-repository practice shipped in an adopter-facing skill; it moved from `develop-change` step 6 and its reference file to this repository's `docs/TEST_GUIDELINES.md` (`## Mutants` 2), and the skill no longer names the mutations (`develop-change: the mutation-anchor rule lives in this repository's TEST_GUIDELINES.md, not develop-change` in `tests/skills.bats`).
 
 Found by the overlap probe of the `test-seams` interview. Change 2
 (`testing-strategy`) decides whether adopters keep mutation evidence at all

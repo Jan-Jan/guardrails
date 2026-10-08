@@ -95,6 +95,33 @@ ID, `PR-…`>
 finding states no severity>
 disposition: <what changed in the record>
 
+## Guideline reviews
+
+One review per file `guidelines-file.sh TEST` printed for the change diff
+(`develop-change`, "The guideline reviews"), each with its findings verbatim
+and a disposition for every one. This section is kept apart from `## Review`
+so compliance and preference findings stay distinguishable: a finding here is
+against the project's guidelines file, versioned in this tree, not against
+the floor a standard or a gate needs. A review that raised nothing is legal;
+say so under its heading.
+
+Under each review's heading, put each round's blocks under its own
+`### Round <N>` heading and number its findings from 1, replacing each
+`<N>` below. State no number of rounds, findings or dispositions in prose,
+as under `## Review`.
+
+### <guidelines file>
+
+Governs: <the paths of the diff this file governs, as `guidelines-file.sh`
+printed them>
+
+### Round <N>
+
+**finding-<N>**: guideline, <low | medium | high> — <clause cited as Heading N,
+quoted> — <file:line>
+disposition: <what changed on the change branch, or why the clause does not
+apply here>
+
 ## Gaps
 
 <what this change did NOT establish. A gap stated here is a gap; a gap left out
@@ -125,8 +152,10 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   not a claim about the review.
 - A field with no value after it is an omission, not compliance.
 - A finding's value OPENS with its tag — `code`, `requirement` or `record`
-  (`merge-change` step 6a). A `code` or `requirement` tag is followed by its
-  severity, `high`, `medium` or `low`; a `record` finding states none.
+  (`merge-change` step 6a), or `guideline` under `## Guideline reviews`
+  (`review-guidelines`), which takes a severity as `code` does. A `code` or
+  `requirement` tag is followed by its severity, `high`, `medium` or `low`;
+  a `record` finding states none.
   check-review.sh never reads the value, so the tag and the severity cost no
   field and add no malformed case. They exist for the convergence rule at
   `merge-change` step 6a: a round whose `code` and `requirement` findings are

@@ -46,18 +46,7 @@ the same violation.
    is clean.
 5. **REFACTOR:** duplication, names, helpers. Behavior is unchanged and the
    tests stay green.
-6. **Grep the mutation anchors for each line you changed in a script.** Each
-   `docs/verification/*.mutations/M*.sh` quotes a line of the script it
-   mutates, and an edit to that line stops the mutation applying. From the
-   repository root, one grep per changed line:
-
-   ```sh
-   grep -rn 'the exact line you changed' docs/verification/*.mutations/
-   ```
-
-   On a hit, keep your edit, re-cut the anchor to the new text, and prove the
-   re-cut anchor applies and still kills tests (`references/mutation-anchors.md`).
-7. **Commit** (unsigned is fine in the worktree) and take the next test.
+6. **Commit** (unsigned is fine in the worktree) and take the next test.
 
 **Class rules.** Read `safety_class` from `.guardrails/config.yaml`:
 
@@ -72,38 +61,25 @@ the same violation.
 with the REQ it violates, then fix it. If the bug reveals a hazard the RMF
 missed, run `analyze-risks` before closing.
 
-### Where a test attaches
+### Test guidelines
 
-**A test calls only an interface that a REQ or LLR describes.** A private
-helper is covered through the interface above it. Without LLRs, the seam is
-the REQ level: the public interface. A user journey is a REQ only when it
-states an outcome none of its steps states; otherwise it verifies theirs.
+**Every test fails when the behavior it `verifies:` breaks.**
+An assertion only that a double was called meets this only where the
+call is the requirement.
 
-**A deeper interface gets a direct test only once it has an LLR**
-(`design-architecture`). It earns one only when a case cannot be triggered
-from above without faking code the project owns, when its cases multiply past
-enumeration from above, or when it is maths, parsing, encoding or a numerical
-transform. A case reachable from above is tested there.
+Before RED, pick the guidelines file for the task:
 
-**Test doubles.** Never mock code the project owns or assert how it was
-called. Fake only at the codebase boundary, behind an adapter the project
-owns, and give every fake a contract test that runs against the real
-dependency wherever it is reachable. A service the project owns runs for real
-on the normal path; its failures may be injected or faked. Assert an
-interaction only where the interaction is the requirement.
+```sh
+sh .guardrails/scripts/guidelines-file.sh TEST <the paths the task touches>
+```
 
-**Permutations and evidence.** Prefer a property test where cases are
-combinatorial or the code is maths, parsing or encoding;
-fix or print its seed, and pin each counterexample as an
-example test before the fix. A surviving mutant means a missing test at the
-seam, or dead code: never a test below the seam.
-
-**UI.** The REQ interface is what the user perceives and does, plus what the
-app sends out. A markup snapshot carries no `verifies:` annotation.
-
-These rules bind the tests a change writes or edits. An existing test that
-breaks them and must be edited moves to the seam; one that still passes is
-left alone.
+For each path, follow the one file it prints, a unit's, the project's or the
+installed default; read no other guidelines file. Where to attach a test and
+which doubles it may use are stated there. If it exits 2 or is missing, stop
+and reinstall the guardrails scripts and templates (`ratchet`'s upgrade);
+never proceed without a guidelines file. A clause that contradicts this
+skill is a finding against the clause: this skill wins, and the dispatch
+report names the clause.
 
 ### Delegation: dispatch every plan task
 
@@ -127,7 +103,10 @@ the plan, the trace and the decisions.
   <change-branch>-t3 off <change-branch>. Commit your work on that branch and
   leave it there — do not merge it. Once your task worktree exists,
   do not commit on <change-branch> and do not keep working in the change
-  worktree. Return the dispatch report.
+  worktree. For each of the task's paths, follow
+  the guidelines file `guidelines-file.sh TEST` printed for it:
+  <file>: <paths>   (one line per file it printed)
+  Return the dispatch report.
   ```
 
   **Name the task worktree path in the prompt.** The subagent is pinned to the
@@ -236,6 +215,24 @@ concept with a different name in each.
 Run it here, not at `merge-change` step 6a: that sequence **reruns from step 1** on
 any finding.
 
+### The guideline reviews
+
+After the deslop pass, run:
+
+```sh
+sh .guardrails/scripts/guidelines-file.sh TEST \
+    $(git diff --name-only main...<change-branch>)
+```
+
+For each file it prints, dispatch one subagent under the `review-guidelines`
+skill, naming that file, the paths it governs and the range
+`main...<change-branch>`. Fix each finding on the change branch in a nested
+task worktree, as any fix, and review again; stop at the first round with
+nothing above low. Write each finding and its disposition into the plan as
+it arrives, as the `red -> green:` lines are; `merge-change` step 6b copies
+them into the record's `## Guideline reviews`. These reviews run here,
+before `merge-change`, not at its 6a.
+
 ## Red flags
 
 | Thought | Reality |
@@ -247,21 +244,19 @@ any finding.
 | "The result line is green, so every test was red once" | Only a `red -> green:` line states that. |
 | "Re-dispatch with the same prompt" | Change the approach first. |
 | "Fix the names at `merge-change` step 6a" | That reruns the merge sequence. Run the deslop pass here. |
-| "This helper is complex, I'll test it directly" | Give it an LLR first, or test it through the interface above (`references/test-seams.md`). |
+| "This helper is complex, I'll test it directly" | Do what the guidelines file's `## Seams` says. |
+| "The project file leaves this out; I'll read the default too" | One file per path. A rule the project dropped is dropped. |
 
 ## Done when
 
 - Every plan task is complete and its `red -> green:` lines are in the plan.
 - The suite is green.
 - The deslop pass was run and its findings are fixed.
+- Each guideline review ran, and its findings are fixed or dispositioned.
 - `check-traceability` and `verify-before-merge` follow. Never claim done
   without them.
 
 ## References
 
-- `references/mutation-anchors.md` — read when the step 6 grep finds a hit.
-- `references/test-seams.md` — read when you are about to add an LLR to get a
-  test seam or write a test double, or when a mutant survives.
-- `references/ui-seams.md` — read when the change has a user interface.
 - `references/rationale.md` — read when a rule here seems wrong for your case,
   or before proposing to change one.

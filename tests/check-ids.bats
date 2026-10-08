@@ -133,6 +133,7 @@ EOF
     calls_check_trace=3
     calls_finalize_docs=0
     calls_finish_merge=0
+    calls_guidelines_file=0
     calls_lib=0
     calls_merge_preflight=0
     calls_prune_plans=0
@@ -147,6 +148,7 @@ EOF
     forms_check_trace=0
     forms_finalize_docs=0
     forms_finish_merge=0
+    forms_guidelines_file=0
     forms_lib=0
     forms_merge_preflight=0
     forms_prune_plans=0
@@ -170,6 +172,7 @@ EOF
     body_check_trace=9
     body_finalize_docs=0
     body_finish_merge=0
+    body_guidelines_file=0
     # 3 since gr_req_scan (units change): its awk takes body="$GR_ID_BODY"
     # rather than pasting the shape — the reuse this pin exists to encourage.
     body_lib=3
@@ -192,6 +195,7 @@ EOF
     token_check_trace=0
     token_finalize_docs=0
     token_finish_merge=0
+    token_guidelines_file=0
     token_lib=1
     token_merge_preflight=0
     token_prune_plans=0
@@ -211,6 +215,7 @@ EOF
     loose_check_trace=0
     loose_finalize_docs=0
     loose_finish_merge=0
+    loose_guidelines_file=0
     loose_lib=0
     loose_merge_preflight=0
     loose_prune_plans=0
@@ -229,6 +234,7 @@ EOF
     block_check_trace=7
     block_finalize_docs=0
     block_finish_merge=0
+    block_guidelines_file=0
     # 1 since gr_req_scan (units change): its awk composes the shared
     # GR_AWK_ITEM_BLOCK rather than growing a sixth opinion about blocks.
     block_lib=1
@@ -251,6 +257,7 @@ EOF
     fm_check_trace=1
     fm_finalize_docs=0
     fm_finish_merge=0
+    fm_guidelines_file=0
     fm_lib=0
     fm_merge_preflight=0
     fm_prune_plans=0
@@ -273,6 +280,7 @@ EOF
     civil_check_trace=4
     civil_finalize_docs=0
     civil_finish_merge=0
+    civil_guidelines_file=0
     civil_lib=0
     civil_merge_preflight=0
     civil_prune_plans=0
@@ -355,7 +363,7 @@ EOF
             false
         }
     done
-    [ "$seen" -eq 13 ] || { echo "expected 13 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 14 ] || { echo "expected 14 scripts, scanned $seen"; false; }
 
     # And the constructor and the body each exist exactly once, so the counts
     # above are counts of uses of something real rather than of a name nothing
@@ -398,7 +406,7 @@ EOF
         seen=$((seen + 1))
         sh -n "$f" || { echo "does not parse: $f"; false; }
     done
-    [ "$seen" -eq 13 ] || { echo "expected 13 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 14 ] || { echo "expected 14 scripts, scanned $seen"; false; }
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {
