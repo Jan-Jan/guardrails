@@ -72,50 +72,7 @@ times.
 `@test "merge-change: step 8 maps guard 4's rejection to a remedy"` (after its
 closing `}` and the blank line that follows it):
 
-```bash
-@test "merge-change: step 8 reports without re-verifying the signature" {
-    # verifies: D1, D2, D3 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
-    # Guard 1 of finish-merge.sh verifies the signature under --strict in the
-    # user's shell before it removes anything. Step 8 re-ran the same check
-    # from the agent's shell, where a read-only ~/.gnupg reads a good
-    # signature as N. On success step 8 now reports from the message file;
-    # it investigates only a reported problem or a non-zero exit.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    step8=$(awk '/^8\. \*\*/ { inside = 1 } /^## / { inside = 0 } inside' "$skill")
-    [ -n "$step8" ]
-    printf '%s\n' "$step8" | grep -q 'closing line from the message file'
-    printf '%s\n' "$step8" | grep -q 'Do not re-verify the signature'
-    printf '%s\n' "$step8" | grep -q 'If the user reports a problem or `finish-merge.sh` exited non-zero'
-    printf '%s\n' "$step8" | grep -q 'references/cleanup-rejections.md'
-    printf '%s\n' "$step8" | grep -q 're-run the script alone'
-    # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
-    # negated command.
-    run grep -q -e '%G?' -e 'check-signing' <<< "$step8"
-    [ "$status" -ne 0 ]
-}
-
-@test "merge-change: step 7 tells the user what success looks like" {
-    # verifies: D4 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
-    # Step 8 no longer checks, so the user is the one who notices a guard's
-    # rejection. Step 7 names the success output, and that output is what
-    # finish-merge.sh prints at exit 0: three lines prefixed `finish-merge:`.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    script="$BATS_TEST_DIRNAME/../scripts/finish-merge.sh"
-    step7=$(awk '/^7\. \*\*/ { inside = 1 } /^8\. \*\*/ { inside = 0 } inside' "$skill")
-    [ -n "$step7" ]
-    printf '%s\n' "$step7" | tr '\n' ' ' | grep -q 'Success ends with three *`finish-merge:` lines'
-    [ "$(grep -c '^echo "finish-merge: ' "$script")" -eq 3 ]
-}
-
-@test "merge-change: Done when names finish-merge.sh as the verifier" {
-    # verifies: D5 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    done_when=$(awk '/^## Done when/ { inside = 1; next } /^## / { inside = 0 } inside' "$skill")
-    printf '%s\n' "$done_when" | grep -q 'verified by `finish-merge.sh`'
-    run grep -q 'check-signing' <<< "$done_when"
-    [ "$status" -ne 0 ]
-}
-```
+*(Code pruned at merge: 42 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 In the same file, re-aim one assertion of the existing test
 `@test "merge-change: text the first rewrite lost is stated again"`. It pins
@@ -124,15 +81,11 @@ the same reason (a pass adds nothing over guard 1):
 
 Before:
 
-```
-    grep -q 'one re-read of a commit whose signature is known good' "$rationale"
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 After:
 
-```
-    grep -q 'so a pass added nothing' "$rationale"
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 The rationale file must name no script ("merge-change: the rationale file
 describes no script" forbids any word ending in `.sh`); Step 6's After
@@ -141,9 +94,7 @@ complies.
 **Step 2 — see them fail.** `tests/run-tests.sh` cannot run one file; call
 bats directly:
 
-```sh
-tests/.bats-core/bin/bats -f 'merge-change: (step 8 reports|step 7 tells|Done when names)' tests/skills.bats
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 Expected: `1..3`, and all three `not ok`.
 
@@ -151,49 +102,21 @@ Expected: `1..3`, and all three `not ok`.
 
 Before:
 
-```
-   hardware-key touch; tell them so.
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 After:
 
-```
-   hardware-key touch; tell them so. Success ends with three
-   `finish-merge:` lines; otherwise, they paste you the output.
-```
+*(Code pruned at merge: 2 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 **Step 4 — edit `skills/merge-change/SKILL.md`, step 8.**
 
 Before:
 
-````
-8. **Confirm, then report.** On the user's word that the command succeeded,
-   confirm it:
-
-   ```sh
-   git log -1 --format='%h %G? %s'
-   .guardrails/scripts/check-signing.sh --strict   # verifies the new HEAD
-   ```
-
-   Report the squash commit, the IDs it implements and the record it cites.
-   Recommend compacting before the next change; if the harness offers a
-   compaction step, such as `/compact`, name it so the user can run it.
-
-   If `finish-merge.sh` exited non-zero, read `references/cleanup-rejections.md`.
-````
+*(Code pruned at merge: 13 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 After:
 
-```
-8. **Report.** On the user's word that the command succeeded, write one
-   closing line from the message file: branch, IDs, record.
-   Do not re-verify the signature; guard 1 did. Recommend compacting; if
-   the harness has a compaction step (`/compact`),
-   name it so the user can run it.
-
-   If the user reports a problem or `finish-merge.sh` exited non-zero, read
-   `references/cleanup-rejections.md`.
-```
+*(Code pruned at merge: 8 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 The line breaks matter: `tests/skills.bats` greps line by line, and
 "merge-change: text the first rewrite lost is stated again" requires
@@ -206,53 +129,25 @@ way. …") and the re-run block stay unchanged.
 
 Before:
 
-```
-  names the plan and the record, and `check-signing.sh --strict` verifies it.
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 After:
 
-```
-  names the plan and the record, verified by `finish-merge.sh`.
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 **Step 6 — edit `skills/merge-change/references/rationale.md`.**
 
 Before:
 
-```
-## Step 8: `--strict`
-
-Without `--strict`, step 8 would confirm nothing on exactly the machine where
-confirmation matters.
-
-Guard 1 made the same check under `--strict` moments earlier, in the compound.
-Step 8 therefore costs
-one re-read of a commit whose signature is known good, and it cannot report
-success where that guard would have rejected the commit.
-```
+*(Code pruned at merge: 9 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 After:
 
-```
-## Step 8: no re-verification
-
-Step 8 used to re-run the signature check under `--strict` after the user
-reported success. Guard 1 makes that check moments earlier, in the
-compound, in the user's shell, so a pass added nothing. A failure was usually
-the agent's own environment: a sandbox with a read-only `~/.gnupg` makes gpg
-read a good signature as `N`. The agent takes the user's word, and acts only
-on a reported problem or a non-zero exit. Step 7 tells the user what success
-prints, so a rejection does not pass for success.
-```
+*(Code pruned at merge: 9 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 **Step 7 — see them pass, and the skill lints with them.**
 
-```sh
-tests/.bats-core/bin/bats -f 'merge-change' tests/skills.bats
-tests/.bats-core/bin/bats tests/skills.bats | tail -n 3
-wc -w < skills/merge-change/SKILL.md
-```
+*(Code pruned at merge: 3 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 Expected: every `merge-change` test `ok`, including the three new ones; the
 whole of `tests/skills.bats` has no `not ok` line; the word count is `1997`
@@ -260,12 +155,7 @@ whole of `tests/skills.bats` has no `not ok` line; the word count is `1997`
 
 **Step 8 — commit.**
 
-```sh
-git add tests/skills.bats skills/merge-change/SKILL.md skills/merge-change/references/rationale.md
-git -c commit.gpgsign=false commit -m "feat: merge-change step 8 reports without re-verifying the signature
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
+*(Code pruned at merge: 4 lines. Files touched: `tests/skills.bats`, `skills/merge-change/SKILL.md`, `skills/merge-change/references/rationale.md`.)*
 
 ---
 

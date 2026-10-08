@@ -87,228 +87,11 @@ between two tasks.
 
 **Step 1 — write the failing tests.** Create `tests/find-items.bats`:
 
-```bash
-#!/usr/bin/env bats
-# find-items.sh: list, show and refs over the configured ledgers.
-
-load helpers
-
-setup() {
-    make_fixture_repo
-    cat > docs/requirements/0001-01-01-base.md <<'EOF'
-# SRS
-
-**REQ-001**: The system shall limit the dose.
-
-**REQ-a3k9z2**: The system shall log the dose.
-EOF
-    cat > docs/risk/0001-01-01-base.md <<'EOF'
-# Risk Management File
-
-**HAZ-001**: Overdose delivered to patient.
-
-**RC-001**: Software limits dose to configured maximum. mitigates: HAZ-001
-EOF
-    cat > docs/problems/0001-01-01-base.md <<'EOF'
-# Problems
-
-**PR-001**: The dose display rounds down.
-opened: 2026-01-02
-status: open
-
-**PR-002**: The log omits the unit.
-status: resolved
-Fixed by clamping. Reproduced by tests/test_a.sh.
-
-
-## Later
-
-**PR-003**: The alarm is silent.
-opened: 2026-01-03
-status: accepted
-disposition: ruled on 2026-01-04, the hardware alarm covers it
-
-**PR-004**: The unit label is truncated.
-opened: 2026-01-05
-EOF
-    commit_all "ledgers for find-items"
-}
-
-@test "find-items: list prints every item of a kind with its status and definition line" {
-    run sh .guardrails/scripts/find-items.sh list --kind PR
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    expected='PR-001 open docs/problems/0001-01-01-base.md:3 The dose display rounds down.
-PR-002 resolved docs/problems/0001-01-01-base.md:7 The log omits the unit.
-PR-003 accepted docs/problems/0001-01-01-base.md:14 The alarm is silent.
-PR-004 - docs/problems/0001-01-01-base.md:19 The unit label is truncated.'
-    [ "$output" = "$expected" ] || { echo "$output"; false; }
-}
-
-@test "find-items: list without --kind prints the items of every prefix" {
-    run sh .guardrails/scripts/find-items.sh list
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"REQ-a3k9z2 - docs/requirements/0001-01-01-base.md:5 The system shall log the dose."* ]] \
-        || { echo "$output"; false; }
-    [[ "$output" == *"RC-001 - docs/risk/0001-01-01-base.md:5 Software limits dose to configured maximum. mitigates: HAZ-001"* ]] \
-        || { echo "$output"; false; }
-    [[ "$output" == *"PR-003 accepted docs/problems/0001-01-01-base.md:14 The alarm is silent."* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "find-items: list --status keeps the items with that status" {
-    run sh .guardrails/scripts/find-items.sh list --status open
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$output" = "PR-001 open docs/problems/0001-01-01-base.md:3 The dose display rounds down." ] \
-        || { echo "$output"; false; }
-}
-
-@test "find-items: a status line after the block has ended is not the item's status" {
-    cat > docs/problems/0001-01-02-late.md <<'EOF'
-**PR-005**: The beep is quiet.
-
-## Notes
-
-status: open
-EOF
-    commit_all late
-    run sh .guardrails/scripts/find-items.sh list --kind PR
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"PR-005 - docs/problems/0001-01-02-late.md:1 The beep is quiet."* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "find-items: list reads the first status line of an item" {
-    cat > docs/problems/0001-01-03-twice.md <<'EOF'
-**PR-006**: The pump restarts.
-status: open
-status: resolved
-EOF
-    commit_all twice
-    run sh .guardrails/scripts/find-items.sh list --kind PR
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"PR-006 open docs/problems/0001-01-03-twice.md:1 The pump restarts."* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "find-items: list prints an item once when doc_soup is inside the doc_sad directory" {
-    printf '# SOUP\n\n**SDD-001**: Dose limiter module.\n' > docs/architecture/soup.md
-    commit_all soup
-    run sh .guardrails/scripts/find-items.sh list --kind SDD
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$output" = "SDD-001 - docs/architecture/soup.md:3 Dose limiter module." ] \
-        || { echo "$output"; false; }
-}
-
-@test "find-items: list rejects a kind that id_prefixes does not declare" {
-    run sh .guardrails/scripts/find-items.sh list --kind ADR
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"--kind takes a prefix declared in id_prefixes"* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "find-items: list rejects a status that is not open, accepted or resolved" {
-    run sh .guardrails/scripts/find-items.sh list --status closed
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"--status takes open, accepted or resolved"* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "find-items: show prints the block and ends it at the heading" {
-    run sh .guardrails/scripts/find-items.sh show PR-002
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    expected='==> docs/problems/0001-01-01-base.md:7
-**PR-002**: The log omits the unit.
-status: resolved
-Fixed by clamping. Reproduced by tests/test_a.sh.'
-    [ "$output" = "$expected" ] || { echo "$output"; false; }
-}
-
-@test "find-items: show ends the block at the next definition" {
-    run sh .guardrails/scripts/find-items.sh show PR-003
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    expected='==> docs/problems/0001-01-01-base.md:14
-**PR-003**: The alarm is silent.
-opened: 2026-01-03
-status: accepted
-disposition: ruled on 2026-01-04, the hardware alarm covers it'
-    [ "$output" = "$expected" ] || { echo "$output"; false; }
-}
-
-@test "find-items: show prints every definition of a duplicated ID" {
-    # Also the only test that detects a printed trailing blank line: bats
-    # removes trailing newlines from $output, so a blank line at the end of a
-    # block is visible only when a second block follows it.
-    printf '**PR-001**: The same ID defined a second time.\nstatus: open\n' \
-        > docs/problems/0001-01-02-dup.md
-    commit_all dup
-    run sh .guardrails/scripts/find-items.sh show PR-001
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    expected='==> docs/problems/0001-01-01-base.md:3
-**PR-001**: The dose display rounds down.
-opened: 2026-01-02
-status: open
-
-==> docs/problems/0001-01-02-dup.md:1
-**PR-001**: The same ID defined a second time.
-status: open'
-    [ "$output" = "$expected" ] || { echo "$output"; false; }
-}
-
-@test "find-items: show reports NOT-FOUND with a fix line and exits 1" {
-    run sh .guardrails/scripts/find-items.sh show PR-a3k9z2
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [ "${lines[0]}" = "NOT-FOUND PR-a3k9z2" ] || { echo "$output"; false; }
-    [[ "${lines[1]}" == "fix NOT-FOUND: "* ]] || { echo "$output"; false; }
-}
-
-@test "find-items: show rejects an argument that is not an item ID" {
-    run sh .guardrails/scripts/find-items.sh show PR-
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"not an item ID under id_prefixes"* ]] || { echo "$output"; false; }
-    run sh .guardrails/scripts/find-items.sh show ADR-001
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-}
-
-@test "find-items: refs lists every mention outside the definition, tracked and untracked" {
-    mkdir -p docs/plans tests
-    printf 'Fixes PR-001.\nUnrelated: PR-0012.\n' > docs/plans/2026-01-01-fix.md
-    commit_all plan
-    printf '# verifies: PR-001\ntrue\n' > tests/test_untracked.sh
-    run sh .guardrails/scripts/find-items.sh refs PR-001
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"docs/plans/2026-01-01-fix.md:1:Fixes PR-001."* ]] \
-        || { echo "$output"; false; }
-    [[ "$output" == *"tests/test_untracked.sh:1:# verifies: PR-001"* ]] \
-        || { echo "$output"; false; }
-    [[ "$output" != *"PR-0012"* ]] || { echo "$output"; false; }
-    [[ "$output" != *"**PR-001**:"* ]] || { echo "$output"; false; }
-}
-
-@test "find-items: refs prints nothing and exits 0 for an ID that only its definition names" {
-    run sh .guardrails/scripts/find-items.sh refs PR-004
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ -z "$output" ] || { echo "$output"; false; }
-}
-
-@test "find-items: no subcommand is a usage error" {
-    run sh .guardrails/scripts/find-items.sh
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"usage: find-items.sh"* ]] || { echo "$output"; false; }
-}
-
-@test "find-items: an argument that contains a newline is a usage error" {
-    run sh .guardrails/scripts/find-items.sh list --kind "PR
-REQ"
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"an argument contains a newline"* ]] || { echo "$output"; false; }
-}
-```
+*(Code pruned at merge: 214 lines. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 **Step 2 — run them and see them fail.**
 
-```
-tests/.bats-core/bin/bats tests/find-items.bats
-```
+*(Code pruned at merge: 1 line. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 Expected: `17 tests, 17 failures`. Each test fails at its first status
 assertion with status 127, because `.guardrails/scripts/find-items.sh` does
@@ -318,216 +101,14 @@ not exist. A test that passes here asserts nothing; stop and report it.
 content, then `chmod 755 scripts/find-items.sh`. `tests/check-trace.bats`
 requires index mode 100755 for every tracked `*.sh`.
 
-```sh
-#!/bin/sh
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Dr. Jan-Jan van der Vyver
-# find-items.sh list [--kind PREFIX] [--status open|accepted|resolved]
-# find-items.sh show ID
-# find-items.sh refs ID
-#
-# Finds items in the ledgers, so that an agent reads one item and not a whole
-# ledger file.
-#
-#   list  One line per item defined in the doc_* files of this config:
-#         ID, status, file:line of the definition, and the rest of the
-#         definition line. The status is the first column-one `status:` line in
-#         the item block, the line check-trace.sh reads, or `-` when the block
-#         has none. --kind keeps the items of one declared prefix. --status
-#         keeps the items with that status.
-#   show  The block of every definition of ID, each after a line
-#         `==> file:line`, with a blank line between two blocks. A block ends
-#         where the gates end it, by the shared GR_AWK_ITEM_BLOCK fragment in
-#         lib.sh: at a heading, at the next bold line that contains a colon,
-#         or at the end of the file. Blank lines at the end of a block are not
-#         printed.
-#   refs  Every file:line:text in the working tree, tracked or untracked and
-#         not ignored, that contains ID as a whole word, except its definition
-#         lines. Binary files are skipped. It searches the whole repository,
-#         not one unit.
-#
-# Under a unit manifest, set GR_CONFIG to the unit config, as for the check
-# scripts. This script reports and checks nothing: its exit status states
-# whether the request was answered, not whether the ledgers are correct.
-#
-# Exit codes: 0 answered, 1 show found no definition of ID, 2 usage/environment
-# error.
-set -u
-
-find_items_usage='usage: find-items.sh list [--kind PREFIX] [--status open|accepted|resolved] | show ID | refs ID'
-find_items_remedy='Run find-items.sh list to see the IDs this config defines; an ID defined in another unit needs that unit config in GR_CONFIG.'
-
-. "$(dirname "$0")/lib.sh"
-gr_repo_root=$(gr_root) || exit 2
-cd "$gr_repo_root" || exit 2
-gr_unit_engage
-gr_check_config
-
-# A value that contains a literal newline must not reach awk -v, because BWK
-# awk exits 2 before the program runs, and grep -x reads it as two patterns.
-for find_items_arg in "$@"; do
-    case $find_items_arg in
-        (*'
-'*) gr_die "an argument contains a newline" ;;
-    esac
-done
-
-[ $# -gt 0 ] || gr_die "$find_items_usage"
-subcommand=$1
-shift
-
-prefix_re=$(gr_prefix_re) || exit 2
-
-# check_item_id ID: exit 2 unless ID has the shape of an ID under a declared
-# prefix.
-check_item_id() {
-    printf '%s\n' "$1" | grep -Eq "^(${prefix_re})-${GR_ID_BODY}\$" \
-        || gr_die "not an item ID under id_prefixes ($prefix_re): $1"
-}
-
-want_kind=""
-want_status=""
-item_id=""
-case $subcommand in
-    (list)
-        while [ $# -gt 0 ]; do
-            case $1 in
-                (--kind)
-                    [ $# -ge 2 ] || gr_die "$find_items_usage"
-                    want_kind=$2
-                    shift
-                    ;;
-                (--status)
-                    [ $# -ge 2 ] || gr_die "$find_items_usage"
-                    want_status=$2
-                    shift
-                    ;;
-                (*) gr_die "unknown argument: $1" ;;
-            esac
-            shift
-        done
-        case $want_status in
-            (''|open|accepted|resolved) ;;
-            (*) gr_die "--status takes open, accepted or resolved, not: $want_status" ;;
-        esac
-        if [ -n "$want_kind" ]; then
-            gr_prefixes | grep -Fqx -e "$want_kind" \
-                || gr_die "--kind takes a prefix declared in id_prefixes ($prefix_re), not: $want_kind"
-        fi
-        ;;
-    (show|refs)
-        [ $# -eq 1 ] || gr_die "$find_items_usage"
-        item_id=$1
-        check_item_id "$item_id"
-        ;;
-    (*) gr_die "$find_items_usage" ;;
-esac
-
-if [ "$subcommand" = refs ]; then
-    refs_status=0
-    refs_lines=$(git grep -n -w -F -I --untracked -e "$item_id") || refs_status=$?
-    case $refs_status in
-        (0) ;;
-        (1) exit 0 ;;
-        (*) gr_die "git grep exited $refs_status searching for $item_id" ;;
-    esac
-    printf '%s\n' "$refs_lines" | LC_ALL=C awk -v definition="**$item_id**:" '
-{ text = $0; sub(/^[^:]*:[0-9]+:/, "", text) }
-index(text, definition) != 1 { print }
-' || gr_die "awk failed reading the git grep output"
-    exit 0
-fi
-
-ledger_files=""
-for doc_key in doc_srs doc_rmf doc_sad doc_soup doc_problems; do
-    key_files=$(gr_doc_files "$doc_key") || exit 2
-    [ -z "$key_files" ] || ledger_files="$ledger_files$key_files
-"
-done
-# doc_soup is commonly a file inside the doc_sad directory, which gr_doc_files
-# resolves to its *.md files, so the same file can be listed twice. Read it
-# once, or every item in it is printed twice.
-ledger_files=$(printf '%s' "$ledger_files" | awk 'NF && !seen[$0]++')
-[ -n "$ledger_files" ] || gr_die "no doc_* key is set in $GR_CONFIG, so there is no ledger to read"
-
-# Split the file list on newlines alone, so that a path with a space is one
-# argument, and turn pathname expansion off so that a path is not expanded a
-# second time.
-IFS='
-'
-set -f
-set -- $ledger_files
-
-if [ "$subcommand" = list ]; then
-    list_prefix_re=${want_kind:-$prefix_re}
-    LC_ALL=C awk -v body="$GR_ID_BODY" -v prefixes="$list_prefix_re" -v want_status="$want_status" "$GR_AWK_ITEM_BLOCK"'
-function list_flush() {
-    if (cur != "" && (want_status == "" || status_value == want_status))
-        printf "%s %s %s:%d %s\n", cur, (status_value == "" ? "-" : status_value), def_file, def_line, title
-    cur = ""
-}
-BEGIN { gr_block_init(prefixes, body) }
-FNR == 1 { list_flush(); sub(/^\357\273\277/, "") }
-{ line = $0; sub(/\r$/, "", line) }
-gr_block_closes(line) {
-    list_flush()
-    status_value = ""
-    status_seen = 0
-    if (gr_block_opens(line)) {
-        cur = gr_block_id(line)
-        def_file = FILENAME
-        def_line = FNR
-        title = line
-        sub(/^\*\*[^*]*\*\*:[ \t]*/, "", title)
-    }
-    next
-}
-cur != "" && !status_seen && gr_kw_here(line, "status:") { status_seen = 1; status_value = gr_value(line, "status:") }
-END { list_flush() }
-' "$@" || gr_die "awk failed reading the ledgers"
-    exit 0
-fi
-
-show_status=0
-LC_ALL=C awk -v body="$GR_ID_BODY" -v prefixes="$prefix_re" -v want_id="$item_id" "$GR_AWK_ITEM_BLOCK"'
-BEGIN { gr_block_init(prefixes, body) }
-FNR == 1 { printing = 0; blank_run = ""; sub(/^\357\273\277/, "") }
-{ line = $0; sub(/\r$/, "", line) }
-gr_block_closes(line) {
-    printing = 0
-    blank_run = ""
-    if (gr_block_opens(line) && gr_block_id(line) == want_id) {
-        if (found_count > 0) print ""
-        found_count++
-        printing = 1
-        printf "==> %s:%d\n", FILENAME, FNR
-        print line
-    }
-    next
-}
-printing && line ~ /^[ \t]*$/ { blank_run = blank_run line "\n"; next }
-printing { printf "%s", blank_run; blank_run = ""; print line }
-END { exit (found_count > 0 ? 0 : 1) }
-' "$@" || show_status=$?
-case $show_status in
-    (0) exit 0 ;;
-    (1)
-        printf 'NOT-FOUND %s\n' "$item_id"
-        printf 'fix NOT-FOUND: %s\n' "$find_items_remedy"
-        exit 1
-        ;;
-    (*) gr_die "awk failed reading the ledgers (exit $show_status)" ;;
-esac
-```
+*(Code pruned at merge: 199 lines. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 The two awk programs are single-quoted, so neither may contain an
 apostrophe. "every script parses as POSIX sh" catches one that does.
 
 **Step 4 — run the new tests and see them pass.**
 
-```
-tests/.bats-core/bin/bats tests/find-items.bats
-```
+*(Code pruned at merge: 1 line. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 Expected: `17 tests, 0 failures`.
 
@@ -538,15 +119,7 @@ and no copy joins them". Add one line to each of the seven pin groups, after
 the `_check_units` line of that group (the `calls_`, `forms_`, `body_`,
 `loose_`, `block_`, `fm_` and `civil_` groups):
 
-```
-    calls_find_items=0
-    forms_find_items=0
-    body_find_items=3
-    loose_find_items=0
-    block_find_items=2
-    fm_find_items=0
-    civil_find_items=0
-```
+*(Code pruned at merge: 7 lines. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 `body_find_items=3` counts these lines: the `grep -Eq` in `check_item_id` and
 the two `awk -v body=` lines. `block_find_items=2` counts the two
@@ -556,15 +129,11 @@ without `$`, so the comment is not counted.
 `tests/check-ids.bats` contains this line twice, at the end of the test above
 and at the end of "every script parses as POSIX sh":
 
-```
-    [ "$seen" -eq 9 ] || { echo "expected 9 scripts, scanned $seen"; false; }
-```
+*(Code pruned at merge: 1 line. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 Replace both with:
 
-```
-    [ "$seen" -eq 10 ] || { echo "expected 10 scripts, scanned $seen"; false; }
-```
+*(Code pruned at merge: 1 line. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 `tests/lib.bats`, test "every script stops outside a git repository, at
 gr_root": replace
@@ -585,21 +154,14 @@ rejects a newline in -v":
 
 **Step 6 — run the four files.**
 
-```
-tests/.bats-core/bin/bats tests/find-items.bats tests/check-ids.bats tests/lib.bats tests/portability.bats
-```
+*(Code pruned at merge: 1 line. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 Expected: 0 failures. Do not pass a file argument to `tests/run-tests.sh`: it
 appends the argument to its own glob and runs the whole suite.
 
 **Step 7 — commit.**
 
-```
-git add scripts/find-items.sh tests/find-items.bats tests/check-ids.bats tests/lib.bats tests/portability.bats
-git -c commit.gpgsign=false commit -m "feat: find-items.sh lists, shows and finds references to ledger items
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
+*(Code pruned at merge: 4 lines. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`, `tests/check-ids.bats`, `tests/lib.bats`, `tests/portability.bats`.)*
 
 ---
 
@@ -611,39 +173,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Step 1.** `templates/AGENTS-block.md`, section "## Check scripts (run from
 repo root)". Insert after the `new-id.sh` bullet:
 
-```markdown
-- `.guardrails/scripts/find-items.sh list [--kind PREFIX] [--status open|accepted|resolved] | show ID | refs ID`
-  — find an item without reading a ledger file: `list` prints one line per
-  item (ID, status, `file:line`, the rest of the definition line), `show`
-  prints the block of each definition of an ID, `refs` prints every line in
-  the working tree that names an ID. Read a ledger file whole only when this
-  does not answer the question. It checks nothing: exit 1 states only that
-  `show` found no definition
-```
+*(Code pruned at merge: 7 lines. Files touched: `templates/AGENTS-block.md`, `README.md`.)*
 
 **Step 2.** `README.md`, section "## Check scripts", table. Insert a row after
 the `new-id.sh` row:
 
-```markdown
-| `find-items.sh list [--kind PREFIX] [--status open\|accepted\|resolved] \| show ID \| refs ID` | finds items without reading whole ledgers. `list` prints one line per item defined in the configured `doc_*` files: ID, status (the first column-one `status:` line, or `-`), `file:line` of the definition, and the rest of the definition line; `doc_soup` inside the `doc_sad` directory is read once. `show` prints the block of each definition of an ID, ending where the gates end it. `refs` prints every line in the working tree, tracked or untracked, that names the ID as a whole word, except its definitions. It gates nothing: exit 1 means only that `show` found no definition |
-```
+*(Code pruned at merge: 1 line. Files touched: `templates/AGENTS-block.md`, `README.md`.)*
 
 **Step 3 — run the tests that read these files.**
 
-```
-tests/.bats-core/bin/bats tests/skills.bats
-```
+*(Code pruned at merge: 1 line. Files touched: `templates/AGENTS-block.md`, `README.md`.)*
 
 Expected: 0 failures.
 
 **Step 4 — commit.**
 
-```
-git add templates/AGENTS-block.md README.md
-git -c commit.gpgsign=false commit -m "docs: the script lists name find-items.sh
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
+*(Code pruned at merge: 4 lines. Files touched: `templates/AGENTS-block.md`, `README.md`.)*
 
 ---
 
@@ -661,112 +206,54 @@ an edit that matches nothing changes nothing and reports nothing.
 
 Before:
 
-```markdown
-- **Probe for overlap before you write.** Dispatch a subagent (your harness's
-  subagent mechanism — e.g. a `Task` tool, an `/agents` command) to search the
-  requirements ledger for items that already cover this behavior. It returns
-  IDs, one-line summaries and `file:line` — nothing else. The ledger itself
-  must not enter this conversation's context. Overlap, ambiguity or
-  contradiction goes to the user and is resolved with them before the new item
-  is written.
-```
+*(Code pruned at merge: 7 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 After:
 
-```markdown
-- **Probe for overlap before you write.** Dispatch a subagent (your harness's
-  subagent mechanism — e.g. a `Task` tool, an `/agents` command) to find the
-  items that already cover this behavior: it runs
-  `.guardrails/scripts/find-items.sh list --kind REQ`, then
-  `find-items.sh show ID` for each candidate, and does not read ledger files
-  whole. It returns IDs, one-line summaries and `file:line` — nothing else.
-  The ledger itself must not enter this conversation's context. Overlap,
-  ambiguity or contradiction goes to the user and is resolved with them before
-  the new item is written.
-```
+*(Code pruned at merge: 9 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 **Step 2.** `skills/grill-requirements/SKILL.md`, section "## Probe the
 architecture".
 
 Before:
 
-```markdown
-Before a requirement is settled, dispatch a subagent to read the architecture
-ledger (`doc_sad`) and answer three questions. It returns the answers with
-`file:line` citations — not the document.
-```
+*(Code pruned at merge: 3 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 After:
 
-```markdown
-Before a requirement is settled, dispatch a subagent to answer three questions
-from the architecture ledger (`doc_sad`). It finds the items with
-`.guardrails/scripts/find-items.sh list --kind SDD` and `--kind LLR`, and
-reads each candidate with `find-items.sh show ID`. It returns the answers with
-`file:line` citations — not the document.
-```
+*(Code pruned at merge: 5 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 **Step 3.** `skills/design-architecture/SKILL.md`, section "## Process", step 1.
 
 Before:
 
-```markdown
-1. **Read first:** the SRS (which REQs does this design serve?), the RMF
-   (which controls constrain it?), CONTEXT.md (use the project's language),
-   and the existing SAD.
-```
+*(Code pruned at merge: 3 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 After:
 
-```markdown
-1. **Read first:** the REQs this design serves, the controls (RC) that
-   constrain it, CONTEXT.md (use the project's language), and the existing SAD
-   items (SDD, LLR). Find items with
-   `.guardrails/scripts/find-items.sh list --kind <PREFIX>`, read each one you
-   need with `find-items.sh show ID`, and find where an item is already used
-   with `find-items.sh refs ID`. Read a ledger file whole only when these do
-   not answer the question.
-```
+*(Code pruned at merge: 7 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 **Step 4.** `skills/resolve-problem/SKILL.md`, section "## 1. Record before
 you touch anything".
 
 Before:
 
-```markdown
-Mint the ID first — `.guardrails/scripts/new-id.sh PR` — and write the item
-with the ID it printed:
-```
+*(Code pruned at merge: 2 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 After:
 
-```markdown
-Check first that the problem is not already recorded:
-`.guardrails/scripts/find-items.sh list --kind PR --status open` lists the
-open problem reports, and `find-items.sh show ID` prints one. If an open item
-describes this problem, work under its ID and do not record a second one.
-
-Mint the ID first — `.guardrails/scripts/new-id.sh PR` — and write the item
-with the ID it printed:
-```
+*(Code pruned at merge: 7 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 **Step 5 — run the skill tests.** `tests/skills.bats` enforces the section
 order and the 2,000-word ceiling.
 
-```
-tests/.bats-core/bin/bats tests/skills.bats
-```
+*(Code pruned at merge: 1 line. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 Expected: 0 failures.
 
 **Step 6 — commit.**
 
-```
-git add skills/grill-requirements/SKILL.md skills/design-architecture/SKILL.md skills/resolve-problem/SKILL.md
-git -c commit.gpgsign=false commit -m "docs: skills find ledger items with find-items.sh instead of reading ledgers whole
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
+*(Code pruned at merge: 4 lines. Files touched: `skills/grill-requirements/SKILL.md`, `skills/design-architecture/SKILL.md`, `skills/resolve-problem/SKILL.md`.)*
 
 ---
 
@@ -790,15 +277,7 @@ script from T1 step 3 verbatim.
 
 **Step 1 — write the seven mutations.** `M01.sh`:
 
-```sh
-#!/bin/sh
-# describes: find-items.sh: the ledger file list is no longer deduplicated
-_gr_before=$(cksum scripts/find-items.sh)
-sed -i.bak 's|NF && !seen\[\$0\]++|NF|' scripts/find-items.sh
-rm -f scripts/find-items.sh.bak
-
-[ "$_gr_before" != "$(cksum scripts/find-items.sh)" ] || { echo "mutation changed nothing" >&2; exit 3; }
-```
+*(Code pruned at merge: 7 lines. Files touched: `docs/verification/2026-10-04-find-items.mutations/M01.sh`, `docs/verification/2026-10-04-find-items.mutations/M02.sh`, `docs/verification/2026-10-04-find-items.mutations/M03.sh`, `docs/verification/2026-10-04-find-items.mutations/M04.sh`, `docs/verification/2026-10-04-find-items.mutations/M05.sh`, `docs/verification/2026-10-04-find-items.mutations/M06.sh`, `docs/verification/2026-10-04-find-items.mutations/M07.sh`, `docs/verification/2026-10-04-find-items.md`.)*
 
 `M02.sh` to `M07.sh` are the same apart from the `describes:` line and the
 `sed` line:
@@ -815,33 +294,18 @@ rm -f scripts/find-items.sh.bak
 In the table, `\|` is the escape a markdown table requires. In the file, write
 `|`. For example, M02's line in the file is:
 
-```sh
-sed -i.bak 's|cur != "" && !status_seen && gr_kw_here(line, "status:")|cur != "" \&\& gr_kw_here(line, "status:")|' scripts/find-items.sh
-```
+*(Code pruned at merge: 1 line. Files touched: `docs/verification/2026-10-04-find-items.mutations/M01.sh`, `docs/verification/2026-10-04-find-items.mutations/M02.sh`, `docs/verification/2026-10-04-find-items.mutations/M03.sh`, `docs/verification/2026-10-04-find-items.mutations/M04.sh`, `docs/verification/2026-10-04-find-items.mutations/M05.sh`, `docs/verification/2026-10-04-find-items.mutations/M06.sh`, `docs/verification/2026-10-04-find-items.mutations/M07.sh`, `docs/verification/2026-10-04-find-items.md`.)*
 
 **Step 2 — prove each mutation applies.**
 
-```
-sh tests/mutate.sh docs/verification/2026-10-04-find-items.mutations
-```
+*(Code pruned at merge: 1 line. Files touched: `docs/verification/2026-10-04-find-items.mutations/M01.sh`, `docs/verification/2026-10-04-find-items.mutations/M02.sh`, `docs/verification/2026-10-04-find-items.mutations/M03.sh`, `docs/verification/2026-10-04-find-items.mutations/M04.sh`, `docs/verification/2026-10-04-find-items.mutations/M05.sh`, `docs/verification/2026-10-04-find-items.mutations/M06.sh`, `docs/verification/2026-10-04-find-items.mutations/M07.sh`, `docs/verification/2026-10-04-find-items.md`.)*
 
 Expected: exit 0, with no mutation reported as unable to apply.
 
 **Step 3 — prove each mutation is killed.** Run in the task worktree with a
 clean `scripts/find-items.sh`:
 
-```
-out_dir=$(mktemp -d)
-for mutation in docs/verification/2026-10-04-find-items.mutations/M*.sh; do
-    name=$(basename "$mutation" .sh)
-    sh "$mutation" || { echo "$name did not apply"; break; }
-    tests/.bats-core/bin/bats tests/find-items.bats > "$out_dir/$name.out" 2>&1
-    echo "$name: bats exit $?"
-    grep '^not ok' "$out_dir/$name.out"
-    git checkout -- scripts/find-items.sh
-done
-git status --short scripts/find-items.sh
-```
+*(Code pruned at merge: 10 lines. Files touched: `docs/verification/2026-10-04-find-items.mutations/M01.sh`, `docs/verification/2026-10-04-find-items.mutations/M02.sh`, `docs/verification/2026-10-04-find-items.mutations/M03.sh`, `docs/verification/2026-10-04-find-items.mutations/M04.sh`, `docs/verification/2026-10-04-find-items.mutations/M05.sh`, `docs/verification/2026-10-04-find-items.mutations/M06.sh`, `docs/verification/2026-10-04-find-items.mutations/M07.sh`, `docs/verification/2026-10-04-find-items.md`.)*
 
 Expected: each `M0N: bats exit 1`. The `not ok` lines include the test named
 in the table. `git status` prints nothing. If a mutation gives `bats exit 0`,
@@ -857,12 +321,7 @@ finding fields of this record are written at `merge-change` step 6, not here.
 
 **Step 5 — commit.**
 
-```
-git add docs/verification/2026-10-04-find-items.mutations docs/verification/2026-10-04-find-items.md
-git -c commit.gpgsign=false commit -m "docs: seven mutations of find-items.sh, each killed by a named test
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
+*(Code pruned at merge: 4 lines. Files touched: `docs/verification/2026-10-04-find-items.mutations/M01.sh`, `docs/verification/2026-10-04-find-items.mutations/M02.sh`, `docs/verification/2026-10-04-find-items.mutations/M03.sh`, `docs/verification/2026-10-04-find-items.mutations/M04.sh`, `docs/verification/2026-10-04-find-items.mutations/M05.sh`, `docs/verification/2026-10-04-find-items.mutations/M06.sh`, `docs/verification/2026-10-04-find-items.mutations/M07.sh`, `docs/verification/2026-10-04-find-items.md`.)*
 
 ---
 

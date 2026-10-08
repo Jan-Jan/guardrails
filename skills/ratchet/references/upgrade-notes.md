@@ -385,6 +385,30 @@ of the three checks that a ledger file is committed. Under
 no root config to read; set `GR_CONFIG` to the unit's config, as for the
 gates.
 
+## Plans are pruned at merge: `prune_plans`
+
+`merge-change` step 1 runs `.guardrails/scripts/prune-plans.sh` after the base
+merge and commits what it changed. In each `docs/plans/*.md` file the change
+adds or modifies, it replaces every fenced code block inside a task section (a
+heading such as `### T1 —` or `## Task 2 —`) with one pointer line that names
+the block's line count and quotes the task's `**Files touched:**` value where
+it has one. The merged code is in the change's squash commit. Headings, prose,
+fences outside task sections and a fence with a line that opens with
+`red -> green` are kept. No gate reads the plans' code, so nothing goes red.
+
+An absent `prune_plans` is `on`, and so is a project with no config file.
+`prune_plans: off` in `.guardrails/config.yaml` opts out: the script prints
+`prune_plans: off, nothing pruned` and changes nothing. Any other value exits
+2. This opt-out is not the compatibility flag ruled out above: pruning checks
+nothing, so turning it off hides no failure.
+
+The plans merged before the upgrade are pruned only when asked. In a change
+worktree, run `sh .guardrails/scripts/prune-plans.sh --all --dry-run`, then
+again without `--dry-run`, and merge the result as a change. A plan that a
+tracked Markdown file cites as `<plan>:<line>`, at or after its first pruned
+block, is left whole and named in a `left whole` line, because pruning would
+move the cited line.
+
 ## Why the prose files are refreshed with the scripts
 
 The ledger READMEs, `.guardrails/templates/verification.md` and the AGENTS.md

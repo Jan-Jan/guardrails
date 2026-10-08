@@ -123,56 +123,17 @@ Worktree commits are unsigned: `git -c commit.gpgsign=false commit`.
 
 RED, in `tests/lib.bats`:
 
-```bash
-@test "gr_def_re anchors the definition form at line start" {
-    run sh -c '. "$SCRIPTS/lib.sh"; gr_def_re "REQ|PR"'
-    [ "$status" -eq 0 ]
-    [ "$output" = '^\*\*(REQ|PR)-[0-9]{3,}\*\*:' ]
-}
-
-@test "gr_def_re takes a line prefix for diff scanning" {
-    run sh -c '. "$SCRIPTS/lib.sh"; gr_def_re "PR" "+"'
-    [ "$status" -eq 0 ]
-    [ "$output" = '^\+\*\*(PR)-[0-9]{3,}\*\*:' ]
-}
-```
+*(Code pruned at merge: 11 lines.)*
 
 GREEN, in `scripts/lib.sh`, next to `gr_prefix_re`:
 
-```sh
-# gr_def_re ALTERNATION [POSITION] — ERE matching an item definition line.
-#
-# One constructor because three scripts must agree: check-ids.sh decides what
-# is a duplicate, finalize-ids.sh decides what number comes next, and
-# check-trace.sh decides what exists at all. When they disagreed, a token in
-# prose raised the mint ceiling that neither gate could see (see
-# docs/plans/2026-08-19-id-consistency.md, D2).
-#
-# POSITION is spliced in front and defaults to `^`. Pass '^\+' or '^-' for
-# `git diff` output, and the empty string to match anywhere on a line.
-gr_def_re() {
-    printf '%s' "${2-^}\\*\\*(${1})-[0-9]{3,}\\*\\*:"
-}
-
-*(Amended during execution: the parameter was a LINE_PREFIX spliced after a
-hardcoded `^` until the unanchored candidate scan needed a way to say
-"anywhere"; `${2-^}` rather than `${2:-^}` so an empty string means what it
-says. Independent review, finding 9.)*
-```
+*(Code pruned at merge: 18 lines.)*
 
 ### Task 2 — `check-ids.sh` adopts it (AC5)
 
 RED: the AC5 lint test, in `tests/check-ids.bats`:
 
-```bash
-@test "no script hand-rolls the definition regex — gr_def_re is the only site" {
-    cd "$BATS_TEST_DIRNAME/.."
-    run grep -n '\*\\\*(\?\$\?{\?' scripts/check-ids.sh scripts/finalize-ids.sh
-    offenders=$(grep -ln '\\\*\\\*.*\[0-9\]{3,}\\\*\\\*:' \
-        scripts/check-ids.sh scripts/finalize-ids.sh scripts/check-trace.sh || true)
-    [ -z "$offenders" ] || { echo "hand-rolled definition regex in: $offenders"; false; }
-}
-```
+*(Code pruned at merge: 7 lines.)*
 
 GREEN: replace `def_re="^\\*\\*(${P})-[0-9]{3,}\\*\\*:"` with
 `def_re=$(gr_def_re "$P")`, and the two diff greps at 129/131 with
@@ -188,14 +149,7 @@ defines and removes nothing: still exit 1.
 
 GREEN, in `scripts/check-ids.sh`:
 
-```sh
-    for id in $added; do
-        # gr_contains, not `case " $removed "`: $removed is newline-separated,
-        # so the space-delimited form only ever matched a single-element set —
-        # relocating two definitions in one change reported both as duplicates
-        # of themselves.
-        gr_contains "$removed" "$id" && continue
-```
+*(Code pruned at merge: 6 lines.)*
 
 ### Task 4 — anchor `max_final` (AC3)
 
@@ -215,16 +169,7 @@ A second test: a normal tree prints no such line.
 
 GREEN, in `scripts/check-ids.sh`, after the duplicate gates:
 
-```sh
-# --- UNANCHORED-DEF: definition form off column one (report, do not fail) ---
-# Anchoring is what the gates agree on, so such a token defines nothing and is
-# almost always prose. It is reported because it USED to raise finalize-ids.sh's
-# mint ceiling: a project that relied on that, knowingly or not, must see the
-# ceiling move rather than discover it as a re-minted number.
-loose=$(git grep -nI --untracked -E "$(gr_def_re "$P" '.+')" \
-        -- . ":(exclude).guardrails" 2>/dev/null || true)
-[ -z "$loose" ] || printf '%s\n' "$loose" | sed 's/^/UNANCHORED-DEF /'
-```
+*(Code pruned at merge: 8 lines.)*
 
 ### Task 6 — cross-script agreement (AC4, AC6)
 

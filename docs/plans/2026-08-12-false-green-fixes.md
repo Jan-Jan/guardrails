@@ -232,37 +232,7 @@ which is easier on a tree nothing has touched.
 
 Append to `tests/finalize-ids.bats`:
 
-```bash
-@test "finalize: refuses to run when a draft ID has no bold definition header" {
-    printf 'PR-DRAFT-b-1: crash on empty input. affects: REQ-001. status: open\n' \
-        > docs/problems/DRAFT-b-notes.md
-    commit_all draft
-    run sh .guardrails/scripts/finalize-ids.sh --base main
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"UNMINTED-DRAFT"* ]]
-    [[ "$output" == *"PR-DRAFT-b-1"* ]]
-    # nothing was rewritten and the ledger file was NOT renamed
-    git diff --quiet
-    [ -f docs/problems/DRAFT-b-notes.md ]
-}
-
-@test "finalize: names the file and line of each unminted draft" {
-    printf '# verifies: REQ-DRAFT-b-9\ntrue\n' > tests/test_orphan.sh
-    commit_all orphan
-    run sh .guardrails/scripts/finalize-ids.sh --base main
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"tests/test_orphan.sh:1"* ]]
-}
-
-@test "finalize: a well-formed draft alongside a malformed one still blocks" {
-    printf '\n**REQ-DRAFT-b-1**: good draft.\n' >> docs/requirements/0001-01-01-base.md
-    printf 'PR-DRAFT-b-2: bad header.\n' > docs/problems/DRAFT-b-notes.md
-    commit_all mixed
-    run sh .guardrails/scripts/finalize-ids.sh --base main
-    [ "$status" -eq 1 ]
-    grep -q 'REQ-DRAFT-b-1' docs/requirements/0001-01-01-base.md
-}
-```
+*(Code pruned at merge: 29 lines.)*
 
 Run: `sh tests/run-tests.sh tests/finalize-ids.bats` — expect 3 failures
 (status 0, no `UNMINTED-DRAFT` in output).
@@ -272,43 +242,7 @@ Run: `sh tests/run-tests.sh tests/finalize-ids.bats` — expect 3 failures
 Insert after the prefix loop that builds `$mapping` (currently ends line 71),
 before the draft-doc-file rename block:
 
-```sh
-# --- Pre-flight: every draft token in the tree must have been minted -------
-# Only drafts with a bold `**PREFIX-DRAFT-slug-n**:` header at line start are
-# minted above. Without this gate a plain `PREFIX-DRAFT-slug-n:` header is
-# skipped, the ledger files are renamed anyway, and the script exits 0 —
-# a silent no-op reported as success.
-gr_contains() {
-    case "
-$1
-" in *"
-$2
-"*) return 0 ;; esac
-    return 1
-}
-
-P=$(gr_prefix_re)
-draft_re="(${P})-DRAFT-[A-Za-z0-9][A-Za-z0-9-]*-[0-9]+"
-mapped=$(printf '%s' "$mapping" | cut -d' ' -f1 | sort -u)
-unminted=""
-for t in $(git grep -hoI --untracked -E "$draft_re" \
-        -- . ":(exclude).guardrails" 2>/dev/null | sort -u); do
-    gr_contains "$mapped" "$t" || unminted="${unminted}${t}
-"
-done
-
-if [ -n "$unminted" ]; then
-    printf '%s' "$unminted" | while IFS= read -r t; do
-        [ -n "$t" ] || continue
-        git grep -InI --untracked -F "$t" -- . ":(exclude).guardrails" 2>/dev/null \
-            | sed 's/^/UNMINTED-DRAFT /'
-    done
-    echo "guardrails: the draft IDs above were never minted — each needs a bold" >&2
-    echo "definition header at line start (**PREFIX-DRAFT-slug-n**:). Nothing was" >&2
-    echo "rewritten or renamed." >&2
-    exit 1
-fi
-```
+*(Code pruned at merge: 35 lines.)*
 
 Update the script header comment: add `1 unminted drafts remain` to the exit
 codes, and state the pre-flight in the description.
@@ -341,47 +275,7 @@ of those unchanged and stops before the parenthetical and the prose.
 
 Append to `tests/check-trace.bats`:
 
-```bash
-@test "trace: a REQ in a parenthetical after the list is not coverage" {
-    printf '\n**REQ-002**: second requirement.\n' >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-001 (was REQ-002)\ntrue\n' > tests/test_a.sh
-    commit_all parenthetical
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST REQ-002"* ]]
-}
-
-@test "trace: comma-separated lists, trailing commas and trailing prose all count" {
-    printf '\n**REQ-002**: second.\n**REQ-003**: third.\n' >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-001, REQ-002 — the fallback path\n' > tests/test_a.sh
-    printf '# verifies: REQ-003,\n' > tests/test_b.sh
-    commit_all lists
-    run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"MISSING-TEST REQ-001"* ]]
-    [[ "$output" != *"MISSING-TEST REQ-002"* ]]
-    [[ "$output" != *"MISSING-TEST REQ-003"* ]]
-}
-
-@test "trace: a REQ in a parenthetical after satisfies: does not satisfy an LLR" {
-    printf '\n**REQ-002**: second.\n' >> docs/requirements/0001-01-01-base.md
-    printf '**LLR-001**: clamp. satisfies: REQ-001 (superseded REQ-002)\n' \
-        > docs/architecture/0001-01-01-llr.md
-    printf '# verifies: LLR-001\n' > tests/test_a.sh
-    commit_all satisfies
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISSING-TEST REQ-002"* ]]
-}
-
-@test "trace: traces: with no ID list is untraced even if a REQ appears later" {
-    printf '**SDD-001**: module. traces: none — replaces REQ-001\n' \
-        > docs/architecture/0001-01-01-sdd.md
-    commit_all traces
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"UNTRACED-DESIGN SDD-001"* ]]
-}
-```
+*(Code pruned at merge: 39 lines.)*
 
 Run: expect all four to fail (the greedy parser credits the parentheticals).
 
@@ -389,80 +283,29 @@ Run: expect all four to fail (the greedy parser credits the parentheticals).
 
 Replace `ids_matching` (lines 48–56):
 
-```sh
-# ids_matching KEYWORD PREFIX PATHS… — IDs of PREFIX in the ID list that
-# immediately follows KEYWORD. Only the leading run of `ID[, ]…` counts, so
-# `verifies: REQ-001 (was REQ-042)` credits REQ-001 alone: prose after the
-# list is commentary, not coverage.
-ids_matching() {
-    _kw="$1"
-    _pfx="$2"
-    shift 2
-    [ $# -gt 0 ] || return 0
-    git grep -hI --untracked -F "$_kw" -- "$@" 2>/dev/null \
-    | gr_id_run "$_kw" \
-    | grep -xE "${_pfx}-[0-9]{3,}" | sort -u
-}
-```
+*(Code pruned at merge: 13 lines.)*
 
 Add the shared extractor to `scripts/lib.sh` (used by `ids_matching` and by
 the `satisfies:`/`traces:` parsers, so the rule is defined once):
 
-```sh
-# gr_id_run KEYWORD — filter: for each stdin line containing KEYWORD, print
-# the IDs in the list that immediately follows it, one per line. The run ends
-# at the first character that is not part of `ID`, a comma, or whitespace.
-gr_id_run() {
-    awk -v kw="$1" '
-        {
-            p = index($0, kw)
-            if (p == 0) next
-            rest = substr($0, p + length(kw))
-            while (match(rest, /^[ \t,]*[A-Za-z]+-[0-9][0-9][0-9]+/)) {
-                tok = substr(rest, RSTART, RLENGTH)
-                sub(/^[ \t,]*/, "", tok)
-                print tok
-                rest = substr(rest, RSTART + RLENGTH)
-            }
-        }'
-}
-```
+*(Code pruned at merge: 17 lines.)*
 
 In `parse_llr_file`, replace the `satisfies:` split (lines 90–97) so the same
 rule applies:
 
-```awk
-            else if ($0 ~ /satisfies:/) {
-                rest = $0
-                sub(/.*satisfies:/, "", rest)
-                while (match(rest, /^[ \t,]*[A-Za-z]+-[0-9][0-9][0-9]+/)) {
-                    tok = substr(rest, RSTART, RLENGTH)
-                    sub(/^[ \t,]*/, "", tok)
-                    if (tok ~ /^REQ-/) sat = sat (sat == "" ? "" : ",") tok
-                    rest = substr(rest, RSTART + RLENGTH)
-                }
-            }
-```
+*(Code pruned at merge: 10 lines.)*
 
 In the SDD scan, replace the `traces:` test (line 159) with one that requires
 a REQ at the head of the run:
 
-```awk
-        cur != "" && /traces:[ \t,]*REQ-[0-9][0-9][0-9]/ { ok = 1 }
-```
+*(Code pruned at merge: 1 line.)*
 
 ### 2.3 Regression evidence against the real corpus
 
 Before committing, prove the tightening changes no verdict on a real project.
 Run from the sightings-app checkout, with the old and new `check-trace.sh`:
 
-```sh
-cd /home/naturgewalt/Coding/yeti-guides/sightings-app
-sh .guardrails/scripts/check-trace.sh > /tmp/trace-old.txt 2>&1; echo "old exit=$?"
-# then with the new script copied in:
-sh .guardrails/scripts/check-trace.sh > /tmp/trace-new.txt 2>&1; echo "new exit=$?"
-diff /tmp/trace-old.txt /tmp/trace-new.txt
-```
+*(Code pruned at merge: 5 lines.)*
 
 Expected: no difference in violations (their annotations are all list-shaped;
 their parentheticals hold 1–2 digit legacy risk ids that never matched). Any
@@ -489,63 +332,22 @@ same class as a missing config file.
 Replace the existing `lib.bats` case
 `gr_doc_files on missing key or path prints nothing, exit 0` with two:
 
-```bash
-@test "gr_doc_files on a missing key prints nothing, exit 0" {
-    run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_nonexistent'
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
-}
-
-@test "gr_doc_files dies when a configured path does not exist" {
-    rm -rf docs/risk
-    run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_rmf'
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_rmf"* ]]
-    [[ "$output" == *"docs/risk"* ]]
-}
-```
+*(Code pruned at merge: 13 lines.)*
 
 And in `check-trace.bats`:
 
-```bash
-@test "trace: a configured doc path that is absent fails loudly, never silently passes" {
-    rm -rf docs/risk
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"doc_rmf"* ]]
-}
-
-@test "trace: a configured test path that is absent fails loudly" {
-    rm -rf tests
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"test_paths"* ]]
-}
-```
+*(Code pruned at merge: 13 lines.)*
 
 ### 3.2 Implementation
 
 `gr_doc_files` gains an else branch:
 
-```sh
-    elif [ -f "$_v" ]; then
-        printf '%s\n' "$_v"
-    else
-        gr_die "$1 is configured as '$_v', which does not exist"
-    fi
-```
+*(Code pruned at merge: 5 lines.)*
 
 In `check-trace.sh`, validate the list-valued paths up front, immediately
 after they are read:
 
-```sh
-for _d in $strict_paths; do
-    [ -e "$_d" ] || gr_die "strict_paths entry does not exist: $_d"
-done
-for _d in $test_paths; do
-    [ -e "$_d" ] || gr_die "test_paths entry does not exist: $_d"
-done
-```
+*(Code pruned at merge: 6 lines.)*
 
 Then delete the now-dead `[ -e "$d" ]` guard in the DANGLING-REF scope loop
 (line 204) — a path that survived validation always exists.
@@ -565,35 +367,13 @@ script prints one summary line at the end, on pass and on failure both.
 
 ### 4.1 Failing tests first
 
-```bash
-@test "trace: prints how many items of each prefix were checked" {
-    run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"checked:"* ]]
-    [[ "$output" == *"REQ 1"* ]]
-}
-
-@test "trace: an empty ledger reports zero rather than looking like a pass" {
-    rm -f docs/requirements/*.md
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"REQ 0"* ]]
-}
-```
+*(Code pruned at merge: 12 lines.)*
 
 ### 4.2 Implementation
 
 Immediately before `exit $fail`:
 
-```sh
-# --- Summary: a green run over zero items must not look like a green run ---
-# over sixty-three. Printed on pass and on failure alike.
-summary=""
-for pfx in $(cfg_get id_prefixes); do
-    n=$(ids_defined "$pfx" | grep -c . || true)
-    summary="${summary}${summary:+, }${pfx} ${n}"
-done
-echo "checked: $summary"
-```
+*(Code pruned at merge: 8 lines.)*
 
 ### 4.3 Commit
 

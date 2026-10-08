@@ -51,12 +51,7 @@ tests from steps 3-6 fail, each naming the missing text.
 1. Both AGENTS files: replace the `## Writing: prose, names and messages`
    section, heading through its last bullet, with
 
-   ```
-   ## Code: names
-
-   - No single-character names. No code golf.
-   - Name in concrete terms.
-   ```
+   *(Code pruned at merge: 4 lines. Files touched: tests/skills.bats, templates/AGENTS-block.md, AGENTS.md, skills/develop-change/SKILL.md, skills/ratchet/SKILL.md, skills/ratchet/references/upgrade-notes.md.)*
 2. develop-change prompt: "under the writing and naming rules in AGENTS.md" ->
    "under the code rules in AGENTS.md".
 3. ratchet SKILL.md gap bullet: the heading becomes `## Code: names`; the rest

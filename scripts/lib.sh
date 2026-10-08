@@ -77,7 +77,8 @@ problem_open_max
 depends_on
 segregated_from
 expectation_age_days
-expectation_open_max'
+expectation_open_max
+prune_plans'
 
 # The ID body vocabulary. An item ID is <PREFIX>-<body>, and a body is either
 # a minted token or a legacy sequential number.

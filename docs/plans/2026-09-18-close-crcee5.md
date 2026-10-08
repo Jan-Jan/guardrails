@@ -85,9 +85,7 @@ this change.
 
 Build a two-line target and a stub awk that exits 2, then run the idiom:
 
-```sh
-./fakeawk BEGIN scripts/check-ids.sh > t && mv t scripts/check-ids.sh
-```
+*(Code pruned at merge: 1 line. Files touched: none in the repository (scratch only).)*
 
 Expected: exit 2, `t` present in the working directory, target unmodified.
 That is the whole defect: the redirect creates `t` before awk runs, and `&&`

@@ -69,71 +69,16 @@ nil; if it is not, that is a finding worth reporting.
 
 **Step 1 — the failing tests.** Append to `tests/skills.bats`:
 
-```bash
-@test "clanker: the managed block bans the vocabulary by listing it" {
-    # verifies: D3 (docs/plans/2026-09-14-clanker-adoption.md)
-    # An abstract instruction to write plainly does not change model output —
-    # the current skill prose was written under instructions of that shape.
-    # The explicit list is the part that works, so the list itself is what
-    # this test pins.
-    block="$BATS_TEST_DIRNAME/../templates/AGENTS-block.md"
-    grep -q 'Write dry, technical prose' "$block"
-    grep -q 'load-bearing' "$block"
-    grep -q 'no metaphor' "$block"
-    grep -q 'Do not match existing style' "$block"
-}
-
-@test "clanker: the managed block names concrete naming rules" {
-    # verifies: D5 (docs/plans/2026-09-14-clanker-adoption.md)
-    # Naming is where the rule reaches code rather than prose. Without the
-    # worked pair the instruction is abstract again.
-    block="$BATS_TEST_DIRNAME/../templates/AGENTS-block.md"
-    grep -q 'write_timestamp' "$block"
-    grep -q 'single-character' "$block"
-}
-
-@test "clanker: this repository holds itself to the same block" {
-    # verifies: D1 (docs/plans/2026-09-14-clanker-adoption.md)
-    # AGENTS.md is guardrails' own copy of the rules it ships. A rule that
-    # ships to adopters and does not bind this repository is a rule this
-    # repository will break first.
-    agents="$BATS_TEST_DIRNAME/../AGENTS.md"
-    grep -q 'Write dry, technical prose' "$agents"
-    grep -q 'Do not match existing style' "$agents"
-}
-```
+*(Code pruned at merge: 31 lines. Files touched: `templates/AGENTS-block.md`, `AGENTS.md`, `tests/skills.bats`.)*
 
 Run and watch all three fail:
 
-```sh
-tests/.bats-core/bin/bats tests/skills.bats     # expect 3 not ok
-```
+*(Code pruned at merge: 1 line. Files touched: `templates/AGENTS-block.md`, `AGENTS.md`, `tests/skills.bats`.)*
 
 **Step 2 — write the block.** Insert into `templates/AGENTS-block.md`, directly
 before the `## Check scripts (run from repo root)` heading:
 
-```markdown
-## Writing: prose, names and messages
-
-Write dry, technical prose. Say what something is. This applies to everything
-written: messages to the user, documentation, strings in code, identifiers,
-and commit messages.
-
-- No metaphor, no anthropomorphism, no wordplay, no balanced contrast. A file
-  exists in a directory; it does not sit there. A gate rejects a commit; it
-  does not refuse one.
-- Active voice. Cut filler. Do not editorialize.
-- Replace these words: carries -> contains, lands -> is merged, survives ->
-  remains, says -> states, holds -> contains, refuses -> rejects,
-  load-bearing -> critical, ran -> was run.
-- Do not match existing style when it disagrees with these rules.
-
-In code, additionally:
-
-- No single-character names. No code golf.
-- Name in concrete terms, and do not use the past participle: write
-  `write_timestamp`, not `written_at`.
-```
+*(Code pruned at merge: 20 lines. Files touched: `templates/AGENTS-block.md`, `AGENTS.md`, `tests/skills.bats`.)*
 
 **Step 3 — mirror it into `AGENTS.md`.** The same section, inserted before the
 `## Rules` heading. Guardrails is the reference implementation of its own
@@ -141,10 +86,7 @@ process, so the block it ships and the rules it follows do not diverge.
 
 **Step 4 — green.**
 
-```sh
-tests/.bats-core/bin/bats tests/skills.bats       # expect 3 new ok, 0 not ok
-tests/.bats-core/bin/bats tests/portability.bats  # unchanged
-```
+*(Code pruned at merge: 2 lines. Files touched: `templates/AGENTS-block.md`, `AGENTS.md`, `tests/skills.bats`.)*
 
 **Commit:** `feat: the managed block states the writing rules`
 
@@ -181,99 +123,33 @@ Two deviations from this task as planned, both recorded rather than silent:
 
 **Step 1 — the failing tests.** Append to `tests/skills.bats`:
 
-```bash
-@test "clanker: develop-change dispatches one deslop pass over the whole diff" {
-    # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md)
-    # The dispatcher never reads the code and each subagent sees one task, so
-    # cross-task duplication is invisible to both. This pass is the only agent
-    # that sees the whole change, which is why it is a dispatch over the diff
-    # and not a per-task review.
-    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -q 'deslop pass' "$skill"
-    grep -q 'main..<change-branch>' "$skill"
-    grep -q 'cross-task' "$skill"
-}
-
-@test "clanker: the deslop pass is not deferred to the merge review" {
-    # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md)
-    # merge-change reruns from step 1 on any finding, so a naming nit raised
-    # at 6a costs a full merge-sequence restart. The skill has to say why the
-    # pass is here, or a later editor moves it to the review that already
-    # reads the whole diff.
-    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -q 'reruns from step 1' "$skill"
-}
-
-@test "clanker: develop-change tells a stuck task to change approach" {
-    # verifies: D7 (docs/plans/2026-09-14-clanker-adoption.md)
-    # The derailment rule re-dispatches on the first failure. Without this,
-    # the re-dispatch repeats the approach that already failed.
-    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -q 'change the approach' "$skill"
-}
-```
+*(Code pruned at merge: 29 lines. Files touched: `skills/develop-change/SKILL.md`, `tests/skills.bats`.)*
 
 Run and watch all three fail.
 
 **Step 2 — write the exit step.** In `skills/develop-change/SKILL.md`, replace
 the `## Done when` section:
 
-```markdown
-## The deslop pass
-
-When the last task branch has merged and the suite is green, dispatch **one**
-subagent over the whole change diff before handing off:
-
-```
+*(Code pruned at merge: 5 lines. Files touched: `skills/develop-change/SKILL.md`, `tests/skills.bats`.)*
 Review main..<change-branch> under the writing and naming rules in AGENTS.md.
 Report and fix, on <change-branch>: slop, unclear names, duplication between
 tasks, and anything that can be simpler. Do not change behavior — the suite
 must stay green. Return the report shape below.
-```
-
-It returns:
-
-```
+*(Code pruned at merge: 3 lines. Files touched: `skills/develop-change/SKILL.md`, `tests/skills.bats`.)*
 files changed: <paths>
 fixed: <one line per fix>
 left alone: <anything it judged not worth changing, with the reason>
 suite: <N passed, N failed>
-```
-
-This is the only agent that sees the whole change. The dispatcher holds the
-plan and the trace and never reads the code; each task subagent sees one task.
-So **cross-task** duplication — two tasks adding the same helper, one concept
-named differently in each — is invisible to every other party, and this pass is
-the only place it can be caught.
-
-It runs here rather than at `merge-change` 6a for three reasons. The merge
-sequence **reruns from step 1** on any finding, so a variable name raised there
-costs a full restart. By 6a every task branch is merged and the change is
-squash-bound, so the cheap moment is gone. And 6a is an independence review —
-mixing craft into it makes correctness and style one verdict, and the second
-waters down the first.
-
-## Done when
-
-Plan tasks complete, suite green, the deslop pass run and its findings fixed —
-then `check-traceability` and `verify-before-merge`.  Never claim done without
-them.
-```
+*(Code pruned at merge: 19 lines. Files touched: `skills/develop-change/SKILL.md`, `tests/skills.bats`.)*
 
 **Step 3 — the derailment pivot.** In the "Derailment" section, after the two
 bullets naming the twice-stuck thresholds, add:
 
-```markdown
-Below that threshold, keep looping and re-dispatch — but **change the approach**
-rather than repeating it. A re-dispatch that restates the same task the same way
-produces the same failure, and spends a second agent to learn nothing.
-```
+*(Code pruned at merge: 3 lines. Files touched: `skills/develop-change/SKILL.md`, `tests/skills.bats`.)*
 
 **Step 4 — green.**
 
-```sh
-tests/.bats-core/bin/bats tests/skills.bats       # expect 3 new ok, 0 not ok
-```
+*(Code pruned at merge: 1 line. Files touched: `skills/develop-change/SKILL.md`, `tests/skills.bats`.)*
 
 **Commit:** `feat: develop-change ends with one deslop pass over the diff`
 
@@ -322,34 +198,17 @@ on.
 
 **Step 1 — the failing test.** Append to `tests/skills.bats`:
 
-```bash
-@test "clanker: the gate checks the deslop pass ran" {
-    # verifies: D6 (docs/plans/2026-09-14-clanker-adoption.md)
-    # In a suite where every other step is mechanically checked, an
-    # unenforced step is the one that stops running. This is the cheap
-    # enforcement: a gate that already exists, asking one more question.
-    skill="$BATS_TEST_DIRNAME/../skills/verify-before-merge/SKILL.md"
-    grep -q 'deslop pass ran' "$skill"
-    grep -q 'findings were fixed' "$skill"
-}
-```
+*(Code pruned at merge: 9 lines. Files touched: `skills/verify-before-merge/SKILL.md`, `tests/skills.bats`.)*
 
 **Step 2 — write check 8.** In `skills/verify-before-merge/SKILL.md`, after
 check 7 (`git status` — no uncommitted work, no stray files) and before the
 `check-review.sh is deliberately NOT in this list` paragraph:
 
-```markdown
-8. **The deslop pass ran** and its findings were fixed (`develop-change`). The
-   subagent cannot answer this from the tree — a deslopped diff and a diff
-   nobody reviewed look identical. The dispatcher answers it from the pass's
-   report, the way check 4 is answered from the dispatch reports.
-```
+*(Code pruned at merge: 4 lines. Files touched: `skills/verify-before-merge/SKILL.md`, `tests/skills.bats`.)*
 
 **Step 3 — green.**
 
-```sh
-tests/.bats-core/bin/bats tests/skills.bats       # expect 1 new ok, 0 not ok
-```
+*(Code pruned at merge: 1 line. Files touched: `skills/verify-before-merge/SKILL.md`, `tests/skills.bats`.)*
 
 **Commit:** `feat: the gate checks that the deslop pass was run`
 
@@ -401,36 +260,12 @@ Third instance of the D2 effect, and the plan is now its most frequent source.
 
 **Step 1 — the failing tests.** Append to `tests/skills.bats`:
 
-```bash
-@test "clanker: a bug caused by the design escalates to design-architecture" {
-    # verifies: D1 (docs/plans/2026-09-14-clanker-adoption.md)
-    # The escalation list already covers a missing requirement, a missed
-    # hazard and a wrong spec. A bug that is a consequence of the
-    # architecture had nowhere to go, so it was fixed where it surfaced and
-    # the class of bug stayed open.
-    skill="$BATS_TEST_DIRNAME/../skills/resolve-problem/SKILL.md"
-    grep -q 'consequence of the design' "$skill"
-    grep -q 'design-architecture' "$skill"
-}
-
-@test "clanker: ratchet reports a managed block with no writing rules" {
-    # verifies: D1 (docs/plans/2026-09-14-clanker-adoption.md)
-    # A project ratcheted before this change has a block without the writing
-    # section. Nothing else would ever tell it.
-    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
-    grep -q 'writing rules' "$skill"
-}
-```
+*(Code pruned at merge: 18 lines. Files touched: `skills/resolve-problem/SKILL.md`, `skills/ratchet/SKILL.md`, `tests/skills.bats`.)*
 
 **Step 2 — the fourth escalation.** In `skills/resolve-problem/SKILL.md`, add to
 the escalation list in section 2:
 
-```markdown
-- **The bug is a consequence of the design, not of this line** → the fix that
-  closes only this occurrence leaves the class open. Ask whether a change to
-  the structure would prevent the class, and if so run `design-architecture`
-  before fixing. When the answer is unclear, put it to the user.
-```
+*(Code pruned at merge: 4 lines. Files touched: `skills/resolve-problem/SKILL.md`, `skills/ratchet/SKILL.md`, `tests/skills.bats`.)*
 
 **Step 3 — the ratchet note.** In `skills/ratchet/SKILL.md` step 3's gap
 analysis, add a detection line: a managed block with no `## Writing: prose,
@@ -440,9 +275,7 @@ changes no gate.
 
 **Step 4 — green.**
 
-```sh
-tests/.bats-core/bin/bats tests/skills.bats       # expect 2 new ok, 0 not ok
-```
+*(Code pruned at merge: 1 line. Files touched: `skills/resolve-problem/SKILL.md`, `skills/ratchet/SKILL.md`, `tests/skills.bats`.)*
 
 **Commit:** `feat: a bug caused by the design escalates to the architecture`
 
@@ -557,21 +390,11 @@ never reworded.
 
 **Step 4 — green.**
 
-```sh
-tests/.bats-core/bin/bats tests/skills.bats       # expect 0 not ok
-tests/.bats-core/bin/bats tests/portability.bats  # expect 0 not ok
-```
+*(Code pruned at merge: 2 lines. Files touched: all 11 `skills/*/SKILL.md`, `tests/skills.bats`.)*
 
 **Step 5 — verify the sweep.** Re-run the count that measured it:
 
-```sh
-for w in carry carries carrying land lands landed holds held holding \
-         survives survive sits sit says named given ran load-bearing \
-         refuses refuse; do
-    n=$(grep -riow "$w" skills/*/SKILL.md | wc -l | tr -d ' ')
-    [ "$n" -gt 0 ] && printf '%-14s %s\n' "$w" "$n"
-done
-```
+*(Code pruned at merge: 6 lines. Files touched: all 11 `skills/*/SKILL.md`, `tests/skills.bats`.)*
 
 Expect no output. A word that legitimately remains — a quoted git error message
 such as `refusing to update checked out branch` — is reported in the dispatch
@@ -592,10 +415,7 @@ this change was cut from, and **20** still in the tree at `f875970`, this task's
 merge. The bare replace list from `AGENTS.md`, without the three inflections the
 scan adds, gives 125 and 20.
 
-```sh
-git grep -Eiohw "$banned" 51f01b7 -- 'skills/*/SKILL.md' | wc -l    # 127
-git grep -Eiohw "$banned" f875970 -- 'skills/*/SKILL.md' | wc -l    # 20
-```
+*(Code pruned at merge: 2 lines. Files touched: all 11 `skills/*/SKILL.md`, `tests/skills.bats`.)*
 
 This record first stated "About 200 instances before, **2** after". Both
 figures were wrong. The 200 was an estimate under a word list wider than the

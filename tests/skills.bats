@@ -2212,6 +2212,148 @@ adr_file_is_named_by_its_item() {
     [ "$status" -eq 1 ]
 }
 
+@test "merge-change: step 1 prunes the plans after the base merge and commits what changed" {
+    # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # Pruning runs after `git merge`, so the step 2 gate measures the pruned
+    # tree; run inside finalize-docs.sh at step 3, it would change the tree
+    # after the gate on nearly every merge, and step 6 would dispatch a second
+    # suite run (the deviation from D11 in docs/plans/2026-10-08-prune-plans.md).
+    # The prune and its commit are chained on the merge's success, and the
+    # commit takes only docs/plans: run as separate lines, a conflicted merge
+    # was concluded as "chore: prune plans" with its markers staged, and
+    # `git add -u` swept every tracked edit into it (review round 1, finding 1).
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill")
+    [ -n "$step1" ]
+    merge_at=$(printf '%s\n' "$step1" | grep -n '^ *git merge "\$base_ref" &&$' | cut -d: -f1)
+    prune_at=$(printf '%s\n' "$step1" | grep -n '^ *sh \.guardrails/scripts/prune-plans\.sh --base "\$base_ref" &&$' | cut -d: -f1)
+    commit_at=$(printf '%s\n' "$step1" | grep -nF '{ git diff --quiet -- docs/plans || git -c commit.gpgsign=false commit -m "chore: prune plans" -- docs/plans; }' | cut -d: -f1)
+    [ -n "$merge_at" ] || { echo "no git merge line chained with &&"; false; }
+    [ -n "$prune_at" ] || { echo "no prune-plans.sh --base line chained with &&"; false; }
+    [ -n "$commit_at" ] || { echo "no conditional commit of docs/plans"; false; }
+    [ "$prune_at" -eq $((merge_at + 1)) ] && [ "$commit_at" -eq $((prune_at + 1)) ] ||
+        { echo "not one chain: merge $merge_at, prune $prune_at, commit $commit_at"; false; }
+    run grep -q 'git add -u' "$skill"
+    [ "$status" -ne 0 ]
+    printf '%s\n' "$step1" | tr '\n' ' ' | tr -s ' ' | grep -q 'List each `left whole` plan in the record' ||
+        { echo "step 1 does not say to read the left whole lines"; false; }
+    grep -q '^## Step 1: plans are pruned after the base merge$' "$rationale" ||
+        { echo "no rationale section for pruning at step 1"; false; }
+    tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -q 'and not with the draft renames at step 3' ||
+        { echo "the rationale does not say why not at step 3"; false; }
+}
+
+@test "merge-change: step 1's fence prunes only after a clean merge, and commits only the plans" {
+    # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # Runs step 1's fence on a fixture: with no docs/plans, then on a
+    # conflicting base, then on a clean one with an unrelated edit pending
+    # (review round 1, finding 1).
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill")
+    fence=$(printf '%s\n' "$step1" | awk '
+        /^ *```sh$/ { fenced = 1; next }
+        fenced && /^ *```$/ { exit }
+        fenced { sub(/^   /, ""); print }
+    ')
+    printf '%s\n' "$fence" | grep -q 'prune-plans.sh'
+    run_step1() { run env GIT_MERGE_AUTOEDIT=no sh -c "BASE=main; $fence"; }
+    subject() { git log -1 --format=%s; }
+
+    make_fixture_repo
+    printf 'one\n' > conflict.txt
+    printf 'notes\n' > notes.txt
+    commit_all 'files both sides edit'
+    git checkout -q -b change
+    printf 'change\n' > conflict.txt
+    commit_all 'the change'
+
+    # No docs/plans at all: the fence succeeds and commits nothing.
+    run_step1
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$(subject)" = 'the change' ]
+
+    mkdir -p docs/plans
+    printf '### T1 — do it\n\n```sh\necho task-code\n```\n' > docs/plans/2026-01-01-x.md
+    commit_all 'the plan'
+    git checkout -q main
+    printf 'base\n' > conflict.txt
+    commit_all 'base edits the same line'
+    git checkout -q change
+
+    # A conflicted merge: nothing is pruned or committed, and the merge stays
+    # in progress for the agent to resolve.
+    run_step1
+    [ "$status" -ne 0 ]
+    [ "$(subject)" = 'the plan' ] || { echo "committed: $(subject)"; false; }
+    git rev-parse -q --verify MERGE_HEAD >/dev/null || { echo "the merge was concluded"; false; }
+    [ -n "$(git diff --name-only --diff-filter=U)" ] || { echo "no unmerged path left"; false; }
+    grep -q 'task-code' docs/plans/2026-01-01-x.md || { echo "pruned during a conflict"; false; }
+    git merge --abort
+
+    # A clean merge with an unrelated edit pending: the pruned plan is
+    # committed and the edit is not.
+    printf 'base\n' > conflict.txt
+    commit_all 'take the base side'
+    printf 'pending\n' > notes.txt
+    run_step1
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$(subject)" = 'chore: prune plans' ] || { echo "last commit: $(subject)"; false; }
+    [ "$(git show --name-only --format= HEAD)" = 'docs/plans/2026-01-01-x.md' ]
+    ! git show HEAD:docs/plans/2026-01-01-x.md | grep -q 'task-code'
+    [ "$(git diff --name-only)" = 'notes.txt' ] || { git status --short; false; }
+}
+
+@test "merge-change: the review checklist checks a pruned plan against the diff" {
+    # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
+    checklist_text=$(tr '\n' ' ' < "$checklist" | tr -s ' ')
+    printf '%s\n' "$checklist_text" | grep -q "each pointer stands where the task's code was" ||
+        { echo "no pointer check"; false; }
+    printf '%s\n' "$checklist_text" | grep -q 'the prose of each task matches the diff' ||
+        { echo "no prose check"; false; }
+    printf '%s\n' "$checklist_text" | grep -q 'a plan left whole is listed in the record' ||
+        { echo "no left-whole check"; false; }
+}
+
+@test "plan-change: code in task steps is pruned at merge and red -> green fences are kept" {
+    # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    skill_text=$(tr '\n' ' ' < "$BATS_TEST_DIRNAME/../skills/plan-change/SKILL.md" | tr -s ' ')
+    printf '%s\n' "$skill_text" | grep -q 'replaced by a pointer at merge' ||
+        { echo "plan-change does not say task code is pruned"; false; }
+    printf '%s\n' "$skill_text" | grep -q '`prune-plans.sh`, `merge-change` step 1' ||
+        { echo "plan-change does not name the script and the step"; false; }
+    printf '%s\n' "$skill_text" | grep -q 'A fence with a line that opens with `red -> green` is kept' ||
+        { echo "plan-change does not say red -> green fences are kept"; false; }
+}
+
+@test "ratchet: the upgrade notes name prune_plans, its default and how to opt out" {
+    # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    grep -q '^## Plans are pruned at merge: `prune_plans`$' "$notes" ||
+        { echo "no prune_plans section"; false; }
+    notes_text=$(tr '\n' ' ' < "$notes" | tr -s ' ')
+    printf '%s\n' "$notes_text" | grep -q 'An absent `prune_plans` is `on`' ||
+        { echo "no default"; false; }
+    printf '%s\n' "$notes_text" | grep -q '`prune_plans: off`' ||
+        { echo "no opt-out"; false; }
+    printf '%s\n' "$notes_text" | grep -q 'prune-plans.sh --all' ||
+        { echo "no --all for the plans already merged"; false; }
+}
+
+@test "ADRs: the pruning decision is recorded and accepted" {
+    # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # The ID is built from a prefix variable: the gates scan tests/.
+    adr_prefix=ADR
+    adr_file="$BATS_TEST_DIRNAME/../docs/adr/$adr_prefix-bh4xgr-plans-are-pruned-at-merge.md"
+    [ -f "$adr_file" ] || { echo "no $adr_file"; false; }
+    adr_file_is_named_by_its_item "$adr_file"
+    grep -qx 'Status: accepted' "$adr_file"
+    adr_text=$(tr '\n' ' ' < "$adr_file" | tr -s ' ')
+    printf '%s\n' "$adr_text" | grep -q 'prune-plans.sh' || { echo "no script"; false; }
+    printf '%s\n' "$adr_text" | grep -q '`merge-change` step 1' || { echo "no step 1"; false; }
+}
+
 # --- test seams (docs/plans/2026-10-07-test-seams.md) ------------------------
 
 @test "develop-change: a test attaches only to an interface a REQ or LLR describes" {

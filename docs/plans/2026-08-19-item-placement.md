@@ -59,19 +59,7 @@ Trace: AC1, AC6.
 
 Append to `tests/check-trace.bats`:
 
-```bash
-@test "check-trace: an SDD defined outside doc_sad is reported, not silently exempt" {
-    make_fixture_repo
-    # No traces: line at all. Inside doc_sad this is UNTRACED-DESIGN; outside
-    # it, before this gate, it was counted by `checked:` and examined by nothing.
-    printf '**SDD-001**: a design item nobody reads\n' > docs/design.md
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM SDD-001"* ]]
-    [[ "$output" == *"doc_sad"* ]]
-}
-```
+*(Code pruned at merge: 11 lines.)*
 
 Run: `env -u SSH_AUTH_SOCK sh tests/run-tests.sh 2>&1 | grep -n 'MISPLACED'`.
 Expect `not ok` with `status` 0 — the run passes today, which is the defect.
@@ -80,46 +68,11 @@ Expect `not ok` with `status` 0 — the run passes today, which is the defect.
 
 In `scripts/check-trace.sh`, after `ids_defined`, add:
 
-```sh
-# ids_defined_in PREFIX FILES… — definitions of PREFIX inside the given files.
-# The empty-args guard is load-bearing: `git grep -- ` with no pathspec scans
-# the whole repository, which would report every item as correctly placed.
-ids_defined_in() {
-    _p="$1"
-    shift
-    [ $# -gt 0 ] || return 0
-    git grep -h --untracked -oE "^\\*\\*${_p}-[0-9]{3,}\\*\\*:" -- "$@" 2>/dev/null \
-        | sed 's/[*:]//g' | sort -u
-}
-```
+*(Code pruned at merge: 10 lines.)*
 
 and before the `MISSING-TEST` block:
 
-```sh
-# --- MISPLACED-ITEM: an item must be defined inside its own document -------
-check_placement() {
-    _pfx="$1"
-    _key="$2"
-    shift 2
-    # No `[ $# -gt 0 ] || return 0` guard here. With no files the correct
-    # verdict is "every item of this prefix is read by nothing", which is what
-    # an empty _inside produces. Skipping instead would be the silent
-    # exemption this gate exists to remove.
-    _inside=$(ids_defined_in "$_pfx" "$@")
-    for _id in $(ids_defined "$_pfx"); do
-        gr_contains "$_inside" "$_id" || {
-            echo "MISPLACED-ITEM $_id (defined outside $_key, so its gates never see it)"
-            fail=1
-        }
-    done
-}
-for _pfx in $prefixes; do
-    case "$_pfx" in
-        # shellcheck disable=SC2086
-        SDD|LLR) check_placement "$_pfx" doc_sad $sad_files ;;
-    esac
-done
-```
+*(Code pruned at merge: 23 lines.)*
 
 Re-run: the new test is `ok`, 135 others still `ok`.
 
@@ -134,60 +87,7 @@ untested branch, and the REQ and PR arms in particular are separate code paths.
 
 ### 2.1 RED — five tests
 
-```bash
-@test "check-trace: a REQ defined outside doc_srs is reported" {
-    make_fixture_repo
-    printf '**REQ-001**: a requirement in the wrong file\n' > docs/notes.md
-    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM REQ-001 (defined outside doc_srs"* ]]
-}
-
-@test "check-trace: a HAZ defined outside doc_rmf is reported" {
-    make_fixture_repo
-    printf '**HAZ-001**: a hazard in the wrong file\n' > docs/notes.md
-    printf '**RC-001**: control\n\nmitigates: HAZ-001\n' > docs/risk/2026-01-01-c.md
-    printf '**REQ-001**: r\n\nimplements: RC-001\n' > docs/requirements/2026-01-01-r.md
-    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM HAZ-001 (defined outside doc_rmf"* ]]
-}
-
-@test "check-trace: an RC defined outside doc_rmf is reported" {
-    make_fixture_repo
-    printf '**RC-001**: a control in the wrong file\n' > docs/notes.md
-    printf '**REQ-001**: r\n\nimplements: RC-001\n' > docs/requirements/2026-01-01-r.md
-    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM RC-001 (defined outside doc_rmf"* ]]
-}
-
-@test "check-trace: an LLR defined outside doc_sad is reported" {
-    make_fixture_repo
-    printf '**REQ-001**: r\n' > docs/requirements/2026-01-01-r.md
-    printf '**LLR-001**: a low-level requirement in the wrong file\n\nsatisfies: REQ-001\n' > docs/notes.md
-    printf '# verifies: LLR-001\ntrue\n' > tests/test_a.sh
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM LLR-001 (defined outside doc_sad"* ]]
-}
-
-@test "check-trace: a PR defined outside doc_problems is reported" {
-    make_fixture_repo
-    printf '**PR-001**: a problem report in the wrong file\n\nstatus: closed\n' > docs/notes.md
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM PR-001 (defined outside doc_problems"* ]]
-}
-```
+*(Code pruned at merge: 52 lines.)*
 
 Each must fail before 2.2 for the right reason. The LLR test is the one to
 watch: `UNSATISFIED-LLR` also fires on an LLR outside `doc_sad` (the block
@@ -198,20 +98,7 @@ RED is the missing `MISPLACED-ITEM` line, not the status.
 
 Extend the dispatch:
 
-```sh
-for _pfx in $prefixes; do
-    case "$_pfx" in
-        # shellcheck disable=SC2086
-        REQ) check_placement REQ doc_srs $srs_files ;;
-        # shellcheck disable=SC2086
-        HAZ|RC) check_placement "$_pfx" doc_rmf $rmf_files ;;
-        # shellcheck disable=SC2086
-        SDD|LLR) check_placement "$_pfx" doc_sad $sad_files ;;
-        # shellcheck disable=SC2086
-        PR) check_placement PR doc_problems $problems_files ;;
-    esac
-done
-```
+*(Code pruned at merge: 12 lines.)*
 
 ### 2.3 Commit
 
@@ -221,21 +108,7 @@ Trace: AC3, AC4.
 
 ### 3.1 The healthy-project guard (AC3)
 
-```bash
-@test "check-trace: correctly placed items are not reported as misplaced" {
-    make_fixture_repo
-    printf '**HAZ-001**: h\n' > docs/risk/2026-01-01-h.md
-    printf '**RC-001**: c\n\nmitigates: HAZ-001\n' >> docs/risk/2026-01-01-h.md
-    printf '**REQ-001**: r\n\nimplements: RC-001\n' > docs/requirements/2026-01-01-r.md
-    printf '**SDD-001**: d\n\ntraces: REQ-001\n' > docs/architecture/2026-01-01-d.md
-    printf '**PR-001**: p\n\nstatus: closed\n' > docs/problems/2026-01-01-p.md
-    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"MISPLACED-ITEM"* ]]
-}
-```
+*(Code pruned at merge: 13 lines.)*
 
 **This test passes before the implementation exists, so it proves nothing on
 its own** — it is a guard against over-firing, not a RED test. It is verified
@@ -246,21 +119,7 @@ red. Both mutations are run and recorded by name.
 
 ### 3.2 RED — the subdirectory case (AC4)
 
-```bash
-@test "check-trace: an item in a subdirectory of its doc directory is reported" {
-    make_fixture_repo
-    # gr_doc_files expands "$dir"/*.md — one level deep. A file one level
-    # further down is read by no gate, so the verdict must say so rather than
-    # counting it in `checked:` and examining nothing.
-    mkdir -p docs/requirements/2026
-    printf '**REQ-001**: filed a level too deep\n' > docs/requirements/2026/r.md
-    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"MISPLACED-ITEM REQ-001 (defined outside doc_srs"* ]]
-}
-```
+*(Code pruned at merge: 13 lines.)*
 
 This one is RED before task 2's REQ branch exists and green after; it is
 listed here because it pins `gr_doc_files`' depth as intended behaviour rather
@@ -291,17 +150,7 @@ rather than warned about.
 
 ### 4.1 RED
 
-```bash
-@test "check-trace: RC declared without doc_rmf is an error, not unplaced controls" {
-    make_fixture_repo
-    sed -i.bak '/^doc_rmf:/d' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
-    rm -rf docs/risk
-    commit_all
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"declares RC but doc_rmf is not configured"* ]]
-}
-```
+*(Code pruned at merge: 9 lines.)*
 
 ### 4.2 GREEN
 
@@ -336,24 +185,13 @@ three false.
 1. `scripts/check-trace.sh` header — delete the `KNOWN GAP` paragraph
    (currently lines ~39–43); add to the gate list, after `DANGLING-REF`:
 
-   ```
-   #   MISPLACED-ITEM ID        — item defined outside the document configured
-   #                              for its prefix, so no gate reads it
-   ```
+   *(Code pruned at merge: 2 lines.)*
 
    and rewrite the `checked:`/`sources:` paragraph: it currently says
    `checked:` "is NOT yet a guarantee that a gate read them". With this gate
    green it is exactly that guarantee. New text:
 
-   ```
-   # Every run ends with `checked:` (items found per prefix) and `sources:` (the
-   # document files read, then the number of configured path entries — one entry
-   # may be a directory or a pathspec), so a pass over zero cannot be mistaken
-   # for a pass over sixty-three. MISPLACED-ITEM is what makes `checked:`
-   # trustworthy: while it is green, every item counted there sits in a document
-   # some gate opened. Placement covers the six gated prefixes only; an extra
-   # prefix has no configured document and is not placement-checked.
-   ```
+   *(Code pruned at merge: 7 lines.)*
 
 2. `README.md` — the "What this does not yet cover" paragraph naming
    `**SDD-001**: in docs/design.md`. Replace the claim with the gate.

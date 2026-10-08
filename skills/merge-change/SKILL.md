@@ -28,8 +28,7 @@ created with `sh .guardrails/scripts/task-worktree.sh start <tag>`
 to merge the task branch, remove the worktree and delete the task branch. Then
 rerun from step 1.
 
-The tag must be unique per dispatch: date it, number it, or name it after the
-finding.
+The tag must be unique per dispatch.
 
 1. **Merge the latest base branch into the worktree branch:**
 
@@ -43,7 +42,9 @@ finding.
    reviewed=$(git rev-list -1 --grep='^review dispatched$' "$base_ref..HEAD")
    [ -z "$reviewed" ] || git diff --name-only --no-renames "$(git merge-base "$reviewed" "$base_ref")" "$base_ref" |
        grep -Fx "$(git diff --name-only --no-renames "$base_ref...HEAD")" | sed 's/^/shared: /'
-   git merge "$base_ref"
+   git merge "$base_ref" &&
+   sh .guardrails/scripts/prune-plans.sh --base "$base_ref" &&
+   { git diff --quiet -- docs/plans || git -c commit.gpgsign=false commit -m "chore: prune plans" -- docs/plans; }
    ```
 
    - A failed fetch is a **stop**. Fetch from a session that can, or record
@@ -51,10 +52,11 @@ finding.
    - A project may put the remote out of scope only if its own AGENTS.md states
      why, and the record states it too. Never adopt that by analogy.
    - Run this step every round. Resolve conflicts here, never on the base
-     branch.
+     branch, then rerun.
    - A `shared:` line names a file this change edits that the base edited
      after the last reviewed commit: 6a then reviews the whole change again,
      even after the last review round. Otherwise the gate rerun covers it.
+   - List each `left whole` plan in the record (6b).
 2. **Dispatch the verification suite** as `verify-before-merge` describes, and
    read the verdict from the pass and fail counts of the **gate summary** it
    returns. Do not run it in your own context.
@@ -98,12 +100,12 @@ finding.
    sh .guardrails/scripts/merge-preflight.sh --before-review <change-branch>
    ```
 
-   `BASE-MERGED` also reads `origin/<base>`; pass `--local-base` here and at
-   6c where step 1 put the remote out of scope.
+   Pass `--local-base` here and at 6c where step 1 put the remote out of
+   scope.
 
-   Each check prints `ok` or `skipped (<reason>)`. Read the warnings a passing
-   check prints. The first failing check prints its tool's output and a
-   `fix <CHECK>:` line, and stops the run: exit 1 is a failed check, exit 2 a
+   Read the warnings a passing check prints. The first failing check prints
+   its tool's output and a `fix <CHECK>:` line, and stops the run: exit 1 is
+   a failed check, exit 2 a
    usage or environment error from the pre-flight or a tool it runs. Follow
    the `fix` lines, except where step 5 rules otherwise.
 5. **Rule on what the pre-flight cannot.**
@@ -251,17 +253,17 @@ finding.
    Verified: docs/verification/<record file>
    ```
 
-   `Resolves:` and `Opens:` repeat the 6b delta. Leave out an empty line.
+   Leave out an empty `Resolves:` or `Opens:` line.
 
-   Hand the user exactly one command, with real paths and branch name
-   substituted, and **stop**:
+   Hand the user exactly one command, paths and branch substituted, and
+   **stop**:
 
    ```sh
    git commit -S -F /tmp/merge-<branch>.msg && sh .guardrails/scripts/finish-merge.sh <branch>
    ```
 
-   **Never run `git commit -S` yourself.** Signing may need the user's
-   hardware-key touch; tell them so. Success ends with three
+   **Never run `git commit -S` yourself.** Tell them signing may need a
+   hardware-key touch. Success ends with three
    `finish-merge:` lines; otherwise, they paste the output.
    `finish-merge.sh` proves four things before it removes anything. Pass it
    the branch name, never a path. If the harness created the worktree,

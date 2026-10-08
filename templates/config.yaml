@@ -108,6 +108,18 @@ doc_problems: docs/problems
 # than an empty scan. Set it if your records live anywhere else.
 # doc_verification: docs/verification
 
+# Plan pruning, run by .guardrails/scripts/prune-plans.sh at merge-change step
+# 1, after the base merge. Each fenced code block inside a task section of a
+# plan this change adds or modifies (docs/plans/*.md) is replaced by a one-line
+# pointer naming its line count and quoting the task's `**Files touched:**`
+# where it has one. Kept: every heading and every line of prose, fences
+# outside task sections, a fence with a line that opens with `red -> green`
+# (merge-change copies those into the record), and every plan that a tracked
+# *.md file cites by line at or after its first pruned fence. The merged code
+# stays in the change's squash commit. `on` when absent; `off` opts out. Any
+# other value is exit 2.
+prune_plans: on
+
 # Paths where traceability is enforced. On retrofit projects this list
 # starts small and grows as untraced code is brought under guardrails.
 strict_paths:

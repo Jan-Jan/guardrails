@@ -142,22 +142,7 @@ and names the file. `merge-change/SKILL.md` stays at or under 2,000 words.
 
 Tests, written first and seen to fail (`verifies: PR-3s74u3`):
 
-```bash
-@test "merge-change: a round with nothing above low severity is the last" {
-    # verifies: PR-3s74u3
-    # Ruling of 2026-10-04 (docs/plans/2026-09-29-agent-first-skills-change-2.md):
-    # rounds 16 to 21 of agent-first-scripts each raised one to four low
-    # findings, so a clean-round rule did not converge.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
-    grep -q 'are all `low` is the last review' "$skill"
-    grep -qF '`high`' "$checklist"
-    grep -qF '`medium`' "$checklist"
-    grep -qF '`low`' "$checklist"
-    run grep -q 'A round raising no `code` and no `requirement` finding is the last' "$skill"
-    [ "$status" -ne 0 ]
-}
-```
+*(Code pruned at merge: 14 lines. Files touched: `skills/merge-change/SKILL.md`, `skills/merge-change/references/review-checklist.md`, `skills/merge-change/references/rationale.md`, `templates/verification.md`, `tests/skills.bats`.)*
 
 The test `merge-change: a round with no code or requirement finding is the
 last` is replaced by the one above in the same commit. The test `verification
@@ -195,18 +180,7 @@ Commit unsigned.
 
 Test, written first and seen to fail (`verifies: D10`):
 
-```bash
-@test "AGENTS.md: non-negotiable 5 states the rule and points to its ADR" {
-    # verifies: D10 (docs/plans/2026-09-28-agent-first-skills.md)
-    agents="$BATS_TEST_DIRNAME/../AGENTS.md"
-    adr="$BATS_TEST_DIRNAME/../docs/adr/2026-10-04-local-main-is-the-base.md"
-    grep -q 'Never consult `origin`' "$agents"
-    grep -q 'docs/adr/2026-10-04-local-main-is-the-base.md' "$agents"
-    grep -q 'GR_ID_ANY' "$adr"
-    run grep -q 'GR_ID_ANY' "$agents"
-    [ "$status" -ne 0 ]
-}
-```
+*(Code pruned at merge: 10 lines. Files touched: `AGENTS.md`, `docs/adr/2026-10-04-local-main-is-the-base.md`, `tests/skills.bats`.)*
 
 Commit unsigned.
 

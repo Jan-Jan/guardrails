@@ -42,6 +42,10 @@ The reviewer checks each item and raises a finding for each one that fails.
   supersession pair (`NON-RECIPROCAL-SUPERSESSION`, `MALFORMED-SUPERSESSION`)
   and only the pair. An `affects:`, `traces:` or table row may name an old ID
   as history, so that sweep stays a review job.
+- The plans `merge-change` step 1 pruned: each pointer stands where the
+  task's code was, the prose of each task matches the diff, and a plan left
+  whole is listed in the record. After pruning, the prose is the plan's only
+  account of the code.
 
 ## The test checklist
 

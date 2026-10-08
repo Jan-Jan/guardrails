@@ -68,19 +68,7 @@ Script CLIs (all exit 0 = pass, 1 = violations found, 2 = usage/environment erro
 - [x] **Step 1:** `tests/run-tests.sh` — clones bats-core (tag v1.11.0, depth 1) into `tests/.bats-core` if absent and not on PATH; runs `bats tests/*.bats "$@"`.
 - [x] **Step 2:** `tests/helpers.bash`:
 
-```bash
-make_fixture_repo() {   # creates $REPO with git init, config.yaml, doc skeleton, scripts copied
-  REPO="$BATS_TEST_TMPDIR/repo"
-  mkdir -p "$REPO" && cd "$REPO"
-  git init -q -b main
-  git config user.name test && git config user.email test@example.com
-  git config commit.gpgsign false
-  mkdir -p .guardrails/scripts docs/requirements docs/risk docs/architecture src tests
-  cp "$BATS_TEST_DIRNAME"/../scripts/*.sh .guardrails/scripts/
-  write_config          # canonical schema from Interface contracts
-  git add -A && git commit -qm fixture
-}
-```
+*(Code pruned at merge: 11 lines.)*
 
 - [x] **Step 3:** `tests/lib.bats` — failing tests: `cfg_get safety_class` → `B`; `cfg_get doc_srs` → path; `cfg_list strict_paths` → `src`; `cfg_list verify_commands` → `make test`; `gr_prefix_re` → `REQ|HAZ|RC|SDD`; `cfg_get missing` → empty, exit 0.
 - [x] **Step 4:** Run `tests/run-tests.sh` → FAIL (lib.sh absent). Implement `scripts/lib.sh` per contract. Run → PASS.

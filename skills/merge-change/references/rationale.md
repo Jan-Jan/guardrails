@@ -50,6 +50,7 @@ the index before staging its own.
 
 ## Steps, opening paragraph: the fix dispatch tag is unique
 
+Dating the tag, numbering it, or naming it after the finding makes it unique.
 The unique tag is insurance against a cleanup that was missed. The removal
 after each fix dispatch deletes the task branch, so a reused `fix` tag is free
 again before the next round. That is the same property that
@@ -79,6 +80,34 @@ A project may still put the remote out of scope, as this toolkit's own
 repository does, because its fetch blocks on a hardware key only the user can
 touch. That trade is sound only where one person merges, because then the
 local base branch contains every ID that was merged.
+
+## Step 1: plans are pruned after the base merge
+
+A plan repeats the code its change merges, and the copy drifts from the merged
+code as review rounds fix it. Pruning replaces each code block in a plan's
+task sections with a one-line pointer naming its line count and the task's
+`**Files touched:**` value, and the squash commit holds the merged code.
+
+Pruning runs at step 1, after the base merge, and not with the draft renames at
+step 3, because it changes the tree on nearly every merge. Step 3 runs after
+the step 2 gate, so a tree changed there would fail step 6's hash comparison
+and dispatch a second full suite run. Run at step 1, the change is
+in the tree the step 2 gate measures. The maintainer ruled this on
+2026-10-08, and `ADR-bh4xgr` records it.
+
+The commit is conditional for the reason step 3's is: on a rerun the plans are
+already pruned, nothing changes, and an unconditional commit would halt the
+sequence for no defect. The prune and its commit are chained on the merge's
+success: run after a conflicted merge, the commit would conclude the merge
+with its conflict markers staged. The commit names the plans directory, so an
+unrelated edit pending in the worktree stays out of it. Diffing against the
+ref the step merged, not the local base branch, keeps a plan the remote base
+added out of this change's plans.
+
+A plan that any tracked Markdown file cites by line after its first code
+block is left whole, because pruning would move the cited line. Records cite
+plans as evidence, and so do other plans. Listing it in the record shows the
+reviewer which plan still carries its code.
 
 ## Step 2: recording the tree
 

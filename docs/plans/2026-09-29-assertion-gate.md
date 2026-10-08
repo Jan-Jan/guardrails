@@ -201,12 +201,7 @@ and the file's 79-column wrap. Change nothing else on those lines.
 
 The 14, by file and first physical line:
 
-```
-tests/check-review.bats:818
-tests/check-trace.bats:58 98 117 167 231 241 252 269 3493 3532 3704
-tests/check-units.bats:339
-tests/units-chain.bats:95
-```
+*(Code pruned at merge: 4 lines. Files touched: `tests/check-review.bats`, `tests/check-trace.bats`, `tests/check-units.bats`, `tests/units-chain.bats`.)*
 
 Verify with the scan from T2 once both are merged; standalone, verify that
 `git diff --stat` reports 14 lines changed to 28, that
@@ -229,9 +224,7 @@ Reasons: `MULTIPLE-COMPOUND`, `UNBALANCED`, `UNGUARDED`,
 
 Summary line, exactly:
 
-```
-summary files=<n> physical=<n> judged=<n> comment=<n> token=<n> findings=<n>
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/assertion-guard.awk`, `tests/fixtures/assertion-guard/defective.txt`, `tests/fixtures/assertion-guard/live.txt`.)*
 
 `physical` is the number of physical lines containing `[[` or `((` that were
 classified into a bucket, and `judged + comment + token` must equal it.

@@ -29,84 +29,18 @@ directory plus a tools directory of symlinks to the commands the runner needs
 the host's own `bats` and `parallel` are not found. `/usr/bin:/bin` would not
 keep them out: Debian's `parallel` package installs `/usr/bin/parallel`.
 
-```bash
-# tests/run-tests.sh: what the runner hands to bats.
-
-load helpers
-
-# A stub bats that prints each argument it receives on its own line.
-make_stub_bats() {
-    stub_dir="$BATS_TEST_TMPDIR/stub-bin"
-    mkdir -p "$stub_dir"
-    printf '#!/bin/sh\nfor argument in "$@"; do printf "%%s\\n" "$argument"; done\n' \
-        > "$stub_dir/bats"
-    chmod +x "$stub_dir/bats"
-}
-
-runner="$BATS_TEST_DIRNAME/run-tests.sh"
-
-setup() { make_stub_bats; }
-
-@test "run-tests: a named .bats file runs alone, without the whole suite" {
-    # verifies: PR-r83mmd
-    run env PATH="$stub_dir:/usr/bin:/bin" sh "$runner" tests/skills.bats
-    [ "$status" -eq 0 ]
-    [ "$output" = "tests/skills.bats" ] || { echo "$output"; false; }
-}
-
-@test "run-tests: two named files run, and nothing else" {
-    # verifies: PR-r83mmd
-    run env PATH="$stub_dir:/usr/bin:/bin" sh "$runner" tests/a.bats tests/b.bats
-    [ "$status" -eq 0 ]
-    [ "$output" = "$(printf 'tests/a.bats\ntests/b.bats')" ] || { echo "$output"; false; }
-}
-
-@test "run-tests: with no argument, every file in tests/ runs" {
-    # verifies: PR-r83mmd
-    run env PATH="$stub_dir:/usr/bin:/bin" sh "$runner"
-    [ "$status" -eq 0 ]
-    expected=$(ls "$BATS_TEST_DIRNAME"/*.bats | wc -l | tr -d ' ')
-    actual=$(printf '%s\n' "$output" | grep -c '\.bats$')
-    [ "$actual" -eq "$expected" ] || { echo "expected $expected files, got $actual"; false; }
-}
-
-@test "run-tests: an option alone still runs every file" {
-    # verifies: PR-r83mmd
-    run env PATH="$stub_dir:/usr/bin:/bin" sh "$runner" --filter something
-    [ "$status" -eq 0 ]
-    [ "${lines[0]}" = "--filter" ]
-    [ "${lines[1]}" = "something" ]
-    printf '%s\n' "$output" | grep -q '/skills\.bats$' || { echo "$output"; false; }
-}
-```
+*(Code pruned at merge: 48 lines.)*
 
 Step 2. Run it and watch the first and second tests fail for the right
 reason: the output carries the whole glob after the named file. The third and
 fourth pass against the old runner by design: they pin the behavior the fix
 must keep, so a fix that drops the glob for any argument goes red.
 
-```sh
-tests/.bats-core/bin/bats tests/run-tests.bats
-```
+*(Code pruned at merge: 1 line.)*
 
 Step 3. Replace the last line of `tests/run-tests.sh`:
 
-```sh
-# An argument ending in .bats names the files to run, and replaces the glob;
-# without one, every file runs. Appending the glob ran a named file twice and
-# the whole suite once (PR-r83mmd).
-files_named=no
-for argument in "$@"; do
-    case $argument in
-        (*.bats) files_named=yes ;;
-    esac
-done
-
-if [ "$files_named" = yes ]; then
-    exec "$BATS" "$@"
-fi
-exec "$BATS" "$@" "$dir"/*.bats
-```
+*(Code pruned at merge: 14 lines.)*
 
 Step 4. Run `tests/run-tests.bats` and `tests/portability.bats`; both pass.
 Commit.
@@ -145,27 +79,14 @@ a stub `parallel` on `PATH` where one is wanted.
 
 Step 1. Add a test to `tests/skills.bats`:
 
-```bash
-@test "ratchet: the setup checklist installs GNU parallel for the qualification suite" {
-    # verifies: PR-hrx4vf
-    checklist="$BATS_TEST_DIRNAME/../skills/ratchet/references/setup-checklist.md"
-    grep -q 'GNU `parallel`' "$checklist" || { echo "no GNU parallel item"; false; }
-    grep -q 'brew install parallel' "$checklist" || { echo "no macOS install line"; false; }
-    grep -q 'apt install parallel' "$checklist" || { echo "no Debian install line"; false; }
-}
-```
+*(Code pruned at merge: 7 lines.)*
 
 Watch it fail.
 
 Step 2. In `skills/ratchet/references/setup-checklist.md`, insert before the
 tool qualification item:
 
-```markdown
-- [ ] Install GNU `parallel` (`brew install parallel` on macOS,
-      `apt install parallel` on Debian-family systems). `tests/run-tests.sh`
-      then runs the qualification suite with one bats job per CPU; without
-      it the suite runs serially and takes several times longer.
-```
+*(Code pruned at merge: 4 lines.)*
 
 Step 3. The test passes. Commit.
 

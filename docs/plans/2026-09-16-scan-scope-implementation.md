@@ -51,58 +51,13 @@ exists.
 **Step 1.** Add `sits -> is in` to the replace list in `AGENTS.md` (line 85) and
 in `templates/AGENTS-block.md`. Both read, after the edit:
 
-```
-- Replace these words: carries -> contains, lands -> is merged, survives ->
-  remains, says -> states, holds -> contains, refuses -> rejects,
-  load-bearing -> critical, ran -> was run, sits -> is in.
-```
+*(Code pruned at merge: 3 lines. Files touched: `tests/skills.bats`, `AGENTS.md`, `templates/AGENTS-block.md`, `install.sh`, `skills/ratchet/SKILL.md`, `scripts/check-trace.sh`, `tests/check-trace.bats`.)*
 
 **Step 2.** In `tests/skills.bats`, delete the `banned=` assignments and the
 comment block above them from the existing scan test, and add the word table
 above the first `@test` in the file:
 
-```bash
-# The word table the writing scan reads. Each key is a word the replace list in
-# templates/AGENTS-block.md names; the rest of the line is the forms the scan
-# reads for it.
-#
-# The forms are narrowed by hand against this tree until every correct English
-# use stops matching, and that judgment cannot be derived from the replace list.
-# `hold` is out and `holds`, `held`, `holding` are in, because `when all three
-# hold` is correct. `say` is out and `says`, `said`, `saying` are in, because
-# `say so` is correct and occurs in six places. `run` is out and `ran` is in.
-# `sat` is out because it is an awk variable in check-trace.sh and produces
-# seven false reports.
-#
-# This function body is the one region the scan exempts in this file. The scan
-# opens the region at the declaration line below and closes it at the next line
-# that is exactly a closing brace, so the rest of this file is scanned.
-gr_writing_table() {
-    cat <<'TABLE'
-carries carry carries carried carrying
-lands land lands landed landing
-holds holds held holding
-survives survive survives survived surviving
-says says said saying
-refuses refuse refuses refused refusing refusal
-ran ran
-load-bearing load-bearing
-sits sit sits sitting
-TABLE
-}
-
-gr_writing_forms() {
-    gr_writing_table | cut -d' ' -f2- | tr ' ' '\n' | sort -u | paste -sd'|' -
-}
-
-gr_writing_keys() {
-    gr_writing_table | cut -d' ' -f1 | sort
-}
-
-gr_writing_paths() {
-    echo 'skills AGENTS.md templates/AGENTS-block.md install.sh tests/skills.bats'
-}
-```
+*(Code pruned at merge: 40 lines. Files touched: `tests/skills.bats`, `AGENTS.md`, `templates/AGENTS-block.md`, `install.sh`, `skills/ratchet/SKILL.md`, `scripts/check-trace.sh`, `tests/check-trace.bats`.)*
 
 `gr_writing_paths` is the pathspec each later task widens. It is a function and
 not a variable so that a bats test can read it without a sourcing order.
@@ -110,91 +65,7 @@ not a variable so that a bats test can read it without a sourcing order.
 **Step 3.** Replace the existing scan test with these two. Write them, run the
 file, and watch both fail before any sweep:
 
-```bash
-@test "clanker: the word table and the shipped replace list name the same words" {
-    # verifies: D4 (docs/plans/2026-09-16-scan-scope.md)
-    # The predecessor's list was a hand copy of the shipped rule with nothing
-    # connecting the two, so a word added to the rule reached no scan. The
-    # comparison is bidirectional by construction: a shipped word with no table
-    # entry fails, and a table entry with no shipped word behind it fails.
-    cd "$BATS_TEST_DIRNAME/.." || return 1
-
-    shipped=$(
-        awk '/^- Replace these words:/ { f = 1; line = $0; next }
-             f && /^  / { line = line " " $0; next }
-             f { exit }
-             END { print line }' templates/AGENTS-block.md \
-            | grep -Eo '[a-z-]+ ->' | sed 's/ ->$//' | sort
-    )
-    if [ -z "$shipped" ]; then
-        echo 'no replace list was found in templates/AGENTS-block.md'
-        return 1
-    fi
-
-    keys=$(gr_writing_keys)
-    if [ "$shipped" != "$keys" ]; then
-        printf 'the shipped replace list and the scan table disagree\nshipped:\n%s\ntable:\n%s\n' \
-            "$shipped" "$keys"
-        return 1
-    fi
-}
-
-@test "clanker: no file in scope contains the replaced vocabulary" {
-    # verifies: D1, D2, D3 (docs/plans/2026-09-16-scan-scope.md)
-    # Scope is every tracked file the rules bind. docs/plans and
-    # docs/verification are out permanently: they are merged evidence, and
-    # editing a record to match a later tree falsifies what it proved.
-    cd "$BATS_TEST_DIRNAME/.." || return 1
-    banned=$(gr_writing_forms)
-
-    # A pathspec that matches nothing makes an empty scan indistinguishable
-    # from a clean tree. Check each element rather than counting files, so a
-    # path that moves is reported by name.
-    for p in $(gr_writing_paths); do
-        if ! git ls-files -- "$p" | grep -q .; then
-            printf 'pathspec element %s matched no tracked file\n' "$p"
-            return 1
-        fi
-    done
-
-    # D2 exempts one named region per file, and an exemption that matches more
-    # than it should is the failure with no symptom. Pin the count.
-    md=$(git grep -lE '^## Writing: prose, names and messages$' -- $(gr_writing_paths) | wc -l | tr -d '[:space:]')
-    if [ "$md" -ne 2 ]; then
-        printf 'the writing-section opener was found in %s files, expected 2\n' "$md"
-        return 1
-    fi
-    tbl=$(git grep -lE '^gr_writing_table\(\) \{$' -- $(gr_writing_paths) | wc -l | tr -d '[:space:]')
-    if [ "$tbl" -ne 1 ]; then
-        printf 'the word-table opener was found in %s files, expected 1\n' "$tbl"
-        return 1
-    fi
-
-    # One exemption remains: git's own wording, quoted in worktree-discipline.
-    # It is removed by its full phrasing, so a second use of the word on the
-    # same line is still reported.
-    found=$(
-        git ls-files -- $(gr_writing_paths) | while IFS= read -r f; do
-            awk -v F="$f" '
-                /^## Writing: prose, names and messages$/ { sec = 1; next }
-                sec && /^## / { sec = 0 }
-                /^gr_writing_table\(\) \{$/ { tab = 1; next }
-                tab && /^\}$/ { tab = 0; next }
-                sec || tab { next }
-                { print F ":" NR ":" $0 }
-            ' "$f"
-        done \
-            | sed -e 's/refusing to update checked out branch//g' \
-                  -e 's/refusing to fetch into branch//g' \
-            | grep -Eiw "$banned"
-    ) || true
-
-    if [ -n "$found" ]; then
-        printf 'replaced vocabulary in files the rules bind:\n%s\n' "$found"
-        return 1
-    fi
-}
-```
+*(Code pruned at merge: 83 lines. Files touched: `tests/skills.bats`, `AGENTS.md`, `templates/AGENTS-block.md`, `install.sh`, `skills/ratchet/SKILL.md`, `scripts/check-trace.sh`, `tests/check-trace.bats`.)*
 
 **Expected red:** `not ok` on the scan test, listing `install.sh:9`,
 `skills/ratchet/SKILL.md:384`, and the sites in `tests/skills.bats` outside the
@@ -250,9 +121,7 @@ tests/portability.bats tests/helpers.bash tests/evidence.sh`.
 changes in this task — both files are in this set. Before editing any line in
 `scripts/lib.sh`, check it against the mutation anchors:
 
-```sh
-grep -rn 'lib\.sh' docs/verification/*.mutations/M*.sh | head -40
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats` (pathspec only), `scripts/lib.sh`, `tests/lib.bats`, `tests/portability.bats`, `tests/helpers.bash`, `tests/evidence.sh`.)*
 
 An anchor quotes script lines verbatim, so an edited line invalidates the
 mutation evidence it produced. The measurement in the decision record found one
@@ -280,19 +149,13 @@ tests/finish-merge.bats scripts/check-signing.sh tests/check-signing.bats`.
 **Step 3.** Sweep. `scripts/check-signing.sh` contains the comment block
 `M81.sh` anchors, and the anchor contains `carried`:
 
-```
-# git repository the script carried on in the caller's directory with a
-```
+*(Code pruned at merge: 1 line. Files touched: `tests/skills.bats` (pathspec only), `scripts/finish-merge.sh`, `tests/finish-merge.bats`, `scripts/check-signing.sh`, `tests/check-signing.bats`, `docs/verification/2026-08-27-config-schema.mutations/M81.sh`.)*
 
 `M81.sh` asserts `s.count(old) == 1`, so a stale anchor fails rather than
 mutating nothing. Re-cut the anchor to the swept wording and re-prove the
 mutation:
 
-```sh
-sh docs/verification/2026-08-27-config-schema.mutations/M81.sh
-tests/.bats-core/bin/bats tests/check-signing.bats    # must report not ok
-git checkout scripts/check-signing.sh
-```
+*(Code pruned at merge: 3 lines. Files touched: `tests/skills.bats` (pathspec only), `scripts/finish-merge.sh`, `tests/finish-merge.bats`, `scripts/check-signing.sh`, `tests/check-signing.bats`, `docs/verification/2026-08-27-config-schema.mutations/M81.sh`.)*
 
 Report the `not ok` count the mutated tree produced. A mutation that leaves the
 suite green is a hole in the tests, not a successful step.
@@ -334,11 +197,7 @@ they are not renamed.
 **Step 1.** `gr_writing_paths` becomes the full D1 list, with `scripts` and
 `tests` replacing every per-file element added since T3:
 
-```bash
-gr_writing_paths() {
-    echo 'skills AGENTS.md README.md templates install.sh scripts tests docs/problems docs/risk docs/adr'
-}
-```
+*(Code pruned at merge: 3 lines. Files touched: `tests/skills.bats` (pathspec only), `scripts/check-review.sh`, `tests/check-review.bats`, `scripts/new-id.sh`, `tests/new-id.bats`, `scripts/finalize-docs.sh`, `tests/finalize-docs.bats`, `scripts/check-units.sh`, `tests/check-units.bats`, `tests/units-chain.bats`.)*
 
 **Step 2.** Run the file. Expected red: about 77 sites.
 

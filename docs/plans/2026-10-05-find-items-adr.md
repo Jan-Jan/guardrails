@@ -71,16 +71,7 @@ only when `ADR` is declared (review round 1; noted after round 2, finding 11).
    uses). In the default fixture, add
    `docs/adr/ADR-x7k2m9-dose-limit-source.md`:
 
-   ```markdown
-   **ADR-x7k2m9**: The dose limit is read from the pump configuration.
-
-   Date: 2026-01-02
-   Status: accepted
-
-   ## Context
-
-   The limit differs per pump model.
-   ```
+   *(Code pruned at merge: 8 lines. Files touched: `scripts/find-items.sh`, `tests/find-items.bats`.)*
 
    and `docs/adr/README.md` containing the line
    `**ADR-q3w8e4**: An item line outside an ADR file.`, which must not be read.

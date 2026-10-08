@@ -88,73 +88,7 @@ after all three. T5 closes the problem reports and runs last.
 Step 1 — write the failing tests. Append to `tests/check-trace.bats`, before
 the `poisoning GR_AWK_ITEM_BLOCK` test:
 
-```bash
-@test "check-trace: a derived REQ named only in passing in the RMF is unassessed" {
-    # verifies: PR-n274s7 — the ID is what an author produces anyway; a scope
-    # note naming it is a mention, not an assessment.
-    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
-        >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
-    printf '\n## Scope\n\nThis file covers REQ-001 and REQ-002.\n' >> docs/risk/0001-01-01-base.md
-    commit_all derived-mention
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
-}
-
-@test "check-trace: a derived LLR named only in a verification-table row is unassessed" {
-    # verifies: PR-n274s7
-    printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
-    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
-    printf '\n| Item | Verified by |\n|---|---|\n| LLR-002 | tests/test_b.sh |\n' >> docs/risk/0001-01-01-base.md
-    commit_all derived-table
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]] || { echo "$output"; false; }
-}
-
-@test "check-trace: an assesses: line accepts a derived REQ and a derived LLR" {
-    # verifies: PR-n274s7 — the boundary from the other side: a later
-    # tightening cannot pass by rejecting everything.
-    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
-        >> docs/requirements/0001-01-01-base.md
-    printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
-    printf '# verifies: REQ-002, LLR-002\ntrue\n' > tests/test_b.sh
-    printf '\n## Derived requirements assessment\n\nassesses: REQ-002, LLR-002\nNeither adds a hazard: the retry is bounded and the debounce is read-only.\n' \
-        >> docs/risk/0001-01-01-base.md
-    commit_all derived-assessed
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == "checked:"* ]] || { echo "$output"; false; }
-}
-
-@test "check-trace: an assesses: run for one item does not clear a second it mentions" {
-    # verifies: PR-n274s7 — the run ends at the first character that is not
-    # an ID, comma or space, so the parenthetical credits nothing.
-    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
-        >> docs/requirements/0001-01-01-base.md
-    printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
-    printf '# verifies: REQ-002, LLR-002\ntrue\n' > tests/test_b.sh
-    printf '\nassesses: REQ-002 (LLR-002 is a separate concern)\n' >> docs/risk/0001-01-01-base.md
-    commit_all derived-partial
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"UNANALYZED-DERIVED LLR-002"* ]] || { echo "$output"; false; }
-    [[ "$output" != *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
-}
-
-@test "check-trace: an assesses: line outside the RMF files counts for nothing" {
-    # verifies: PR-n274s7
-    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
-        >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
-    printf '\nassesses: REQ-002\n' >> docs/architecture/0001-01-01-base.md
-    commit_all derived-elsewhere
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
-}
-```
+*(Code pruned at merge: 65 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 Step 2 — update the five existing fixtures that assess by bare mention. Each
 is named by its test title; change only the `printf` into `docs/risk/…`:
@@ -172,14 +106,7 @@ against the new reader, which is why they gain the annotation too.
 
 Step 3 — run and watch the five new tests fail:
 
-```
-$ tests/.bats-core/bin/bats tests/check-trace.bats -f 'assesses|unassessed'
-not ok … a derived REQ named only in passing in the RMF is unassessed
-not ok … a derived LLR named only in a verification-table row is unassessed
-ok     … an assesses: line accepts a derived REQ and a derived LLR
-not ok … an assesses: run for one item does not clear a second it mentions
-not ok … an assesses: line outside the RMF files counts for nothing
-```
+*(Code pruned at merge: 6 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 The third passes against the old script because a mention is enough for it;
 that is expected and is what the other four exist to prove.
@@ -188,41 +115,11 @@ Step 4 — replace the gate body in `scripts/check-trace.sh`. The
 `derived_ids` collection stays exactly as it is; replace only the `for id in
 $derived_ids` loop:
 
-```sh
-# The assessment is DECLARED, not inferred. Until 2026-09-08 this was one
-# free-text `git grep` per derived ID over $rmf_files, so an ID in a
-# verification table, a scope note or a parenthetical read as an assessment.
-# The ID is exactly what an author produces anyway — a derived item is
-# normally named in the same file's verification table — so the gate could
-# not tell the failure it exists to detect from compliance. Measured on one
-# downstream project: 26 derived items, 25 genuinely assessed, one credited
-# on a parenthetical inside a blockquote (PR-n274s7).
-#
-# `assesses:` is read line-wise by ids_matching through GR_AWK_ID_RUN, like
-# mitigates: and implements:. The run ends at the first character that is not
-# an ID, comma or space, so an assessment of one item cannot clear a second
-# it names in passing. It is NOT in the ORPHAN-ANNOTATION list: an assessment
-# is prose under a heading, not an item block, and a column-one `assesses:`
-# belonging to no item is the normal case.
-#
-# Nothing here judges the assessment. It requires the author to say which
-# items a passage assesses — the standard every other annotation holds.
-# shellcheck disable=SC2086
-assessed="$(ids_matching 'assesses:' REQ $rmf_files)
-$(ids_matching 'assesses:' LLR $rmf_files)"
-for id in $derived_ids; do
-    gr_contains "$assessed" "$id" && continue
-    echo "UNANALYZED-DERIVED $id (no 'assesses:' line in the RMF names it)"
-    fail=1
-done
-```
+*(Code pruned at merge: 26 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 Step 5 — header comments in the same file. Line 15:
 
-```
-#   UNANALYZED-DERIVED ID    — REQ/LLR marked derived that no `assesses:`
-#                              line in the RMF names
-```
+*(Code pruned at merge: 2 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 Line 77, the annotation rule: `for verifies:/mitigates:/implements:/satisfies:/traces:/assesses:,`.
 
@@ -238,9 +135,7 @@ therefore never orphaned.
 
 Step 6 — run the full file, expect every test green:
 
-```
-$ tests/.bats-core/bin/bats tests/check-trace.bats
-```
+*(Code pruned at merge: 1 line. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 Commit: `git -c commit.gpgsign=false commit -am "check-trace: UNANALYZED-DERIVED reads an assesses: declaration, not a mention (PR-n274s7)"`.
 
@@ -262,132 +157,11 @@ Commit: `git -c commit.gpgsign=false commit -am "check-trace: UNANALYZED-DERIVED
 
 Step 1 — write the failing tests. Append to `tests/finalize-docs.bats`:
 
-```bash
-@test "finalize: a path reference to a renamed draft is rewritten in another ledger" {
-    # verifies: PR-58zsvf
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
-    printf '\nHazards for this change: docs/requirements/DRAFT-feature-dose-limits.md.\n' >> docs/risk/README.md
-    commit_all draft-and-ref
-    today=$(date +%Y-%m-%d)
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q "docs/requirements/${today}-dose-limits.md" docs/risk/README.md
-    ! grep -q 'DRAFT-feature-dose-limits' docs/risk/README.md
-    [[ "$output" == *"rewrote docs/risk/README.md: docs/requirements/DRAFT-feature-dose-limits.md -> docs/requirements/${today}-dose-limits.md"* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "finalize: a bare basename reference is rewritten" {
-    # verifies: PR-58zsvf
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
-    printf '\nSee DRAFT-feature-dose-limits.md.\n' >> docs/architecture/soup.md
-    commit_all draft-and-bare-ref
-    today=$(date +%Y-%m-%d)
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q "See ${today}-dose-limits.md\." docs/architecture/soup.md
-    [[ "$output" == *"rewrote docs/architecture/soup.md: DRAFT-feature-dose-limits.md -> ${today}-dose-limits.md"* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "finalize: a draft referencing its sibling draft is rewritten after both are renamed" {
-    # verifies: PR-58zsvf — the rewrite runs over the renamed files, so a
-    # reference inside a draft to another draft of the same change resolves.
-    printf '**REQ-a3k9z2**: draft requirement. See docs/risk/DRAFT-feature-dose-limits.md.\n' \
-        > docs/requirements/DRAFT-feature-dose-limits.md
-    printf '**HAZ-h7z4mn**: overdose.\n' > docs/risk/DRAFT-feature-dose-limits.md
-    commit_all sibling-drafts
-    today=$(date +%Y-%m-%d)
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q "See docs/risk/${today}-dose-limits.md\." "docs/requirements/${today}-dose-limits.md"
-}
-
-@test "finalize: --dry-run prints the rewrites it would make and writes nothing" {
-    # verifies: PR-58zsvf
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
-    printf '\nSee DRAFT-feature-dose-limits.md.\n' >> docs/risk/README.md
-    commit_all draft-dry
-    today=$(date +%Y-%m-%d)
-    run sh .guardrails/scripts/finalize-docs.sh --dry-run
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"would rewrite docs/risk/README.md: DRAFT-feature-dose-limits.md -> ${today}-dose-limits.md"* ]] \
-        || { echo "$output"; false; }
-    git diff --quiet
-    [ -f docs/requirements/DRAFT-feature-dose-limits.md ]
-}
-
-@test "finalize: a reference to another change's draft is left alone" {
-    # verifies: PR-58zsvf — a draft not in this tree belongs to a change still
-    # in flight elsewhere; its name is not this run's to change.
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
-    printf '\nPending: DRAFT-other-alarms.md.\n' >> docs/risk/README.md
-    commit_all draft-other
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q 'Pending: DRAFT-other-alarms.md.' docs/risk/README.md
-}
-
-@test "finalize: a plan narrating the rename is left exactly as written" {
-    # verifies: PR-58zsvf — D3: a sentence about history has to stay true;
-    # only a reference inside a ledger has to resolve.
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
-    mkdir -p docs/plans
-    printf 'Created as DRAFT-feature-dose-limits.md; finalize renames it at merge.\n' > docs/plans/2026-01-01-x.md
-    commit_all draft-plan
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q 'Created as DRAFT-feature-dose-limits.md; finalize renames it at merge.' docs/plans/2026-01-01-x.md
-    [[ "$output" != *"docs/plans"* ]] || { echo "$output"; false; }
-}
-
-@test "finalize: an ambiguous bare basename is left for the gate, the path form still rewrites" {
-    # verifies: PR-58zsvf — D4: two drafts share a basename and one takes a
-    # collision suffix, so the bare name maps two ways and cannot be rewritten.
-    today=$(date +%Y-%m-%d)
-    printf '# merged earlier today\n' > "docs/risk/${today}-notes.md"
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-notes.md
-    printf '**HAZ-h7z4mn**: overdose.\n' > docs/risk/DRAFT-feature-notes.md
-    printf '\nPath: docs/risk/DRAFT-feature-notes.md. Bare: DRAFT-feature-notes.md.\n' >> docs/architecture/README.md
-    commit_all ambiguous
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q "Path: docs/risk/${today}-notes-2.md\." docs/architecture/README.md
-    grep -q 'Bare: DRAFT-feature-notes.md\.' docs/architecture/README.md
-    [[ "$output" == *"left docs/architecture/README.md: DRAFT-feature-notes.md"* ]] || { echo "$output"; false; }
-}
-
-@test "finalize: a rewrite that fails aborts instead of reporting a clean finalize" {
-    # verifies: PR-58zsvf — awk's no-occurrence exit and awk failing are
-    # different answers; conflating them leaves a half-rewritten ledger
-    # reported as success. Runs as a non-root user: root can write anywhere.
-    [ "$(id -u)" -ne 0 ] || skip "root ignores directory permissions"
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-dose-limits.md
-    printf '\nSee DRAFT-feature-dose-limits.md.\n' >> docs/architecture/README.md
-    commit_all draft-ro
-    chmod 555 docs/architecture
-    run sh .guardrails/scripts/finalize-docs.sh
-    chmod 755 docs/architecture
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"rewrite failed"* ]] || { echo "$output"; false; }
-}
-
-@test "finalize: the no-drafts case is still a silent no-op after the rewrite pass" {
-    # verifies: PR-58zsvf
-    printf '\nSee DRAFT-other-alarms.md.\n' >> docs/risk/README.md
-    commit_all no-drafts-ref
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ]
-    [ -z "$output" ]
-    git diff --quiet
-}
-```
+*(Code pruned at merge: 118 lines. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 Step 2 — watch them fail:
 
-```
-$ tests/.bats-core/bin/bats tests/finalize-docs.bats -f 'rewrit|reference|narrating|ambiguous|no-op after'
-```
+*(Code pruned at merge: 1 line. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 Expected: the first four and the ambiguous case fail (nothing is rewritten,
 nothing is printed); `another change's draft`, `plan narrating` and
@@ -397,104 +171,12 @@ Step 3 — implement. In `scripts/finalize-docs.sh`:
 
 (a) Add a helper after `gr_check_config` and the doc-key validation loop:
 
-```sh
-# rewrite_file FILE OLD NEW — replace every literal occurrence of OLD in FILE
-# by NEW. Exit 0 when something was rewritten, 3 when OLD does not occur,
-# 2 on any failure. Three answers, because two of them look alike from the
-# outside and mean opposite things: "nothing to do" and "could not do it".
-#
-# Literal, via index/substr, never sed: OLD is a file name, and the `.` in
-# `DRAFT-x.md` is a metacharacter that would match any character. The values
-# travel through ENVIRON rather than -v: awk -v processes escape sequences in
-# its value, and a file name is not an awk string literal.
-rewrite_file() {
-    _rf="$1"
-    GR_OLD="$2" GR_NEW="$3" awk '
-        BEGIN { old = ENVIRON["GR_OLD"]; new = ENVIRON["GR_NEW"]; n = 0 }
-        {
-            line = $0
-            out = ""
-            while ((p = index(line, old)) > 0) {
-                out = out substr(line, 1, p - 1) new
-                line = substr(line, p + length(old))
-                n++
-            }
-            print out line
-        }
-        END { exit (n > 0) ? 0 : 3 }
-    ' "$_rf" > "$_rf.gr-rewrite"
-    _st=$?
-    case $_st in
-        (0) mv "$_rf.gr-rewrite" "$_rf" || return 2 ;;
-        (3) rm -f "$_rf.gr-rewrite" ;;
-        (*) rm -f "$_rf.gr-rewrite"; return 2 ;;
-    esac
-    return $_st
-}
-
-# rewrite_refs OLD NEW — rewrite OLD to NEW in every file of the rewrite
-# scope that contains it, printing one line per file. In dry-run mode it
-# prints what it would do and touches nothing.
-rewrite_refs() {
-    _old="$1"
-    _new="$2"
-    # shellcheck disable=SC2086
-    _hits=$(git grep -l --untracked -F -- "$_old" $rewrite_scope 2>/dev/null)
-    for _h in $_hits; do
-        [ -n "$_h" ] || continue
-        if [ "$dry" -eq 1 ]; then
-            echo "would rewrite $_h: $_old -> $_new"
-            continue
-        fi
-        rewrite_file "$_h" "$_old" "$_new"
-        case $? in
-            (0) echo "rewrote $_h: $_old -> $_new" ;;
-            (3) ;;
-            (*) gr_die "rewrite failed: $_h ($_old -> $_new)" ;;
-        esac
-    done
-}
-```
+*(Code pruned at merge: 56 lines. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 (b) After the `[ -n "$renames" ] || exit 0` line, before the print loop,
 compute the scope and the ambiguity set:
 
-```sh
-# --- The rewrite pass -------------------------------------------------------
-# The script knows both names of every file it renames, so leaving the
-# references behind was a second pass it never made (PR-58zsvf). Downstream,
-# 13 dangling links over 9 filenames grew to 25 over 16 in eighteen days, by
-# construction rather than by mistake.
-#
-# Scope is the ledger directories and the SOUP file — the files whose
-# references have to RESOLVE — and deliberately not the whole tree. Plans and
-# verification records narrate the rename ("created as DRAFT-x.md, finalized
-# to 2026-09-04-x.md"), and rewriting those sentences turns a true statement
-# into a false one. check-trace.sh's DANGLING-FILE reads the same scope, so
-# what this pass cannot reach (a reference held in another worktree, or in
-# another unit's ledger) is convicted at that change's own merge.
-#
-# Every rewrite is printed. A rename is mechanical; a rewrite edits prose
-# somebody else wrote.
-rewrite_scope=""
-for _key in doc_srs doc_rmf doc_sad doc_problems doc_soup; do
-    _fs=$(gr_doc_files "$_key") || exit 2
-    [ -n "$_fs" ] && rewrite_scope="${rewrite_scope}${rewrite_scope:+
-}$_fs"
-done
-# A bare basename maps two ways when two drafts share it and a same-day
-# collision suffixes one of them. Only the path-shaped reference can be
-# rewritten then; the bare one is reported as left, and DANGLING-FILE
-# convicts it if it does not resolve.
-ambiguous=$(printf '%s' "$renames" | awk '
-    NF == 2 {
-        o = $1; sub(/.*\//, "", o)
-        t = $2; sub(/.*\//, "", t)
-        if (o in seen && seen[o] != t) amb[o] = 1
-        seen[o] = t
-    }
-    END { for (o in amb) print o }')
-```
+*(Code pruned at merge: 34 lines. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 Note the scope is computed BEFORE the renames when dry-running (the drafts
 are still there and are legitimately in scope) and must be computed AGAIN
@@ -503,50 +185,15 @@ that `git grep` must see. That is why step (c) recomputes it.
 
 (c) After the real rename loop (the one that `git mv`s), before `exit 0`:
 
-```sh
-# Recompute: the renamed files are the ones most likely to hold a sibling
-# reference, and they did not exist under these names a moment ago.
-rewrite_scope=""
-for _key in doc_srs doc_rmf doc_sad doc_problems doc_soup; do
-    _fs=$(gr_doc_files "$_key") || exit 2
-    [ -n "$_fs" ] && rewrite_scope="${rewrite_scope}${rewrite_scope:+
-}$_fs"
-done
-run_rewrites
-```
+*(Code pruned at merge: 9 lines. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 and, after the dry-run print loop, before `[ "$dry" -eq 1 ] && exit 0`:
 
-```sh
-[ "$dry" -eq 1 ] && run_rewrites
-```
+*(Code pruned at merge: 1 line. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 with `run_rewrites` defined beside the other helpers:
 
-```sh
-# Path-shaped references first, for every pair; bare basenames second, for
-# the unambiguous pairs only. The path pass consumes the path form, so the
-# bare pass cannot touch it twice.
-run_rewrites() {
-    for line in $renames; do
-        [ -n "$line" ] || continue
-        rewrite_refs "${line%% *}" "${line#* }"
-    done
-    for line in $renames; do
-        [ -n "$line" ] || continue
-        _ob=${line%% *}; _ob=${_ob##*/}
-        _nb=${line#* };  _nb=${_nb##*/}
-        if gr_contains "$ambiguous" "$_ob"; then
-            # shellcheck disable=SC2086
-            for _h in $(git grep -l --untracked -F -- "$_ob" $rewrite_scope 2>/dev/null); do
-                echo "left $_h: $_ob (two renames share this name; a bare reference cannot be resolved — write the path)"
-            done
-            continue
-        fi
-        rewrite_refs "$_ob" "$_nb"
-    done
-}
-```
+*(Code pruned at merge: 22 lines. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 Careful with two things the existing script already teaches: the loops are
 plain `for`, never `printf | while`, so `gr_die` exits the script; and the
@@ -564,9 +211,7 @@ must stay true.`
 
 Step 4 — run the file, all green:
 
-```
-$ tests/.bats-core/bin/bats tests/finalize-docs.bats
-```
+*(Code pruned at merge: 1 line. Files touched: scripts/finalize-docs.sh, tests/finalize-docs.bats.)*
 
 Also `tests/.bats-core/bin/bats tests/portability.bats`: the new awk takes
 no `-v` at all, so the strict-awk stub has nothing to refuse, and there is no
@@ -594,59 +239,7 @@ Commit: `git -c commit.gpgsign=false commit -am "finalize-docs: rewrite referenc
 
 Step 1 — failing tests, appended to `tests/check-trace.bats` after T1's:
 
-```bash
-@test "check-trace: a ledger reference to a draft file that does not exist is DANGLING-FILE" {
-    # verifies: PR-58zsvf — the case finalize's rewrite cannot reach: the
-    # draft was renamed by another change's merge, or lives in another unit.
-    printf '\nHazards: docs/risk/DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
-    commit_all dangling-file
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"DANGLING-FILE docs/risk/DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"* ]] \
-        || { echo "$output"; false; }
-}
-
-@test "check-trace: a reference to a draft file that exists is the in-flight state and passes" {
-    # verifies: PR-58zsvf — resolve, never ban: convicting an existing draft
-    # would fire on every worktree doing this correctly.
-    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-alarms.md
-    printf '\nHazards: docs/risk/DRAFT-feature-alarms.md, also DRAFT-feature-alarms.md.\n' \
-        >> docs/requirements/0001-01-01-base.md
-    commit_all in-flight
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
-}
-
-@test "check-trace: a bare draft basename resolves against every ledger directory" {
-    # verifies: PR-58zsvf
-    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-alarms.md
-    printf '\nSee DRAFT-feature-alarms.md.\n' >> docs/architecture/0001-01-01-base.md
-    commit_all bare-resolves
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
-}
-
-@test "check-trace: a dangling draft reference outside the ledgers is prose" {
-    # verifies: PR-58zsvf — D3: strict_paths and plans narrate history and
-    # are not resolved; the scope is exactly the files finalize rewrites.
-    printf 'Created as DRAFT-feature-x.md, finalized at merge.\n' > src/NOTES.md
-    commit_all prose-ref
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
-}
-
-@test "check-trace: the grammar placeholder DRAFT-<branch>-<slug>.md is not a reference" {
-    # verifies: PR-58zsvf — the ledger READMEs shipped by ratchet carry it.
-    printf '\nfrom your worktree DRAFT-<branch>-<slug>.md, renamed at merge\n' >> docs/risk/0001-01-01-base.md
-    commit_all placeholder
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
-}
-```
+*(Code pruned at merge: 51 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 Step 2 — watch the first fail (`status 0`, no DANGLING-FILE) and the other
 four pass, which pins the boundary before the gate exists.
@@ -654,67 +247,12 @@ four pass, which pins the boundary before the gate exists.
 Step 3 — implement, after the DANGLING-REF block and before the problem-report
 triage:
 
-```sh
-# --- DANGLING-FILE: a draft ledger file named in a ledger must exist --------
-# finalize-docs.sh rewrites references to the files it renames, over exactly
-# these files. What it cannot reach is convicted here: a reference held in
-# another worktree when the draft's own change merged and renamed it, or a
-# reference in another unit's ledger, which that unit's finalize never
-# scanned. Resolve, never ban — a reference to a draft that EXISTS is the
-# in-flight state of every unmerged change, and a gate on the prefix alone
-# would fire on every worktree doing this correctly.
-#
-# Scope is the rewrite's scope and not strict_paths (D3, 2026-09-08): plans
-# and verification records narrate the rename, and "created as DRAFT-x.md"
-# is a true sentence that must stay true. The token must look like a real
-# file name, so the grammar placeholder `DRAFT-<branch>-<slug>.md` in the
-# shipped ledger READMEs matches nothing. A path-shaped reference resolves
-# from the repository root; a bare basename resolves against every ledger
-# directory, because a bare name is how authors cite a sibling ledger.
-file_scope=""
-for f in $srs_files $rmf_files $sad_files $soup_files $problems_files; do
-    [ -n "$f" ] && file_scope="${file_scope}${file_scope:+
-}$f"
-done
-doc_dirs=""
-for _key in doc_srs doc_rmf doc_sad doc_problems; do
-    _d=$(cfg_get "$_key")
-    [ -n "$_d" ] && [ -d "$_d" ] && doc_dirs="${doc_dirs}${doc_dirs:+
-}$_d"
-done
-if [ -n "$file_scope" ]; then
-    # shellcheck disable=SC2086
-    _drefs=$(git grep -n --untracked -oE '[A-Za-z0-9_./-]*DRAFT-[A-Za-z0-9_.-]+\.md' -- $file_scope)
-    _st=$?
-    [ "$_st" -le 1 ] || gr_die "draft reference scan failed (git grep exit $_st)"
-    for _dr in $_drefs; do
-        [ -n "$_dr" ] || continue
-        _dfile=${_dr%%:*}
-        _drest=${_dr#*:}
-        _dline=${_drest%%:*}
-        _dref=${_drest#*:}
-        case "$_dref" in
-            (*/*) [ -e "$_dref" ] && continue ;;
-            (*)
-                _found=0
-                for _d in $doc_dirs; do
-                    [ -e "$_d/$_dref" ] && { _found=1; break; }
-                done
-                [ "$_found" -eq 1 ] && continue ;;
-        esac
-        echo "DANGLING-FILE $_dref ($_dfile:$_dline names a draft ledger file that does not exist — after a merge, write the dated name)"
-        fail=1
-    done
-fi
-```
+*(Code pruned at merge: 51 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 `set -f` is on, so `$file_scope` reaches `git grep` verbatim and `$doc_dirs`
 splits on newlines only. Header comment, line 16 region:
 
-```
-#   DANGLING-FILE FILE       — a `DRAFT-*.md` ledger file named in a doc_*
-#                              file (path or bare name) that does not exist
-```
+*(Code pruned at merge: 2 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 Step 4 — the whole file green, then commit:
 `git -c commit.gpgsign=false commit -am "check-trace: DANGLING-FILE resolves draft references over the rewrite's scope (PR-58zsvf)"`.
@@ -735,39 +273,7 @@ split matched step 2 exactly.
 
 Step 1 — failing skill tests, appended to `tests/skills.bats`:
 
-```bash
-@test "assesses-is-the-remedy: every place that tells an author how to assess names the annotation" {
-    # verifies: PR-n274s7 — D1: hard cut, so the remedy must be stated where
-    # the author reads, not only in the gate's message.
-    root="$BATS_TEST_DIRNAME/.."
-    grep -q 'assesses:' "$root/skills/check-traceability/SKILL.md"
-    grep -q 'assesses:' "$root/skills/analyze-risks/SKILL.md"
-    grep -q 'assesses:' "$root/skills/grill-requirements/SKILL.md"
-    grep -q 'assesses:' "$root/templates/rmf.md"
-    grep -q 'assesses:' "$root/templates/srs.md"
-    grep -q 'assesses:' "$root/templates/sad.md"
-    grep -q 'assesses:' "$root/templates/AGENTS-block.md"
-    grep -q 'assesses:' "$root/README.md"
-    ! grep -q 'never mentioned in the RMF' "$root/skills/check-traceability/SKILL.md"
-    ! grep -q 'RMF never mentions' "$root/skills/analyze-risks/SKILL.md"
-    ! grep -q 'the RMF must mention it' "$root/skills/grill-requirements/SKILL.md"
-}
-
-@test "upgrade-notes-announce-the-hard-cut: ratchet says derived assessments go red at upgrade" {
-    # verifies: PR-n274s7 — D1
-    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
-    grep -q 'Derived assessments are now declared' "$skill"
-    grep -q 'DANGLING-FILE' "$skill"
-}
-
-@test "merge-step-3-reports-rewrites: merge-change expects finalize to print what it rewrote" {
-    # verifies: PR-58zsvf — D2
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'rewrote' "$skill"
-    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
-    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../README.md"
-}
-```
+*(Code pruned at merge: 31 lines. Files touched: README.md, templates/rmf.md, templates/srs.md, templates/sad.md, templates/AGENTS-block.md, skills/analyze-risks/SKILL.md, skills/check-traceability/SKILL.md, skills/grill-requirements/SKILL.md, skills/merge-change/SKILL.md, skills/ratchet/SKILL.md, tests/skills.bats.)*
 
 Step 2 — the edits, each an exact replacement:
 
@@ -788,25 +294,7 @@ Step 2 — the edits, each an exact replacement:
 - **skills/merge-change/SKILL.md** step 3: after `This renames any … to `<merge-date>-<slug>.md`.` add: `It then rewrites every reference to a renamed file across the ledger directories and the SOUP file and prints one `rewrote FILE: old -> new` line each; read those lines — a rewrite edits prose somebody else wrote. A `left FILE: …` line means two drafts shared a bare name and the reference must be written as a path by hand. Plans and verification records are never rewritten.`
 - **skills/ratchet/SKILL.md**: after the numbered list under `> **Problem reports are now triaged…**`, add two quoted paragraphs:
 
-```
-> **Derived assessments are now declared, and this DOES touch the existing
-> ledger.** `UNANALYZED-DERIVED` no longer passes a derived REQ/LLR whose ID
-> merely appears in the RMF; it requires a line carrying `assesses: <IDs>`
-> in the RMF files. Every derived item goes red at the first run after the
-> upgrade until the passage that assesses it carries the annotation. The cost
-> is bounded by the count of derived items — one project measured 26 items
-> across 11 risk files in about an hour, several assessments covering a group
-> — and the gate's line names the remedy. Put `assesses:` on the assessment,
-> never on a table row or a passing mention: that is the failure the change
-> exists to detect, and one of those 26 was exactly that.
->
-> **`finalize-docs.sh` now rewrites references to the files it renames**,
-> across the ledger directories and the SOUP file, printing each rewrite, and
-> `check-trace.sh` reports `DANGLING-FILE` for a `DRAFT-*.md` reference in
-> those files that names no existing file. Links left dangling by earlier
-> merges go red at the first run; fix each by writing the merged file's dated
-> name. Plans and verification records are neither rewritten nor scanned.
-```
+*(Code pruned at merge: 17 lines. Files touched: README.md, templates/rmf.md, templates/srs.md, templates/sad.md, templates/AGENTS-block.md, skills/analyze-risks/SKILL.md, skills/check-traceability/SKILL.md, skills/grill-requirements/SKILL.md, skills/merge-change/SKILL.md, skills/ratchet/SKILL.md, tests/skills.bats.)*
 
 Step 3 — `tests/.bats-core/bin/bats tests/skills.bats` green. Commit:
 `git -c commit.gpgsign=false commit -am "docs: assesses: and DANGLING-FILE reach every place an author reads"`.
@@ -854,68 +342,11 @@ The rest are fixed here.
 
 Step 1 — failing tests. Append to `tests/finalize-docs.bats`:
 
-```bash
-@test "finalize: a path to another file that shares the draft's basename is not rewritten" {
-    # verifies: PR-58zsvf — review finding 1. The bare pass must not rewrite the
-    # tail of a path to a DIFFERENT file; it would manufacture a dangling
-    # dated name that DANGLING-FILE cannot see.
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
-    mkdir -p docs/other
-    printf '# not a ledger, not renamed\n' > docs/other/DRAFT-feature-x.md
-    printf '\nForeign: docs/other/DRAFT-feature-x.md. Ours: DRAFT-feature-x.md.\n' >> docs/risk/README.md
-    commit_all foreign-basename
-    today=$(date +%Y-%m-%d)
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q 'Foreign: docs/other/DRAFT-feature-x.md\.' docs/risk/README.md
-    grep -q "Ours: ${today}-x.md\." docs/risk/README.md
-    [ -f docs/other/DRAFT-feature-x.md ]
-}
-
-@test "finalize: --dry-run previews exactly the rewrites the real run makes" {
-    # verifies: PR-58zsvf — review finding 2. A file holding only the path form
-    # is one rewrite, not two, in both modes.
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
-    printf '\nSee docs/requirements/DRAFT-feature-x.md.\n' >> docs/risk/README.md
-    commit_all dry-exact
-    run sh .guardrails/scripts/finalize-docs.sh --dry-run
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$(printf '%s\n' "$output" | grep -c 'would rewrite docs/risk/README.md')" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" != *"left "* ]] || { echo "$output"; false; }
-    git diff --quiet
-}
-
-@test "finalize: an ambiguous basename is reported left once per file, and only where a bare form stands" {
-    # verifies: PR-58zsvf — review finding 3.
-    today=$(date +%Y-%m-%d)
-    printf '# merged earlier today\n' > "docs/risk/${today}-notes.md"
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-notes.md
-    printf '**HAZ-h7z4mn**: overdose.\n' > docs/risk/DRAFT-feature-notes.md
-    printf '\nBoth: docs/risk/DRAFT-feature-notes.md and DRAFT-feature-notes.md.\n' >> docs/architecture/README.md
-    printf '\nPath only: docs/requirements/DRAFT-feature-notes.md.\n' >> docs/architecture/soup.md
-    commit_all left-once
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$(printf '%s\n' "$output" | grep -c '^left docs/architecture/README.md:')" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" != *"left docs/architecture/soup.md"* ]] || { echo "$output"; false; }
-    grep -q "Path only: docs/requirements/${today}-notes.md\." docs/architecture/soup.md
-}
-```
+*(Code pruned at merge: 45 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 Append to `tests/check-trace.bats`:
 
-```bash
-@test "check-trace: a relative link to a draft that exists resolves from the referencing file" {
-    # verifies: PR-58zsvf — review finding 4: the one link form a markdown
-    # renderer follows must not be convicted while the file is there.
-    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-a.md
-    printf '\nSee [hazards](../risk/DRAFT-feature-a.md).\n' >> docs/requirements/0001-01-01-base.md
-    commit_all relative-link
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
-}
-```
+*(Code pruned at merge: 10 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 In `tests/skills.bats`, extend `merge-step-3-reports-rewrites` with one
 assertion for finding 8: `grep -q 'reported as left' "$BATS_TEST_DIRNAME/../README.md"`.
@@ -929,132 +360,7 @@ string absent).
 Step 3 — `scripts/finalize-docs.sh`. Replace `rewrite_file`, `rewrite_refs`
 and `run_rewrites` with:
 
-```sh
-# rewrite_file FILE OLD NEW BARE PROBE — replace every literal occurrence of
-# OLD in FILE by NEW. Exit 0 when something was (or, under --dry-run or
-# PROBE=1, would be) rewritten, 3 when nothing qualifies, 2 on any failure.
-# Three answers, because two of them look alike from the outside and mean
-# opposite things: "nothing to do" and "could not do it".
-#
-# BARE=1 is the bare-basename pass: an occurrence preceded by "/" is the tail
-# of a path to some OTHER file that happens to share the basename — a sibling
-# unit's draft under the same branch name is the realistic shape — and is not
-# this rename's to change (review finding 1). Under --dry-run the path pass
-# has consumed nothing, so this same rule is what keeps the preview equal to
-# the real run (finding 2).
-#
-# Literal, via index/substr, never sed: OLD is a file name, and the `.` in
-# `DRAFT-x.md` is a metacharacter that would match any character. The values
-# travel through ENVIRON rather than -v: awk -v processes escape sequences in
-# its value, and a file name is not an awk string literal.
-rewrite_file() {
-    _rf="$1"
-    _write=1
-    [ "$dry" -eq 1 ] && _write=0
-    [ "${5:-0}" -eq 1 ] && _write=0
-    if [ "$_write" -eq 1 ]; then _tmp="$_rf.gr-rewrite"; else _tmp=/dev/null; fi
-    GR_OLD="$2" GR_NEW="$3" GR_BARE="${4:-0}" GR_WRITE="$_write" awk '
-        BEGIN {
-            old = ENVIRON["GR_OLD"]; new = ENVIRON["GR_NEW"]
-            bare = (ENVIRON["GR_BARE"] == "1"); write = (ENVIRON["GR_WRITE"] == "1")
-            n = 0
-        }
-        {
-            line = $0
-            out = ""
-            while ((p = index(line, old)) > 0) {
-                if (bare && p > 1 && substr(line, p - 1, 1) == "/") {
-                    out = out substr(line, 1, p + length(old) - 1)
-                    line = substr(line, p + length(old))
-                    continue
-                }
-                out = out substr(line, 1, p - 1) new
-                line = substr(line, p + length(old))
-                n++
-            }
-            if (write) print out line
-        }
-        END { exit (n > 0) ? 0 : 3 }
-    ' "$_rf" > "$_tmp"
-    _st=$?
-    if [ "$_write" -eq 1 ]; then
-        case $_st in
-            (0) mv "$_tmp" "$_rf" || return 2 ;;
-            (3) rm -f "$_tmp" ;;
-            (*) rm -f "$_tmp"; return 2 ;;
-        esac
-    fi
-    case $_st in
-        (0 | 3) return $_st ;;
-        (*) return 2 ;;
-    esac
-}
-
-# scan_refs NEEDLE — the files of the rewrite scope containing NEEDLE, one per
-# line. A failed scan is fatal, not "no occurrences" (review finding 6):
-# check-trace.sh treats its own reference scan the same way.
-scan_refs() {
-    # shellcheck disable=SC2086
-    _found=$(git grep -l --untracked -F -- "$1" $rewrite_scope)
-    _gst=$?
-    [ "$_gst" -le 1 ] || gr_die "reference scan failed (git grep exit $_gst)"
-    printf '%s\n' "$_found"
-}
-
-# rewrite_refs OLD NEW BARE — rewrite OLD to NEW in every file of the rewrite
-# scope that contains it, printing one line per file. Under --dry-run it
-# prints what it would do and touches nothing.
-rewrite_refs() {
-    _old="$1"
-    _new="$2"
-    _bare="${3:-0}"
-    _hits=$(scan_refs "$_old") || exit 2
-    for _h in $_hits; do
-        [ -n "$_h" ] || continue
-        rewrite_file "$_h" "$_old" "$_new" "$_bare" 0
-        case $? in
-            (0) if [ "$dry" -eq 1 ]; then
-                    echo "would rewrite $_h: $_old -> $_new"
-                else
-                    echo "rewrote $_h: $_old -> $_new"
-                fi ;;
-            (3) ;;
-            (*) gr_die "rewrite failed: $_h ($_old -> $_new)" ;;
-        esac
-    done
-}
-
-# Path-shaped references first, for every pair; bare basenames second, for
-# the unambiguous pairs only; then one `left` line per FILE that still holds a
-# bare form of an ambiguous name (finding 3) — a file holding only the path
-# form was rewritten by the first pass and has nothing left in it.
-run_rewrites() {
-    for line in $renames; do
-        [ -n "$line" ] || continue
-        rewrite_refs "${line%% *}" "${line#* }" 0
-    done
-    for line in $renames; do
-        [ -n "$line" ] || continue
-        _ob=${line%% *}; _ob=${_ob##*/}
-        _nb=${line#* };  _nb=${_nb##*/}
-        gr_contains "$ambiguous" "$_ob" && continue
-        rewrite_refs "$_ob" "$_nb" 1
-    done
-    for _ob in $ambiguous; do
-        [ -n "$_ob" ] || continue
-        _hits=$(scan_refs "$_ob") || exit 2
-        for _h in $_hits; do
-            [ -n "$_h" ] || continue
-            rewrite_file "$_h" "$_ob" "$_ob" 1 1
-            case $? in
-                (0) echo "left $_h: $_ob (two renames share this name; a bare reference cannot be resolved — write the path)" ;;
-                (3) ;;
-                (*) gr_die "reference scan failed: $_h ($_ob)" ;;
-            esac
-        done
-    done
-}
-```
+*(Code pruned at merge: 124 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 Note `scan_refs` runs in a command substitution, so its `gr_die` exits the
 substitution only — hence the `|| exit 2` on every call, the same pattern the
@@ -1062,19 +368,7 @@ file's own header explains for `gr_root`.
 
 Replace the paragraph beginning `# No `set -f` around the splits below` with:
 
-```sh
-# No `set -f` around the splits below, and the reason has changed since it was
-# first written. The `renames` fields are still `"$f $target"` under one
-# directory with whitespace rejected at planning — no input reaches those
-# splits. The rewrite pass (review finding 5) adds two unquoted splits that DO
-# carry input: `$rewrite_scope` and the `scan_refs` hits, ledger file names
-# listed by gr_doc_files and never checked for glob characters. They are the
-# names of files that exist, so a pattern among them either matches nothing —
-# and a word that matches nothing is left literal — or matches a sibling
-# ledger file, which is then scanned too and rewritten only if it holds the
-# name. Neither outcome loses a rewrite or invents one, and a `set -f` here
-# is still unkillable for that reason. Stated rather than folded in.
-```
+*(Code pruned at merge: 11 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 Step 4 — `scripts/check-trace.sh`, the DANGLING-FILE gate. Change the scan
 pattern to `'([A-Za-z0-9_.-]+/)*DRAFT-[A-Za-z0-9_.-]+\.md'` — every path
@@ -1082,12 +376,7 @@ component ends in `/`, so a glued prefix (`xDRAFT-…`) can no longer be read
 as part of a path and yields the bare name instead — and change the
 path-shaped arm to resolve from the referencing file's directory as well:
 
-```sh
-            (*/*)
-                [ -e "$_dref" ] && continue
-                case "$_dfile" in (*/*) _ddir=${_dfile%/*} ;; (*) _ddir=. ;; esac
-                [ -e "$_ddir/$_dref" ] && continue ;;
-```
+*(Code pruned at merge: 4 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 and add to the gate's comment block: `A path-shaped reference resolves from
 the repository root and then from the referencing file's own directory, so
@@ -1150,93 +439,17 @@ more: two IMPORTANT (9, 11), five MINOR. Dispositions:
 
 Step 1 — failing tests. Append to `tests/finalize-docs.bats`:
 
-```bash
-@test "finalize: two sibling drafts sharing a basename preview and rewrite the same lines once" {
-    # verifies: PR-58zsvf — review finding 10.
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
-    printf '**HAZ-h7z4mn**: overdose.\n' > docs/risk/DRAFT-feature-x.md
-    printf '\nSee DRAFT-feature-x.md.\n' >> docs/architecture/soup.md
-    commit_all siblings-preview
-    run sh .guardrails/scripts/finalize-docs.sh --dry-run
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$(printf '%s\n' "$output" | grep -c 'would rewrite docs/architecture/soup.md')" -eq 1 ] || { echo "$output"; false; }
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$(printf '%s\n' "$output" | grep -c 'rewrote docs/architecture/soup.md')" -eq 1 ] || { echo "$output"; false; }
-}
-
-@test "finalize: a reference scan that fails aborts instead of reporting a clean finalize" {
-    # verifies: PR-58zsvf — review finding 11. A git wrapper deletes a scope
-    # file the moment the rewrite pass scans, so git grep exits 128; the
-    # script must die, not read that as "no occurrences".
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
-    printf '\nSee DRAFT-feature-x.md.\n' >> docs/risk/README.md
-    commit_all scan-fails
-    real_git=$(command -v git)
-    mkdir -p "$BATS_TEST_TMPDIR/bin"
-    cat > "$BATS_TEST_TMPDIR/bin/git" <<EOF
-#!/bin/sh
-if [ "\$1" = grep ] && [ "\$2" = -l ]; then rm -f docs/problems/README.md; fi
-exec "$real_git" "\$@"
-EOF
-    chmod +x "$BATS_TEST_TMPDIR/bin/git"
-    PATH="$BATS_TEST_TMPDIR/bin:$PATH" run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"reference scan failed"* ]] || { echo "$output"; false; }
-}
-
-@test "finalize: a glob-shaped ledger name is scanned as itself, not as what it matches" {
-    # verifies: PR-58zsvf — review finding 13. Without set -f the unquoted
-    # scope split expands docs/risk/[x].md to docs/risk/x.md and the rewrite
-    # in [x].md is lost.
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
-    printf '# a sibling the glob would match\n' > docs/risk/x.md
-    printf '\nSee DRAFT-feature-x.md.\n' > 'docs/risk/[x].md'
-    commit_all glob-name
-    today=$(date +%Y-%m-%d)
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q "See ${today}-x.md\." 'docs/risk/[x].md'
-}
-
-@test "finalize: a token glued to a longer word is not the file's name" {
-    # verifies: PR-58zsvf — review finding 14.
-    printf '**REQ-a3k9z2**: draft requirement.\n' > docs/requirements/DRAFT-feature-x.md
-    printf '\nGlued: xDRAFT-feature-x.md and _DRAFT-feature-x.md; real: DRAFT-feature-x.md.\n' >> docs/risk/README.md
-    commit_all glued
-    today=$(date +%Y-%m-%d)
-    run sh .guardrails/scripts/finalize-docs.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    grep -q 'Glued: xDRAFT-feature-x.md and _DRAFT-feature-x.md;' docs/risk/README.md
-    grep -q "real: ${today}-x.md\." docs/risk/README.md
-}
-```
+*(Code pruned at merge: 59 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 Extend the finding-3 test `finalize: an ambiguous basename is reported left
 once per file, and only where a bare form stands` (finding 12): before its
 existing `run sh .guardrails/scripts/finalize-docs.sh`, insert
 
-```bash
-    run sh .guardrails/scripts/finalize-docs.sh --dry-run
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"left docs/architecture/soup.md"* ]] || { echo "dry-run: $output"; false; }
-    [ "$(printf '%s\n' "$output" | grep -c '^left docs/architecture/README.md:')" -eq 1 ] || { echo "dry-run: $output"; false; }
-```
+*(Code pruned at merge: 4 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 Append to `tests/check-trace.bats`:
 
-```bash
-@test "check-trace: a glued prefix is not a path, so the bare name resolves" {
-    # verifies: PR-58zsvf — review finding 14: the scan pattern requires every
-    # path component to end in "/", so xDRAFT-… yields the bare name.
-    printf '# Draft hazards\n' > docs/risk/DRAFT-feature-a.md
-    printf '\nGlued: xDRAFT-feature-a.md.\n' >> docs/requirements/0001-01-01-base.md
-    commit_all glued-prefix
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
-}
-```
+*(Code pruned at merge: 10 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 Extend `merge-step-3-reports-rewrites` in `tests/skills.bats` (finding 9)
 with: `grep -q 'root-relative' "$BATS_TEST_DIRNAME/../README.md"` and
@@ -1258,9 +471,7 @@ Step 3 — `scripts/finalize-docs.sh`.
 occurrence must begin the line or follow a character that cannot be part of a
 file name:
 
-```awk
-                if (bare && p > 1 && substr(line, p - 1, 1) ~ /[A-Za-z0-9_.\/-]/) {
-```
+*(Code pruned at merge: 1 line. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 and update the comment above it: `an occurrence preceded by "/" is the tail
 of a path to some OTHER file that shares the basename, and one preceded by a
@@ -1270,27 +481,12 @@ this rename's to change (review findings 1 and 14).`
 (b) Iterate unique basenames in the bare pass (finding 10). Replace the
 second loop of `run_rewrites` with:
 
-```sh
-    for _pair in $bare_pairs; do
-        [ -n "$_pair" ] || continue
-        _ob=${_pair%% *}
-        _nb=${_pair#* }
-        gr_contains "$ambiguous" "$_ob" && continue
-        rewrite_refs "$_ob" "$_nb" 1
-    done
-```
+*(Code pruned at merge: 7 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 and compute `bare_pairs` right after `ambiguous`, one `old new` basename pair
 per distinct old basename:
 
-```sh
-bare_pairs=$(printf '%s' "$renames" | awk '
-    NF == 2 {
-        o = $1; sub(/.*\//, "", o)
-        t = $2; sub(/.*\//, "", t)
-        if (!(o in seen)) { seen[o] = t; print o " " t }
-    }')
-```
+*(Code pruned at merge: 6 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 (c) Finding 15: in the ambiguous loop's `case`, change
 `gr_die "reference scan failed: $_h ($_ob)"` to
@@ -1299,18 +495,7 @@ bare_pairs=$(printf '%s' "$renames" | awk '
 (d) Finding 13: replace the comment paragraph beginning `# No `set -f` around
 the splits below, and the reason has changed` with:
 
-```sh
-# Pathname expansion OFF from here on. The planning glob above is done, and
-# the rewrite pass splits `$rewrite_scope` and the scan hits unquoted —
-# ledger file names listed by gr_doc_files, never checked for glob
-# characters. An earlier comment here argued no input reached these splits;
-# the rewrite pass changed that, and a glob-shaped name that matches a sibling
-# is replaced by the match, so the file it named is never scanned and its
-# rewrite is lost (review finding 13; the test names a `[x].md`). The renames
-# record itself is still safe for the reason it always was — whitespace is
-# rejected at planning — but one line covers both.
-set -f
-```
+*(Code pruned at merge: 10 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats, tests/skills.bats.)*
 
 placing `set -f` immediately after that comment, before the `for line in
 $renames` print loop.
@@ -1395,27 +580,12 @@ Step 1 — tests. In `tests/finalize-docs.bats`, extend
 `finalize: a glob-shaped ledger name is scanned as itself, not as what it matches`
 (finding 16): before its existing real `run`, insert
 
-```bash
-    run sh .guardrails/scripts/finalize-docs.sh --dry-run
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"would rewrite docs/risk/[x].md: DRAFT-feature-x.md -> ${today}-x.md"* ]] || { echo "dry-run: $output"; false; }
-```
+*(Code pruned at merge: 3 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats.)*
 
 (`today` is already defined in that test before the real run; move its
 assignment above the dry-run.) Append to `tests/check-trace.bats`:
 
-```bash
-@test "check-trace: a bare draft name found in no ledger directory says where it looked" {
-    # verifies: PR-58zsvf — review finding 19: a bare name resolves against
-    # THIS config's ledger directories, and the message must not claim the
-    # file does not exist anywhere.
-    printf '\nSee DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
-    commit_all bare-dangling
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"DANGLING-FILE DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"*"found in none of this config's ledger directories"* ]] || { echo "$output"; false; }
-}
-```
+*(Code pruned at merge: 10 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats.)*
 
 Step 2 — watch the finding-16 assertion pass on the current tree (it is the
 kill for the mutant round 3 named, so green on arrival is expected; say so)
@@ -1425,24 +595,7 @@ Step 3 — `scripts/check-trace.sh`, DANGLING-FILE gate. Replace the single
 `echo "DANGLING-FILE …"` with a message chosen per arm. Restructure the
 `case` so each arm sets `_why` and falls through to one echo:
 
-```sh
-        case "$_dref" in
-            (*/*)
-                [ -e "$_dref" ] && continue
-                case "$_dfile" in (*/*) _ddir=${_dfile%/*} ;; (*) _ddir=. ;; esac
-                [ -e "$_ddir/$_dref" ] && continue
-                _why="names a draft ledger file that does not exist — after a merge, write the dated name" ;;
-            (*)
-                _found=0
-                for _d in $doc_dirs; do
-                    [ -e "$_d/$_dref" ] && { _found=1; break; }
-                done
-                [ "$_found" -eq 1 ] && continue
-                _why="names a draft ledger file found in none of this config's ledger directories — after a merge, write the dated name; across units, write the path" ;;
-        esac
-        echo "DANGLING-FILE $_dref ($_dfile:$_dline $_why)"
-        fail=1
-```
+*(Code pruned at merge: 16 lines. Files touched: scripts/finalize-docs.sh, scripts/check-trace.sh, README.md, skills/merge-change/SKILL.md, skills/check-traceability/SKILL.md, tests/finalize-docs.bats, tests/check-trace.bats.)*
 
 Header line for DANGLING-FILE (finding 18): `a DRAFT-<name>.md ledger file
 (name characters [A-Za-z0-9_.-]) named in a doc_* file, by path or bare
@@ -1532,30 +685,18 @@ Step 1 — the test first. In `tests/check-trace.bats`, extend the existing
 DANGLING-FILE` assertion (finding 23) so it pins the path arm's own wording,
 replacing
 
-```bash
-    [[ "$output" == *"DANGLING-FILE docs/risk/DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"* ]] \
-        || { echo "$output"; false; }
-```
+*(Code pruned at merge: 2 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 with
 
-```bash
-    # The message is pinned, not just the site: the two arms were split so
-    # each says where it looked (review findings 19, 22, 23), and without an
-    # assertion on the text an edit that swapped the arms' wording — or
-    # dropped this arm's `_why` — would keep every test green.
-    [[ "$output" == *"DANGLING-FILE docs/risk/DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"*"found neither at the repository root nor beside the file naming it"* ]] \
-        || { echo "$output"; false; }
-```
+*(Code pruned at merge: 6 lines. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 Step 2 — watch it fail: the current path arm says `names a draft ledger file
 that does not exist`, so the new substring is absent.
 
 Step 3 — `scripts/check-trace.sh`, the path arm's `_why` (finding 22):
 
-```sh
-                _why="names a draft ledger file found neither at the repository root nor beside the file naming it — after a merge, write the dated name" ;;
-```
+*(Code pruned at merge: 1 line. Files touched: scripts/check-trace.sh, tests/check-trace.bats.)*
 
 In the gate's comment block, replace the sentence explaining the two-root
 resolution with: `A path-shaped reference resolves from the repository root

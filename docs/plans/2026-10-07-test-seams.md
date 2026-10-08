@@ -196,63 +196,7 @@ because both add tests to `tests/skills.bats`.
 
 1. **RED.** Append these tests to the end of `tests/skills.bats`:
 
-   ~~~bash
-
-   # --- test seams (docs/plans/2026-10-07-test-seams.md) ------------------------
-
-   @test "develop-change: a test attaches only to an interface a REQ or LLR describes" {
-       # verifies: D1, D2, D3 (docs/plans/2026-10-07-test-seams.md)
-       skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-       seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-       grep -qF '**A test calls only an interface that a REQ or LLR describes.**' "$skill"
-       grep -qF '**A deeper interface gets a direct test only once it has an LLR**' "$skill"
-       grep -qF 'A case reachable from above is tested there.' "$skill"
-       grep -qF '1. **Unreachable.**' "$seams"
-       grep -qF '2. **Combinatorial.**' "$seams"
-       grep -qF '3. **Intrinsic.**' "$seams"
-       grep -qF 'Convenience is not on the list.' "$seams"
-   }
-
-   @test "develop-change: doubles fake only at the codebase boundary, each with a contract test" {
-       # verifies: D4, D8, D9 (docs/plans/2026-10-07-test-seams.md)
-       skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-       seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-       grep -qF '**Test doubles.** Never mock code the project owns or assert how it was' "$skill"
-       grep -qF 'give every fake a contract test' "$skill"
-       grep -qF 'A service the project owns runs for real' "$skill"
-       grep -qF 'its failures may be injected or faked.' "$skill"
-       grep -qF '3. **Every fake has a contract test.**' "$seams"
-       grep -qF 'The faked successes are then setup, not evidence.' "$seams"
-   }
-
-   @test "develop-change: property tests repeat and pin, and a survivor never goes below the seam" {
-       # verifies: D5, D6 (docs/plans/2026-10-07-test-seams.md)
-       skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-       seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-       grep -qF 'fix or print its seed, and pin each counterexample' "$skill"
-       grep -qF 'seam, or dead code: never a test below the seam.' "$skill"
-       grep -qF -- '- **Repeatable.**' "$seams"
-       grep -qF -- '- **Pinned.**' "$seams"
-       grep -qF 'A survivor never justifies a test below the seam' "$seams"
-   }
-
-   @test "develop-change: a UI's interface is what the user perceives, and a markup snapshot verifies nothing" {
-       # verifies: D7 (docs/plans/2026-10-07-test-seams.md)
-       skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-       ui="$BATS_TEST_DIRNAME/../skills/develop-change/references/ui-seams.md"
-       grep -qF 'A markup snapshot carries no `verifies:` annotation.' "$skill"
-       grep -qF 'The REQ interface of a UI is what the user perceives and does' "$ui"
-       grep -qF -- '- **A markup snapshot carries no `verifies:` annotation.**' "$ui"
-   }
-
-   @test "develop-change: the seam rules bind new and edited tests, not the existing suite" {
-       # verifies: D10 (docs/plans/2026-10-07-test-seams.md)
-       skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-       seams="$BATS_TEST_DIRNAME/../skills/develop-change/references/test-seams.md"
-       grep -qF 'These rules bind the tests a change writes or edits.' "$skill"
-       grep -qF 'No change rewrites a suite wholesale' "$seams"
-   }
-   ~~~
+   *(Code pruned at merge: 55 lines. Files touched: `skills/develop-change/SKILL.md`, `skills/develop-change/references/test-seams.md`, `skills/develop-change/references/ui-seams.md`, `tests/skills.bats`.)*
 
 2. **Verify RED.** `sh tests/run-tests.sh tests/skills.bats`. Expected: 115
    tests, the five new ones `not ok`, each failing on its first `grep` (the
@@ -263,56 +207,15 @@ because both add tests to `tests/skills.bats`.
    before closing.") and before `### Delegation: dispatch every plan task`,
    with one blank line on each side:
 
-   ~~~markdown
-   ### Where a test attaches
-   
-   **A test calls only an interface that a REQ or LLR describes.** A private
-   helper is covered through the interface above it. Without LLRs, the seam is
-   the REQ level: the public interface. A user journey verifies the REQs of the
-   steps it walks, unless it states an outcome none of them states.
-   
-   **A deeper interface gets a direct test only once it has an LLR**
-   (`design-architecture`). It earns one only when a case cannot be triggered
-   from above without faking code the project owns, when its cases multiply past
-   enumeration from above, or when it is maths, parsing, encoding or a numerical
-   transform. A case reachable from above is tested there.
-   
-   **Test doubles.** Never mock code the project owns or assert how it was
-   called. Fake only at the codebase boundary, behind an adapter the project
-   owns, and give every fake a contract test that runs against the real
-   dependency wherever it is reachable. A service the project owns runs for real
-   on the normal path; its failures may be injected or faked. Assert an
-   interaction only where the interaction is the requirement.
-   
-   **Permutations and evidence.** Prefer a property test where cases are
-   combinatorial; fix or print its seed, and pin each counterexample as an
-   example test before the fix. A surviving mutant means a missing test at the
-   seam, or dead code: never a test below the seam.
-   
-   **UI.** The REQ interface is what the user perceives and does, plus what the
-   app sends out. A markup snapshot carries no `verifies:` annotation.
-   
-   These rules bind the tests a change writes or edits. An existing test that
-   breaks them and must be edited moves to the seam; one that still passes is
-   left alone.
-   ~~~
+   *(Code pruned at merge: 31 lines. Files touched: `skills/develop-change/SKILL.md`, `skills/develop-change/references/test-seams.md`, `skills/develop-change/references/ui-seams.md`, `tests/skills.bats`.)*
 
    Add this row as the last row of the `## Red flags` table:
 
-   ~~~markdown
-   | "This helper is complex, I'll test it directly" | Give it an LLR first, or test it through the interface above (`references/test-seams.md`). |
-   ~~~
+   *(Code pruned at merge: 1 line. Files touched: `skills/develop-change/SKILL.md`, `skills/develop-change/references/test-seams.md`, `skills/develop-change/references/ui-seams.md`, `tests/skills.bats`.)*
 
    Replace the `## References` list with:
 
-   ~~~markdown
-   - `references/mutation-anchors.md` — read when the step 6 grep finds a hit.
-   - `references/test-seams.md` — read when you are about to add an LLR to get a
-     test seam or write a test double, or when a mutant survives.
-   - `references/ui-seams.md` — read when the change has a user interface.
-   - `references/rationale.md` — read when a rule here seems wrong for your case,
-     or before proposing to change one.
-   ~~~
+   *(Code pruned at merge: 6 lines. Files touched: `skills/develop-change/SKILL.md`, `skills/develop-change/references/test-seams.md`, `skills/develop-change/references/ui-seams.md`, `tests/skills.bats`.)*
 
    Check the ceiling: `wc -w < skills/develop-change/SKILL.md` prints at most
    2000 (measured at plan time: 1637 before, 348 words added, 1985; 1989 as
@@ -323,219 +226,12 @@ because both add tests to `tests/skills.bats`.
 4. **GREEN, references.** Create `skills/develop-change/references/test-seams.md`
    with exactly this content:
 
-   ~~~markdown
-   # Where a test attaches, and the doubles it may use
-   
-   Read this before adding an LLR to get a test seam, before writing a test
-   double, or when a mutant survives. `SKILL.md` "Where a test attaches" states
-   the rules; this file gives the reasons and the boundaries.
-   
-   ## Why the seam is a requirement's interface
-   
-   A suite that tests every function holds the implementation in place: a
-   refactor that keeps every behavior still breaks each test pinned to a
-   function it moved. A test at an interface that a REQ or LLR describes breaks
-   only when a behavior a requirement states changes. The `verifies:` annotation
-   already ties every test to a requirement; the seam rule makes the
-   requirement's interface the only place the test may call.
-   
-   Writing an LLR to get a seam is design work, done in `design-architecture`.
-   That friction is deliberate. An LLR freezes an interface, and freezing one
-   should be a recorded decision, not a side effect of a test.
-   
-   ## When a deeper interface earns an LLR
-   
-   At least one of these holds:
-   
-   1. **Unreachable.** A case cannot be triggered through the REQ interface
-      without faking code the project owns. A retry policy whose third attempt
-      only happens after two specific internal failures is an example.
-   2. **Combinatorial.** Driving the internal's cases from the REQ interface
-      multiplies past what is practical to enumerate. As guidance, not a rule:
-      when roughly a dozen tests at the parent interface would be spent driving
-      one internal's cases, that internal is a candidate.
-   3. **Intrinsic.** Maths, parsing, encoding or a numerical transform whose
-      algorithm has a contract worth stating independently of its caller.
-   
-   Convenience is not on the list. A case reachable from the REQ interface with a
-   boundary fake is tested there, even where a deeper seam would be easier to
-   write.
-   
-   Deep IO with complex error handling follows the same order. An error the code
-   handles (retried, turned into a fallback, translated for the user) is
-   observable at the REQ interface: trigger it through a boundary fake there.
-   Where the error handling has a contract of its own (backoff, partial writes,
-   rollback) and criterion 1 or 2 holds, the adapter becomes a software item with
-   an LLR stating that contract, tested at its own interface against the real
-   resource where possible: a temporary directory, a real database file.
-   
-   ## User journeys
-   
-   A journey test walks several REQs and verifies each of them:
-   `verifies: REQ-a, REQ-b`. A journey is a REQ of its own only when it states an
-   outcome none of its steps states: state carried across steps, recovery partway
-   through, an ordering constraint. A journey REQ that restates its steps
-   verifies each step twice and doubles the edit when the journey changes.
-   
-   ## Test doubles
-   
-   1. **No mock of code the project owns, and no assertion on how owned code was
-      called.** These are the doubles that hold an implementation in place.
-   2. **Fakes at the codebase boundary only.** A service, library or resource
-      outside the codebase sits behind one adapter the project owns. Code calls
-      the adapter, never the third-party interface directly, and the fake
-      implements the adapter's interface. The clock and randomness are fakeable
-      in the same way.
-   3. **Every fake has a contract test.** The same assertions run against the
-      fake and against the real dependency, wherever the real dependency is
-      reachable in the test environment, and are skipped where it is not. A fake
-      with no contract test drifts: it accepts what the real dependency rejects,
-      and the tests built on it pass against behavior that never happens.
-   4. **An interaction is asserted only where it is the requirement.** "The
-      software shall send an alarm to the pager service": the outgoing message
-      is observable output, so asserting it is a behavior test, not a mock.
-   
-   A fault injector, a double that makes a dependency fail on demand, is allowed
-   at any boundary. It stands in for a failure, not for a behavior.
-   
-   A rule of no doubles at all was rejected: it makes the dependency-failure and
-   resource-exhaustion tests of the robustness rule impossible.
-   
-   ## Services the project owns
-   
-   A backend, database or sync service that the codebase contains, or that the
-   application configuration declares part of the system, runs for real in a
-   REQ-level test of the normal case. Faking it there verifies the main behavior
-   against something the project never ships.
-   
-   Its failures may be faked. A real service does not time out, refuse a
-   connection or report a conflict on demand, so a failure case may come from:
-   
-   - fault injection on the real connection: a proxy that drops, delays or
-     resets traffic, or a browser test's request interception aborting a real
-     request;
-   - the real service put into the failing state: conflicting data seeded, a
-     small volume filled, a permission revoked;
-   - a fake of the service, under the same contract test as any fake, so that
-     its error responses are the ones the real service gives.
-   
-   A failure test may fake the successes that come before its failure, such as a
-   first sync that succeeds before the second times out, where each of those
-   successes is verified against the real service by a normal-case test in the
-   suite. The faked successes are then setup, not evidence.
-   
-   The cost is test infrastructure: the owned services must run in the test
-   environment, in containers or the equivalent.
-   
-   ## Property-based tests
-   
-   Where an interface's cases are combinatorial (criteria 2 and 3 above), prefer
-   a property test: generated inputs, checked against an invariant that holds for
-   all of them. Typical invariants:
-   
-   - round-trip: decoding what was encoded gives the input back;
-   - idempotence: applying the operation twice equals applying it once;
-   - agreement with an oracle: a slow, obviously correct version of the same
-     function;
-   - monotonicity or bounds.
-   
-   It is a preference, not a rule. An interface with no useful invariant gets a
-   property that restates the implementation, which proves nothing.
-   
-   Two rules do bind:
-   
-   - **Repeatable.** Every property test runs with a fixed seed, or prints its
-     seed on failure, so the failing run can be repeated.
-   - **Pinned.** A counterexample a property test finds becomes an example test
-     beside it, with its `verifies:` annotation, before the fix. It then stays
-     covered when the generator changes.
-   
-   ## Mutation evidence
-   
-   Line coverage shows that a line ran, not that a test would notice it changing.
-   Mutation testing changes the code and runs the suite: a mutant no test kills
-   is a route the tests do not check. It is the evidence that tests at the seam
-   reach the internals below it.
-   
-   A surviving mutant means one of two things:
-   
-   - a test is missing **at the seam**: add it there;
-   - the mutated code is dead: delete it.
-   
-   A survivor never justifies a test below the seam unless one of the three
-   criteria above holds. Whether a project must run mutation testing, with which
-   command and to what score, is that project's testing-strategy decision.
-   
-   ## Existing suites
-   
-   These rules bind the tests a change writes or edits, not the suite that
-   already exists. A change that must edit an existing test that breaks them
-   moves it to the seam instead of repairing it in place: such a test usually
-   broke because a refactor moved the internal it was pinned to. A test that
-   breaks the rules and still passes is left alone, since deleting it without a
-   replacement at the seam loses coverage. No change rewrites a suite wholesale
-   for compliance.
-   ~~~
+   *(Code pruned at merge: 151 lines. Files touched: `skills/develop-change/SKILL.md`, `skills/develop-change/references/test-seams.md`, `skills/develop-change/references/ui-seams.md`, `tests/skills.bats`.)*
 
    Create `skills/develop-change/references/ui-seams.md` with exactly this
    content:
 
-   ~~~markdown
-   # Testing a user interface at its seams
-   
-   Read this when the change has a user interface. It applies `SKILL.md` "Where
-   a test attaches" and `references/test-seams.md` to one; it adds one rule of
-   its own, on markup snapshots.
-   
-   ## The interface
-   
-   The REQ interface of a UI is what the user perceives and does, plus what the
-   application sends to the outside world. Components, props, hooks, store shape
-   and CSS classes are implementation: a test that names them breaks on a
-   refactor that keeps every behavior.
-   
-   ## Keep the UI layer thin
-   
-   Put state, rules and transitions in a core that does not depend on the UI
-   framework: reducers, state machines, view models. That core has an interface
-   as well defined as a library's, and it is tested like one, with its
-   permutations and properties. Most of what makes a UI hard to test is logic
-   inside components.
-   
-   ## Feature tests through the DOM
-   
-   - Find elements the way a user does: by accessible role, label and visible
-     text, not by test identifier or class name.
-   - Render real child components, the real store and the real router.
-   - Fake only what is outside the codebase, at the HTTP layer, plus the clock.
-     A service the project owns runs for real on the normal path
-     (`references/test-seams.md`, "Services the project owns").
-   
-   ## Enumerate the states
-   
-   List the states each screen can be in and test each: loading, empty, error,
-   partial, stale, offline, permission denied. A core written as a state machine
-   makes the list explicit, and the paths through it can be generated rather than
-   written by hand.
-   
-   ## What only a real browser shows
-   
-   Keep a small suite in a real browser for what a simulated DOM cannot do: the
-   service worker lifecycle and its update flow, offline behavior, caching,
-   IndexedDB, storage quota, installation. For a progressive web app, offline is
-   the main error route, and a full storage quota is the robustness rule's
-   resource exhaustion.
-   
-   ## Snapshots and appearance
-   
-   - **A markup snapshot carries no `verifies:` annotation.** It records markup,
-     not behavior: it fails on a refactor that changes nothing a user sees, and
-     passes a regression that the markup does not show.
-   - Visual regression verifies a REQ only where the REQ is about appearance
-     itself, such as the color of an alarm.
-   - An automated accessibility check is a cheap assertion worth running on
-     every screen.
-   ~~~
+   *(Code pruned at merge: 54 lines. Files touched: `skills/develop-change/SKILL.md`, `skills/develop-change/references/test-seams.md`, `skills/develop-change/references/ui-seams.md`, `tests/skills.bats`.)*
 
 5. **Verify GREEN.** `sh tests/run-tests.sh tests/skills.bats`. Expected:
    115 tests, all `ok`, among them `skill shape: every SKILL.md is at most
@@ -588,19 +284,7 @@ backs, is deleted.
 
 1. **RED.** Append to the end of `tests/skills.bats`:
 
-   ~~~bash
-
-   @test "merge-change: the review checklist asks where each new test attaches and which doubles it uses" {
-       # verifies: D12 (docs/plans/2026-10-07-test-seams.md)
-       checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
-       grep -qF 'checklist applies when the diff touches documentation, and the test' "$checklist"
-       grep -qxF '## The test checklist' "$checklist"
-       grep -qF -- '- It calls an interface that a REQ or LLR describes, not a private' "$checklist"
-       grep -qF -- '- Every test double is a fake at the codebase boundary with a contract' "$checklist"
-       grep -qF -- '- A service the project owns runs for real on the normal path.' "$checklist"
-       grep -qF -- '- No markup snapshot carries a `verifies:` annotation.' "$checklist"
-   }
-   ~~~
+   *(Code pruned at merge: 11 lines. Files touched: `skills/merge-change/references/review-checklist.md`, `tests/skills.bats`.)*
 
 2. **Verify RED.** `sh tests/run-tests.sh tests/skills.bats`. Expected: 116
    tests, the new one `not ok` on its first `grep`, every other `ok`.
@@ -608,35 +292,15 @@ backs, is deleted.
 3. **GREEN.** In `skills/merge-change/references/review-checklist.md`,
    replace the two lines
 
-   ~~~markdown
-   every round. The severities apply to every review; the checklist applies when
-   the diff touches documentation.
-   ~~~
+   *(Code pruned at merge: 2 lines. Files touched: `skills/merge-change/references/review-checklist.md`, `tests/skills.bats`.)*
 
    with
 
-   ~~~markdown
-   every round. The severities apply to every review; the documentation
-   checklist applies when the diff touches documentation, and the test
-   checklist when it touches tests.
-   ~~~
+   *(Code pruned at merge: 3 lines. Files touched: `skills/merge-change/references/review-checklist.md`, `tests/skills.bats`.)*
 
    Then append this section at the end of the file, after one blank line:
 
-   ~~~markdown
-   ## The test checklist
-
-   The reviewer checks each new or edited test and raises a finding for each one
-   that fails (`develop-change`, "Where a test attaches").
-
-   - It calls an interface that a REQ or LLR describes, not a private
-     helper. A direct test of a deeper interface has an LLR behind it.
-   - Every test double is a fake at the codebase boundary with a contract
-     test, or a fault injector. No test mocks code the project owns or asserts
-     how owned code was called, unless the interaction is the requirement.
-   - A service the project owns runs for real on the normal path.
-   - No markup snapshot carries a `verifies:` annotation.
-   ~~~
+   *(Code pruned at merge: 12 lines. Files touched: `skills/merge-change/references/review-checklist.md`, `tests/skills.bats`.)*
 
 4. **Verify GREEN.** `sh tests/run-tests.sh tests/skills.bats`. Expected: 116
    tests, all `ok`.
@@ -671,38 +335,12 @@ under GNU date, which has no `-v`.
    `strict awk: passes every other invocation through to the real awk` (they
    call functions step 3 creates):
 
-   ~~~bash
-
-   @test "strict awk contract: the real BWK awk rejects a literal newline in a -v assignment" {
-       # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
-       real=$(real_bwk_awk_dir) || skip "no BWK awk on this machine"
-       awk_rejects_newline_in_assignment "$real"
-   }
-
-   @test "strict awk contract: the real BWK awk accepts the same list flattened to spaces" {
-       # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
-       real=$(real_bwk_awk_dir) || skip "no BWK awk on this machine"
-       awk_accepts_flattened_list "$real"
-   }
-
-   @test "strict awk contract: the real BWK awk takes a plain -v assignment" {
-       # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
-       real=$(real_bwk_awk_dir) || skip "no BWK awk on this machine"
-       awk_passes_plain_assignment "$real"
-   }
-   ~~~
+   *(Code pruned at merge: 18 lines. Files touched: `tests/portability.bats`.)*
 
    and this one immediately after `bsd date stub: rejects -d and a doubled
    sign in -v`:
 
-   ~~~bash
-
-   @test "bsd date contract: the real BSD date rejects -d and a doubled sign in -v" {
-       # verifies: PR-yd2sft, D11 (docs/plans/2026-10-07-test-seams.md)
-       real=$(real_bsd_date_dir) || skip "no BSD date on this machine"
-       bsd_date_rejects_gnu_spellings "$real"
-   }
-   ~~~
+   *(Code pruned at merge: 6 lines. Files touched: `tests/portability.bats`.)*
 
 2. **Verify RED.** `sh tests/run-tests.sh tests/portability.bats`. Expected
    on macOS: 17 tests, the four new ones `not ok` with
@@ -715,108 +353,13 @@ under GNU date, which has no `-v`.
    `strict awk: accepts the same list flattened to spaces`, `strict awk:
    passes every other invocation through to the real awk`) with:
 
-   ~~~bash
-   # The stub is the instrument every other test in this file depends on. An
-   # instrument that never fires reports a clean bill of health for a broken
-   # tree, so it is calibrated first, in both directions.
-   #
-   # Each assertion is a function that takes the directory whose awk it checks,
-   # so the same assertions run against the stub and, as a contract test,
-   # against the real BWK awk where this machine has one (D11 of
-   # docs/plans/2026-10-07-test-seams.md). A stub checked only against its own
-   # specification drifts from the tool it imitates.
-
-   awk_rejects_newline_in_assignment() {
-       run env PATH="$1:$PATH" awk -v kws='a:
-   b:' 'BEGIN { print "ok" }' /dev/null
-       [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
-       [[ "$output" == *"newline in string"* ]] || { echo "$output"; false; }
-   }
-
-   awk_accepts_flattened_list() {
-       # The fix's premise: `split()` under the default FS splits on runs of
-       # space, tab and newline alike, so the flattened list is the same list.
-       run env PATH="$1:$PATH" awk -v kws='a: b:' \
-           'BEGIN { n = split(kws, K); print "fields:", n, K[1], K[2] }' /dev/null
-       [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
-       [ "$output" = "fields: 2 a: b:" ] || { echo "$output"; false; }
-   }
-
-   awk_passes_plain_assignment() {
-       run env PATH="$1:$PATH" awk -v k=plain 'BEGIN { print k }' /dev/null
-       [ "$status" -eq 0 ] || { echo "$output"; false; }
-       [ "$output" = plain ] || { echo "$output"; false; }
-   }
-
-   # The directory of a real BWK awk, or status 1. BWK awk answers `-version`
-   # with "awk version <date>"; gawk, mawk and busybox awk reject it as a
-   # malformed -v assignment, so they never match.
-   real_bwk_awk_dir() {
-       for candidate in /usr/bin/awk "$(command -v awk)"; do
-           [ -x "$candidate" ] || continue
-           "$candidate" -version 2>/dev/null | grep -q '^awk version ' || continue
-           dirname "$candidate"
-           return 0
-       done
-       return 1
-   }
-
-   @test "strict awk: rejects a literal newline in a -v assignment" {
-       # verifies: PR-v3j4s2
-       bin=$(make_strict_awk)
-       awk_rejects_newline_in_assignment "$bin"
-   }
-
-   @test "strict awk: accepts the same list flattened to spaces" {
-       # verifies: PR-v3j4s2
-       bin=$(make_strict_awk)
-       awk_accepts_flattened_list "$bin"
-   }
-
-   @test "strict awk: passes every other invocation through to the real awk" {
-       # verifies: PR-v3j4s2
-       bin=$(make_strict_awk)
-       awk_passes_plain_assignment "$bin"
-   }
-   ~~~
+   *(Code pruned at merge: 62 lines. Files touched: `tests/portability.bats`.)*
 
    The three contract tests from step 1 stay immediately after this block.
 
    Replace the test `bsd date stub: rejects -d and a doubled sign in -v` with:
 
-   ~~~bash
-   # Calibrated like the awk stub, and for the same reason: on macOS the real
-   # date already behaves this way, so an instrument that never fired would be
-   # invisible here and useless on the GNU box it exists for. The assertion is
-   # shared with the contract test below.
-   bsd_date_rejects_gnu_spellings() {
-       run env PATH="$1:$PATH" date -d "3 days ago" +%Y-%m-%d
-       [ "$status" -ne 0 ] || { echo "-d was accepted: $output"; false; }
-       run env PATH="$1:$PATH" date -v--1d +%Y-%m-%d
-       [ "$status" -ne 0 ] || { echo "-v--1d was accepted: $output"; false; }
-       run env PATH="$1:$PATH" date -v-3d +%Y-%m-%d
-       [ "$status" -eq 0 ] || { echo "a valid adjustment was rejected: $output"; false; }
-       run env PATH="$1:$PATH" date +%Y-%m-%d
-       [ "$status" -eq 0 ] || { echo "a plain call was rejected: $output"; false; }
-   }
-
-   # The directory of a real BSD date, or status 1. Only BSD date takes `-v`.
-   real_bsd_date_dir() {
-       for candidate in /bin/date /usr/bin/date "$(command -v date)"; do
-           [ -x "$candidate" ] || continue
-           "$candidate" -v+0d +%Y-%m-%d >/dev/null 2>&1 || continue
-           dirname "$candidate"
-           return 0
-       done
-       return 1
-   }
-
-   @test "bsd date stub: rejects -d and a doubled sign in -v" {
-       # verifies: PR-yd2sft
-       bin=$(make_bsd_date)
-       bsd_date_rejects_gnu_spellings "$bin"
-   }
-   ~~~
+   *(Code pruned at merge: 31 lines. Files touched: `tests/portability.bats`.)*
 
    The contract test from step 1 stays immediately after it.
 

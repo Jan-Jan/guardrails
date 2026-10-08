@@ -86,6 +86,7 @@ rules, reports and exit codes in full.
 | `check-review.sh` | The verification record of the change under merge, and its findings. |
 | `check-signing.sh` | Commit signatures, and with `--setup` proof that the project can sign. |
 | `finalize-docs.sh` | Rename this change's draft ledger files to dated names and rewrite references to them. |
+| `prune-plans.sh` | Replace the fenced code in this change's plan tasks with pointers, at `merge-change` step 1. |
 | `merge-preflight.sh` | The mechanical checks of `merge-change` steps 4 and 6c, in one command. |
 | `finish-merge.sh` | The guarded cleanup half of the signed merge command the user runs. |
 | `task-worktree.sh` | Create, merge and retire a task worktree nested in the change worktree. |

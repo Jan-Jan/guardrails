@@ -34,60 +34,32 @@ times. Keep the line wrapping at 79 columns, as in the surrounding text.
 
 Before:
 
-```
-- The REQs this change implements exist in the SRS. If not, run
-  `grill-requirements` first.
-```
+*(Code pruned at merge: 2 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 After:
 
-```
-- The REQs this change implements exist in the SRS:
-  `.guardrails/scripts/find-items.sh show ID` prints each one, and exits 1
-  with `NOT-FOUND` for an ID that is not defined. If one is missing, run
-  `grill-requirements` first.
-- Read the REQ, RC and SDD items the plan cites with `find-items.sh show ID`,
-  not by reading the ledger files whole.
-```
+*(Code pruned at merge: 6 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 **Step 2.** `skills/analyze-risks/SKILL.md`, section "## Preconditions".
 
 Before:
 
-```
-- The risk management ledger is `doc_rmf` in `.guardrails/config.yaml`.
-  Update it as the analysis proceeds, not at the end.
-```
+*(Code pruned at merge: 2 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 After:
 
-```
-- The risk management ledger is `doc_rmf` in `.guardrails/config.yaml`.
-  Update it as the analysis proceeds, not at the end.
-- Find existing hazards and controls with
-  `.guardrails/scripts/find-items.sh list --kind HAZ --kind RC`, read each one
-  you need with `find-items.sh show ID`, and find what cites an item with
-  `find-items.sh refs ID`. Read the RMF whole only when these do not answer
-  the question.
-```
+*(Code pruned at merge: 7 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 **Step 3.** `skills/analyze-risks/SKILL.md`, "Derived-requirements intake",
 item 1.
 
 Before:
 
-```
-1. Assess whether it introduces a new hazard, affects an existing hazardous
-   situation, or changes the effectiveness of a risk control.
-```
+*(Code pruned at merge: 2 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 After:
 
-```
-1. Read the item with `find-items.sh show ID`. Assess whether it introduces a
-   new hazard, affects an existing hazardous situation, or changes the
-   effectiveness of a risk control.
-```
+*(Code pruned at merge: 3 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 **Step 4.** `skills/merge-change/SKILL.md`, step 6a. The file is at 1,999
 words before this step, and the limit is 2,000. This edit is a net one word
@@ -95,19 +67,11 @@ longer, to 2,000.
 
 Before:
 
-```
-   author). Dispatch a fresh subagent, or a human reviewer where team policy
-   requires one, with the diff, the SRS/RMF/SAD excerpts and the plan, and
-   **no implementation narrative and no chat history**. Name its
-```
+*(Code pruned at merge: 3 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 After:
 
-```
-   author). Dispatch a fresh subagent (or a human reviewer, by team policy)
-   with the diff, the plan and `find-items.sh show` of each claimed ID, and
-   **no implementation narrative and no chat history**. Name its
-```
+*(Code pruned at merge: 3 lines. Files touched: `skills/plan-change/SKILL.md`, `skills/analyze-risks/SKILL.md`, `skills/merge-change/SKILL.md`.)*
 
 **Step 5.** Word counts. Run
 `wc -w skills/plan-change/SKILL.md skills/analyze-risks/SKILL.md skills/merge-change/SKILL.md`.

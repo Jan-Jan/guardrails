@@ -111,9 +111,7 @@ tell its own defect from a repair it inherited.
 
 `finalize-docs.sh` already computes it:
 
-```sh
-branch=$(git branch --show-current 2>/dev/null | tr -c 'A-Za-z0-9\n' '-')
-```
+*(Code pruned at merge: 1 line. Files touched: `scripts/check-ids.sh`, `tests/check-ids.bats`.)*
 
 A draft file whose basename opens with `DRAFT-<branch>-` belongs to the branch
 under merge; any other draft file belongs to another change. On a detached HEAD
@@ -141,10 +139,7 @@ reported as `DRAFT-FILE` — which is today's behavior and today's exit status.
    `(`, per AGENTS.md.
 4. The message shape, one line per file:
 
-   ```
-   FOREIGN-DRAFT docs/problems/DRAFT-other-change-slug.md (another change's draft, introduced by 4deb0248 fix: the settings nav)
-   FOREIGN-DRAFT docs/problems/DRAFT-other-change-slug.md (another change's draft, untracked)
-   ```
+   *(Code pruned at merge: 2 lines. Files touched: `scripts/check-ids.sh`, `tests/check-ids.bats`.)*
 
 5. Extend the script's header comment block with `FOREIGN-DRAFT`, stating that
    the exit status is the same and that the repair belongs to a change of its
@@ -252,10 +247,7 @@ in one plan.
 After the rewrite pass, scan the whole tree for each old basename, subtract the
 files the pass rewrote, and print one line per remaining hit:
 
-```
-unrewritten docs/plans/2026-09-04-fetch-names-flake.md:12: DRAFT-fetch-names-flake-shared-tmp-paths.md
-  (outside the rewrite scope — a narration to leave, or a link to repair by hand)
-```
+*(Code pruned at merge: 2 lines. Files touched: `scripts/finalize-docs.sh`, `scripts/lib.sh`, `tests/finalize-docs.bats`.)*
 
 Informational. The exit status does not move, and the script does not judge
 narration against link — that judgment is the author's and takes five seconds.
@@ -339,10 +331,7 @@ already-merged record.
    read long afterwards.
 2. In step 7, the commit message template gains two trailers:
 
-   ```
-   Resolves: <PR IDs this change closes>
-   Opens: <PR IDs this change raises>
-   ```
+   *(Code pruned at merge: 2 lines. Files touched: `skills/merge-change/SKILL.md`, `skills/resolve-problem/SKILL.md`, `skills/worktree-discipline/SKILL.md`, `skills/grill-requirements/SKILL.md`, `skills/ratchet/SKILL.md`, `skills/check-traceability/SKILL.md`, `templates/verification.md`, `templates/problems.md`, `templates/srs.md`, `templates/rmf.md`, `templates/sad.md`, `templates/AGENTS-block.md`, `README.md`, `docs/problems/README.md`, `tests/skills.bats`.)*
 
    No script parses the message, so these cost nothing; they are deltas, and they
    are checkable against the diff forever. A change that closes or opens nothing
