@@ -26,7 +26,13 @@ exemption on it without the exemption being writable by one half alone.
   finding-4: an item superseded by two successors, one terminating and one
   in a cycle, is out of force, since it has a successor in force; only the
   cycle's members are reported) Only REQ and LLR items are read for this; the
-  exemption is from `MISSING-TEST`, which only those two prefixes owe. Block
+  exemption is from `MISSING-TEST`, which only those two prefixes owe.
+  (amended 2026-10-11 on PR-x63ejd by
+  `docs/plans/2026-10-11-superseded-risk-controls.md` D1: an RC is out of
+  force by a reciprocal pair with another RC, by the same chain rule, and
+  then owes no `implements:`; and by its D3: a HAZ is out of force by a
+  reciprocal pair with another HAZ, by the same chain rule, and then owes no
+  `mitigates:`) Block
   parsing and column-one reading are the ones the supersession scan uses
   (`GR_AWK_ITEM_BLOCK`, `gr_kw_here`, `gr_id_run`).
 - **D2 (2026-10-08): `MISSING-TEST` skips an out-of-force REQ or LLR.** The
@@ -44,7 +50,9 @@ exemption on it without the exemption being writable by one half alone.
   longer: before this change the retired REQ still owed a test, after it
   nothing does. `traces:` on an SDD and `mitigates:` on an RC are unchanged:
   neither is a test obligation, and a reference naming an old ID as history
-  stays a review job (merge-change review checklist).
+  stays a review job (merge-change review checklist). (amended 2026-10-11 on
+  PR-x63ejd by `docs/plans/2026-10-11-superseded-risk-controls.md` D2: a
+  `mitigates:` in an out-of-force RC's block mitigates nothing)
 - **D4 (2026-10-08): a `verifies:` line that names only out-of-force items
   fails** as `OUT-OF-FORCE-VERIFIES <file>:<line> (verifies: names only
   out-of-force items: <IDs>)`, IDs space-separated in the order written. It

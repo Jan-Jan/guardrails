@@ -44,6 +44,15 @@ Guardrails is developed under the rules it ships, without exception.
    accepted in this repository, and why the override does not apply to a
    project with sequential IDs or a shared remote.
 
+   **Reconciling local `main` with the remote is the user's call.** Where the
+   user merges on more than one machine, local `main` is the complete record
+   only once the content merged elsewhere is in it. An agent never fetches and
+   never pushes, and reports a divergence it happens to see rather than acting
+   on it. An agent merges an already-fetched `origin/<branch>` only where the
+   user directs that explicitly, as the subject of a change whose verification
+   record names whose decision it was and which commit was merged
+   (ADR-y8jmes, Scope).
+
    State it in the verification record: "base merged from local `main` at
    `<commit>`, per AGENTS.md non-negotiable 4".
 

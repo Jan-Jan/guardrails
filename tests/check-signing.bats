@@ -1,6 +1,15 @@
 load helpers
 
-setup() { make_fixture_repo; }
+# The fixture reads no global or system git config: helpers.bash points
+# GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM at /dev/null for every suite file
+# (PR-ad4vmm). Without that, a setting these tests deliberately leave unset is
+# answered from the developer's own: with the fixture's gpg.format unset,
+# --setup resolved a hardware-token key and blocked the suite waiting for a
+# touch, and with gpg.ssh.allowedSignersFile unset git verified against the
+# one in ~/.gitconfig (PR-gw6wts).
+setup() {
+    make_fixture_repo
+}
 
 # Configure throwaway SSH signing for the fixture repo.
 setup_ssh_signing() {
@@ -23,11 +32,46 @@ signed_commit() {
 # maintainer's machine was in (gpg dying on an unwritable trustdb). git cannot
 # tell the two apart — %G? is `B` for both — so the verifier's own words are
 # the only thing that can.
+#
+# The stub reads the payload git writes to it before it fails. A stub that
+# exits first races git's write, and when git loses, it dies of SIGPIPE and
+# the run measures the dead-git verdict instead of `B` (PR-8zcc72). Only
+# check-novalidate and verify are handed a payload; find-principals reads
+# nothing, and a stub that read there would wait on whatever stdin it
+# inherited.
 break_the_verifier() {
-    printf '#!/bin/sh\necho "stub verifier: trust store unavailable" >&2\nexit 2\n' \
-        > "$BATS_TEST_TMPDIR/broken_verifier"
+    cat > "$BATS_TEST_TMPDIR/broken_verifier" <<'STUB'
+#!/bin/sh
+case " $* " in
+    (*" check-novalidate "*|*" verify "*) cat > /dev/null ;;
+esac
+echo "stub verifier: trust store unavailable" >&2
+exit 2
+STUB
     chmod +x "$BATS_TEST_TMPDIR/broken_verifier"
     git config gpg.ssh.program "$BATS_TEST_TMPDIR/broken_verifier"
+}
+
+# A verifier whose failure kills git itself, so `git log --format=%G?` exits
+# without printing a letter. This is the state a stub that exits without
+# reading its stdin produced intermittently under load (PR-8zcc72): when
+# find-principals fails, git hands the signed payload to a second verifier
+# call on stdin, and if that call has already exited, git dies of SIGPIPE,
+# measured at exit 141. Here the kill is deterministic, and it happens on the
+# first call only, so the `git verify-commit` that collects the reason still
+# runs.
+kill_git_from_the_verifier() {
+    cat > "$BATS_TEST_TMPDIR/killing_verifier" <<STUB
+#!/bin/sh
+if [ ! -e "$BATS_TEST_TMPDIR/git_killed" ]; then
+    : > "$BATS_TEST_TMPDIR/git_killed"
+    kill -PIPE "\$PPID"
+fi
+echo "stub verifier: trust store unavailable" >&2
+exit 2
+STUB
+    chmod +x "$BATS_TEST_TMPDIR/killing_verifier"
+    git config gpg.ssh.program "$BATS_TEST_TMPDIR/killing_verifier"
 }
 
 @test "check-signing: unsigned commit fails with UNSIGNED" {
@@ -126,6 +170,92 @@ break_the_verifier() {
     [[ "$output" != *"WARN-"* ]] || { echo "tolerated a rejection: $output"; false; }
 }
 
+@test "check-signing: a verdict git could not compute fails without --strict" {
+    # verifies: PR-8zcc72
+    # `git log --format=%G?` that dies prints no letter at all. The script read
+    # the empty answer as "signature present but did not verify" and, without
+    # --strict, passed it as WARN-UNVERIFIED: a commit nobody verified,
+    # tolerated in the mode where a verifier that cannot run (`B`) already
+    # fails.
+    setup_ssh_signing
+    signed_commit a
+    kill_git_from_the_verifier
+    run sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" != *"WARN-"* ]] || { echo "tolerated a missing verdict: $output"; false; }
+    [[ "$output" == *"UNVERIFIED"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"stub verifier: trust store unavailable"* ]] \
+        || { echo "the verifier's reason was discarded: $output"; false; }
+}
+
+@test "check-signing: a verdict git could not compute fails under --strict" {
+    # verifies: PR-8zcc72
+    setup_ssh_signing
+    signed_commit a
+    kill_git_from_the_verifier
+    run sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"UNVERIFIED"*"git could not compute a verdict"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-signing: a verdict git could not compute with an unreadable trust root exits 2" {
+    # verifies: PR-8zcc72
+    # The header promises exit 2 in every mode for a trust root that exists
+    # but cannot be read. Before PR-8zcc72 a dead `git log` reached that guard
+    # through `*)`; the branch that now reports it must keep the promise.
+    [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
+    setup_ssh_signing
+    signed_commit a
+    kill_git_from_the_verifier
+    chmod 000 "$BATS_TEST_TMPDIR/allowed_signers"
+    run sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"--setup"* ]] || { echo "$output"; false; }
+}
+
+# An unsigned commit whose message has a line starting with `gpgsig`. The
+# signature header lives above the first empty line of the commit object; a
+# message line below it is not one.
+unsigned_commit_mentioning_gpgsig() {
+    printf 'g\n' > src/g.txt
+    git add -A
+    git -c commit.gpgsign=false commit -q -m "explain the header" \
+        -m "gpgsig is the header git uses"
+}
+
+@test "check-signing: a gpgsig line in the message does not make a commit signed" {
+    # verifies: PR-qm5gfy
+    # `^gpgsig` was matched against the whole commit object, message included,
+    # so this unsigned commit read as signed: WARN-UNVERIFIED with exit 0.
+    unsigned_commit_mentioning_gpgsig
+    run sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_lacks "WARN-UNVERIFIED"
+    output_has "UNSIGNED"
+}
+
+@test "check-signing: a test does not read the developer's global git config" {
+    # verifies: PR-gw6wts
+    # The reported-once test below unsets the fixture's trust root and failed
+    # on a machine whose ~/.gitconfig names one, because git answered with
+    # that file instead. Here the developer's config is planted in a HOME of
+    # the test's own, so the leak is reproduced on every machine rather than
+    # only on one configured that way.
+    setup_ssh_signing
+    signed_commit a
+    git config --unset gpg.ssh.allowedSignersFile
+    mkdir "$BATS_TEST_TMPDIR/home"
+    printf '[gpg "ssh"]\n\tallowedSignersFile = %s\n' "$BATS_TEST_TMPDIR/allowed_signers" \
+        > "$BATS_TEST_TMPDIR/home/.gitconfig"
+    run env HOME="$BATS_TEST_TMPDIR/home" XDG_CONFIG_HOME= \
+        sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 1 ] \
+        || { echo "verified against the planted global trust root: $output"; false; }
+    [[ "$output" == *"allowedSignersFile"* ]] \
+        || { echo "the fixture's unset trust root was answered from elsewhere: $output"; false; }
+}
+
 @test "check-signing: the verifier's reason is reported once, under its verdict" {
     # verifies: PR-whkz8m
     # `git log --format=%G?` leaks git's OWN diagnostic to stderr for an ssh
@@ -220,27 +350,11 @@ break_the_verifier() {
 # file-based key above — a hardware key would make the suite unrunnable
 # unattended, and this is the one place the answer has to be reproducible.
 
-# Cuts the fixture off from the developer's own git configuration. `git config
-# --get` reads the global and system files as well as the repository's, so on
-# a machine whose owner has signing set up — which is every machine this
-# toolkit is developed on — a setting these tests deliberately leave unset is
-# still answered, and the test measures that person's laptop instead of the
-# script.
-#
-# Measured, not feared: with the fixture's gpg.format unset, --setup resolved
-# the developer's own ECDSA-SK key and blocked the whole suite waiting for a
-# touch on a hardware token, which is not something an unattended run can give.
-isolate_git_config() {
-    export GIT_CONFIG_GLOBAL=/dev/null
-    export GIT_CONFIG_SYSTEM=/dev/null
-}
-
 # Everything --setup needs to prove a signature: the format, the key, signing
 # on by default, and a trust root naming this committer. The fixture ships
 # commit.gpgsign false, so it has to be turned on explicitly. The tests below
 # take one piece away at a time.
 setup_proved_signing() {
-    isolate_git_config
     setup_ssh_signing
     git config commit.gpgsign true
 }
@@ -334,7 +448,6 @@ setup_proved_signing() {
     # corrected behaviour is still gated here; and the two gaps that really do
     # stop this repository signing anything, the key and commit.gpgsign, are
     # still asserted, along with the exit status.
-    isolate_git_config
     run sh .guardrails/scripts/check-signing.sh --setup
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" != *"MISSING gpg.format"* ]] || { echo "$output"; false; }
@@ -349,7 +462,6 @@ setup_proved_signing() {
     # it MISSING named a non-problem to the one operator who had none, and
     # returned before the proof — the half that would have found the real
     # fault.
-    isolate_git_config
     setup_ssh_signing
     git config --unset gpg.format
     git config commit.gpgsign true
@@ -366,7 +478,6 @@ setup_proved_signing() {
     # blames a project whose configuration is fine. The two tests above assert
     # only the ABSENCE of `MISSING gpg.format`, which deleting the MISSING
     # block alone already satisfies.
-    isolate_git_config
     git config --unset gpg.format 2>/dev/null || true
     git config user.email t@example.com
     git config user.signingkey DEADBEEFDEADBEEF
@@ -384,7 +495,6 @@ setup_proved_signing() {
     # A key that can sign is not a project that does sign. Everything else is
     # configured here, so exactly one piece may be named — a report that listed
     # the settings that ARE present would be noise at the moment it is read.
-    isolate_git_config
     setup_ssh_signing
     run sh .guardrails/scripts/check-signing.sh --setup
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
@@ -445,7 +555,6 @@ setup_proved_signing() {
     # the reported case is a process that cannot read ~/.gnupg at all. That
     # is never a project setting, so it is exit 2 wherever it is found.
     [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
-    isolate_git_config
     git config gpg.format openpgp
     git config user.signingkey ABCDEF0123456789
     git config commit.gpgsign true

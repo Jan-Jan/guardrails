@@ -48,6 +48,32 @@ not earn it:
   (`supersedes itself`, or `supersession cycle with no successor in force or
   retired`).
 
+## A superseded risk control or hazard
+
+An RC or a HAZ is out of force by the same reciprocal pair and the same chain
+rule as a REQ, the pair naming an item of its own kind: an RC for an RC, a HAZ
+for a HAZ. A pair across kinds (an RC and a REQ, a HAZ and an RC) takes
+nothing out of force, and a `retired:` on an RC or a HAZ retires nothing.
+
+An out-of-force RC owes no implementing REQ, and its `mitigates:` mitigates
+nothing; an out-of-force HAZ owes no `mitigates:`. Each successor is an
+ordinary item: the new RC owes an implementing REQ in force and must name
+every hazard it still mitigates, and the new HAZ owes a `mitigates:`.
+
+Supersede items together when they change together. When a control and the
+REQ that implements it are narrowed, supersede both: the successor RC is
+implemented by the successor REQ. Superseding the REQ alone leaves the old
+control owing a REQ for a behavior the software deliberately no longer has,
+since an out-of-force REQ implements nothing (PR-x63ejd). When a hazard is
+reworded together with its control, supersede both: the old RC mitigated the
+old HAZ, the new RC mitigates the new HAZ.
+
+A `mitigates:` belongs to the block it sits in, and a block ends only at a
+markdown heading or a bold line containing a colon. A table placed directly
+under an out-of-force RC, with no heading or bold-colon line between, belongs
+to that RC's block, so its `mitigates:` lines are dropped with the RC's own.
+Put a heading above such a table, or move its lines into the RC in force.
+
 ## A test of an out-of-force item fails
 
 A `verifies:` line that names only out-of-force items is

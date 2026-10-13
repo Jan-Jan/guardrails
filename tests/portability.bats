@@ -410,7 +410,7 @@ real_bsd_date_dir() {
 # --- PR-vh6cud --------------------------------------------------------------
 
 @test "every case pattern in executable shell opens with a parenthesis" {
-    # verifies: PR-vh6cud
+    # verifies: PR-vh6cud, PR-cjvv8g
     # bash 3.2 — macOS /bin/sh, forever — cannot parse a parenless case
     # pattern inside `$(...)`: the pattern's lone `)` unbalances the command
     # substitution for that parser, and finish-merge.sh died at the terminal
@@ -440,12 +440,16 @@ real_bsd_date_dir() {
     # cannot arm the scan, and all state resets at each new file. A `case`
     # keyword preceded by an unclosed quote on its segment is prose, not
     # code — a test name like "every case pattern in ..." must not arm.
+    #
+    # The single quote is matched as the regex literal /\047/, never as the
+    # string "\\047": busybox awk does not decode an octal escape in a dynamic
+    # regex, counted no quotes, and read a quoted `case` as code (PR-cjvv8g).
     cat > "$BATS_TEST_TMPDIR/caselint.awk" <<'AWK'
 function inquote(p,  c) {
     c = p
     if (gsub(/"/, "", c) % 2) return 1
     c = p
-    return gsub("\\047", "", c) % 2
+    return gsub(/\047/, "", c) % 2
 }
 function verdict(s,  t) {
     if (!armed) return
@@ -516,7 +520,16 @@ AWK
     done
     printf 'x=$(%s $y in (foo) echo a ;; esac)\n' case > "$BATS_TEST_TMPDIR/good-subst.sh"
     printf '%s $x in (a) : ;; (b) : ;; esac\n' case > "$BATS_TEST_TMPDIR/good-second.sh"
-    for shape in subst second; do
+    # A `case` after an unclosed single quote is text inside a string, and the
+    # loop after it is no case construct. Under an awk that counted no single
+    # quotes, the `in` of that loop opened a pattern position and its words
+    # were flagged (PR-cjvv8g).
+    # The keyword goes in through a variable: a bare one on its own line here
+    # would be a case statement to the scan of this file.
+    keyword=case
+    printf "printf 'z ;;\\\\nesac\\\\n' %s > f\nfor v in one two; do\n    :\ndone\n" \
+        "$keyword" > "$BATS_TEST_TMPDIR/good-quoted.sh"
+    for shape in subst second quoted; do
         [ -z "$(awk -f "$BATS_TEST_TMPDIR/caselint.awk" "$BATS_TEST_TMPDIR/good-$shape.sh")" ] \
             || { echo "the scan flags the compliant $shape spelling"; false; }
     done

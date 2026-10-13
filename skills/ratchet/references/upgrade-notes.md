@@ -109,6 +109,29 @@ beneath it.
 raise new `MISSING-TEST` / `UNMITIGATED-HAZARD` failures. Rewrite them as
 `verifies: LLR-001, REQ-002`.
 
+## `check-signing.sh` verdicts
+
+Two verdicts that an older `check-signing.sh` could pass in default mode now
+fail. Neither needs a project change; each removes a false green.
+
+* **A signature git could not compute a verdict for fails** (PR-8zcc72).
+  When `git log --format=%G?` fails for a commit that carries a signature,
+  the commit now reads `UNVERIFIED ... (git could not compute a verdict for
+  this signature)`, exit 1, in both modes. In default mode an older script
+  printed `WARN-UNVERIFIED` with exit 0 for it (under `--strict` it already
+  gave `UNVERIFIED`, exit 1), and only under load: a verifier that
+  exits without reading its input makes `git log` die of SIGPIPE when it
+  wins the race, while on an idle machine the same commit already failed. A
+  merge gate that passed intermittently on such a verifier now fails every
+  time; fix the verifier (`check-signing.sh --setup`).
+* **A `gpgsig` line in a commit message is not a signature** (PR-qm5gfy).
+  Only the commit header is read for one. An older script searched the whole
+  commit object, so an unsigned commit whose message had a line starting with
+  `gpgsig` read as signed: `WARN-UNVERIFIED`, exit 0, in default mode, and
+  `UNVERIFIED`, exit 1, under `--strict`. Such a commit now reads `UNSIGNED`,
+  exit 1, in both modes: under `--strict` the exit code is unchanged and
+  only the verdict word changes.
+
 ## Item IDs are random tokens
 
 An item gets its ID when it is written — `.guardrails/scripts/new-id.sh REQ`
@@ -324,10 +347,30 @@ owes its own red-first test. This can go red on an existing ledger.
   force no longer covers the REQs its `satisfies:` names, and an
   `implements:` in an out-of-force REQ no longer implements its RC. A REQ
   covered only through such an LLR now reports `MISSING-TEST`, and an RC
-  implemented only by such a REQ reports `UNIMPLEMENTED-CONTROL`. Each is a
-  real gap that was hidden: give the parent a successor in force that covers
-  it, or test it directly. Never remove the `superseded-by:` to make the
-  finding go away; that is the deletion the pair exists to prevent.
+  implemented only by such a REQ reports `UNIMPLEMENTED-CONTROL`. Give the
+  parent a successor in force that covers it, or test it directly. Where the
+  RC itself was replaced when its REQ was, supersede the RC as well (next
+  item). Never remove the `superseded-by:` to make the finding go away; that
+  is the deletion the pair exists to prevent.
+* **An RC is out of force by a reciprocal pair with another RC** (PR-x63ejd).
+  Before this entry no script took an RC out of force. That had no effect
+  until `dd411a1`'s D3 stopped an out-of-force REQ implementing its RC: from
+  then, an RC superseded together with its only implementing REQ reported
+  `UNIMPLEMENTED-CONTROL` with no honest remedy. Such an RC now owes no
+  implementing REQ; its successor does. A pair between an RC and a REQ takes
+  nothing out of force, and a `retired:` on an RC still retires nothing. An
+  RC supersession that loops is `MALFORMED-SUPERSESSION`, as for a REQ.
+* **An out-of-force RC mitigates nothing.** A HAZ named only by a superseded
+  RC's `mitigates:` now reports `UNMITIGATED-HAZARD`. The successor dropped
+  the hazard: name it in the successor's `mitigates:` if the successor
+  controls it, or run `analyze-risks` for it.
+* **A HAZ is out of force by a reciprocal pair with another HAZ**
+  (PR-x63ejd). Such a HAZ owes no `mitigates:`; its successor does. Before
+  this entry, a hazard reworded together with its control, the old RC naming
+  the old HAZ and the new RC the new HAZ, reported `UNMITIGATED-HAZARD` on
+  the old HAZ. A pair between a HAZ and an RC or a REQ takes nothing out of
+  force, a `retired:` on a HAZ retires nothing, and a HAZ supersession that
+  loops is `MALFORMED-SUPERSESSION`.
 * **An out-of-force exported REQ meets no `expects:`.** In a monorepo, a
   consumer's expectation that only a retired or superseded exported REQ
   satisfies reports `UNMET-EXPECTATION` again, and the provider's

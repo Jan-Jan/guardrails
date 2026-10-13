@@ -1,5 +1,13 @@
 # Shared bats helpers: throwaway fixture git repos with guardrails installed.
 
+# Every test reads no global or system git config (PR-ad4vmm). `git config
+# --get` falls back to them, so a setting a test unsets in its fixture was
+# answered from the developer's own: with gpg.ssh.allowedSignersFile in
+# ~/.gitconfig, check-signing.bats measured that file instead of the script.
+# Each fixture sets the identity and settings it needs locally. Honored by
+# git 2.32 and later; an older git ignores GIT_CONFIG_GLOBAL.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1
+
 # Release each test's temporary directory as soon as the test passes.
 #
 # bats itself keeps every $BATS_TEST_TMPDIR until the whole run exits, and each

@@ -12,7 +12,8 @@
 #   UNVERIFIED      — signature present, did not verify; fails. Under --strict
 #                     this is the strict form of WARN-UNVERIFIED; for a
 #                     signature the verifier REJECTED or could not run at all
-#                     (%G? = B/X/Y/R) it is unconditional, in both modes, and
+#                     (%G? = B/X/Y/R), or one git could not compute a verdict
+#                     for at all, it is unconditional, in both modes, and
 #                     there is no WARN- counterpart.
 #   UNSIGNED        — no signature at all; fails
 #
@@ -138,6 +139,16 @@ trust_root_env_guard() {
     fi
 }
 
+# Whether a commit carries a signature: a `gpgsig` or `gpgsig-sha256` header.
+# Only the header is read, which ends at the first empty line of the commit
+# object; a message line starting with `gpgsig` made an unsigned commit read
+# as signed when the whole object was searched (PR-qm5gfy). A mergetag's
+# continuation lines start with a space and do not match. One function for
+# every caller in check_commits, so the questions cannot drift apart.
+carries_signature() {
+    git cat-file commit "$1" | sed '/^$/q' | grep -q '^gpgsig'
+}
+
 # The verdict for a list of commits, one line each, non-zero if any failed.
 # A function so that --setup can put its own commit through exactly the path a
 # real check takes: a second implementation of "did it verify" would be free to
@@ -151,10 +162,18 @@ check_commits() {
         # OpenPGP and ssh behave alike — git leaks its own diagnostic here for
         # an ssh signature and nothing at all for an OpenPGP one, so left
         # unredirected it prints a stray unattached line above half the
-        # verdicts. A `git log` that fails outright still leaves gstat empty,
-        # which falls to the `*)` branch and is reported from the commit's own
-        # headers.
-        gstat=$(git log -1 --format='%G?' "$c" 2>/dev/null)
+        # verdicts.
+        #
+        # A `git log` that fails outright computed no verdict, and a signed
+        # commit nobody verified fails in both modes, as `B` does. git dies
+        # this way when a verifier that fails exits before reading the payload
+        # git writes to it: SIGPIPE, exit 141, intermittent under load
+        # (PR-8zcc72). An unsigned commit falls to `*)` and is reported from
+        # its own headers, as before.
+        if ! gstat=$(git log -1 --format='%G?' "$c" 2>/dev/null) &&
+            carries_signature "$c"; then
+            gstat=failed
+        fi
         case "$gstat" in
             (G) ;;
             (U|E)
@@ -176,8 +195,14 @@ check_commits() {
                 _fail=1
                 verifier_reason "$c"
                 ;;
+            (failed)
+                trust_root_env_guard
+                echo "UNVERIFIED $c (git could not compute a verdict for this signature)"
+                _fail=1
+                verifier_reason "$c"
+                ;;
             (*)
-                if git cat-file commit "$c" | grep -q '^gpgsig'; then
+                if carries_signature "$c"; then
                     trust_root_env_guard
                     if [ "$strict" -eq 1 ]; then
                         echo "UNVERIFIED $c (signature present but did not verify)"

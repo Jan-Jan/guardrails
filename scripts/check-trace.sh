@@ -17,6 +17,12 @@
 #                              inside an RC's block.
 #                              Instead of a new RC, record the acceptability
 #                              rationale and control in the RMF.
+#                              A `mitigates:` in an out-of-force RC's block
+#                              mitigates nothing. An out-of-force HAZ owes
+#                              none: a HAZ superseded by a reciprocal pair
+#                              with another HAZ, as for an RC below. A pair
+#                              takes an item out of force only within one of
+#                              three families: RC, HAZ, REQ/LLR.
 #   UNIMPLEMENTED-CONTROL ID — RC with no `implements:` line naming it
 #                              inside a REQ's block. A line in no block,
 #                              under a heading or bold-colon line that closed
@@ -24,6 +30,12 @@
 #                              For a non-software control, note the external
 #                              implementation in the RMF item. Add an
 #                              implementing REQ only if software is part of it.
+#                              An out-of-force RC owes none: an RC whose block
+#                              contains a superseded-by: answered by another
+#                              RC's supersedes:, the chain terminating as for
+#                              a REQ (OUT-OF-FORCE-VERIFIES). A retired: on an
+#                              RC retires nothing. docs/plans/
+#                              2026-10-11-superseded-risk-controls.md.
 #                              An implements: inside an out-of-force REQ's
 #                              block implements nothing.
 #   UNTRACED-DESIGN ID       — SDD whose block has no `traces:` REQ reference
@@ -124,14 +136,19 @@
 #                              as no supersession — or as half of one. Prose
 #                              or a parenthetical after the ID list ends the
 #                              list and is not reported.
-#                              Also a REQ or LLR whose reciprocal pairs never
-#                              reach a successor in force or validly retired:
+#                              Also a REQ, LLR, RC or HAZ whose reciprocal
+#                              pairs never reach a successor in force or
+#                              validly retired — the self-pair and cycle
+#                              reports are not filtered by prefix, so a HAZ
+#                              reaches them too:
 #                              `(supersedes itself)` for a self-pair,
 #                              `(supersession cycle with no successor in force
 #                              or retired: <IDs>)` for a cycle, naming the
 #                              item and every item its chain reaches. Such an
-#                              item stays in force and owes
-#                              its test (OUT-OF-FORCE-VERIFIES, below).
+#                              item stays in force and owes its test
+#                              (OUT-OF-FORCE-VERIFIES, below), or, for an RC,
+#                              its implementing REQ, or, for a HAZ, a
+#                              `mitigates:` in an RC's block.
 #   MALFORMED-RETIREMENT ID  — a column-one retired: in a REQ or LLR block
 #                              whose value is not a YYYY-MM-DD calendar date
 #                              at most a day ahead (the opened: rule), a
@@ -454,21 +471,44 @@ fi
 # /dev/null so a config with neither document cannot leave awk reading the
 # terminal.
 #
-# Blocks open on REQ and LLR only, the two prefixes that owe MISSING-TEST, so
-# a `retired:` in an SDD block is read by nothing — and ORPHAN-ANNOTATION
-# reports it, because the backstop opens on the same two prefixes.
+# Blocks open on REQ, LLR, RC and HAZ. A `retired:` is read in a REQ or LLR
+# block only, the two prefixes that owe MISSING-TEST, so one in an SDD, RC or
+# HAZ block is read by nothing — and in the SRS and SAD ORPHAN-ANNOTATION
+# reports it, because the backstop opens on REQ and LLR alone.
 #
-# oof_scan SRS_FILES SAD_FILES — the scan's raw lines, one per fact:
-#   O <ID>                   the item is out of force
+# RC AND HAZ ARE TAKEN OUT OF FORCE BY SUPERSESSION ALONE (PR-x63ejd, docs/
+# plans/2026-10-11-superseded-risk-controls.md). An out-of-force RC owes no
+# `implements:` and its `mitigates:` mitigates nothing, so a control
+# superseded together with its implementing REQ owes no in-force REQ for a
+# behavior the software deliberately no longer has. An out-of-force HAZ owes
+# no `mitigates:`, so a hazard reworded together with its control does not
+# leave the old hazard unmitigated; its successor owes one.
+#
+# THREE FAMILIES: RC, HAZ, and REQ/LLR. A pair takes an item out of force only
+# within its family, so a control is replaced by a control, a hazard by a
+# hazard, and a requirement by a requirement or an LLR. A pair across
+# families takes nothing out of force.
+#
+# THIS SCAN REPORTS WHICH ITEMS ARE OUT OF FORCE AND NOTHING ABOUT CREDITS.
+# The `implements:` and `mitigates:` lines are read once, by credit_scan (D2
+# of the block-attributed-credits change): one reader per keyword, so no two
+# gates can disagree on what a line credits. The gates below intersect
+# credit_scan's records with the IDs this scan reports.
+#
+# oof_scan SRS_FILES SAD_FILES [RMF_FILES] — the scan's raw lines, one per
+# fact:
+#   O <ID>                   the item (REQ, LLR, RC or HAZ) is out of force
 #   MALFORMED-RETIREMENT …   a report line, ready to print
 #   MALFORMED-SUPERSESSION … a self-pair or a chain that never terminates
 #                            (review round 3, finding-1), ready to print
-# Both arguments are newline-separated file lists. A FUNCTION, because two
+# Every argument is a newline-separated file list. A FUNCTION, because two
 # ledgers are read with it: this run's, at the out-of-force section below, and
 # a provider unit's, where an expectation is judged met — an out-of-force
 # exported REQ meets no `expects:` (D3, extended on review round 2,
 # finding-2). One definition, so the two cannot disagree on what out of force
-# means. The awk status is the function's status; callers keep it.
+# means. The provider's call passes no RMF_FILES: an expectation is met by a
+# REQ, never by a control. The awk status is the function's status; callers
+# keep it.
 #
 # unignored_files LIST — LIST's files that git does not ignore, one per line.
 # THE FILES GIT GREP READS, and no others (review round 3, finding-3). The
@@ -492,14 +532,22 @@ unignored_files() {
 }
 oof_scan() {
     _oof_srs="$1"
+    _oof_rmf="${3:-}"
     _oof_sad_only=""
     for _oof_f in $2; do
         gr_contains "$_oof_srs" "$_oof_f" || _oof_sad_only="${_oof_sad_only}${_oof_sad_only:+
 }$_oof_f"
     done
+    _oof_rmf_only=""
+    for _oof_f in $_oof_rmf; do
+        gr_contains "$_oof_srs" "$_oof_f" || gr_contains "$_oof_sad_only" "$_oof_f" \
+            || _oof_rmf_only="${_oof_rmf_only}${_oof_rmf_only:+
+}$_oof_f"
+    done
     _oof_srs=$(unignored_files "$_oof_srs") || return 2
     _oof_sad_only=$(unignored_files "$_oof_sad_only") || return 2
-    [ -n "$_oof_srs$_oof_sad_only" ] || return 0
+    _oof_rmf_only=$(unignored_files "$_oof_rmf_only") || return 2
+    [ -n "$_oof_srs$_oof_sad_only$_oof_rmf_only" ] || return 0
     # shellcheck disable=SC2086
     LC_ALL=C awk -v body="$GR_ID_BODY" -v today="$today" \
         "$GR_AWK_ID_RUN$GR_AWK_ITEM_BLOCK$GR_AWK_CIVIL"'
@@ -532,13 +580,19 @@ oof_scan() {
             else if (ok)
                 out_of_force[cur] = 1
         }
+        # The supersession family of an ID: RC, HAZ, or REQ for REQ and LLR.
+        function item_family(id) {
+            if (id ~ /^RC-/) return "RC"
+            if (id ~ /^HAZ-/) return "HAZ"
+            return "REQ"
+        }
         function open_block(id) {
             cur = id
             ret = ""; ret_seen = 0
             sb_ids = ""; sb_raw = ""; sb_seen = 0
         }
         BEGIN {
-            gr_block_init("REQ|LLR", body)
+            gr_block_init("REQ|LLR|RC|HAZ", body)
             gr_date_ok(today)   # validated in the shell above
             todaydays = GR_DATE_DAYS
         }
@@ -562,8 +616,9 @@ oof_scan() {
             flush()
             open_block(gr_block_opens(line) ? gr_block_id(line) : "")
         }
-        # First occurrence wins, as for every scalar annotation.
-        cur != "" && !ret_seen && gr_kw_here(line, "retired:") {
+        # First occurrence wins, as for every scalar annotation. An RC or a
+        # HAZ is not retired this way: its retired: is read by nothing.
+        cur ~ /^(REQ|LLR)-/ && !ret_seen && gr_kw_here(line, "retired:") {
             ret_seen = 1; ret = gr_value(line, "retired:")
         }
         # Both halves ACCUMULATE, as in the supersession scan: either is a
@@ -615,6 +670,10 @@ oof_scan() {
                 split(pair_key, ends, "\t")
                 if (!((ends[2] "\t" ends[1]) in sup)) continue
                 if (ends[1] == ends[2]) { self_pair[ends[1]] = 1; continue }
+                # One family: a control is replaced by a control, a hazard by
+                # a hazard, and a requirement by a requirement or an LLR
+                # (PR-x63ejd, D3).
+                if (item_family(ends[1]) != item_family(ends[2])) continue
                 if (ends[1] in both_forms) continue
                 edge[pair_key] = 1
                 has_successor[ends[1]] = 1
@@ -656,7 +715,7 @@ oof_scan() {
                 printf "MALFORMED-SUPERSESSION %s (supersession cycle with no successor in force or retired: %s)\n", item, reached_list()
             }
         }
-    ' $_oof_srs $_oof_sad_only < /dev/null
+    ' $_oof_srs $_oof_sad_only $_oof_rmf_only < /dev/null
 }
 
 # --- Credits: docs/plans/2026-10-08-block-attributed-credits.md ------------
@@ -1013,15 +1072,35 @@ done
 # reason the supersession scan gives: an `awk | ...` pipeline reports the last
 # command's status, so an awk that exited 2 would read as a tree with nothing
 # out of force and nothing malformed. Placed here, ahead of every reader of
-# its result, which also makes it the first scan to open a working-tree SAD
-# file; see the NON-RECIPROCAL-SUPERSESSION scan for why that matters.
-_oof_raw=$(oof_scan "$srs_files" "$sad_files") || gr_die "out-of-force scan failed"
+# its result, which also makes it the first awk over a working-tree SAD file
+# WHOSE STATUS IS KEPT — parse_llr_file reads them earlier and drops its status
+# into a command substitution; see the NON-RECIPROCAL-SUPERSESSION scan for why
+# that matters.
+_oof_raw=$(oof_scan "$srs_files" "$sad_files" "$rmf_files") || gr_die "out-of-force scan failed"
 # sort -u: the reciprocity loop in oof_scan walks an array, whose order is
 # unspecified, and an item superseded by two successors prints twice.
-out_of_force=$(printf '%s\n' "$_oof_raw" | awk '$1 == "O" { print $2 }' | LC_ALL=C sort -u)
-# The flattened form is what crosses `awk -v` below: a value with a
-# literal newline in it stops BWK awk before its program runs.
-oof_flat=" $(printf '%s\n' "$out_of_force" | tr '\n' ' ')"
+# out_of_force holds REQ and LLR, the items every test-side reader asks
+# about; rc_out_of_force holds the controls, read by UNIMPLEMENTED-CONTROL
+# and UNMITIGATED-HAZARD alone (PR-x63ejd); hz_out_of_force holds the
+# hazards, read by UNMITIGATED-HAZARD alone (D3).
+# oof_ids PREFIXES — the out-of-force IDs whose prefix is one of the
+# alternation PREFIXES, sorted and unique.
+oof_ids() {
+    printf '%s\n' "$_oof_raw" \
+        | awk -v prefixes="$1" '$1 == "O" && $2 ~ ("^(" prefixes ")-") { print $2 }' \
+        | LC_ALL=C sort -u
+}
+# oof_flatten LIST — LIST on one line, every ID between spaces. The flattened
+# form is what crosses `awk -v` below: a value with a literal newline in it
+# stops BWK awk before its program runs.
+oof_flatten() {
+    printf ' %s' "$(printf '%s\n' "$1" | tr '\n' ' ')"
+}
+out_of_force=$(oof_ids 'REQ|LLR')
+rc_out_of_force=$(oof_ids RC)
+hz_out_of_force=$(oof_ids HAZ)
+oof_flat=$(oof_flatten "$out_of_force")
+rc_oof_flat=$(oof_flatten "$rc_out_of_force")
 _retire=$(printf '%s\n' "$_oof_raw" | grep '^MALFORMED-RETIREMENT ')
 if [ -n "$_retire" ]; then
     print_violations "$_retire"
@@ -1110,10 +1189,18 @@ if [ -n "$rmf_files" ]; then
     mitigates_records=$(credit_scan 'mitigates:' RC HAZ "$rmf_files") \
         || gr_die "mitigates: scan failed"
     defined_rc_flat=" $(ids_defined RC | tr '\n' ' ')"
+    # An out-of-force RC's `mitigates:` mitigates nothing (PR-x63ejd), as an
+    # out-of-force REQ's `implements:` implements nothing (D3). Without this a
+    # control superseded by a narrower one that drops a hazard leaves the
+    # hazard green on a control no longer in force.
     mitigated=$(printf '%s\n' "$mitigates_records" \
-        | awk -v defined="$defined_rc_flat" 'NF == 2 && index(defined, " " $1 " ") > 0 { print $2 }')
+        | awk -v defined="$defined_rc_flat" -v oof="$rc_oof_flat" \
+            'NF == 2 && index(defined, " " $1 " ") > 0 && index(oof, " " $1 " ") == 0 { print $2 }')
     for id in $(ids_defined HAZ); do
-        gr_contains "$mitigated" "$id" || { print_violations "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
+        # An out-of-force HAZ owes no mitigates:; its successor does (D3).
+        gr_contains "$hz_out_of_force" "$id" && continue
+        gr_contains "$mitigated" "$id" && continue
+        { print_violations "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
     done
 fi
 
@@ -1130,6 +1217,9 @@ if [ -n "$srs_files" ]; then
         | awk -v oof="$oof_flat" -v defined="$defined_req_flat" \
             'NF == 2 && index(oof, " " $1 " ") == 0 && index(defined, " " $1 " ") > 0 { print $2 }')
     for id in $(ids_defined RC); do
+        # An out-of-force RC owes no implementing REQ; its successor does
+        # (PR-x63ejd).
+        gr_contains "$rc_out_of_force" "$id" && continue
         gr_contains "$implemented_in_force" "$id" && continue
         { print_violations "UNIMPLEMENTED-CONTROL $id (no requirement 'implements:' it)"; fail=1; }
     done

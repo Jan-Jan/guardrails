@@ -39,6 +39,40 @@ setup() {
     [[ "$output" == "checked:"* ]] || { echo "$output"; false; }   # summary lines only: nothing precedes checked:
 }
 
+@test "check-trace: the host's global or system git config does not change the verdict" {
+    # verifies: PR-ad4vmm
+    # The isolation lives in helpers.bash, so it covers every suite file, not
+    # only check-signing.bats (PR-gw6wts). The host's configuration is built
+    # here, before helpers load again, so the test does not depend on the
+    # machine running it: every file git reads outside the repository names
+    # an excludes file that ignores the fixture's only test, left untracked.
+    # git grep --untracked skips an ignored file, so a fixture that read any
+    # of them would report the fully traced tree's items untested.
+    host="$BATS_TEST_TMPDIR/host"
+    mkdir -p "$host/xdg/git"
+    printf 'tests/test_a.sh\n' > "$host/ignore"
+    for config_file in "$host/.gitconfig" "$host/xdg/git/config" \
+                       "$host/global" "$host/system"; do
+        printf '[core]\n\texcludesFile = %s/ignore\n' "$host" > "$config_file"
+    done
+    unset GIT_CONFIG_NOSYSTEM
+    export HOME="$host" XDG_CONFIG_HOME="$host/xdg" \
+           GIT_CONFIG_GLOBAL="$host/global" GIT_CONFIG_SYSTEM="$host/system"
+    load helpers
+    cd "$BATS_TEST_TMPDIR"
+    rm -rf "$REPO"
+    make_fixture_repo
+    write_traced_docs
+    # A tracked file beside it, so the test directory exists either way and
+    # the verdict a leak gives is MISSING-TEST, not an empty test_paths.
+    : > tests/.gitkeep
+    git add -- docs tests/.gitkeep
+    git commit -qm "traced docs, the test left untracked"
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    output_lacks "MISSING-TEST"
+}
+
 @test "check-trace: REQ without verifying test fails" {
     printf 'true\n' > tests/test_a.sh
     commit_all no-verifies
@@ -2111,8 +2145,10 @@ SAD
 @test "check-trace: an unreadable architecture ledger fails the out-of-force scan" {
     # An error-path test of the scan, not of a plan decision, so it carries
     # no verifies: line (review round 2, finding-4).
-    # The out-of-force scan is the first awk to open a SAD file, and its
-    # status is kept: an errored scan would otherwise read as a tree with
+    # The out-of-force scan is the first awk over a SAD file whose status is
+    # KEPT — parse_llr_file reads them earlier and drops its status into a
+    # command substitution — and keeping it matters: an errored scan would
+    # otherwise read as a tree with
     # nothing out of force, which is every item owing its test — or, read the
     # other way, a MALFORMED-RETIREMENT never reported.
     chmod 000 docs/architecture/0001-01-01-base.md
@@ -2122,29 +2158,67 @@ SAD
     [[ "$output" == *"out-of-force scan failed"* ]] || { echo "$output"; false; }
 }
 
-@test "check-trace: an unreadable risk ledger fails the mitigates: scan" {
-    # doc_rmf is opened first by the mitigates: block pass (credit_scan), so
-    # the message names it: a scan that errors finds nothing, and finding
-    # nothing would read as every hazard unmitigated, or as none.
+@test "check-trace: an unreadable risk ledger fails the out-of-force scan" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # The out-of-force scan reads the RMF for superseded controls (PR-x63ejd)
+    # and is the first awk over it whose status is kept, as it is for the SAD
+    # (the test above).
+    # It runs before credit_scan's mitigates: pass, so this tracked file's
+    # error surfaces as the out-of-force scan's, not the mitigates: scan's.
     chmod 000 docs/risk/0001-01-01-base.md
     run sh .guardrails/scripts/check-trace.sh
     chmod 644 docs/risk/0001-01-01-base.md
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
-    [[ "$output" == *"mitigates: scan failed"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"out-of-force scan failed"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: an unreadable gitignored risk ledger fails the orphan scan" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # D1 names the orphan backstop that reads the same files after the
+    # out-of-force scan; this test is that clause's only unreadable-file
+    # fixture. The test predates D1, which arrived with the other machine's
+    # change, so the annotation is added where the two met.
     # The orphan backstop's half of the problems-ledger test above. Every
-    # ledger is now opened first by a block pass, and the block passes drop
-    # the files git ignores, so a gitignored doc_rmf file is opened by
+    # block pass drops the files git ignores (unignored_files), and so does
+    # the out-of-force scan, so a gitignored doc_rmf file is opened by
     # check_orphans and by nothing else: the fixture in which its error path
-    # is reachable. It was the RMF until credit_scan began opening that first.
+    # is still reachable from an unreadable file.
     printf 'docs/risk/2026-01-02-scratch.md\n' > .gitignore
     printf '**RC-001**: Software limits dose. mitigates: HAZ-001\n' > docs/risk/2026-01-02-scratch.md
     commit_all ignored-rmf
     chmod 000 docs/risk/2026-01-02-scratch.md
     run sh .guardrails/scripts/check-trace.sh
     chmod 644 docs/risk/2026-01-02-scratch.md
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"orphan scan failed"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a failing orphan-scan awk is exit 2, not a clean backstop" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # A TRACKED ledger is opened first by a scan whose status is kept — the
+    # problems ledger by the triage scan, the SRS by credit_scan's
+    # implements: pass, the SAD and RMF by the out-of-force scan — so an
+    # unreadable tracked file no longer reaches this
+    # backstop's error path; the gitignored fixture above is the one that
+    # still does. A fault injector at the awk boundary reaches it directly: an
+    # awk that exits 2 with no output on the one program that prints
+    # ORPHAN-ANNOTATION, and is the real awk on every other call. Were any
+    # earlier scan to match, the run would die with that scan's message and
+    # the assertion below fails.
+    real_awk=$(command -v awk)
+    stub_directory="$BATS_TEST_TMPDIR/orphan-awk-fails"
+    mkdir -p "$stub_directory"
+    cat > "$stub_directory/awk" <<STUB
+#!/bin/sh
+for argument in "\$@"; do
+    case "\$argument" in
+        (*'printf "ORPHAN-ANNOTATION '*) exit 2 ;;
+    esac
+done
+exec "$real_awk" "\$@"
+STUB
+    chmod +x "$stub_directory/awk"
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
     [[ "$output" == *"orphan scan failed"* ]] || { echo "$output"; false; }
 }
@@ -2670,6 +2744,227 @@ POISON
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-r5jw4h"* ]] || { echo "$output"; false; }
+}
+
+# A risk control with a reciprocal supersession pair, whose implementing REQ
+# was superseded with it: PR-x63ejd's shape. RC_PAIR is the risk ledger half,
+# REQ_PAIR the requirements half; each test appends what it varies.
+RC_PAIR='\n**RC-46yapu**: A build shall fail when it pins clients to a deployment.\nmitigates: HAZ-001\nsuperseded-by: RC-q9xdv2\n\n**RC-q9xdv2**: A build that emits a deployment shall fail when it pins clients to it.\nmitigates: HAZ-001\nsupersedes: RC-46yapu\n'
+REQ_PAIR='\n**REQ-uutw7x**: The build shall fail when pinning is configured.\nimplements: RC-46yapu\nsuperseded-by: REQ-t8ej3q\n\n**REQ-t8ej3q**: A deployment build shall fail when pinning is configured.\nimplements: RC-q9xdv2\nsupersedes: REQ-uutw7x\n'
+# RC_PAIR's shape, with a hazard the old control mitigates and the narrower
+# successor drops.
+RC_PAIR_DROPPING_HAZARD='\n**HAZ-k4wq8r**: A stale client writes to a retired schema.\n\n**RC-46yapu**: A build shall fail when it pins clients.\nmitigates: HAZ-001, HAZ-k4wq8r\nsuperseded-by: RC-q9xdv2\n\n**RC-q9xdv2**: A deployment build shall fail when it pins clients.\nmitigates: HAZ-001\nsupersedes: RC-46yapu\n'
+
+# REQ_PAIR in the requirements ledger, its successor verified by a test.
+add_tested_req_pair() {
+    printf "$REQ_PAIR" >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t8ej3q\ntrue\n' > tests/test_sup.sh
+}
+
+@test "check-trace: a superseded RC owes no implementing requirement" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # PR-x63ejd: the RC and its only implementing REQ were superseded together,
+    # so the old control is history and nothing owes it an implements:.
+    printf "$RC_PAIR" >> docs/risk/0001-01-01-base.md
+    add_tested_req_pair
+    commit_all superseded-rc
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"UNIMPLEMENTED-CONTROL"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: the successor of a superseded RC still owes an implementing requirement" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    printf "$RC_PAIR" >> docs/risk/0001-01-01-base.md
+    commit_all superseded-rc-successor-unimplemented
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-q9xdv2"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNIMPLEMENTED-CONTROL RC-46yapu"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a one-sided superseded-by: on an RC exempts nothing" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # SCOPE CONTROL: the pair, not the one line, takes a control out of force.
+    printf '\n**RC-46yapu**: A build shall fail when it pins clients to a deployment.\nmitigates: HAZ-001\nsuperseded-by: RC-q9xdv2\n\n**RC-q9xdv2**: A build that emits a deployment shall fail when it pins clients to it.\nmitigates: HAZ-001\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-t8ej3q**: A deployment build shall fail when pinning is configured.\nimplements: RC-q9xdv2\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t8ej3q\ntrue\n' > tests/test_sup.sh
+    commit_all one-sided-rc-supersession
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"NON-RECIPROCAL-SUPERSESSION RC-46yapu"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-46yapu"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an RC supersession cycle exempts nothing and is reported" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    printf '\n**RC-46yapu**: A build shall fail when it pins clients.\nmitigates: HAZ-001\nsuperseded-by: RC-q9xdv2\nsupersedes: RC-q9xdv2\n\n**RC-q9xdv2**: A deployment build shall fail when it pins clients.\nmitigates: HAZ-001\nsupersedes: RC-46yapu\nsuperseded-by: RC-46yapu\n' \
+        >> docs/risk/0001-01-01-base.md
+    commit_all rc-supersession-cycle
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION RC-46yapu (supersession cycle"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-46yapu"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-q9xdv2"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an RC superseded by a requirement stays in force" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # SCOPE CONTROL: a control is replaced by a control. A pair across the
+    # two families takes nothing out of force.
+    printf '\n**RC-46yapu**: A build shall fail when it pins clients.\nmitigates: HAZ-001\nsuperseded-by: REQ-t8ej3q\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-t8ej3q**: A deployment build shall fail when pinning is configured.\nsupersedes: RC-46yapu\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t8ej3q\ntrue\n' > tests/test_sup.sh
+    commit_all rc-superseded-by-req
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-46yapu"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a retired: on an RC retires nothing" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # SCOPE CONTROL: retirement stays REQ and LLR only, and is not reported.
+    printf '\n**RC-46yapu**: A build shall fail when it pins clients.\nmitigates: HAZ-001\nretired: 2026-09-08 — the pinning feature was removed\n' \
+        >> docs/risk/0001-01-01-base.md
+    commit_all retired-rc
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-46yapu"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"MALFORMED-RETIREMENT"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a hazard mitigated only by a superseded RC is unmitigated" {
+    # verifies: D2 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # Without D2 this is the false green: the narrower successor dropped the
+    # hazard, and the old control's mitigates: still counted for it.
+    printf "$RC_PAIR_DROPPING_HAZARD" >> docs/risk/0001-01-01-base.md
+    add_tested_req_pair
+    commit_all hazard-mitigated-by-superseded-rc
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-k4wq8r"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNMITIGATED-HAZARD HAZ-001"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a superseded RC's successor keeps its hazard mitigated" {
+    # verifies: D2 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # SCOPE CONTROL: only a line inside an out-of-force RC's block is dropped.
+    # RC-001 no longer mitigates HAZ-001, so the successor alone answers it.
+    printf "$RC_PAIR" >> docs/risk/0001-01-01-base.md
+    add_tested_req_pair
+    sed -i.bak 's/ mitigates: HAZ-001$//' docs/risk/0001-01-01-base.md
+    rm docs/risk/0001-01-01-base.md.bak
+    commit_all successor-mitigates
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"UNMITIGATED-HAZARD"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# A hazard reworded with a reciprocal supersession pair, as a control is.
+# HAZ_PAIR is the risk ledger half; each test appends what it varies.
+HAZ_PAIR='\n**HAZ-m7c4xd**: A client pinned to a deployment writes to a retired schema.\nsuperseded-by: HAZ-n3hb5f\n\n**HAZ-n3hb5f**: A client pinned to a deployment reads or writes a retired schema.\nsupersedes: HAZ-m7c4xd\n'
+
+@test "check-trace: a hazard superseded together with its control owes nothing" {
+    # verifies: D3 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # Review finding-1: RC-old mitigates HAZ-old, superseded by RC-new that
+    # mitigates HAZ-new. The old hazard is history and owes no mitigates:.
+    printf "$HAZ_PAIR" >> docs/risk/0001-01-01-base.md
+    printf '\n**RC-46yapu**: A build shall fail when it pins clients to a deployment.\nmitigates: HAZ-m7c4xd\nsuperseded-by: RC-q9xdv2\n\n**RC-q9xdv2**: A build that emits a deployment shall fail when it pins clients to it.\nmitigates: HAZ-n3hb5f\nsupersedes: RC-46yapu\n' \
+        >> docs/risk/0001-01-01-base.md
+    add_tested_req_pair
+    commit_all superseded-hazard-with-control
+    run sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"UNMITIGATED-HAZARD"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: the successor of a superseded HAZ still owes a mitigates:" {
+    # verifies: D3 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    printf "$HAZ_PAIR" >> docs/risk/0001-01-01-base.md
+    commit_all superseded-hazard-successor-unmitigated
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-n3hb5f"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNMITIGATED-HAZARD HAZ-m7c4xd"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a HAZ superseded by an RC stays in force" {
+    # verifies: D3 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # SCOPE CONTROL: a hazard is replaced by a hazard. A pair across the
+    # families takes nothing out of force.
+    printf '\n**HAZ-m7c4xd**: A client pinned to a deployment writes to a retired schema.\nsuperseded-by: RC-q9xdv2\n\n**RC-q9xdv2**: A build that emits a deployment shall fail when it pins clients to it.\nmitigates: HAZ-001\nsupersedes: HAZ-m7c4xd\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-t8ej3q**: A deployment build shall fail when pinning is configured.\nimplements: RC-q9xdv2\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t8ej3q\ntrue\n' > tests/test_sup.sh
+    commit_all hazard-superseded-by-rc
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-m7c4xd"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a HAZ supersession cycle exempts nothing and is reported" {
+    # verifies: D3 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    printf '\n**HAZ-m7c4xd**: A client pinned to a deployment writes to a retired schema.\nsuperseded-by: HAZ-n3hb5f\nsupersedes: HAZ-n3hb5f\n\n**HAZ-n3hb5f**: A client pinned to a deployment reads or writes a retired schema.\nsupersedes: HAZ-m7c4xd\nsuperseded-by: HAZ-m7c4xd\n' \
+        >> docs/risk/0001-01-01-base.md
+    commit_all haz-supersession-cycle
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MALFORMED-SUPERSESSION HAZ-m7c4xd (supersession cycle"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-m7c4xd"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-n3hb5f"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a REQ superseded by an RC still owes its test" {
+    # verifies: D1 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # Review finding-2, the REQ side of the family rule: a requirement is
+    # replaced by a requirement or an LLR, never by a control.
+    printf '\n**RC-q9xdv2**: A build that emits a deployment shall fail when it pins clients to it.\nmitigates: HAZ-001\nsupersedes: REQ-uutw7x\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-uutw7x**: The build shall fail when pinning is configured.\nsuperseded-by: RC-q9xdv2\n\n**REQ-t8ej3q**: A deployment build shall fail when pinning is configured.\nimplements: RC-q9xdv2\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-t8ej3q\ntrue\n' > tests/test_sup.sh
+    commit_all req-superseded-by-rc
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"MISSING-TEST REQ-uutw7x"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a mitigates: outside the risk ledger keeps no hazard mitigated" {
+    # verifies: D2 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # Review finding-3: only the superseded RC names HAZ-k4wq8r in the risk
+    # ledger. A mitigates: in the SRS is not read as a control, so it must not
+    # stand in for the line D2 drops.
+    printf "$RC_PAIR_DROPPING_HAZARD" >> docs/risk/0001-01-01-base.md
+    add_tested_req_pair
+    printf 'The deployment build also mitigates: HAZ-k4wq8r\n' >> docs/requirements/0001-01-01-base.md
+    commit_all mitigates-outside-rmf
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-k4wq8r"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: doc_rmf on doc_srs's directory still reads its mitigates: lines" {
+    # verifies: D2 (docs/plans/2026-10-11-superseded-risk-controls.md)
+    # Review round 4, finding-1: a file in both lists is read as doc_rmf too,
+    # so the in-force RC still mitigates HAZ-001 and only the hazard the
+    # superseded RC alone named is dropped.
+    sed -i.bak 's#^doc_srs: .*#doc_srs: docs/risk#' .guardrails/config.yaml
+    rm .guardrails/config.yaml.bak
+    git mv docs/requirements/0001-01-01-base.md docs/risk/0001-01-01-srs.md
+    printf "$RC_PAIR_DROPPING_HAZARD" >> docs/risk/0001-01-01-base.md
+    printf "$REQ_PAIR" >> docs/risk/0001-01-01-srs.md
+    printf '# verifies: REQ-t8ej3q\ntrue\n' > tests/test_sup.sh
+    commit_all rmf-on-srs-directory
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-k4wq8r"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"UNMITIGATED-HAZARD HAZ-001"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a verifies: line naming only a superseded item is reported with its file and line" {
