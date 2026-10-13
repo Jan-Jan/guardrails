@@ -10,7 +10,8 @@ negated assertion that is not the last command of a bats test body is evaluated
 and its result discarded, exactly as a bare `[[ ]]` was.
 affects: tests/skills.bats (9), tests/finalize-docs.bats (1).
 opened: 2026-09-28
-status: open
+status: resolved
+Resolved: the same defect as `PR-3kvpze`, fixed in its change (`0c11d77` on `main`, plan `docs/plans/2026-10-13-bare-negations.md`), which re-derived the set at its tree (15 bare negations, 9 dead) and made each end in a failing `|| { …; false; }` list; `no test asserts through a bare negation` in `tests/portability.bats` rejects a new one. The table's `check-traceability: MALFORMED-STATUS knows there are three values` was already gone, removed with its two negated lines by `fb0db8d`, whose successor `check-trace: the MALFORMED-STATUS remedy names all three values` in `tests/remedies.bats` negates nothing, so `0c11d77` fixed the rest of the table. The body below describes the tree at 2026-09-28, not the current tree. Resolved here, in a record-only change, because that change missed this item.
 Reproduced on this machine's `/bin/bash`, `3.2.57(1)-release`. The negated
 command has to FAIL for the demonstration to mean anything, so the pattern must
 be one the file contains:

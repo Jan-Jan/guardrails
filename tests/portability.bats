@@ -546,7 +546,7 @@ $f"
 # --- PR-3kvpze --------------------------------------------------------------
 
 @test "no test asserts through a bare negation" {
-    # verifies: PR-3kvpze
+    # verifies: PR-3kvpze, PR-7za3at
     # bash's errexit ignores a command negated with `!`, so `! grep -q X f`
     # fails a test only as the body's last command; anywhere else it checks
     # nothing. Nine of fifteen such assertions had died that way when a line
