@@ -1052,8 +1052,10 @@ gr_all_sh_fences() {
     grep -q 'assesses:' "$root/templates/srs.md"
     grep -q 'assesses:' "$root/templates/sad.md"
     grep -q 'assesses:' "$root/templates/AGENTS-block.md"
-    ! grep -q 'RMF never mentions' "$root/skills/analyze-risks/SKILL.md"
-    ! grep -q 'the RMF must mention it' "$root/skills/grill-requirements/SKILL.md"
+    ! grep -q 'RMF never mentions' "$root/skills/analyze-risks/SKILL.md" \
+        || { echo "analyze-risks still says: RMF never mentions"; false; }
+    ! grep -q 'the RMF must mention it' "$root/skills/grill-requirements/SKILL.md" \
+        || { echo "grill-requirements still says: the RMF must mention it"; false; }
 }
 
 @test "upgrade-notes-announce-the-hard-cut: ratchet states derived assessments go red at upgrade" {
@@ -1194,7 +1196,8 @@ gr_all_sh_fences() {
     # that remains rather than one that no longer exists.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     grep -q 'the code rules in AGENTS.md' "$skill"
-    ! grep -q 'writing and naming rules' "$skill"
+    ! grep -q 'writing and naming rules' "$skill" \
+        || { echo "develop-change still names: writing and naming rules"; false; }
 }
 
 @test "develop-change: the mutation-anchor rule lives in this repository's TEST_GUIDELINES.md, not develop-change" {
@@ -1231,7 +1234,8 @@ gr_all_sh_fences() {
     # to correct a count in an already-merged record.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'resolves, accepts or opens' "$skill"
-    ! grep -rq 'open PR warnings' "$(dirname "$skill")"
+    ! grep -rq 'open PR warnings' "$(dirname "$skill")" \
+        || { echo "merge-change still says: open PR warnings"; false; }
 }
 
 @test "merge-change: the commit template states the Resolves and Opens trailers" {
@@ -1369,7 +1373,8 @@ gr_all_sh_fences() {
     # the template and the README.
     root="$BATS_TEST_DIRNAME/.."
     ! grep -rniE 'merge.date' "$root"/skills "$root"/templates/*.md \
-        "$root"/README.md "$root"/docs/problems/README.md
+        "$root"/README.md "$root"/docs/problems/README.md \
+        || { echo "a merge date is still stated (matches above)"; false; }
 }
 
 @test "merge-change: step 2 records the tree its gate summary describes" {
@@ -1405,7 +1410,8 @@ gr_all_sh_fences() {
     # A `record` finding states no severity, and the template shows that shape
     # rather than a severity on every tag.
     grep -q '^\*\*finding-2\*\*: record — ' "$template"
-    ! grep -q '^\*\*finding-[0-9]*\*\*: [^—]*record[^—]*, <high' "$template"
+    ! grep -q '^\*\*finding-[0-9]*\*\*: [^—]*record[^—]*, <high' "$template" \
+        || { echo "the template gives a record finding a severity"; false; }
     # and the field grammar states what the tag is for
 
     # The boundary itself, and not only the tag. Three formulations of this rule
@@ -1417,10 +1423,14 @@ gr_all_sh_fences() {
     # of one, and the change that added the tag ships none; a template that
     # reintroduces one reaches every adopter's record.
     grep -q 'convergence rule' "$template"
-    ! grep -q 'outside the verification record' "$template"
-    ! grep -q 'a file some gate reads' "$template"
-    ! grep -q 'a file some test reads' "$template"
-    ! grep -q 'anything a .verify_commands. entry opens' "$template"
+    ! grep -q 'outside the verification record' "$template" \
+        || { echo "the template restates a boundary: outside the verification record"; false; }
+    ! grep -q 'a file some gate reads' "$template" \
+        || { echo "the template restates a boundary: a file some gate reads"; false; }
+    ! grep -q 'a file some test reads' "$template" \
+        || { echo "the template restates a boundary: a file some test reads"; false; }
+    ! grep -q 'anything a .verify_commands. entry opens' "$template" \
+        || { echo "the template restates a boundary: anything a verify_commands entry opens"; false; }
 }
 
 @test "merge-change: the tag does not shorten the sequence" {
@@ -1459,7 +1469,8 @@ gr_all_sh_fences() {
     grep -q 'any finding at' "$(dirname "$skill")/references/rationale.md"
     grep -q 'whatever the findings were tagged' "$(dirname "$skill")/references/rationale.md"
     # and the red-flag row does not offer the saving either
-    ! grep -rq 'skips the suite, not the gates' "$(dirname "$skill")"
+    ! grep -rq 'skips the suite, not the gates' "$(dirname "$skill")" \
+        || { echo "merge-change still says: skips the suite, not the gates"; false; }
 }
 
 @test "merge-change: the mechanical checks are the pre-flight" {
@@ -2354,7 +2365,8 @@ adr_file_is_named_by_its_item() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [ "$(subject)" = 'chore: prune plans' ] || { echo "last commit: $(subject)"; false; }
     [ "$(git show --name-only --format= HEAD)" = 'docs/plans/2026-01-01-x.md' ]
-    ! git show HEAD:docs/plans/2026-01-01-x.md | grep -q 'task-code'
+    ! git show HEAD:docs/plans/2026-01-01-x.md | grep -q 'task-code' \
+        || { echo "the committed plan still holds task-code"; false; }
     [ "$(git diff --name-only)" = 'notes.txt' ] || { git status --short; false; }
 }
 

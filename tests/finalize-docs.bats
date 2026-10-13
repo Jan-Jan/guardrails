@@ -212,7 +212,8 @@ EOF
     run sh .guardrails/scripts/finalize-docs.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     grep -q "docs/requirements/${today}-dose-limits.md" docs/risk/README.md
-    ! grep -q 'DRAFT-feature-dose-limits' docs/risk/README.md
+    ! grep -q 'DRAFT-feature-dose-limits' docs/risk/README.md \
+        || { echo "docs/risk/README.md still names the DRAFT file"; false; }
     [[ "$output" == *"rewrote docs/risk/README.md: docs/requirements/DRAFT-feature-dose-limits.md -> docs/requirements/${today}-dose-limits.md"* ]] \
         || { echo "$output"; false; }
 }

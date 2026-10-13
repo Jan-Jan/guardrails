@@ -72,6 +72,15 @@ Guardrails is developed under the rules it ships, without exception.
   unbalanced `)` inside `$(...)`, and a line scan cannot decide whether a
   `case` is inside a command substitution, so use the form everywhere.
   `tests/portability.bats` enforces this.
+- Never write a bats assertion as a bare `! cmd`: bash's errexit ignores a
+  negated command, so it fails the test only as the body's last line. End it
+  in an `||` list, its only `||`, whose last command is `false`
+  (`! cmd || false` or `! cmd || { echo …; false; }`), or write
+  `if cmd; then false; fi`. `tests/portability.bats` rejects a bare negation
+  at the start of a statement, and any `!` after `;`, `&`, `&&`, `||`,
+  `then`, `do`, `else` or `{`, where no `||` form is allowed. It reports a
+  heredoc or `|| {` group still open at a file's end, which would hide the
+  rest of that file from the scan.
 - **Verifying an OpenPGP signature needs a writable `~/.gnupg`.** gpg opens
   `trustdb.gpg` read-write even to read it; `--list-keys` and
   `--trust-model always` both do. With `~/.gnupg` read-only (a sandboxed agent,

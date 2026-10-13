@@ -354,7 +354,8 @@ EOF
     prune --all
     [ "$status" -eq 0 ]
     output_has "pruned docs/plans/2025-12-01-old.md: 1 block, 1 line"
-    ! grep -q 'echo old' docs/plans/2025-12-01-old.md
+    ! grep -q 'echo old' docs/plans/2025-12-01-old.md \
+        || { echo "the old plan still holds its pruned code block"; false; }
 }
 
 @test "prune: an uncommitted edit to a merged plan makes it the branch's plan" {
@@ -586,7 +587,8 @@ EOF
     prune
     [ "$status" -eq 0 ]
     output_has "pruned $PLAN: 1 block, 1 line"
-    ! grep -q 'echo closed' "$PLAN"
+    ! grep -q 'echo closed' "$PLAN" \
+        || { echo "the plan still holds its closed code block"; false; }
     grep -q 'echo unclosed' "$PLAN"
 }
 

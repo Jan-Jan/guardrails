@@ -543,6 +543,359 @@ $f"
     [ -z "$found" ] || { echo "case patterns missing the leading (:"; echo "$found"; false; }
 }
 
+# --- PR-3kvpze --------------------------------------------------------------
+
+@test "no test asserts through a bare negation" {
+    # verifies: PR-3kvpze
+    # bash's errexit ignores a command negated with `!`, so `! grep -q X f`
+    # fails a test only as the body's last command; anywhere else it checks
+    # nothing. Nine of fifteen such assertions had died that way when a line
+    # was added after them. A negation must end in an `||` list, its only
+    # `||`, whose last command is `false`: `|| false`, `|| { ...; false; }`,
+    # or a `|| {` group spanning several lines whose last command before its
+    # closing `}` is `false`. A `!` after `;`, `&`, `&&`, `||`, `then`, `do`,
+    # `else` or `{` has no allowed form.
+    #
+    # The scan joins `\`-continued lines into one statement, reported at its
+    # first line, and skips heredoc bodies: a stub script's text is not an
+    # assertion of the test that writes it. It reads `<<`, `!`, braces and a
+    # continuing `\` only in code: quoted text, `((...))` and comments are
+    # removed first. A heredoc or group still open where a file ends hides the
+    # rest of that file, so it is reported as unclosed.
+    cat > "$BATS_TEST_TMPDIR/negationlint.awk" <<'AWK'
+# Returns `text` with quoted strings, `((...))` and an unquoted `#` comment
+# each replaced by `_` or removed, so that a `<<`, `!`, brace or `\` inside
+# them is not read as code. Sets `opened_tag` to the tag of the first heredoc
+# the remaining code opens, read up to a blank, quote or shell operator; a
+# here-string `<<<` leaves no tag to read.
+function code_of(text,    code, position, text_length, character, closing, depth, rest) {
+    code = ""
+    opened_tag = ""
+    position = 1
+    text_length = length(text)
+    while (position <= text_length) {
+        character = substr(text, position, 1)
+        if (character == "\\") {
+            code = code substr(text, position, 2)
+            position += 2
+        } else if (character == "'") {
+            closing = index(substr(text, position + 1), "'")
+            if (closing == 0) return code "_"
+            code = code "_"
+            position += closing + 1
+        } else if (character == "\"") {
+            position++
+            while (position <= text_length && substr(text, position, 1) != "\"") {
+                if (substr(text, position, 1) == "\\") position++
+                position++
+            }
+            code = code "_"
+            position++
+        } else if (character == "#" \
+            && (position == 1 || substr(text, position - 1, 1) ~ /[ \t;&|(]/)) {
+            return code
+        } else if (substr(text, position, 2) == "((") {
+            depth = 0
+            while (position <= text_length) {
+                character = substr(text, position, 1)
+                if (character == "(") depth++
+                if (character == ")") depth--
+                position++
+                if (depth == 0) break
+            }
+            code = code "_"
+        } else if (substr(text, position, 2) == "<<") {
+            rest = substr(text, position + 2)
+            sub(/^-/, "", rest)
+            sub(/^[ \t]+/, "", rest)
+            sub(/^['"]/, "", rest)
+            if (opened_tag == "" && match(rest, /^[^ \t'";&|<>()]+/))
+                opened_tag = substr(rest, 1, RLENGTH)
+            code = code "<<"
+            position += 2
+        } else {
+            code = code character
+            position++
+        }
+    }
+    return code
+}
+
+function trim(text) {
+    sub(/^[ \t]+/, "", text)
+    sub(/[ \t]+$/, "", text)
+    return text
+}
+
+# Starts skipping a heredoc if the code last read by `code_of` opened one.
+function open_heredoc(file, line_number) {
+    if (opened_tag == "") return
+    heredoc_tag = opened_tag
+    heredoc_file = file
+    heredoc_line = line_number
+}
+
+# Returns the position in `code` of the `}` that closes the open group, or 0,
+# counting each `{` and `}` into `group_depth`.
+function group_closing(code,    position, character) {
+    for (position = 1; position <= length(code); position++) {
+        character = substr(code, position, 1)
+        if (character == "{") group_depth++
+        if (character == "}") {
+            group_depth--
+            if (group_depth == 0) return position
+        }
+    }
+    return 0
+}
+
+# Checks one statement: `text` is its raw form, joined across `\` lines.
+function check_statement(text, file, line_number,    statement, or_lists) {
+    statement = trim(code_of(text))
+    open_heredoc(file, line_number)
+    if (statement ~ /(;|&|\|\||\{|(^|[ \t;])(then|do|else))[ \t]*![ \t]/) {
+        print file ":" line_number ": " trim(text)
+    } else if (statement ~ /^![ \t]/) {
+        or_lists = statement
+        if (gsub(/\|\|/, "", or_lists) != 1) {
+            print file ":" line_number ": " trim(text)
+        } else if (statement ~ /\|\|[ \t]*\{$/) {
+            group_file = file
+            group_line = line_number
+            group_statement = trim(text)
+            group_last = ""
+            group_depth = 1
+        } else if (statement !~ /\|\|[ \t]*false;?$/ \
+            && statement !~ /\|\|[ \t]*\{.*[{;][ \t]*false[ \t]*;[ \t]*\}$/) {
+            print file ":" line_number ": " trim(text)
+        }
+    }
+}
+
+# Ends a file: checks a statement still held by a trailing `\`, and reports a
+# heredoc or group still open, since it hid the rest of the file.
+function finish_file() {
+    if (held != "") check_statement(held, held_file, held_line)
+    if (heredoc_tag != "")
+        print heredoc_file ":" heredoc_line ": unclosed heredoc <<" heredoc_tag
+    if (group_line != 0)
+        print group_file ":" group_line ": unclosed || { group"
+    held = ""
+    heredoc_tag = ""
+    group_line = 0
+}
+
+FNR == 1 { finish_file() }
+{
+    line = $0
+    if (heredoc_tag != "") {
+        if (trim(line) == heredoc_tag) heredoc_tag = ""
+        next
+    }
+    if (group_line != 0) {
+        code = code_of(line)
+        open_heredoc(FILENAME, FNR)
+        closing = group_closing(code)
+        if (closing > 0) {
+            code = trim(substr(code, 1, closing - 1))
+            if (code == "") code = group_last
+            if (code !~ /(^|;)[ \t]*false[ \t]*;?$/)
+                print group_file ":" group_line ": " group_statement
+            group_line = 0
+        } else if (trim(code) != "") {
+            group_last = trim(code)
+        }
+        next
+    }
+    if (held != "") { line = held " " line } else { held_line = FNR; held_file = FILENAME }
+    if (code_of(line) ~ /\\$/) { held = substr(line, 1, length(line) - 1); next }
+    held = ""
+    check_statement(line, FILENAME, held_line)
+}
+END { finish_file() }
+AWK
+    lint() { awk -f "$BATS_TEST_TMPDIR/negationlint.awk" "$BATS_TEST_TMPDIR/$1.bats"; }
+
+    # Calibrate the scan in both directions before trusting it on the tree.
+    printf '%s\necho next\n' '! grep -q x f' > "$BATS_TEST_TMPDIR/bad-followed.bats"
+    printf '%s\n    f\necho next\n' '! grep -q x \' > "$BATS_TEST_TMPDIR/bad-continued.bats"
+    printf '%s\necho next\n' '! a | grep -q x' > "$BATS_TEST_TMPDIR/bad-pipeline.bats"
+    # An `||` list checks nothing unless its last command fails: a brace
+    # group that ends in `echo` exits 0, on one line or across several.
+    printf '%s\necho next\n' '! grep -q x f || { echo hit; }' \
+        > "$BATS_TEST_TMPDIR/bad-unfailing-braced.bats"
+    printf '%s\n    echo hit\n}\necho next\n' '! grep -q x f || {' \
+        > "$BATS_TEST_TMPDIR/bad-unfailing-block.bats"
+    for shape in followed continued pipeline unfailing-braced unfailing-block; do
+        [ -n "$(lint "bad-$shape")" ] \
+            || { echo "the scan misses the $shape shape"; false; }
+    done
+    printf '%s\necho next\n' '! grep -q x f || { echo hit; false; }' \
+        > "$BATS_TEST_TMPDIR/good-braced.bats"
+    printf '%s\necho next\n' '! grep -q x f || false' > "$BATS_TEST_TMPDIR/good-false.bats"
+    printf '%s\n    %s\necho next\n' '! grep -q x f \' '|| { echo hit; false; }' \
+        > "$BATS_TEST_TMPDIR/good-continued.bats"
+    printf '%s\n%s\nEOF\necho next\n' "cat <<'EOF'" '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/good-heredoc.bats"
+    printf '%s\n%s\n    EOF\necho next\n' 'cat <<-EOF' '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/good-indented-heredoc.bats"
+    printf '%s\n    echo hit\n    false\n}\necho next\n' '! grep -q x f || {' \
+        > "$BATS_TEST_TMPDIR/good-block.bats"
+    for shape in braced false continued heredoc indented-heredoc block; do
+        [ -z "$(lint "good-$shape")" ] \
+            || { echo "the scan flags the compliant $shape shape"; false; }
+    done
+
+    # A `<<` that opens no heredoc must not hide the lines after it: one in
+    # quotes, in a comment, in `$((...))` or in a here-string `<<<`. A
+    # heredoc opened there never closes, and the rest of the file goes
+    # unscanned. A `!` after `;`, `&&`, `||`, `then`, `do`, `else` or `{` is
+    # ignored by errexit just as one that opens a statement is. A group
+    # closed by `false; }` on its last line must be seen to close, and a
+    # statement held open by a `\` on the file's last line is still checked.
+    # Each control names the one line the scan must report.
+    printf '%s\n%s\necho next\n' "echo 'cat <<EOF'" '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/bad-single-quoted-heredoc.bats"
+    printf '%s\n%s\necho next\n' 'echo "cat <<EOF"' '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/bad-double-quoted-heredoc.bats"
+    printf '%s\n%s\necho next\n' '# cat <<EOF' '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/bad-comment-heredoc.bats"
+    printf '%s\n%s\necho next\n' 'y=$((x<<y))' '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/bad-arithmetic.bats"
+    printf '%s\n%s\necho next\n' 'grep -q x <<<"$x"' '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/bad-here-string.bats"
+    printf '%s\necho next\n' 'true; ! grep -q x f' > "$BATS_TEST_TMPDIR/bad-after-semicolon.bats"
+    printf '%s\necho next\n' 'true && ! grep -q x f' > "$BATS_TEST_TMPDIR/bad-after-and.bats"
+    printf '%s\necho next\n' 'if true; then ! grep -q x f; fi' > "$BATS_TEST_TMPDIR/bad-after-then.bats"
+    printf '%s\necho next\n' 'for i in 1; do ! grep -q x f; done' > "$BATS_TEST_TMPDIR/bad-after-do.bats"
+    printf '%s\n%s\n%s\necho next\n' '! grep -q x f || {' '    echo hit; false; }' '! grep -q x f' \
+        > "$BATS_TEST_TMPDIR/bad-closed-block.bats"
+    printf '%s\n%s\n' 'echo first' '! grep -q x f \' > "$BATS_TEST_TMPDIR/bad-trailing-continuation.bats"
+    for control in single-quoted-heredoc:2 double-quoted-heredoc:2 comment-heredoc:2 \
+                   arithmetic:2 here-string:2 after-semicolon:1 after-and:1 after-then:1 \
+                   after-do:1 closed-block:3 trailing-continuation:2; do
+        shape=${control%:*}
+        flagged=$(lint "bad-$shape")
+        [[ "$flagged" == "$BATS_TEST_TMPDIR/bad-$shape.bats:${control#*:}: "* \
+            && "$flagged" != *$'\n'* ]] \
+            || { echo "the scan misreports the $shape shape:"; echo "$flagged"; false; }
+    done
+    printf '%s\necho next\n' 'if ! grep -q x f; then false; fi' > "$BATS_TEST_TMPDIR/good-if-negated.bats"
+    printf '%s\necho next\n' 'while ! grep -q x f; do break; done' > "$BATS_TEST_TMPDIR/good-while-negated.bats"
+    printf '%s\necho next\n' '( ! grep -q x f )' > "$BATS_TEST_TMPDIR/good-subshell.bats"
+    printf '%s\necho next\n' '[ ! -f f ]' > "$BATS_TEST_TMPDIR/good-test-bracket.bats"
+    printf '%s\necho next\n' '[[ ! -f f ]]' > "$BATS_TEST_TMPDIR/good-double-bracket.bats"
+    for shape in if-negated while-negated subshell test-bracket double-bracket; do
+        [ -z "$(lint "good-$shape")" ] \
+            || { echo "the scan flags the compliant $shape shape"; false; }
+    done
+
+    # Each control below states the scan's whole report, reduced to `FILE:LINE`
+    # per statement flagged and `FILE:LINE unclosed ...` per heredoc or group
+    # left open at a file's end. An unclosed one hides the rest of its file, so
+    # it must be reported, not passed. Every control runs before any miss is
+    # reported, so one run lists them all.
+    fixture() { fixture_name=$1; shift; printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/$fixture_name.bats"; }
+    misreported=""
+    expect_report() {
+        expected=$1; shift
+        reported=$(cd "$BATS_TEST_TMPDIR" && awk -f negationlint.awk "$@" \
+            | sed -e 's/: unclosed/ unclosed/' -e 's/: .*//' | tr '\n' ' ' | sed 's/ $//')
+        [ "$reported" = "$expected" ] \
+            || misreported="$misreported$*: expected [$expected], reported [$reported]"$'\n'
+    }
+    # A heredoc that closes ends the skipping: a bare negation after it counts.
+    fixture closed-heredoc "cat <<'EOF'" '! grep -q x f' 'EOF' '! grep -q x f' 'echo next'
+    expect_report 'closed-heredoc.bats:4' closed-heredoc.bats
+    fixture closed-indented-heredoc 'cat <<-EOF' '! grep -q x f' '	EOF' '! grep -q x f' 'echo next'
+    expect_report 'closed-indented-heredoc.bats:4' closed-indented-heredoc.bats
+    fixture closed-spaced-heredoc 'cat << EOF' '! grep -q x f' 'EOF' '! grep -q x f' 'echo next'
+    expect_report 'closed-spaced-heredoc.bats:4' closed-spaced-heredoc.bats
+    fixture closed-dashed-tag 'cat <<END-X' '! grep -q x f' 'END-X' '! grep -q x f' 'echo next'
+    expect_report 'closed-dashed-tag.bats:4' closed-dashed-tag.bats
+    # Two heredocs on one line: the first tag's body comes first, so it is the
+    # one awaited, and a line holding the second tag inside it closes nothing.
+    fixture two-heredocs 'cat <<A <<B' 'B' '! grep -q x f' 'A' 'B' '! grep -q x f' 'echo next'
+    expect_report 'two-heredocs.bats:6' two-heredocs.bats
+    # A file that ends inside a heredoc or a group is reported at its opening.
+    fixture unclosed-heredoc 'echo first' 'cat <<EOF' '! grep -q x f'
+    expect_report 'unclosed-heredoc.bats:2 unclosed heredoc <<EOF' unclosed-heredoc.bats
+    fixture unclosed-group 'echo first' '! grep -q x f || {' '    echo hit'
+    expect_report 'unclosed-group.bats:2 unclosed || { group' unclosed-group.bats
+    # Each file starts afresh: nothing held, no heredoc, no group.
+    fixture held-first 'echo first' '! grep -q x f \'
+    fixture held-second 'echo next'
+    expect_report 'held-first.bats:2' held-first.bats held-second.bats
+    fixture heredoc-first 'cat <<EOF' 'text'
+    fixture heredoc-second '! grep -q x f' 'echo next'
+    expect_report 'heredoc-first.bats:1 unclosed heredoc <<EOF heredoc-second.bats:1' \
+        heredoc-first.bats heredoc-second.bats
+    fixture group-first '! grep -q x f || {' '    echo hit'
+    fixture group-second '! grep -q x f' 'echo next'
+    expect_report 'group-first.bats:1 unclosed || { group group-second.bats:1' \
+        group-first.bats group-second.bats
+    # An `||` list checks the negation only if its one `||` leads to `false`.
+    fixture or-true '! grep -q x f || true' 'echo next'
+    expect_report 'or-true.bats:1' or-true.bats
+    fixture braced-true '! grep -q x f || { echo hit; true; }' 'echo next'
+    expect_report 'braced-true.bats:1' braced-true.bats
+    fixture block-true '! grep -q x f || {' '    echo hit' '    true' '}' 'echo next'
+    expect_report 'block-true.bats:1' block-true.bats
+    fixture or-echo-or-false '! grep -q x f || echo hit || false' 'echo next'
+    expect_report 'or-echo-or-false.bats:1' or-echo-or-false.bats
+    fixture block-inner-group '! grep -q x f || {' '    x || { echo; false; }' '    echo hit' '}' 'echo next'
+    expect_report 'block-inner-group.bats:1' block-inner-group.bats
+    # A group's last command must be `false` itself, not a word ending in it.
+    fixture block-echo-false '! grep -q x f || {' '    echo false' '}' 'echo next'
+    expect_report 'block-echo-false.bats:1' block-echo-false.bats
+    # A group closes where its braces balance, whatever follows the `}`; a `}`
+    # inside a heredoc in the group does not close it.
+    fixture block-redirected '! grep -q x f || {' '    echo hit; false' '} >&2' '! grep -q x f' 'echo next'
+    expect_report 'block-redirected.bats:4' block-redirected.bats
+    fixture block-heredoc '! grep -q x f || {' '    cat <<EOF' '}' 'EOF' '    false' '}' '! grep -q x f' 'echo next'
+    expect_report 'block-heredoc.bats:7' block-heredoc.bats
+    # A `<<` in arithmetic, or in a comment, does not continue or open anything.
+    fixture double-parenthesis '(( x << y ))' '! grep -q x f' 'echo next'
+    expect_report 'double-parenthesis.bats:2' double-parenthesis.bats
+    fixture comment-continued '# note \' '! grep -q x f' 'echo next'
+    expect_report 'comment-continued.bats:2' comment-continued.bats
+    # An escaped quote opens no string; a `#` inside a word opens no comment.
+    fixture escaped-quote 'echo \"; ! grep -q x f' 'echo next'
+    expect_report 'escaped-quote.bats:1' escaped-quote.bats
+    fixture escaped-in-string 'echo "a\"b"; ! grep -q x f' 'echo next'
+    expect_report 'escaped-in-string.bats:1' escaped-in-string.bats
+    fixture hash-in-word 'echo a#b; ! grep -q x f' 'echo next'
+    expect_report 'hash-in-word.bats:1' hash-in-word.bats
+    # A single quote left open at the end of its line hides the rest of that
+    # line, so a `; !` inside it is quoted text, not a negation.
+    fixture open-quote "echo 'it; ! grep -q x f" '! grep -q x f' 'echo next'
+    expect_report 'open-quote.bats:2' open-quote.bats
+    # Every mid-line separator, `&` included, and none inside a word.
+    fixture after-background 'true & ! grep -q x f' 'echo next'
+    expect_report 'after-background.bats:1' after-background.bats
+    fixture after-or 'true || ! grep -q x f' 'echo next'
+    expect_report 'after-or.bats:1' after-or.bats
+    fixture after-brace '{ ! grep -q x f; }' 'echo next'
+    expect_report 'after-brace.bats:1' after-brace.bats
+    fixture after-else 'if true; then :; else ! grep -q x f; fi' 'echo next'
+    expect_report 'after-else.bats:1' after-else.bats
+    fixture word-ending-in-do 'echo undo ! x' 'echo next'
+    expect_report '' word-ending-in-do.bats
+    # Shapes the scan cannot read open a heredoc that never closes: loudly.
+    fixture nested-quotes 'x="$(echo "a <<EOF")"' 'echo next'
+    expect_report 'nested-quotes.bats:1 unclosed heredoc <<EOF' nested-quotes.bats
+    fixture ansi-c-quote "x=\$'it\\'s <<EOF'" 'echo next'
+    expect_report 'ansi-c-quote.bats:1 unclosed heredoc <<EOF' ansi-c-quote.bats
+    fixture multi-line-quote "echo 'a" "<<EOF b'" 'echo next'
+    expect_report 'multi-line-quote.bats:2 unclosed heredoc <<EOF' multi-line-quote.bats
+    [ -z "$misreported" ] || { echo "the scan misreports:"; printf '%s' "$misreported"; false; }
+
+    # Both globs always match: this file is a .bats, and it loads helpers.bash.
+    found=$(awk -f "$BATS_TEST_TMPDIR/negationlint.awk" \
+        "$BATS_TEST_DIRNAME"/*.bats "$BATS_TEST_DIRNAME"/*.bash)
+    [ -z "$found" ] || { echo "bare negations (errexit ignores them):"; echo "$found"; false; }
+}
+
 # --- PR-2scmvn --------------------------------------------------------------
 
 # A test that did not complete prints the environment that would identify a
