@@ -85,7 +85,7 @@ rules, reports and exit codes in full.
 | `check-ids.sh` | Draft IDs, draft-named ledger files, duplicate and malformed IDs. |
 | `check-trace.sh` | The traceability and problem-report gates, with the `checked:`, `problems:` and `sources:` summary. |
 | `check-units.sh` | The multi-unit repository: manifest validation, unit claims, the class floor, the impact set. |
-| `check-review.sh` | The verification record of the change under merge, and its findings. |
+| `check-review.sh` | The verification record of the change under merge, and its findings, and, opt-in, that each disposition cites something the tree resolves. |
 | `check-signing.sh` | Commit signatures, and with `--setup` proof that the project can sign. |
 | `guidelines-file.sh` | Print the one guidelines file that governs each path: the unit's, the project's, or the installed default. |
 | `finalize-docs.sh` | Rename this change's draft ledger files to dated names and rewrite references to them. |

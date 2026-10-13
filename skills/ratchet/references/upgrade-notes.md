@@ -512,6 +512,34 @@ tracked Markdown file cites as `<plan>:<line>`, at or after its first pruned
 block, is left whole and named in a `left whole` line, because pruning would
 move the cited line.
 
+## Dispositions cite what they changed: `review_cite`
+
+`check-review.sh` can check that each finding's disposition in the
+verification record cites something the tree resolves. The check is off by
+default: an absent `review_cite` is `off`, so an upgrade changes no result.
+`review_cite: on` in `.guardrails/config.yaml` turns it on for every run,
+including `merge-change` step 6c; `--cite` turns it on for one run. Any other
+value of the key exits 2.
+
+With the check on, a disposition must cite at least one of: a regular file,
+not a directory or a symlink, that git tracks or lists as untracked and not
+ignored, with or without `:<line>`; a test's whole name in backticks or double
+quotes, as the test declares it in a file a `test_paths` pathspec matches (a
+span some test file merely quotes is not one); or an item ID that
+`find-items.sh show` finds. A citation on a wrapped line of the disposition
+counts; one after a blank line does not. A disposition that opens with
+`no change — ` (em dash) and gives a reason needs no citation, and
+`no change needed.` is not that form. Any other disposition is
+`UNRESOLVABLE-DISPOSITION <file>:<line>`, and the exit is 1. A `record`
+finding cites the record's own path; for a `code`, `requirement` or
+`guideline` finding the record being checked is not a citation.
+
+A repository with `.guardrails/units.yaml` cannot use it yet, because the
+record belongs to the repository while test paths and ID ledgers belong to
+units. The key is read from the root `.guardrails/config.yaml` only, and a
+manifest repository has none: `review_cite: on` in a unit's config is accepted
+by the config check but never read, and `--cite` exits 2.
+
 ## Why the prose files are refreshed with the scripts
 
 The ledger READMEs, `.guardrails/templates/verification.md` and the AGENTS.md

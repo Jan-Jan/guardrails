@@ -932,3 +932,774 @@ EOF
     [ -z "$(git status --porcelain)" ] || { echo "the worktree changed"; false; }
     [ "$(git rev-parse HEAD)" = "$head_before" ] || { echo "HEAD moved"; false; }
 }
+
+# --- --cite and review_cite: a disposition cites what it changed ------------
+#
+# D12 of the salvage plan: opt-in, a credited disposition must cite a path in
+# the tree, a test name in test_paths or a defined item ID, or say
+# `no change — <reason>`. Plan: docs/plans/2026-10-08-check-review-cite.md.
+
+# write_review DISPOSITION_TEXT — the record mine for my-change, with a review
+# section holding one finding answered by DISPOSITION_TEXT, which may run over
+# several lines.
+write_review() {
+    write_record mine my-change
+    printf '\n## Review\n\n**finding-1**: code, low — x\n%s\n' "$1" \
+        >> docs/verification/2026-01-01-mine.md
+}
+
+# The line number of the first column-one `disposition:` in the record.
+disposition_line() {
+    grep -n '^disposition:' docs/verification/2026-01-01-mine.md | head -n 1 | cut -d: -f1
+}
+
+# A defined PR item, for find-items.sh show to find.
+write_defined_pr() {
+    printf '\n**PR-b7k2m4**: a defined problem\nstatus: open\n' \
+        >> docs/problems/README.md
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a disposition citing an existing path passes" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed in scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a path with a line or a line range passes" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed at `scripts/x.sh:12`.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "line: $output"; false; }
+    write_review 'disposition: fixed at (scripts/x.sh:3-9),'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "range: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a disposition citing a path not in the tree fails" {
+    make_change_worktree my-change
+    write_review 'disposition: fixed in scripts/missing.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) (cites no path in the tree, test name in test_paths or defined item ID, and is not \"no change — <reason>\")"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a bats test name in backticks resolves in test_paths" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '@test "the test name" {\n    true\n}\n' > tests/x.bats
+    write_review 'disposition: fixed; `the test name` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a backtick span no test in test_paths names fails" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '@test "another test" {\n    true\n}\n' > tests/x.bats
+    write_review 'disposition: fixed; `the test name` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a def in test_paths resolves an identifier span" {
+    make_change_worktree my-change
+    mkdir -p tests && printf 'def test_thing():\n    assert True\n' > tests/test_x.py
+    write_review 'disposition: fixed; `test_thing` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a span a test file quotes but no test is named does not resolve" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '@test "merges" {\n    run git merge "merge"\n}\n' > tests/x.bats
+    write_review 'disposition: fixed; the `merge` path is guarded.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a bats test name resolves only as the whole @test name" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '  @test "the test name" {\n    true\n}\n' > tests/x.bats
+    write_review 'disposition: fixed; `the test name` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "whole: $output"; false; }
+    write_review 'disposition: fixed; `the test` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "prefix: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a jest it() name resolves" {
+    make_change_worktree my-change
+    mkdir -p tests && printf "it('adds two numbers', () => {\n  expect(1 + 1).toBe(2);\n});\n" > tests/sum.test.js
+    write_review 'disposition: fixed; `adds two numbers` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a def that does not begin with test is not a test name" {
+    make_change_worktree my-change
+    mkdir -p tests && printf 'def helper():\n    return 1\n' > tests/test_x.py
+    write_review 'disposition: fixed; `helper` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a shell function in test_paths is not a test name" {
+    make_change_worktree my-change
+    mkdir -p tests && printf 'function helper {\n    true\n}\nother() {\n    true\n}\n' > tests/helpers.bash
+    write_review 'disposition: fixed; `helper` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "function: $output"; false; }
+    write_review 'disposition: fixed; `other` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "name(): $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a Rust fn resolves an identifier span" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '#[test]\nfn adds_two() {\n    assert_eq!(2, 1 + 1);\n}\n' > tests/sum.rs
+    write_review 'disposition: fixed; `adds_two` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a test name in double quotes resolves as a test name" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '@test "the test name" {\n    true\n}\n' > tests/x.bats
+    write_review 'disposition: fixed; "the test name" reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a double-quoted span no test is named fails" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '@test "another test" {\n    true\n}\n' > tests/x.bats
+    write_review 'disposition: fixed; "the test name" reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a directory is not a citation" {
+    make_change_worktree my-change
+    write_review 'disposition: fixed under `docs/`.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "docs/: $output"; false; }
+    write_review 'disposition: fixed; leading ./ removed.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "./: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: .git is not a citation, as a file or a directory" {
+    make_change_worktree my-change
+    [ -f .git ]
+    write_review 'disposition: fixed; it copies the `.git` file.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo ".git: $output"; false; }
+    write_review 'disposition: fixed; see ./.git now.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "./.git: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a possessive path resolves" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review "disposition: fixed; \`scripts/x.sh\`'s guard now runs."
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "straight: $output"; false; }
+    write_review 'disposition: fixed; scripts/x.sh’s guard now runs.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "curly: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a possessive ID in backticks resolves" {
+    make_change_worktree my-change
+    write_defined_pr
+    write_review "disposition: recorded; it is \`PR-b7k2m4\`'s brief."
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a bare possessive ID resolves" {
+    make_change_worktree my-change
+    write_defined_pr
+    write_review "disposition: PR-b7k2m4's resolution line now says so."
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "straight: $output"; false; }
+    write_review 'disposition: PR-b7k2m4’s resolution line now says so.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "curly: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a git rev:path names its path" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: checked with `git show 650f090:scripts/x.sh`.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a defined PR ID resolves" {
+    make_change_worktree my-change
+    write_defined_pr
+    write_review 'disposition: recorded as PR-b7k2m4.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a well-formed undefined PR ID fails" {
+    make_change_worktree my-change
+    write_defined_pr
+    write_review 'disposition: recorded as PR-c8n3p5.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: no change — with a reason passes" {
+    make_change_worktree my-change
+    write_review 'disposition: no change — the reviewer misread the call site'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: no change needed. is not the escape" {
+    make_change_worktree my-change
+    write_review 'disposition: no change needed.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: no change — with no reason after the dash fails" {
+    make_change_worktree my-change
+    write_review 'disposition: no change —'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a citation on a wrapped disposition's second line counts" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed, and the change is in
+scripts/x.sh where the guard now runs.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a citation after a blank line does not count" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed, and the change is in
+
+scripts/x.sh where the guard now runs.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md); C1 (docs/plans/2026-10-08-check-review-cite.md)
+@test "check-review: without --cite or review_cite an uncited disposition passes and no citations are counted" {
+    make_change_worktree my-change
+    write_review 'disposition: fixed.'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    output_lacks "citations"
+    output_has "checked: records 1, for my-change 1, findings 1; provenance checked"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md); C1 (docs/plans/2026-10-08-check-review-cite.md)
+@test "check-review: review_cite: on without the flag checks citations" {
+    make_change_worktree my-change
+    printf 'review_cite: on\n' >> .guardrails/config.yaml
+    write_review 'disposition: fixed.'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: C1 (docs/plans/2026-10-08-check-review-cite.md)
+@test "check-review: review_cite: off without the flag does not check citations" {
+    make_change_worktree my-change
+    printf 'review_cite: off\n' >> .guardrails/config.yaml
+    write_review 'disposition: fixed.'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    output_lacks "citations"
+}
+
+# verifies: C1 (docs/plans/2026-10-08-check-review-cite.md)
+@test "check-review: review_cite with a value other than on or off exits 2" {
+    make_change_worktree my-change
+    printf 'review_cite: yes\n' >> .guardrails/config.yaml
+    write_review 'disposition: fixed.'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    output_has "review_cite"
+    output_has "'yes'"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: the checked: line counts the dispositions cite-checked" {
+    make_change_worktree my-change
+    write_review 'disposition: no change — the reviewer misread the call site'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"; citations checked over 1 dispositions" ]] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: --cite comes before or after --branch" {
+    make_change_worktree my-change
+    write_review 'disposition: fixed.'
+    run sh .guardrails/scripts/check-review.sh --cite --branch my-change
+    [ "$status" -eq 1 ] || { echo "before: $output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION"
+    run sh .guardrails/scripts/check-review.sh --branch my-change --cite
+    [ "$status" -eq 1 ] || { echo "after: $output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION"
+}
+
+# verifies: C2 (docs/plans/2026-10-08-check-review-cite.md)
+@test "check-review --cite: under a unit manifest exits 2 naming multi-unit repositories" {
+    make_units_fixture
+    make_change_worktree units-change
+    write_record rec units-change
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    output_has "multi-unit repositories"
+}
+
+# --- review round 1: the guards and branches no test reached ----------------
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: an absolute path does not resolve, though the file exists" {
+    make_change_worktree my-change
+    abs_file="$BATS_TEST_TMPDIR/outside.txt"
+    printf 'x\n' > "$abs_file"
+    write_review "disposition: fixed in $abs_file."
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a path with a .. component does not resolve, though the file exists" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed in scripts/../scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "inside: $output"; false; }
+    printf 'x\n' > "$BATS_TEST_TMPDIR/outside.txt"
+    write_review 'disposition: fixed in ../outside.txt.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "outside: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a URL does not resolve, though a file at its path exists" {
+    make_change_worktree my-change
+    mkdir -p http: && printf 'x\n' > http:/x.sh
+    write_review 'disposition: fixed; see http://x.sh for the guard.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: find-items.sh failing on an ID candidate exits 2, never resolves or fails it" {
+    make_change_worktree my-change
+    rm docs/risk/README.md
+    write_review 'disposition: recorded as PR-b7k2m4.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    output_has "find-items.sh show PR-b7k2m4 failed"
+    output_lacks "UNRESOLVABLE-DISPOSITION"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a test_paths search that fails exits 2, never reads as no test" {
+    make_change_worktree my-change
+    sed -i.bak 's|^  - tests$|  - :(bogus)tests|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    write_review 'disposition: fixed; `the test name` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    output_has "cannot search test_paths for a test name"
+    output_lacks "UNRESOLVABLE-DISPOSITION"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a Go func Test resolves an identifier span" {
+    make_change_worktree my-change
+    mkdir -p tests && printf 'package x\n\nfunc TestThing(t *testing.T) {\n}\n' > tests/x_test.go
+    write_review 'disposition: fixed; `TestThing` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a jest test() and describe() name resolves" {
+    make_change_worktree my-change
+    mkdir -p tests && printf 'describe("the sum", () => {\n  test(%s, () => {});\n});\n' "'adds two numbers'" > tests/sum.test.js
+    write_review 'disposition: fixed; `adds two numbers` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "test(): $output"; false; }
+    write_review 'disposition: fixed; `the sum` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "describe(): $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a second credited disposition in one block is judged on its own" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed.
+disposition: fixed in scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+    [[ "$output" == *"; citations checked over 2 dispositions" ]] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a test_paths entry is a git pathspec, as check-trace.sh reads it" {
+    make_change_worktree my-change
+    sed -i.bak 's|^  - tests$|  - *_test.go|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    mkdir -p pkg && printf 'package x\n\nfunc TestThing(t *testing.T) {\n}\n' > pkg/x_test.go
+    write_review 'disposition: fixed; `TestThing` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a test declared only in a gitignored file does not resolve" {
+    make_change_worktree my-change
+    mkdir -p tests/vendor && printf '@test "the test name" {\n    true\n}\n' > tests/vendor/x.bats
+    printf 'tests/vendor/\n' > .gitignore
+    write_review 'disposition: fixed; `the test name` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a symlink to a file outside the repository does not resolve" {
+    make_change_worktree my-change
+    printf 'x\n' > "$BATS_TEST_TMPDIR/outside.txt"
+    ln -s "$BATS_TEST_TMPDIR/outside.txt" linked.txt
+    write_review 'disposition: fixed; see linked.txt.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a gitignored file does not resolve" {
+    make_change_worktree my-change
+    mkdir -p ignored && printf 'echo\n' > ignored/x.sh
+    printf 'ignored/\n' > .gitignore
+    write_review 'disposition: fixed in ignored/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: .//.git/HEAD does not resolve where .git is a directory" {
+    # The primary checkout, where .git is a directory and .git/HEAD a file.
+    [ -d .git ]
+    write_review 'disposition: fixed; see .//.git/HEAD now.'
+    run sh .guardrails/scripts/check-review.sh --cite --branch my-change
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: an untracked file git does not ignore resolves" {
+    # A file the change adds is often untracked at merge-change step 6c.
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/new.sh
+    write_review 'disposition: fixed; scripts/new.sh is added.'
+    [ -n "$(git ls-files --others --exclude-standard -- scripts/new.sh)" ]
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a backtick span naming a path with a space resolves" {
+    make_change_worktree my-change
+    mkdir -p "dir with space" && printf 'echo\n' > "dir with space/y.sh"
+    write_review 'disposition: fixed in `dir with space/y.sh`.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a path led by ./ or .// resolves to the file it names" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed in ./scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "./: $output"; false; }
+    write_review 'disposition: fixed in .//scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo ".//: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a tracked file deleted from the working tree does not resolve" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    commit_all tracked
+    rm scripts/x.sh
+    write_review 'disposition: fixed in scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line)"
+}
+
+# --- review round 2: the text boundary, the record itself, citation forms ---
+
+# write_review_tagged TAG DISPOSITION_TEXT — as write_review, with the
+# finding's header reading `**finding-1**: TAG — x`.
+write_review_tagged() {
+    write_record mine my-change
+    printf '\n## Review\n\n**finding-1**: %s — x\n%s\n' "$1" "$2" \
+        >> docs/verification/2026-01-01-mine.md
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: the next finding's header, with no blank line between, ends a disposition's text" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed.
+**finding-2**: code, low — scripts/x.sh
+disposition: fixed in scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+    [ "$(printf '%s\n' "$output" | grep -c UNRESOLVABLE-DISPOSITION)" -eq 1 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a heading, with no blank line between, ends a disposition's text" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed.
+## Gaps in scripts/x.sh'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a code or requirement finding citing only the record being checked fails" {
+    make_change_worktree my-change
+    write_review 'disposition: fixed; this record, docs/verification/2026-01-01-mine.md, says so.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "code: $output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+    write_review 'disposition: fixed; see `./docs/verification/2026-01-01-mine.md`.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "./ span: $output"; false; }
+    write_review_tagged 'requirement, low' 'disposition: fixed; see docs/verification/2026-01-01-mine.md.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "requirement: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a record finding citing the record being checked resolves" {
+    make_change_worktree my-change
+    write_review_tagged record 'disposition: fixed in docs/verification/2026-01-01-mine.md.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a code finding citing another record in docs/verification resolves" {
+    make_change_worktree my-change
+    write_record other other-change
+    write_review 'disposition: no fix here; docs/verification/2026-01-01-other.md made it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a markdown link names its target path" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed in [the guard](scripts/x.sh).'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a #anchor suffix is stripped from a path" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed at scripts/x.sh#L12.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "#L12: $output"; false; }
+    write_review 'disposition: fixed at [the guard](scripts/x.sh#L3-L9).'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "link #L3-L9: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a commented-out declaration declares no test" {
+    make_change_worktree my-change
+    mkdir -p tests && printf '# def test_thing():\n#     assert True\n' > tests/test_x.py
+    write_review 'disposition: fixed; `test_thing` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "#: $output"; false; }
+    rm tests/test_x.py
+    printf 'package x\n\n  // func TestThing(t *testing.T) {\n' > tests/x_test.go
+    write_review 'disposition: fixed; `TestThing` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "//: $output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a Go testify suite method declares its test" {
+    make_change_worktree my-change
+    mkdir -p tests && printf 'package x\n\nfunc (s *SumSuite) TestThing() {\n}\n' > tests/x_test.go
+    write_review 'disposition: fixed; `TestThing` covers it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a # is kept where what precedes it is no path" {
+    # The anchor is stripped from a path candidate only: notes#1.txt is a
+    # file name, since `notes` names nothing.
+    make_change_worktree my-change
+    printf 'x\n' > 'notes#1.txt'
+    write_review 'disposition: fixed; see notes#1.txt.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+# --- review round 3: the guards the round-2 tests left unpinned -------------
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a guideline finding citing only the record being checked fails" {
+    # The record is a citation for a `record` finding alone, so a guideline
+    # finding, like a code or requirement one, must cite something else.
+    make_change_worktree my-change
+    write_review_tagged 'guideline, low' 'disposition: fixed; see docs/verification/2026-01-01-mine.md.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: an absolute path does not resolve where the same path relative to the root is a file" {
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    write_review 'disposition: fixed in /scripts/x.sh.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: with doc_verification led by ./ a code finding citing only the record fails" {
+    make_change_worktree my-change
+    printf 'doc_verification: ./docs/verification\n' >> .guardrails/config.yaml
+    write_review 'disposition: fixed; see docs/verification/2026-01-01-mine.md.'
+    run sh .guardrails/scripts/check-review.sh --cite --branch my-change
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION ./docs/verification/2026-01-01-mine.md:$(disposition_line) "
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: with doc_verification ending in / a code finding citing only the record fails" {
+    make_change_worktree my-change
+    printf 'doc_verification: docs/verification/\n' >> .guardrails/config.yaml
+    write_review 'disposition: fixed; see docs/verification/2026-01-01-mine.md.'
+    run sh .guardrails/scripts/check-review.sh --cite --branch my-change
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification//2026-01-01-mine.md:$(disposition_line) "
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: def test_thing_extra does not declare test_thing" {
+    make_change_worktree my-change
+    mkdir -p tests && printf 'def test_thing_extra():\n    assert True\n' > tests/test_x.py
+    write_review 'disposition: fixed; `test_thing` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a hex prefix shorter than 7 or longer than 40 digits is no git rev" {
+    # Each prefix below is lowercase hex, so only its length keeps it from
+    # being read as a <rev>: — `face` is a word that happens to be hex.
+    make_change_worktree my-change
+    mkdir -p scripts && printf 'echo\n' > scripts/x.sh
+    for prefix in abc face abcdef 0123456789abcdef0123456789abcdef012345678; do
+        write_review "disposition: fixed in $prefix:scripts/x.sh."
+        run sh .guardrails/scripts/check-review.sh --cite
+        [ "$status" -eq 1 ] || { echo "$prefix: $output"; false; }
+        output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+    done
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: a test declared outside test_paths does not resolve" {
+    # test_paths is `tests`; scripts/y.bats is neither ignored nor under it.
+    make_change_worktree my-change
+    mkdir -p scripts && printf '@test "outside name" {\n    true\n}\n' > scripts/y.bats
+    write_review 'disposition: fixed; `outside name` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+}
+
+# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+@test "check-review --cite: with no test_paths no span resolves as a test name" {
+    # gr_check_config requires test_paths only where REQ or LLR is declared,
+    # so the config drops both prefixes before it drops the key.
+    make_change_worktree my-change
+    sed -i.bak -e 's|^id_prefixes: .*$|id_prefixes: HAZ RC SDD PR|' \
+        -e '/^test_paths:$/,/^  - tests$/d' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    ! grep -q 'test_paths' .guardrails/config.yaml || { cat .guardrails/config.yaml; false; }
+    mkdir -p tests && printf '@test "the name" {\n    true\n}\n' > tests/x.bats
+    write_review 'disposition: fixed; `the name` reddens without it.'
+    run sh .guardrails/scripts/check-review.sh --cite
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNRESOLVABLE-DISPOSITION docs/verification/2026-01-01-mine.md:$(disposition_line) "
+}

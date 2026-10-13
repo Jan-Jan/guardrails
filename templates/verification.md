@@ -87,13 +87,18 @@ reviewer, name the shared files and that review round here.
 
 **finding-1**: <code | requirement>, <high | medium | low> — <what the
 reviewer found, in their terms>
-disposition: <what changed, and the test that reddens without it; or, for a
-finding recorded as an open problem item (`merge-change` step 6a), that item's
-ID, `PR-…`>
+disposition: <what changed, and the test that reddens without it. Cite at
+least one of: a file in the tree (not a directory, and not this record),
+with or without `:<line>`; a test's name in backticks or double quotes,
+exactly as the test declares it in a file under `test_paths`; or a defined
+item ID, such as the `PR-…` of a finding recorded as an open problem item
+(`merge-change` step 6a). A finding that needed no change reads
+`no change — <reason>`.>
 
 **finding-2**: record — <what the reviewer found in the record; a `record`
 finding states no severity>
-disposition: <what changed in the record>
+disposition: <what changed in the record, citing the record's own path,
+`docs/verification/<this file>`>
 
 ## Guideline reviews
 
@@ -119,8 +124,8 @@ printed them>
 
 **finding-<N>**: guideline, <low | medium | high> — <clause cited as Heading N,
 quoted> — <file:line>
-disposition: <what changed on the change branch, or why the clause does not
-apply here>
+disposition: <what changed on the change branch, cited (a file, a test name
+or an ID), or `no change — <why the clause does not apply here>`>
 
 ## Gaps
 
@@ -185,6 +190,31 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   question whatever this table states.
 - Only the record for the change under merge is checked. Records written before
   this schema existed are left alone.
+- With `--cite`, or with `review_cite: on` in `.guardrails/config.yaml`,
+  check-review.sh also checks what each credited disposition cites. The
+  disposition's text runs from `disposition:` to the first blank line, the end
+  of its block or the next credited disposition, so a citation on a wrapped
+  line counts. It must cite at least one of: a regular file, not a directory
+  or a symlink, that git tracks or lists as untracked and not ignored, written
+  bare, in backticks (which may hold a path with a space) or as a markdown
+  link `[<text>](<path>)`, where a trailing `:<line>`, `:<line>-<line>` or
+  `#<anchor>` is allowed; a span in backticks or double quotes that is a
+  test's whole name as a file matched by a `test_paths` pathspec declares it,
+  not in a comment: bats `@test "<name>"`; jest `it(`, `test(` or
+  `describe(` with the name as its first argument; `def test…`; Go
+  `func Test…` or a testify suite method `func (<receiver>) Test…`; or
+  Rust `fn`, any function name, since a line cannot see `#[test]`; or an
+  item ID that `find-items.sh show` finds. The record being checked is a
+  citation for a `record` finding only; a `code`, `requirement` or
+  `guideline` finding must cite something else. A disposition that opens
+  with `no change — ` (em dash) and goes on to give a reason cites nothing
+  and passes; `no change needed.` is not that form. Any other disposition
+  is reported as UNRESOLVABLE-DISPOSITION. The check is on only where
+  `review_cite: on` or `--cite` turns it on; an absent key is `off`. The key
+  is read from the root `.guardrails/config.yaml` only. A repository with
+  `.guardrails/units.yaml` has no root config, so neither the key nor
+  `--cite` works there yet: a unit config's `review_cite: on` is not read,
+  and `--cite` exits 2.
 - The placeholders above are in angle brackets and the illustrative forms are
   described rather than written flush left, for the reason the other templates
   give: a gate reads column one whatever the surrounding prose states, and no

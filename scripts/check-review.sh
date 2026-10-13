@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
-# check-review.sh [--branch NAME]
+# check-review.sh [--cite] [--branch NAME]
 #
 # The review artefact gate. Independent review (merge-change step 6a) is the
 # highest-yield step in the sequence and was the only one with nothing behind
@@ -40,6 +40,29 @@
 #                            write or touch. A reused branch name would
 #                            otherwise let the previous change's record answer
 #                            for this one.
+#   UNRESOLVABLE-DISPOSITION FILE:LINE — with citation checking on, a credited
+#                            disposition that cites no path in the tree, no
+#                            test name in test_paths and no defined item ID,
+#                            and does not read `no change — <reason>`. LINE is
+#                            the `disposition:` line. A disposition that names
+#                            nothing a reader can open is a claim of repair
+#                            nobody can check (D12, docs/plans/
+#                            2026-10-06-salvage-churn-and-parallel.md).
+#
+# Citation checking is opt-in: `--cite` for one run, `review_cite: on` in the
+# config for every run, because an adopter cannot edit the shipped step 6c
+# command. `off` or absent leaves every output as it was. It is refused under
+# a unit manifest: the record is repository-level while test paths and ID
+# ledgers belong to units, and resolving across them is a design of its own.
+# A disposition's text runs from its line to the first blank line, block close,
+# next credited disposition or end of file. A citation is a token or a backtick
+# span naming a regular file, not a symlink, that git lists as tracked or as
+# untracked and not ignored (a markdown link is read as its target, and
+# punctuation, a `#anchor`, a possessive, a git `<rev>:` prefix and one `:N`
+# or `:N-M` are stripped), other than the record being checked unless the
+# finding is a `record` finding; a backtick or double-quoted span that a file
+# matched by a test_paths pathspec declares as a test's name; or an ID
+# find-items.sh show finds.
 #
 # This gate judges PRESENCE, NEVER QUALITY. It cannot know whether a review was
 # good, or whether a reviewer was independent of the author — with agent
@@ -65,6 +88,9 @@
 set -u
 
 . "$(dirname "$0")/lib.sh"
+# Taken before the cd below: $0 may be relative to the caller's directory, and
+# citation checking runs find-items.sh from beside this script.
+review_script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 2
 # NOT `cd "$(gr_root)" || exit 2`: gr_root's gr_die exits only the command
 # substitution, and under dash `cd ""` returns 0 and stays put — so outside a
 # git repository the script continued in the caller's directory with a
@@ -92,6 +118,7 @@ fi
 
 branch=""
 named=0
+cite_flag=0
 while [ $# -gt 0 ]; do
     case "$1" in
         (--branch)
@@ -99,10 +126,47 @@ while [ $# -gt 0 ]; do
             [ $# -gt 0 ] || gr_die "--branch needs a branch name"
             branch="$1"
             named=1 ;;
+        (--cite) cite_flag=1 ;;
         (*) gr_die "unknown argument: $1" ;;
     esac
     shift
 done
+
+# Is citation checking on? The flag turns it on for one run and the key for
+# every run. The key is read the way prune-plans.sh reads prune_plans: cfg_get
+# cannot tell an absent key from an empty one, so the file is asked first.
+cite_on=0
+if gr_units_present; then
+    [ "$cite_flag" -eq 0 ] || gr_die \
+"--cite is refused in multi-unit repositories: the review record is
+  repository-level, while test paths and ID ledgers belong to units, so a
+  citation has no one tree to resolve against."
+else
+    cite_setting=off
+    if grep -q '^review_cite:' "$GR_CONFIG"; then
+        cite_setting=$(cfg_get review_cite) || exit 2
+    fi
+    case "$cite_setting" in
+        (on) cite_on=1 ;;
+        (off) ;;
+        (*) gr_die "review_cite in $GR_CONFIG is '$cite_setting'; it takes on or off." ;;
+    esac
+    [ "$cite_flag" -eq 0 ] || cite_on=1
+fi
+
+# What a citation resolves against, read only when citations are checked, so
+# that a run without them reads exactly what it read before. gr_check_config,
+# above, has already required id_prefixes; with no test_paths no span is a
+# test name.
+cite_id_re=""
+cite_test_paths=""
+if [ "$cite_on" -eq 1 ]; then
+    cite_prefix_re=$(gr_prefix_re) || exit 2
+    cite_id_re="^(${cite_prefix_re})-${GR_ID_BODY}\$"
+    if grep -q '^test_paths:' "$GR_CONFIG"; then
+        cite_test_paths=$(cfg_list test_paths) || exit 2
+    fi
+fi
 
 # Which change is under review? The branch, and it must be a change branch.
 #
@@ -172,6 +236,14 @@ set -f
 #   M <line>     a line shaped like a finding header that opens no block
 #   O <line>     a `disposition:` belonging to no finding block
 #
+# and, only when cite_on is 1, for each credited disposition:
+#
+#   D <line> <tag>  the disposition, by its `disposition:` line, and the
+#                first word of its finding header after `**finding-N**:`
+#   X            it is the `no change — <reason>` escape
+#   C <token>    a token shaped like a path or an item ID
+#   S <span>     a backtick or double-quoted span, a candidate test name
+#
 # Front matter is skipped, in two bounded passes, because a `branch:` key in a
 # YAML header is a title-page field and not a claim about the change. That rule
 # has one definition in lib.sh and check-trace.sh reads the same one.
@@ -220,11 +292,116 @@ function gr_finding_shaped(line,   s, t) {
     t = substr(s, 10, 1)
     return (t !~ /[0-9A-Za-z]/)
 }
+# The text of a disposition, judged once it ends. Byte-wise, for the reason
+# given at gr_finding_shaped: substr and index, no negated bracket expression, and the
+# em dash of the escape spelled as its UTF-8 bytes.
+#
+# The escape needs no test that a reason follows the dash: gr_value trims the
+# space after a bare `no change —`, and a line of spaces is blank and ends the
+# text unappended, so a text opening with the escape and its space always has
+# a non-space after them.
+function gr_cite_flush(   text, escape, count, parts, i, token) {
+    cite_open = 0
+    printf "D %d %s\n", cite_line, cite_tag
+    text = cite_text
+    escape = "no change \342\200\224 "
+    if (substr(text, 1, length(escape)) == escape) { print "X"; return }
+    count = split(text, parts, /[ \t]+/)
+    for (i = 1; i <= count; i++) {
+        token = gr_cite_strip(parts[i])
+        if (token == "") continue
+        if (gr_cite_path_shaped(token) || (cite_id_re != "" && token ~ cite_id_re))
+            print "C " token
+    }
+    gr_cite_spans(text, "`")
+    gr_cite_spans(text, "\"")
+}
+# Each span between paired QUOTE characters is a candidate test name: the
+# backtick form and the double-quoted prose form both cite one. A backtick span
+# is a path candidate too, stripped whole, so a path with a space in it can be
+# cited. Quotes pair left to right, as CommonMark pairs backticks, so a span
+# here is a span on the rendered page; an unpaired last quote opens nothing.
+function gr_cite_spans(text, quote,   rest, open_at, close_at, span, path) {
+    rest = text
+    while ((open_at = index(rest, quote)) > 0) {
+        rest = substr(rest, open_at + 1)
+        close_at = index(rest, quote)
+        if (close_at == 0) break
+        span = substr(rest, 1, close_at - 1)
+        if (span != "") print "S " span
+        if (quote == "`") {
+            path = gr_cite_strip(span)
+            if (path != "" && gr_cite_path_shaped(path)) print "C " path
+        }
+        rest = substr(rest, close_at + 1)
+    }
+}
+function gr_cite_strip_end(token) {
+    while (token != "" && index("`\"\047)]>.,;:!?", substr(token, length(token), 1)) > 0)
+        token = substr(token, 1, length(token) - 1)
+    return token
+}
+# A markdown link keeps only its target, the text after `](`. Then quotes and
+# brackets off both ends, then a `#anchor` suffix off a path candidate, then
+# one possessive apostrophe-s (the straight apostrophe or the right single
+# quote, U+2019) and the end set again, then a git `<rev>:` prefix of 7 to 40
+# lowercase hex digits, then one `:N` or `:N-M`, then the end set once more.
+# `scripts/x.sh:12`., `[the guard](scripts/x.sh#L3-L9)`, a backticked
+# scripts/x.sh with a possessive after it, and `650f090:scripts/x.sh` all read
+# as scripts/x.sh. No apostrophe in this comment: it sits in single quotes.
+function gr_cite_strip(token,   position, length_now, rev) {
+    position = index(token, "](")
+    if (position > 0) token = substr(token, position + 2)
+    while (token != "" && index("`\"\047([<", substr(token, 1, 1)) > 0)
+        token = substr(token, 2)
+    token = gr_cite_strip_end(token)
+    position = index(token, "#")
+    if (position > 0 && gr_cite_path_shaped(substr(token, 1, position - 1)))
+        token = gr_cite_strip_end(substr(token, 1, position - 1))
+    length_now = length(token)
+    if (length_now > 2 && substr(token, length_now - 1) == "\047s")
+        token = gr_cite_strip_end(substr(token, 1, length_now - 2))
+    else if (length_now > 4 && substr(token, length_now - 3) == "\342\200\231s")
+        token = gr_cite_strip_end(substr(token, 1, length_now - 4))
+    position = index(token, ":")
+    if (position >= 8 && position <= 41) {
+        rev = substr(token, 1, position - 1)
+        if (rev ~ /^[0-9a-f]+$/) token = substr(token, position + 1)
+    }
+    for (position = length(token); position > 0; position--)
+        if (substr(token, position, 1) == ":") break
+    if (position > 0 && substr(token, position + 1) ~ /^[0-9]+(-[0-9]+)?$/)
+        token = substr(token, 1, position - 1)
+    return gr_cite_strip_end(token)
+}
+# The first word after a finding header label, byte-wise: `record` for a
+# record finding, `code,`, `requirement,` or `guideline,` for the others.
+function gr_finding_tag(line,   rest, at) {
+    rest = substr(line, index(line, "**:") + 3)
+    sub(/^[ \t]+/, "", rest)
+    at = match(rest, /[ \t]/)
+    return at ? substr(rest, 1, at - 1) : rest
+}
+# A token holding a `/` or a `.` may name a file. Whether it does is decided in
+# the shell, against the files git lists, so an absolute path, a `..` path, a
+# URL and anything under `.git` resolve nothing without a test here.
+function gr_cite_path_shaped(token) {
+    return index(token, "/") > 0 || index(token, ".") > 0
+}
 BEGIN { gr_block_init("finding", "[0-9]+"); gr_fm_reset() }
 FNR == 1 { sub(/^\357\273\277/, "") }
 FNR == NR { gr_fm_scan($0, FNR); next }
 gr_fm_skip(FNR) { next }
 { line = $0; sub(/\r$/, "", line) }
+# The text of the open disposition ends at a blank line, at a line that
+# closes the block, and at the next credited disposition, which is judged on its own.
+cite_open && (line ~ /^[ \t]*$/ || gr_block_closes(line) || \
+    (gr_kw_here(line, "disposition:") && gr_value(line, "disposition:") != "")) {
+    gr_cite_flush()
+}
+cite_open { cite_text = cite_text " " line }
+# The tag of the finding a credited disposition answers, read where it opens.
+cite_on && gr_block_opens(line) { open_tag = gr_finding_tag(line) }
 # A finding is an item block in the ledger shape this toolkit uses everywhere,
 # so where one starts and ends is decided by the shared rule and by nothing
 # local. A bold line containing a colon, or a heading, ends it — which is why
@@ -272,6 +449,11 @@ gr_kw_orphan_here(line, "disposition:") {
     # mechanism check-trace.sh calls ORPHAN-ANNOTATION, for the same reason.
     else printf "O %d\n", FNR
 }
+# A credited disposition, the one rule above credits, opens a text to judge.
+cite_on && gr_kw_here(line, "disposition:") && open_line {
+    cite_open = 1; cite_line = FNR; cite_text = gr_value(line, "disposition:")
+    cite_tag = open_tag
+}
 {
     # Default FS, which splits on runs of space, tab and newline alike. The
     # shell hands this list space-separated; see GR_RECORD_KWS for why.
@@ -293,6 +475,7 @@ gr_kw_orphan_here(line, "disposition:") {
         }
     }
 }
+END { if (cite_open) gr_cite_flush() }
 END { if (open_line) gr_flush() }
 '
 
@@ -333,8 +516,143 @@ scan_record() {
     #
     # `kws` is read only by `split(kws, K)` under the default FS, so the
     # flattened list is the same list to awk.
-    LC_ALL=C awk -v kws="$GR_RECORD_KWS" "$GR_RECORD_SCAN" "$1" "$1" \
+    LC_ALL=C awk -v kws="$GR_RECORD_KWS" -v cite_on="$cite_on" \
+        -v cite_id_re="$cite_id_re" "$GR_RECORD_SCAN" "$1" "$1" \
         || gr_die "record scan failed on $1"
+}
+
+# cite_resolves TOKEN-FACT — does one C or S fact name something real? A C
+# token without `/` or `.` is an ID, since the scan emits no other kind; an ID
+# is resolved by find-items.sh show, whose exit 2 is this gate's exit 2.
+cite_resolves() {
+    case "$1" in
+        ("C "*/*|"C "*.*) cite_names_file "${1#C }" ;;
+        ("C "*)
+            cite_find_error=$(sh "$review_script_dir/find-items.sh" show "${1#C }" 2>&1 >/dev/null)
+            case $? in
+                (0) return 0 ;;
+                (1) return 1 ;;
+            esac
+            printf '%s\n' "$cite_find_error" >&2
+            gr_die "find-items.sh show ${1#C } failed" ;;
+        ("S "*) cite_names_test "${1#S }" ;;
+        (*) return 1 ;;
+    esac
+}
+
+# cite_names_file PATH — is PATH a file of this tree? Every leading `./` is
+# dropped, with any slashes repeated after it, so `.//.git/HEAD` is read as
+# `.git/HEAD`; a path that starts with `/` stays absolute. A slash doubled
+# inside a path is kept, so `http://x.sh` never names `http:/x.sh`. It
+# resolves only as a regular file that is not a symlink, which a directory, a
+# symlink out of the repository and a deleted file are not, and that git lists
+# as tracked or as untracked and not ignored. The record is often untracked at
+# step 6c; a gitignored file, an absolute path, a `..` path and anything under
+# `.git` are never listed. The listing is read once per run, the first time it
+# is needed. The record being checked is a citation for a `record` finding
+# alone: a `code`, `requirement` or `guideline` finding that cites only the
+# record that answers it cites nothing a reader could check the repair in.
+cite_listing=""
+cite_listing_read=0
+cite_names_file() {
+    cite_path=$1
+    while :; do
+        case "$cite_path" in
+            (./*) cite_path=${cite_path#./} ;;
+            (/*) [ "$cite_path" != "$1" ] || break
+                 cite_path=${cite_path#/} ;;
+            (*) break ;;
+        esac
+    done
+    [ "$cite_tag" = record ] || [ "$cite_path" != "$cite_record" ] || return 1
+    [ -f "$cite_path" ] && [ ! -h "$cite_path" ] || return 1
+    if [ "$cite_listing_read" -eq 0 ]; then
+        cite_listing=$(git -c core.quotePath=false ls-files --cached --others \
+            --exclude-standard) || gr_die "cannot list the files git tracks"
+        cite_listing_read=1
+    fi
+    gr_contains "$cite_listing" "$cite_path"
+}
+
+# CITE_TEST_NAME — read lines and exit 0 if one of them DECLARES the test
+# named by ENVIRON["cite_span"], never a -v value: awk -v rewrites backslashes,
+# and a span may hold one. A declaration is:
+#   bats   `@test "<span>"` after optional indentation;
+#   jest   a first call `it(`, `test(` or `describe(` whose first argument is
+#          exactly the span, in single or double quotes;
+#   xUnit  `def ` or `func ` before an identifier span beginning `test` or
+#          `Test`, as a Go method `func (<receiver>) ` does for a testify
+#          suite, and Rust `fn ` before any identifier span, as whole words.
+# A line that merely quotes the span — `run git merge "merge"` — declares
+# nothing, and neither does a shell helper, `name() {` or `function name`, nor
+# a line whose first non-space characters are a comment marker, `#` or `//`.
+CITE_TEST_NAME='
+function quoted_at_start(text, span) {
+    return substr(text, 1, length(span) + 2) == "\"" span "\"" ||
+        substr(text, 1, length(span) + 2) == "\047" span "\047"
+}
+BEGIN {
+    span = ENVIRON["cite_span"]
+    identifier = (span ~ /^[A-Za-z_][A-Za-z0-9_]*$/)
+    pattern = ""
+    if (identifier) {
+        pattern = "fn " span
+        if (span ~ /^(test|Test)/)
+            pattern = "((def|func|fn) |func \\([^)]*\\) )" span
+        pattern = "(^|[^A-Za-z0-9_])" pattern "([^A-Za-z0-9_]|$)"
+    }
+    found = 0
+}
+{
+    line = $0
+    sub(/^[ \t]+/, "", line)
+    if (substr(line, 1, 1) == "#" || substr(line, 1, 2) == "//") next
+    if (substr(line, 1, 6) == "@test ") {
+        rest = substr(line, 7)
+        sub(/^[ \t]+/, "", rest)
+        if (substr(rest, 1, length(span) + 2) == "\"" span "\"") { found = 1; exit }
+    }
+    open_at = index(line, "(")
+    if (open_at > 0) {
+        callee = substr(line, 1, open_at - 1)
+        if (callee == "it" || callee == "test" || callee == "describe") {
+            rest = substr(line, open_at + 1)
+            sub(/^[ \t]+/, "", rest)
+            if (quoted_at_start(rest, span)) { found = 1; exit }
+        }
+    }
+    if (pattern != "" && $0 ~ pattern) { found = 1; exit }
+}
+END { exit !found }
+'
+
+# cite_names_test SPAN — does a file under test_paths declare a test named
+# SPAN? Each entry is a git pathspec, read as check-trace.sh reads it: git grep
+# --untracked, so `*_test.go` matches recursively and a gitignored tree is not
+# searched. -F narrows the search to lines holding SPAN at all; CITE_TEST_NAME
+# then decides whether one of them declares it. git grep exits 1 for no match
+# and above 1 for a search that failed, which is not an absent test.
+cite_names_test() {
+    [ -n "$cite_test_paths" ] || return 1
+    # shellcheck disable=SC2086
+    cite_test_lines=$(LC_ALL=C git grep -hI --untracked -F -e "$1" -- $cite_test_paths)
+    case $? in
+        (0) ;;
+        (1) return 1 ;;
+        (*) gr_die "cannot search test_paths for a test name (git grep failed)" ;;
+    esac
+    printf '%s\n' "$cite_test_lines" \
+        | cite_span=$1 LC_ALL=C awk "$CITE_TEST_NAME"
+}
+
+# Report the disposition just read if nothing it cites resolved.
+cite_report() {
+    [ -n "$cite_line" ] || return 0
+    if [ "$cite_resolved" -eq 0 ]; then
+        echo "UNRESOLVABLE-DISPOSITION $1:$cite_line (cites no path in the tree, test name in test_paths or defined item ID, and is not \"no change — <reason>\")"
+        fail=1
+    fi
+    cite_line=""
 }
 
 # Which records did THIS change write or touch?
@@ -369,6 +687,7 @@ fi
 fail=0
 _findings=0
 _matched=0
+cite_count=0
 for f in $records; do
     [ -n "$f" ] || continue
     _facts=$(scan_record "$f") || exit 2
@@ -400,6 +719,39 @@ for f in $records; do
                 fail=1 ;;
         esac
     done
+    [ "$cite_on" -eq 1 ] || continue
+    # The record's path as a citation of it would read: doc_verification may
+    # be led by `./` or end in `/`, and the record listing then yields
+    # `./docs/verification/x.md` or `docs/verification//x.md`. Repeated
+    # slashes collapse to one, then every leading `./` is dropped, or the
+    # record would not be recognised as itself.
+    cite_record=$f
+    while :; do
+        case "$cite_record" in
+            (*//*) cite_record=${cite_record%%//*}/${cite_record#*//} ;;
+            (./*) cite_record=${cite_record#./} ;;
+            (*) break ;;
+        esac
+    done
+    cite_line=""
+    cite_tag=""
+    cite_resolved=0
+    for _l in $_facts; do
+        case "$_l" in
+            ("D "*)
+                cite_report "$f"
+                cite_fact=${_l#D }
+                cite_line=${cite_fact%% *}
+                cite_tag=${cite_fact#* }
+                cite_resolved=0
+                cite_count=$((cite_count + 1)) ;;
+            ("X") cite_resolved=1 ;;
+            ("C "*|"S "*)
+                [ "$cite_resolved" -eq 1 ] && continue
+                if cite_resolves "$_l"; then cite_resolved=1; fi ;;
+        esac
+    done
+    cite_report "$f"
 done
 
 if [ "$_matched" -eq 0 ]; then
@@ -421,6 +773,9 @@ fi
 # record for the branch is MISSING-RECORD, above.
 _prov="provenance checked"
 [ "$provenance" -eq 1 ] || _prov="provenance NOT checked (--branch)"
+if [ "$cite_on" -eq 1 ]; then
+    _prov="$_prov; citations checked over $cite_count dispositions"
+fi
 echo "checked: records $_n, for $branch $_matched, findings $_findings; $_prov"
 
 exit $fail

@@ -2407,6 +2407,68 @@ adr_file_is_named_by_its_item() {
         { echo "no --all for the plans already merged"; false; }
 }
 
+@test "ratchet: the upgrade notes name review_cite, its default and how to opt in" {
+    # verifies: C1 (docs/plans/2026-10-08-check-review-cite.md)
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    grep -q '^## Dispositions cite what they changed: `review_cite`$' "$notes" ||
+        { echo "no review_cite section"; false; }
+    section=$(awk '/^## Dispositions cite what they changed: `review_cite`$/ { inside = 1; next }
+                   inside && /^## / { exit }
+                   inside' "$notes" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$section" | grep -qF '`review_cite: on`' ||
+        { echo "no opt-in key"; false; }
+    printf '%s\n' "$section" | grep -qF -- '--cite' ||
+        { echo "no --cite flag"; false; }
+    printf '%s\n' "$section" | grep -qF 'an absent `review_cite` is `off`' ||
+        { echo "no default"; false; }
+}
+
+@test "verification template: a disposition cites a path, a test name or an item ID, or says no change" {
+    # verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    grep -qF 'no change — <reason>' "$template" ||
+        { echo "no escape wording"; false; }
+    grep -qF 'UNRESOLVABLE-DISPOSITION' "$template" ||
+        { echo "no failure name"; false; }
+    # The --cite paragraph of the field grammar names the three kinds of
+    # citation and every declaration form check-review.sh accepts.
+    paragraph=$(awk '/^- With `--cite`/ { inside = 1 }
+                     inside && /^- / && !/^- With `--cite`/ { exit }
+                     inside' "$template" | tr '\n' ' ' | tr -s ' ')
+    for named in 'a regular file' '`test_paths`' 'an item ID that `find-items.sh show` finds' \
+        '`@test "<name>"`' '`it(`' '`test(`' '`describe(`' '`def test…`' \
+        '`func Test…`' '`func (<receiver>) Test…`' 'Rust `fn`, any function name'; do
+        printf '%s\n' "$paragraph" | grep -qF -- "$named" ||
+            { echo "the --cite paragraph does not name: $named"; false; }
+    done
+}
+
+@test "verification template and upgrade notes: a guideline finding cites as a code finding does" {
+    # verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # check-review.sh --cite checks a guideline finding's disposition too, so
+    # the template steers it to a citation or the escape, and both texts name
+    # `guideline` among the findings the record itself does not answer.
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    guideline_placeholder=$(awk '/^\*\*finding-<N>\*\*: guideline/ { inside = 1 }
+                                 inside && /^$/ { exit }
+                                 inside' "$template" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$guideline_placeholder" | grep -qF '`no change — <why the clause does not apply here>`' ||
+        { echo "the guideline placeholder lacks the escape: $guideline_placeholder"; false; }
+    printf '%s\n' "$guideline_placeholder" | grep -qF 'a test name or an ID' ||
+        { echo "the guideline placeholder names no citation: $guideline_placeholder"; false; }
+    paragraph=$(awk '/^- With `--cite`/ { inside = 1 }
+                     inside && /^- / && !/^- With `--cite`/ { exit }
+                     inside' "$template" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$paragraph" | grep -qF '`code`, `requirement` or `guideline` finding' ||
+        { echo "the --cite paragraph does not name guideline findings"; false; }
+    section=$(awk '/^## Dispositions cite what they changed: `review_cite`$/ { inside = 1; next }
+                   inside && /^## / { exit }
+                   inside' "$notes" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$section" | grep -qF '`code`, `requirement` or `guideline` finding' ||
+        { echo "the upgrade note does not name guideline findings"; false; }
+}
+
 @test "ADRs: the pruning decision is recorded and accepted" {
     # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
     # The ID is built from a prefix variable: the gates scan tests/.

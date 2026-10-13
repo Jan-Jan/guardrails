@@ -120,6 +120,15 @@ doc_problems: docs/problems
 # opts out. Any other value is exit 2.
 prune_plans: on
 
+# Citation checking in .guardrails/scripts/check-review.sh (merge-change step
+# 6c; `--cite` turns it on for one run). `on`: each disposition in the change's
+# record must cite a regular file git tracks or lists as untracked and not
+# ignored, a test name declared under test_paths or a defined item ID, or read
+# `no change — <reason>`. `off` when absent; any other value is exit 2. Read
+# from this root config only, so a multi-unit repository, which has none,
+# cannot turn it on, and `--cite` is refused there.
+review_cite: off
+
 # Paths where traceability is enforced. On retrofit projects this list
 # starts small and grows as untraced code is brought under guardrails.
 strict_paths:

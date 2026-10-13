@@ -159,7 +159,10 @@ EOF
     # rather than through gr_def_re. Replacing one with a hand-rolled shape
     # moves this count whichever way the replacement is spelled.
     body_check_ids=0
-    body_check_review=0
+    # 1 since --cite (D12, docs/plans/2026-10-06-salvage-churn-and-parallel.md):
+    # the citation ID test composes cite_id_re from GR_ID_BODY rather than
+    # pasting the shape — the reuse this pin exists to encourage.
+    body_check_review=1
     body_check_signing=0
     body_check_units=0
     body_find_items=3
