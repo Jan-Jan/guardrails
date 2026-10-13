@@ -15,7 +15,13 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
   per-item "how" belongs to LLRs in the architecture ledger.
 - One requirement per item; write it verifiable.
 - `(implements: RC-...)` is required when the requirement realizes a risk
-  control from the risk management file.
+  control from the risk management file. It is read only inside the REQ's
+  block: on the definition line, as above, or on a line below it before the
+  block closes. A block closes at the next markdown heading, the next bold
+  line that contains an ASCII colon, or the end of the file. An
+  `implements:` anywhere else implements nothing, so the control reports
+  UNIMPLEMENTED-CONTROL; at column one, after any list markers, the line
+  also reports ORPHAN-ANNOTATION.
 - A requirement with no parent in system needs is marked `satisfies: derived`
   and must be assessed in the risk ledger, where an `assesses:` line names it.
 - Mint the ID when you write the item: run

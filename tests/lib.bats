@@ -1154,7 +1154,7 @@ EOF
 }
 
 # verifies: annotation grammar reader (architecture item 3)
-@test "gr_req_scan reports expects, opened and RC linkage per block" {
+@test "gr_req_scan reports expects and opened per block" {
     make_units_fixture
     cat >> apps/pump/docs/requirements/0001-01-01-base.md <<'EOF'
 
@@ -1165,8 +1165,7 @@ EOF
     run sh -c '. .guardrails/scripts/lib.sh && gr_unit_req_scan apps/pump'
     [ "$status" -eq 0 ]
     [[ "$output" == *"REQ-e7x2m4	"*"	EXPECTS	platform/hal"* ]] || false
-    [[ "$output" == *"REQ-e7x2m4	"*"	OPENED	2026-09-01"* ]] || false
-    [[ "$output" == *"REQ-e7x2m4	"*"	RC	1"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"REQ-e7x2m4	"*"	OPENED	2026-09-01"* ]] || { echo "$output"; false; }
 }
 
 # verifies: consumer resolution over depends_on edges

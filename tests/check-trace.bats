@@ -2095,9 +2095,10 @@ SAD
     #
     # The problems ledger is now read TWICE — by the triage scan and then by
     # the orphan backstop — and the triage scan gets there first, so the
-    # message names it. The backstop's own error path is pinned by the SAD
-    # test below, on a file the triage scan never opens. Asserting only the
-    # message that happens to come first would have left it uncovered.
+    # message names it. The backstop's own error path is pinned by the
+    # gitignored risk-ledger test below, on a file no scan before it opens.
+    # Asserting only the message that happens to come first would have left
+    # it uncovered.
     printf '**PR-001**: Crash.\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all unreadable-ledger
     chmod 000 docs/problems/0001-01-01-base.md
@@ -2121,15 +2122,29 @@ SAD
     [[ "$output" == *"out-of-force scan failed"* ]] || { echo "$output"; false; }
 }
 
-@test "check-trace: an unreadable risk ledger fails the orphan scan" {
-    # The orphan backstop's half of the problems-ledger test above. doc_rmf is
-    # read by check_orphans and by nothing else that opens the working-tree
-    # file with awk (the line-wise readers go through git grep), so this is
-    # the fixture in which its error path is reachable. It was the SAD until
-    # the out-of-force scan began opening that first.
+@test "check-trace: an unreadable risk ledger fails the mitigates: scan" {
+    # doc_rmf is opened first by the mitigates: block pass (credit_scan), so
+    # the message names it: a scan that errors finds nothing, and finding
+    # nothing would read as every hazard unmitigated, or as none.
     chmod 000 docs/risk/0001-01-01-base.md
     run sh .guardrails/scripts/check-trace.sh
     chmod 644 docs/risk/0001-01-01-base.md
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    [[ "$output" == *"mitigates: scan failed"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an unreadable gitignored risk ledger fails the orphan scan" {
+    # The orphan backstop's half of the problems-ledger test above. Every
+    # ledger is now opened first by a block pass, and the block passes drop
+    # the files git ignores, so a gitignored doc_rmf file is opened by
+    # check_orphans and by nothing else: the fixture in which its error path
+    # is reachable. It was the RMF until credit_scan began opening that first.
+    printf 'docs/risk/2026-01-02-scratch.md\n' > .gitignore
+    printf '**RC-001**: Software limits dose. mitigates: HAZ-001\n' > docs/risk/2026-01-02-scratch.md
+    commit_all ignored-rmf
+    chmod 000 docs/risk/2026-01-02-scratch.md
+    run sh .guardrails/scripts/check-trace.sh
+    chmod 644 docs/risk/2026-01-02-scratch.md
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
     [[ "$output" == *"orphan scan failed"* ]] || { echo "$output"; false; }
 }
@@ -2770,8 +2785,8 @@ POISON
     # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
     # The control's only requirement-side implements: is in a retired REQ.
     # An implements: in an LLR block of the SAD is not a requirement's, so it
-    # does not stand in for the retired one: the out-of-force scan reads
-    # implements: over doc_srs alone, as the line-wise reader does.
+    # does not stand in for the retired one: implements: is read over
+    # doc_srs alone, on REQ blocks.
     printf '\n**RC-r5jw4h**: Software bounds the infusion rate. mitigates: HAZ-001\n' \
         >> docs/risk/0001-01-01-base.md
     printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nimplements: RC-r5jw4h\nretired: %s — the rate limit moved to the pump firmware\n' \
@@ -2911,12 +2926,11 @@ SAD
 
 @test "check-trace: an implements: in a gitignored requirements file implements nothing" {
     # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
-    # The line-wise implements: reader reads doc_srs through git grep, which
-    # skips ignored files, and the out-of-force scan now drops them too
-    # (review round 3, finding-3); a control also counts only when both
-    # readers credit it. An ignored file's line keeps nothing implemented —
-    # the verdict the tree had before the out-of-force scan existed. Either
-    # guard alone keeps this green; it goes red only with both removed.
+    # The block pass drops the files git ignores (review round 3, finding-3),
+    # and a crediting REQ must be one ids_defined reports, which reads through
+    # git grep and so skips ignored files too. Either guard alone keeps this
+    # green; the gitignored-ledger-file test below defines the owner in a
+    # tracked file, so there the dropped files are the only guard.
     printf '\n**RC-r5jw4h**: Software bounds the infusion rate. mitigates: HAZ-001\n' \
         >> docs/risk/0001-01-01-base.md
     printf 'docs/requirements/2026-01-02-scratch.md\n' > .gitignore
@@ -2930,12 +2944,11 @@ SAD
 
 @test "check-trace: a retired REQ and a gitignored requirements file do not implement a control between them" {
     # verifies: D3 (docs/plans/2026-10-08-out-of-force-items.md)
-    # Review round 3, finding-3. The tracked line is in a retired REQ, so the
-    # line-wise reader alone credits RC-r5jw4h; the ignored line is in a REQ
-    # in force, so the block pass alone credited it. A control is credited
-    # per RC, so each reader's half made a whole: exit 0 on a control no
-    # item in force implements. The block pass now reads only the files git
-    # grep reads.
+    # Review round 3, finding-3. The tracked line is in a retired REQ, which
+    # implements nothing; the ignored line is in a REQ in force, which the
+    # block pass once credited. When two readers were intersected per RC,
+    # each one's half made a whole: exit 0 on a control no item in force
+    # implements. One block pass now reads only the files git grep reads.
     printf '\n**RC-r5jw4h**: Software bounds the infusion rate. mitigates: HAZ-001\n' \
         >> docs/risk/0001-01-01-base.md
     printf '\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nimplements: RC-r5jw4h\nretired: %s — the rate limit moved to the pump firmware\n' \
@@ -4395,4 +4408,248 @@ ORPHAN
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] || { echo "$output"; false; }
     [[ "$output" == *"problems: open 1,"* ]] || { echo "$output"; false; }
+}
+
+# --- Block-attributed credits (docs/plans/2026-10-08-block-attributed-credits.md)
+# implements: credits an RC only from a line inside a REQ block of doc_srs,
+# and mitigates: a HAZ only from a line inside an RC block of doc_rmf. RC-002
+# below has a hazard and nothing else implements it, so each test turns on
+# where the one implements: line sits.
+add_unimplemented_control() {
+    printf '\n**HAZ-002**: Stuck sensor.\n\n**RC-002**: Alarm on a stuck sensor. mitigates: HAZ-002\n' \
+        >> docs/risk/0001-01-01-base.md
+}
+
+@test "check-trace: an implements: before the first item of the SRS credits nothing and is reported" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    add_unimplemented_control
+    printf '# SRS\n\nimplements: RC-002\n\n**REQ-001**: The system shall limit the dose. (implements: RC-001)\n' \
+        > docs/requirements/0001-01-01-base.md
+    commit_all implements-before-first-item
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/requirements/0001-01-01-base.md:3 (implements: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: an implements: under a heading after the last REQ credits nothing and is reported" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    add_unimplemented_control
+    printf '\n## Notes\n\nimplements: RC-002\n' >> docs/requirements/0001-01-01-base.md
+    commit_all implements-after-last-item
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/requirements/0001-01-01-base.md:7 (implements: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: an implements: mid-sentence in SRS prose credits nothing and is not an orphan" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The backstop's rule is column one, so prose is not reported; the
+    # coverage gate the line would have satisfied is.
+    add_unimplemented_control
+    printf '\n## Notes\n\nA requirement that implements: RC-002 must say so.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all implements-in-prose
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an implements: under a sub-heading inside a REQ credits nothing and is reported" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The heading closes REQ-002's block, so the line below it is no REQ's.
+    add_unimplemented_control
+    printf '\n**REQ-002**: The system shall raise the stuck-sensor alarm.\n\n### Why\n\nimplements: RC-002\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all implements-under-sub-heading
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/requirements/0001-01-01-base.md:9 (implements: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a mitigates: in RMF prose with no RC mitigates nothing" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    printf '\n**HAZ-002**: Stuck sensor.\n\n## Notes\n\nA control that mitigates: HAZ-002 must say so.\n' \
+        >> docs/risk/0001-01-01-base.md
+    commit_all mitigates-in-prose
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a column-one mitigates: under a heading after the last RC mitigates nothing and is reported" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    printf '\n**HAZ-002**: Stuck sensor.\n\n## Notes\n\nmitigates: HAZ-002\n' >> docs/risk/0001-01-01-base.md
+    commit_all mitigates-after-last-item
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION docs/risk/0001-01-01-base.md:11 (mitigates: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: an expecting REQ's implements: after a bold-colon line is reported and claims no risk control" {
+    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The **Note:** line closes REQ-e7x2m4's block. The expectation severity
+    # reads the same block records UNIMPLEMENTED-CONTROL reads, so the stray
+    # line neither makes the expectation risk-linked nor passes silently.
+    make_units_fixture
+    printf '\n**REQ-e7x2m4**: The software shall rely on platform/hal to bound slew rate.\nexpects: platform/hal\nopened: %s\n\n**Note:** the hal bounds it.\nimplements: RC-p4q7t3\n' \
+        "$(days_ago 3)" >> apps/pump/docs/requirements/0001-01-01-base.md
+    commit_all expecting-note-implements
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"ORPHAN-ANNOTATION apps/pump/docs/requirements/0001-01-01-base.md:10 (implements: belongs to no item)"* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4 (open 3 days)"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"risk control"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an implements: key line in front matter credits nothing and is not an orphan" {
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # A YAML key line opens no block, so the block reader credits nothing
+    # here with or without its front-matter skip; what this pins is the
+    # backstop's skip: no orphan report, and the coverage gate reports. The
+    # next test is the one that turns on the block reader's skip.
+    add_unimplemented_control
+    printf -- '---\nimplements: RC-002\n---\n# Alarms\n\n**REQ-002**: The software shall raise the stuck-sensor alarm.\n' \
+        > docs/requirements/2026-01-02-alarms.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all implements-in-front-matter
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a definition line in front matter opens no block and credits nothing" {
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # credit_scan skips front matter by GR_AWK_FRONT_MATTER, the rule the
+    # backstop uses, so a definition line inside it opens no block.
+    add_unimplemented_control
+    printf -- '---\n**REQ-002**: The software shall raise the stuck-sensor alarm.\nimplements: RC-002\n---\n# Alarms\n\n**REQ-002**: The software shall raise the stuck-sensor alarm.\n' \
+        > docs/requirements/2026-01-02-alarms.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all definition-in-front-matter
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a block in a gitignored ledger file credits no control and mitigates no hazard" {
+    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The owners are items defined in tracked files, so only the dropped
+    # ignored files keep these lines from crediting.
+    add_unimplemented_control
+    printf '\n**HAZ-003**: Sensor drift.\n' >> docs/risk/0001-01-01-base.md
+    printf 'docs/requirements/2026-01-02-scratch.md\ndocs/risk/2026-01-02-scratch.md\n' > .gitignore
+    printf '**REQ-001**: The system shall limit the dose.\nimplements: RC-002\n' \
+        > docs/requirements/2026-01-02-scratch.md
+    printf '**RC-002**: Alarm on a stuck sensor.\nmitigates: HAZ-003\n' \
+        > docs/risk/2026-01-02-scratch.md
+    commit_all ignored-ledger-blocks
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-003"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an implements: in the block of a REQ ids_defined does not report credits nothing" {
+    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The BOM hides REQ-002's definition from ids_defined's column-one git
+    # grep, while the block reader strips it and opens the block. Only the
+    # defined-owner filter keeps the implements: from crediting RC-002.
+    add_unimplemented_control
+    printf '\357\273\277**REQ-002**: The system shall raise the stuck-sensor alarm.\nimplements: RC-002\n' \
+        > docs/requirements/2026-01-02-alarms.md
+    commit_all implements-from-undefined-owner
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: a mitigates: in the block of an RC ids_defined does not report mitigates nothing" {
+    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The same BOM shape on the RMF side: RC-003 is invisible to
+    # ids_defined, so its mitigates: must not credit HAZ-002.
+    printf '\n**HAZ-002**: Stuck sensor.\n' >> docs/risk/0001-01-01-base.md
+    printf '\357\273\277**RC-003**: Alarm on a stuck sensor.\nmitigates: HAZ-002\n' \
+        > docs/risk/2026-01-02-alarms.md
+    commit_all mitigates-from-undefined-owner
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: inline and bulleted credits inside a block still credit" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # Scope control: the shipped definition-line forms and a bulleted line
+    # inside the block are all inside the block.
+    add_unimplemented_control
+    printf '\n**RC-003**: Alarm on sensor drift.\n- mitigates: HAZ-002\n' >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-002**: The system shall raise the stuck-sensor alarm. (implements: RC-002)\n\n**REQ-003**: The system shall raise the drift alarm.\n- implements: RC-003\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\n# verifies: REQ-003\ntrue\n' > tests/test_b.sh
+    commit_all inline-and-bulleted
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a block open at the end of one SRS file credits nothing in the next" {
+    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The base SRS ends inside REQ-001's block. The later file's first line
+    # is prose that names RC-002 after implements:; the block reader starts
+    # every file outside any block, so that line belongs to no REQ. It is not
+    # in column one, so it is no orphan either: the coverage gate reports.
+    add_unimplemented_control
+    printf 'Each control a requirement implements: RC-002 is listed here.\n' \
+        > docs/requirements/2026-01-02-controls.md
+    commit_all block-across-files
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNIMPLEMENTED-CONTROL RC-002"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: front matter in one SRS file skips no lines of the next" {
+    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The earlier file's front matter runs to line 6. The later file defines
+    # REQ-002 on line 1 and credits RC-002 on line 2; the front-matter span
+    # is found afresh for each file, so those lines are read.
+    add_unimplemented_control
+    printf -- '---\ntitle: Alarms\nowner: safety\nreviewed: yes\nversion: 2\n---\n# Alarms\n' \
+        > docs/requirements/2026-01-02-alarms.md
+    printf '**REQ-002**: The software shall raise the stuck-sensor alarm.\nimplements: RC-002\n' \
+        > docs/requirements/2026-01-03-stuck.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all front-matter-across-files
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"UNIMPLEMENTED-CONTROL"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an expecting REQ's implements: in a gitignored requirements file claims no risk control" {
+    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # The expectation severity reads the records UNIMPLEMENTED-CONTROL reads,
+    # and that one block pass drops the files git ignores, so the ignored
+    # line does not make the expectation risk-linked.
+    make_units_fixture
+    printf 'apps/pump/docs/requirements/2026-01-02-scratch.md\n' > .gitignore
+    printf '**REQ-e7x2m4**: The software shall rely on platform/hal to bound slew rate. (implements: RC-p4q7t3)\nexpects: platform/hal\nopened: %s\n' \
+        "$(days_ago 3)" > apps/pump/docs/requirements/2026-01-02-scratch.md
+    commit_all ignored-expecting-implements
+    unit_run check-trace.sh apps/pump
+    [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4 (open 3 days)"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"implements a risk control"* ]] || { echo "$output"; false; }
 }

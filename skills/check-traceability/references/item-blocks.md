@@ -26,9 +26,14 @@ the keyword: a bullet (`-`, `*` or `+`) or an ordered marker (a run of digits
 closed by `.` or `)`), each followed by whitespace, indented or not. So a
 list-item annotation outside every block is reported.
 
-No reader steps over a list marker. A list-item annotation is never taken as a
-value, which is why a bulleted annotation inside a block is reported
-as a missing field (`INCOMPLETE-PROBLEM`, `MISSING-RECORD`).
+No column-one reader steps over a list marker. The fields read at column one
+(`status:`, `opened:`, `disposition:`, `retired:`, `supersedes:`,
+`superseded-by:`, `expects:`, `exported:`) are never taken from a list item,
+which is why a bulleted one inside a block is reported as a missing field
+(`INCOMPLETE-PROBLEM`, `MISSING-RECORD`). The ID-list keywords `satisfies:`,
+`traces:`, `implements:` and `mitigates:` are read anywhere on a line inside
+the block, so a bulleted one there still credits (see "Keywords read anywhere
+on the line" below).
 
 - Bare indentation declares nothing. With no marker present the line is tested
   unchanged, which keeps the indented item grammar in the ledger templates
@@ -52,12 +57,23 @@ annotation outrank the real one:
 A backstop wider than the readers can only over-report. A reader wider than
 intended answers with confidence and is wrong.
 
-## `traces:` and `satisfies:` anywhere on the line
+## Keywords read anywhere on the line
 
 `gr_id_run` reads `traces:` and `satisfies:` anywhere on their line.
 `templates/sad.md` puts the annotation on the definition line, so requiring
 column one of this reader would reject the documented primary form and every
 SAD written to it.
+
+`implements:` and `mitigates:` are read anywhere on their line for the same
+reason: `templates/srs.md` ships `(implements: RC-…)` and `templates/rmf.md`
+ships `mitigates: HAZ-…` on the definition line. Like `status:`,
+`satisfies:`, `traces:` and `retired:`, they credit only from a line inside
+the owner's block: a REQ block in `doc_srs` for `implements:`, an RC block in
+`doc_rmf` for `mitigates:`. A line outside every block credits nothing,
+wherever the keyword sits on it. The
+backstop reports it at column one; a mid-sentence one is reported only by the
+coverage gate it fails to satisfy, `UNIMPLEMENTED-CONTROL` or
+`UNMITIGATED-HAZARD`.
 
 ## Forms still not covered
 

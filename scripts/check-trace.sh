@@ -13,10 +13,14 @@
 #                              An out-of-force REQ or LLR owes no test, and a
 #                              tested out-of-force LLR covers no REQ: see
 #                              OUT-OF-FORCE-VERIFIES for the definition.
-#   UNMITIGATED-HAZARD ID    — HAZ with no RC `mitigates:` line naming it.
+#   UNMITIGATED-HAZARD ID    — HAZ with no `mitigates:` line naming it
+#                              inside an RC's block.
 #                              Instead of a new RC, record the acceptability
 #                              rationale and control in the RMF.
-#   UNIMPLEMENTED-CONTROL ID — RC with no REQ `implements:` line naming it.
+#   UNIMPLEMENTED-CONTROL ID — RC with no `implements:` line naming it
+#                              inside a REQ's block. A line in no block,
+#                              under a heading or bold-colon line that closed
+#                              the item, or in front matter, credits nothing.
 #                              For a non-software control, note the external
 #                              implementation in the RMF item. Add an
 #                              implementing REQ only if software is part of it.
@@ -62,11 +66,12 @@
 #                              replacement pair, remove both halves and state
 #                              the relationship in prose.
 #   ORPHAN-ANNOTATION FILE:LINE — a status:/opened:/disposition:/traces:/
-#                              satisfies:/supersedes:/superseded-by:/retired:
-#                              line at column one, or at column one after a list
-#                              marker, that belongs to no item block. Wider
-#                              than every reader on purpose: a form no reader
-#                              takes is still reported where it is orphaned.
+#                              satisfies:/supersedes:/superseded-by:/retired:/
+#                              implements:/mitigates: line at column one, or
+#                              at column one after a list marker, that
+#                              belongs to no item block. Wider than every
+#                              reader on purpose: a form no reader takes is
+#                              still reported where it is orphaned.
 #                              Three cases: before the first item in the file;
 #                              under a heading with no item since; inside a
 #                              block whose prefix's gate does not read the
@@ -78,9 +83,10 @@
 #                              doc_problems, traces: in doc_sad, satisfies: in
 #                              doc_sad and doc_srs, supersedes:/superseded-by:
 #                              in every ledger, retired: in doc_srs and doc_sad
-#                              on REQ and LLR blocks. mitigates:, implements:,
-#                              verifies: and assesses: are read line-wise and
-#                              cannot be orphaned.
+#                              on REQ and LLR blocks, implements: in doc_srs
+#                              on REQ blocks, mitigates: in doc_rmf on RC
+#                              blocks. verifies: and assesses: are read
+#                              line-wise and cannot be orphaned.
 #   UNRESOLVED-PR ID         — problem report with status: open, with its age.
 #                              WARNING only: listed for review,
 #                              never fails the check on its own
@@ -444,12 +450,9 @@ fi
 #
 # ONE PASS over the SRS and then the SAD files the SRS list does not already
 # contain — doc_srs and doc_sad may resolve to one directory, and reading a
-# file twice would print its MALFORMED-RETIREMENT lines twice. `in_srs=` is a
-# POSIX assignment operand, taking effect as awk reaches it in the file list:
-# `implements:` is read over doc_srs alone, as the line-wise reader below
-# reads it, so a stray one in the SAD is attributed to nothing here either.
-# stdin is /dev/null so a config with neither document cannot leave awk
-# reading the terminal.
+# file twice would print its MALFORMED-RETIREMENT lines twice. stdin is
+# /dev/null so a config with neither document cannot leave awk reading the
+# terminal.
 #
 # Blocks open on REQ and LLR only, the two prefixes that owe MISSING-TEST, so
 # a `retired:` in an SDD block is read by nothing — and ORPHAN-ANNOTATION
@@ -457,7 +460,6 @@ fi
 #
 # oof_scan SRS_FILES SAD_FILES — the scan's raw lines, one per fact:
 #   O <ID>                   the item is out of force
-#   I <ID|-> <RC>            an `implements:` naming RC, in ID's block or none
 #   MALFORMED-RETIREMENT …   a report line, ready to print
 #   MALFORMED-SUPERSESSION … a self-pair or a chain that never terminates
 #                            (review round 3, finding-1), ready to print
@@ -467,10 +469,25 @@ fi
 # exported REQ meets no `expects:` (D3, extended on review round 2,
 # finding-2). One definition, so the two cannot disagree on what out of force
 # means. The awk status is the function's status; callers keep it.
-# oof_unignored LIST — LIST's files that are not in $_oof_ignored.
-oof_unignored() {
-    for _oof_f in $1; do
-        gr_contains "$_oof_ignored" "$_oof_f" || printf '%s\n' "$_oof_f"
+#
+# unignored_files LIST — LIST's files that git does not ignore, one per line.
+# THE FILES GIT GREP READS, and no others (review round 3, finding-3). The
+# definition readers — ids_defined and its kin — read through `git grep
+# --untracked`, which skips a file git ignores; a block pass that read the
+# file system instead credited an ignored file's lines. Shared by oof_scan and
+# credit_scan, so every block pass over the ledgers drops the same files.
+# check-ignore, not an ls-files allowlist: it names what to DROP, so a path it
+# prints quoted is kept and read, as before, rather than missed. With the
+# index (no --no-index), a tracked file is never ignored, as git grep searches
+# it. Exit 1 is "nothing ignored". No files, no call: `git check-ignore --`
+# with no path exits 128 (review round 4, finding-1). Status 2 when git fails.
+unignored_files() {
+    [ -n "$1" ] || return 0
+    # shellcheck disable=SC2086
+    _unignored_dropped=$(git -c core.quotePath=false check-ignore -- $1)
+    [ "$?" -le 1 ] || return 2
+    for _unignored_file in $1; do
+        gr_contains "$_unignored_dropped" "$_unignored_file" || printf '%s\n' "$_unignored_file"
     done
 }
 oof_scan() {
@@ -480,29 +497,8 @@ oof_scan() {
         gr_contains "$_oof_srs" "$_oof_f" || _oof_sad_only="${_oof_sad_only}${_oof_sad_only:+
 }$_oof_f"
     done
-    # THE FILES GIT GREP READS, and no others (review round 3, finding-3).
-    # Every other reader of these ledgers — ids_defined, ids_matching — reads
-    # through `git grep --untracked`, which skips a file git ignores. Read
-    # from the file system, an ignored SRS file's REQ in force credited the
-    # RC its `implements:` names to the block pass, a retired tracked REQ's
-    # line credited it to the line-wise reader, and UNIMPLEMENTED-CONTROL's
-    # per-RC intersection of the two passed on a control nothing in force
-    # implements. Dropping the ignored files here is the smaller change than
-    # a per-line join, and it is one rule for every result of this scan.
-    # check-ignore, not an ls-files allowlist: it names what to DROP, so a
-    # path it prints quoted is kept and read, as before, rather than missed.
-    # With the index (no --no-index), a tracked file is never ignored, as
-    # git grep searches it. Exit 1 is "nothing ignored". No files, no
-    # scan: `git check-ignore --` with no path exits 128 (review round 4,
-    # finding-1).
-    [ -n "$_oof_srs$_oof_sad_only" ] || return 0
-    # shellcheck disable=SC2086
-    _oof_ignored=$(git -c core.quotePath=false check-ignore -- $_oof_srs $_oof_sad_only)
-    [ "$?" -le 1 ] || return 2
-    if [ -n "$_oof_ignored" ]; then
-        _oof_srs=$(oof_unignored "$_oof_srs")
-        _oof_sad_only=$(oof_unignored "$_oof_sad_only")
-    fi
+    _oof_srs=$(unignored_files "$_oof_srs") || return 2
+    _oof_sad_only=$(unignored_files "$_oof_sad_only") || return 2
     [ -n "$_oof_srs$_oof_sad_only" ] || return 0
     # shellcheck disable=SC2086
     LC_ALL=C awk -v body="$GR_ID_BODY" -v today="$today" \
@@ -555,12 +551,11 @@ oof_scan() {
         # reported nothing: exit 0 on an untested REQ (review round 2,
         # finding-1).
         #
-        # Front matter is NOT skipped here, unlike check_orphans. After
-        # this reset no front-matter line can reach a block (a YAML key
-        # line opens none), so a skip would change one thing only: it
-        # would take a front-matter `implements:` away from this pass
-        # while the line-wise reader still counts it, which is
-        # UNIMPLEMENTED-CONTROL on a tree that passed before.
+        # Front matter is NOT skipped here, unlike check_orphans and
+        # credit_scan. After this reset a YAML key line in front matter
+        # reaches no block, since it opens none. A definition line inside
+        # front matter does open one, and a retired: under it retires that
+        # REQ; the block-attributed-credits plan records it as a follow-up.
         FNR == 1 { flush(); open_block("") }
         # No `next`: a header line usually carries its own annotation.
         gr_block_closes(line) {
@@ -586,14 +581,6 @@ oof_scan() {
             id_count = split(run, named_ids, " ")
             for (id_index = 1; id_index <= id_count; id_index++)
                 by[cur "\t" named_ids[id_index]] = 1
-        }
-        # Line-wise, like ids_matching: the first `implements:` on the line
-        # and the ID run after it, attributed to the open block or to none.
-        in_srs && index(line, "implements:") > 0 {
-            id_count = split(gr_id_run(line, "implements:"), named_ids, " ")
-            for (id_index = 1; id_index <= id_count; id_index++)
-                if (named_ids[id_index] ~ /^RC-/)
-                    print "I " (cur == "" ? "-" : cur) " " named_ids[id_index]
         }
         # The IDs of reached[], sorted and space-separated. Insertion sort:
         # the set is one cycle and what leads into it, a handful of IDs.
@@ -669,8 +656,84 @@ oof_scan() {
                 printf "MALFORMED-SUPERSESSION %s (supersession cycle with no successor in force or retired: %s)\n", item, reached_list()
             }
         }
-    ' in_srs=1 $_oof_srs in_srs=0 $_oof_sad_only < /dev/null
+    ' $_oof_srs $_oof_sad_only < /dev/null
 }
+
+# --- Credits: docs/plans/2026-10-08-block-attributed-credits.md ------------
+# A credit belongs to the block it is written in (D1). `implements: RC-…`
+# credits the RC only on a line inside a REQ block of doc_srs, and
+# `mitigates: HAZ-…` the HAZ only on a line inside an RC block of doc_rmf. The
+# keyword may sit anywhere on that line — the inline `(implements: RC-…)` on
+# the definition line is the shipped form — and the ID run after its first
+# occurrence is read by gr_id_run, the one annotation rule. A line in no block
+# credits nothing: before the first item, after a heading or a bold-colon line
+# that closed the item, or in front matter, which is skipped by
+# GR_AWK_FRONT_MATTER so that not even a definition line in it opens a block.
+# A block cannot span files, so the open block is dropped at each file's
+# first line.
+#
+# ONE reader per keyword (D2): every consumer reads these records, so no two
+# gates can disagree on what a line credits. Until this pass, a line-wise
+# reader credited a line in no block, while the block readers did not:
+# UNIMPLEMENTED-CONTROL and UNMITIGATED-HAZARD passed on a credit no item
+# made, and the expectation severity disagreed with them.
+#
+# credit_scan KEYWORD OWNER TARGET FILES — one `<owner> <ID>` line per credit:
+# an ID of prefix TARGET named by KEYWORD inside a block of prefix OWNER.
+# FILES is a newline-separated list; the files git ignores are dropped
+# (unignored_files, above). The awk status is the function's status. The
+# caller keeps only owners ids_defined reports: an owner defined nowhere a
+# gate reads (a definition behind a BOM, or only in a file `git grep -I`
+# skips as binary) credits nothing. That is all the filter guards. A binary
+# ledger file that redefines an owner also defined in a text file still
+# credits through this pass; the plan's follow-ups record it.
+credit_scan() {
+    _credit_files=$(unignored_files "$4") || return 2
+    [ -n "$_credit_files" ] || return 0
+    # Each file is named twice, for the two front-matter passes below.
+    _credit_twice=""
+    for _credit_file in $_credit_files; do
+        _credit_twice="${_credit_twice}${_credit_twice:+
+}$_credit_file
+$_credit_file"
+    done
+    # shellcheck disable=SC2086
+    LC_ALL=C awk -v body="$GR_ID_BODY" -v kw="$1" -v owner="$2" -v target="$3-" \
+        "$GR_AWK_ID_RUN$GR_AWK_ITEM_BLOCK$GR_AWK_FRONT_MATTER"'
+        BEGIN { gr_block_init(owner, body) }
+        # The pass count is per file: odd passes find the front matter, even
+        # passes read. An empty file has no first line and so no pass, which
+        # leaves the count right for the file after it.
+        FNR == 1 {
+            sub(/^\357\273\277/, ""); cur = ""
+            file_pass = (FILENAME == pass_file) ? file_pass + 1 : 1
+            pass_file = FILENAME
+            if (file_pass % 2 == 1) gr_fm_reset()
+        }
+        # Front matter is skipped by the ONE rule, GR_AWK_FRONT_MATTER in
+        # lib.sh, that check_orphans skips it by: a definition line inside it
+        # opens no block, so nothing in it credits.
+        file_pass % 2 == 1 { gr_fm_scan($0, FNR); next }
+        gr_fm_skip(FNR) { next }
+        { line = $0; sub(/\r$/, "", line) }
+        # No `next`: the definition line carries the inline form.
+        gr_block_closes(line) { cur = gr_block_opens(line) ? gr_block_id(line) : "" }
+        cur != "" && index(line, kw) > 0 {
+            id_count = split(gr_id_run(line, kw), named_ids, " ")
+            for (id_index = 1; id_index <= id_count; id_index++)
+                if (index(named_ids[id_index], target) == 1)
+                    print cur " " named_ids[id_index]
+        }
+    ' $_credit_twice < /dev/null
+}
+
+# `implements:` records for this run, read once: UNIMPLEMENTED-CONTROL and
+# the expectation severity below both read them.
+implements_records=""
+if [ -n "$srs_files" ]; then
+    implements_records=$(credit_scan 'implements:' REQ RC "$srs_files") \
+        || gr_die "implements: scan failed"
+fi
 
 # --- Unit annotations and expectations (architecture items 3 and 4) ----------
 # Scoped runs only. exported:/expects:/opened: are read by gr_req_scan under
@@ -765,7 +828,9 @@ if [ -n "$GR_UNIT" ]; then
 $_eid"
         exp_open=$((exp_open + 1))
         [ "$_eage" -gt "$exp_oldest" ] && exp_oldest=$_eage
-        if printf '%s\n' "$own_scan" | awk -F'\t' -v i="$_eid" '$1 == i && $3 == "RC" { found = 1 } END { exit !found }'; then
+        # Risk-linked when the expecting REQ's own block implements a
+        # control: the records UNIMPLEMENTED-CONTROL reads (credit_scan).
+        if printf '%s\n' "$implements_records" | awk -v want="$_eid" '$1 == want { found = 1 } END { exit !found }'; then
             print_violations "UNMET-EXPECTATION $_etgt: $_eid (open $_eage days — implements a risk control, exit 1 on every run until the provider delivers or the risk is re-analyzed)"
             fail=1
         elif [ -n "$exp_age_limit" ] && [ "$_eage" -gt "$exp_age_limit" ]; then
@@ -954,7 +1019,6 @@ _oof_raw=$(oof_scan "$srs_files" "$sad_files") || gr_die "out-of-force scan fail
 # sort -u: the reciprocity loop in oof_scan walks an array, whose order is
 # unspecified, and an item superseded by two successors prints twice.
 out_of_force=$(printf '%s\n' "$_oof_raw" | awk '$1 == "O" { print $2 }' | LC_ALL=C sort -u)
-implements_records=$(printf '%s\n' "$_oof_raw" | awk '$1 == "I" { print $2 " " $3 }')
 # The flattened form is what crosses `awk -v` below: a value with a
 # literal newline in it stops BWK awk before its program runs.
 oof_flat=" $(printf '%s\n' "$out_of_force" | tr '\n' ' ')"
@@ -1040,33 +1104,33 @@ $sats"
 fi
 
 # --- UNMITIGATED-HAZARD: every HAZ needs an RC that mitigates it ------------
+# Credited by credit_scan: a `mitigates:` inside the block of an RC that
+# ids_defined reports. A line in no RC block mitigates nothing.
 if [ -n "$rmf_files" ]; then
-    # shellcheck disable=SC2086
-    mitigated=$(ids_matching 'mitigates:' HAZ $rmf_files)
+    mitigates_records=$(credit_scan 'mitigates:' RC HAZ "$rmf_files") \
+        || gr_die "mitigates: scan failed"
+    defined_rc_flat=" $(ids_defined RC | tr '\n' ' ')"
+    mitigated=$(printf '%s\n' "$mitigates_records" \
+        | awk -v defined="$defined_rc_flat" 'NF == 2 && index(defined, " " $1 " ") > 0 { print $2 }')
     for id in $(ids_defined HAZ); do
         gr_contains "$mitigated" "$id" || { print_violations "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
     done
 fi
 
 # --- UNIMPLEMENTED-CONTROL: every RC needs a REQ that implements it ---------
+# Credited by credit_scan: an `implements:` inside the block of a REQ that
+# ids_defined reports and that is in force. D3 of the out-of-force change: an
+# `implements:` inside an out-of-force REQ's block implements nothing, so
+# retiring the only REQ that implements a control cannot leave this gate
+# green on a control no test verifies any more. A line in no REQ block
+# implements nothing (D1 of the block-attributed-credits change).
 if [ -n "$srs_files" ]; then
-    # shellcheck disable=SC2086
-    implemented=$(ids_matching 'implements:' RC $srs_files)
-    # D3: an `implements:` inside an out-of-force REQ's block implements
-    # nothing. Without this, retiring the only REQ that implements a control
-    # leaves this gate green on a control no test verifies any more. The
-    # block pass (oof_scan) credits a line outside every out-of-force block.
-    # It reads the files git grep reads — ignored files dropped (review
-    # round 3, finding-3) — and applies the line-wise reader's ID-run rule,
-    # so its credits are a subset of `implemented` above. The intersection
-    # below is kept for the one difference left, git grep -I skipping a
-    # binary file the awk would read; it is NOT what keeps a gitignored file
-    # from crediting a control (the per-RC intersection alone let a retired
-    # tracked line and an ignored in-force line credit one RC between them).
+    defined_req_flat=" $(ids_defined REQ | tr '\n' ' ')"
     implemented_in_force=$(printf '%s\n' "$implements_records" \
-        | awk -v oof="$oof_flat" 'NF == 2 && ($1 == "-" || index(oof, " " $1 " ") == 0) { print $2 }')
+        | awk -v oof="$oof_flat" -v defined="$defined_req_flat" \
+            'NF == 2 && index(oof, " " $1 " ") == 0 && index(defined, " " $1 " ") > 0 { print $2 }')
     for id in $(ids_defined RC); do
-        gr_contains "$implemented" "$id" && gr_contains "$implemented_in_force" "$id" && continue
+        gr_contains "$implemented_in_force" "$id" && continue
         { print_violations "UNIMPLEMENTED-CONTROL $id (no requirement 'implements:' it)"; fail=1; }
     done
 fi
@@ -1121,12 +1185,13 @@ done
 # downstream project: 26 derived items, 25 genuinely assessed, one credited
 # on a parenthetical inside a blockquote (PR-n274s7).
 #
-# `assesses:` is read line-wise by ids_matching through GR_AWK_ID_RUN, like
-# mitigates: and implements:. The run ends at the first character that is not
-# an ID, comma or space, so an assessment of one item cannot clear a second
-# it names in passing. It is NOT in the ORPHAN-ANNOTATION list: an assessment
-# is prose under a heading, not an item block, and a column-one `assesses:`
-# belonging to no item is the normal case.
+# `assesses:` is read line-wise by ids_matching through GR_AWK_ID_RUN, unlike
+# mitigates: and implements:, which credit_scan reads by block. The run ends
+# at the first character that is not an ID, comma or space, so an
+# assessment of one item cannot clear a second it names in passing. It is
+# NOT in the ORPHAN-ANNOTATION list: an assessment is prose under a heading,
+# not an item block, and a column-one `assesses:` belonging to no item is the
+# normal case.
 #
 # Nothing here judges the assessment. It requires the author to state which
 # items a passage assesses — the standard every other annotation meets.
@@ -1534,10 +1599,11 @@ fi
 # absent from the known-problem review, with the run still exiting 0.
 #
 # Scope is per keyword, and only where that keyword is BLOCK-parsed:
-# `mitigates:`, `implements:`, `verifies:` and `assesses:` are read line-wise
-# by ids_matching, never against a block, so they cannot be orphaned. Reporting
-# them anyway — or reporting `status:` from the SRS, where nothing reads it —
-# would be noise, and noise is what teaches people to read past the output.
+# `verifies:` and `assesses:` are read line-wise by ids_matching, never against
+# a block, so they cannot be orphaned. Reporting them anyway — or reporting
+# `status:` from the SRS, where nothing reads it — would be noise, and noise
+# is what teaches people to read past the output. `implements:` and
+# `mitigates:` are block-parsed by credit_scan, so they are covered.
 #
 # Column one, or column one after one or more list markers, bulleted or
 # ordered: gr_kw_orphan_here, which is WIDER than the gr_kw_here every reader
@@ -1650,6 +1716,12 @@ _orphans=$(
     # over those files: a `retired:` under an SDD header retires nothing, and
     # is reported here rather than read as the LLR above it retiring.
     check_orphans 'retired:' 'REQ|LLR' $_sat_files
+    # credit_scan reads `implements:` on REQ blocks of doc_srs and
+    # `mitigates:` on RC blocks of doc_rmf, so the backstop opens on the same
+    # prefix over the same files: a stray column-one line credits nothing, and
+    # this names the line to move into the item's block.
+    check_orphans 'implements:' REQ $srs_files
+    check_orphans 'mitigates:' RC $rmf_files
 ) || exit 2
 if [ -n "$_orphans" ]; then
     print_violations "$_orphans"

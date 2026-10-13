@@ -169,7 +169,8 @@ EOF
     # Worth noting where this reddened: nothing in check-trace.bats,
     # portability.bats or skills.bats sees it, so only the full suite does.
     # 9 since the out-of-force scan (PR-kzst5n): its awk takes the same body.
-    body_check_trace=9
+    # 10 since credit_scan (PR-44ww7q, PR-z7w5bf): the same body again.
+    body_check_trace=10
     body_finalize_docs=0
     body_finish_merge=0
     body_guidelines_file=0
@@ -231,7 +232,8 @@ EOF
     # the shared fragment rather than forming a sixth opinion about where an
     # item ends, which is the whole point of pinning this.
     # 7 since the out-of-force scan (PR-kzst5n): it reads blocks the same way.
-    block_check_trace=7
+    # 8 since credit_scan (PR-44ww7q, PR-z7w5bf): the same fragment again.
+    block_check_trace=8
     block_finalize_docs=0
     block_finish_merge=0
     block_guidelines_file=0
@@ -254,7 +256,9 @@ EOF
     fm_check_signing=0
     fm_check_units=0
     fm_find_items=0
-    fm_check_trace=1
+    # 2 since credit_scan (PR-44ww7q, PR-z7w5bf): it skips front matter by
+    # the shared rule, as the orphan backstop does.
+    fm_check_trace=2
     fm_finalize_docs=0
     fm_finish_merge=0
     fm_guidelines_file=0

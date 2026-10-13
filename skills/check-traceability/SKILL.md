@@ -81,14 +81,24 @@ description: Run and interpret the guardrails traceability checker - orphaned re
      annotation on the definition line is valid, as in `templates/sad.md`:
      `**SDD-…**: <software item>. traces: REQ-…`.
    - `check-ids.sh` reports `**REQ-abcdef**:` as `MALFORMED-ID`.
+   - A coverage credit is read inside its owner's block. `implements: RC-…`
+     credits the control only on a line inside a REQ block in `doc_srs`, and
+     `mitigates: HAZ-…` credits the hazard only on a line inside an RC block
+     in `doc_rmf`, anywhere on that line, the definition line included.
+     `UNIMPLEMENTED-CONTROL` and `UNMITIGATED-HAZARD` fire when no such line
+     names the item. A line outside every block credits nothing. At column
+     one, after any list markers, it is also `ORPHAN-ANNOTATION`; in
+     mid-sentence prose or in front matter only the coverage gate reports it.
+     Move the line into the item's block.
 
 6. **Read `ORPHAN-ANNOTATION` as an annotation that belongs to no item.** It
    fires before the first item in a file, under a heading with no item since,
    and inside a block opened by a prefix whose gate does not read that keyword,
-   such as a `traces:` line inside an `**LLR-…**` block. Move the annotation
-   into the item it belongs to. Read `references/item-blocks.md` when an
-   annotation in a list, quote or table is credited or reported where you did
-   not expect it.
+   such as a `traces:` line inside an `**LLR-…**` block. Its keywords include
+   `implements:` in `doc_srs` outside every REQ block and `mitigates:` in
+   `doc_rmf` outside every RC block. Move the annotation into the item it
+   belongs to. Read `references/item-blocks.md` when an annotation in a list,
+   quote or table is credited or reported where you did not expect it.
 
 7. **Read `MISPLACED-ITEM` as an item in the wrong document.** Each of the six
    gated prefixes may be defined in one document only: `REQ` in `doc_srs`,
@@ -104,8 +114,9 @@ description: Run and interpret the guardrails traceability checker - orphaned re
 | "Exit 0, it passed" | Read `checked:` and `sources:` first. A zero there is a run that examined nothing (step 3). |
 | "Exit 2 on one prefix, I'll drop it from `id_prefixes`" | Exit 2 means a gate did not run. Fix the config; removing the prefix also removes its references from `DANGLING-REF` (step 2). |
 | "The checker is wrong about this item, I'll adjust the script" | Fix the artifact, never the checker (step 4). |
-| "I'll bullet the annotations so the item reads better" | A bulleted annotation is not read inside a block; the field is reported missing (step 5). |
+| "I'll bullet the annotations so the item reads better" | A bulleted column-one field such as `status:` is not read inside a block; the field is reported missing (step 5). |
 | "A bold note in the item body is harmless" | A bold line with a colon closes the block; annotations below it belong to no item (step 5). |
+| "The `implements:` is in the SRS, so the control is covered" | Only a line inside a REQ block credits it; the same holds for `mitigates:` inside an RC block (step 5). |
 | "`--allow-draft-files` at the merge too" | No ledger file with a draft name may reach the base branch (step 1). |
 
 ## Done when

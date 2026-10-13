@@ -26,7 +26,8 @@ cannot be told apart.
    errors are reported before any gate runs, so each fix reveals the next.
 5. Work through the sections below that report on the existing ledger:
    problem reports, derived assessments, supersession, out-of-force items,
-   `DANGLING-FILE` and list-item annotations. Read "`ADR` is a declared prefix" before adding
+   `DANGLING-FILE`, list-item annotations and coverage credits read by block.
+   Read "`ADR` is a declared prefix" before adding
    `ADR` to `id_prefixes`.
 6. If `/ratchet` was ever run on macOS, run `check-review.sh --branch <name>`
    once per existing verification record ("On macOS, older versions of
@@ -385,6 +386,52 @@ position `gr_id_run` accepts — task-list items, blockquote prefixes, table
 cells, emphasis, a mid-sentence mention — is not enumerated and should be
 presumed unreported. If your ledgers use a list form beyond the two named, the
 gate stays silent on it as before.
+
+## Coverage credits are read by block
+
+`implements: RC-…` now credits the control only on a line inside a REQ block
+in `doc_srs`, and `mitigates: HAZ-…` credits the hazard only on a line inside
+an RC block in `doc_rmf`. The keyword may sit anywhere on that line; the
+inline `(implements: RC-…)` and `mitigates: HAZ-…` on the definition line, as
+the templates ship them, are unchanged. A block opens at the item's definition
+line and closes at the next markdown heading, the next bold line that contains
+an ASCII colon, or the end of the file. The older `check-trace.sh` read both
+keywords line-wise, from any line of the document, credited to no item: a
+control or hazard counted as covered by a line that belonged to no REQ or RC
+(PR-44ww7q for `implements:`, PR-z7w5bf for `mitigates:`). This can go red on
+an existing ledger.
+
+* **Where it goes red.** An `implements:` or `mitigates:` line that sits:
+  under a sub-heading or a bold line with a colon inside an item, such as
+  `**Note:**` or `### Rationale`; before the first item of a file; under a
+  heading after the item it was meant for; or in front matter. Each now
+  credits nothing.
+* **What you see.** `UNIMPLEMENTED-CONTROL <ID>` for an RC no REQ block now
+  implements, and `UNMITIGATED-HAZARD <ID>` for a HAZ no RC block now
+  mitigates. A line at column one, after any list markers, also reports
+  `ORPHAN-ANNOTATION <file>:<line>`, which names the line to move. A
+  mid-sentence mention or a front-matter line is reported by the coverage
+  gate alone.
+* **Under a unit manifest**, the `UNMET-EXPECTATION` severity reads the same
+  records as `UNIMPLEMENTED-CONTROL`: an expecting REQ implements a risk
+  control only through an `implements:` inside its own block, in a `doc_srs`
+  file git does not ignore. The severity already read the block, so a stray
+  line leaves it as it was. It changes in one case: an expecting
+  REQ whose block lies in a git-ignored file, or in a ledger file outside
+  `doc_srs`, is no longer risk-linked by the `implements:` in that block, so
+  its `UNMET-EXPECTATION` no longer exits 1 on that ground. What the stray
+  line adds is `UNIMPLEMENTED-CONTROL` when no REQ block implements that RC,
+  and `ORPHAN-ANNOTATION` when it sits at column one.
+* **The fix:** move the line into the block of the item that makes the claim,
+  above any heading or bold-colon label in its body, or onto its definition
+  line. If the line is prose about the form, put the form inline in backticks.
+  Never add a REQ or RC only to hold a stray line: the finding is a control or
+  hazard that no item claims.
+
+**Size it before you upgrade.** This lists every line that names the keyword;
+read each against the block rule:
+
+    grep -rnE '(implements|mitigates):' <doc_srs> <doc_rmf>
 
 ## Derived assessments
 

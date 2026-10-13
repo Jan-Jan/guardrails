@@ -102,9 +102,13 @@ affects: scripts/check-trace.sh, whose comment at the orphan scan rules that
 by ids_matching, never against a block, so they cannot be orphaned" — true of
 that script and not of the library; scripts/lib.sh, where `gr_req_scan` reads
 `implements:` under a `cur != ""` guard, which is block scope, with no
-`check_orphans` call covering it in either mode.
+`check_orphans` call covering it in either mode. Measured 2026-10-08: also
+the UNIMPLEMENTED-CONTROL gate in every mode, which credits an `implements:`
+that belongs to no REQ.
 opened: 2026-09-16
-status: open
+status: resolved
+Resolved 2026-10-08 by implements-one-reader: the line-wise reader was the false green; `implements:` is now read once, by block (`credit_scan` in check-trace.sh), `gr_req_scan` no longer reads it, and ORPHAN-ANNOTATION covers it — tests "an implements: before the first item of the SRS credits nothing and is reported" and "an expecting REQ's implements: after a bold-colon line is reported and claims no risk control" in tests/check-trace.bats.
+The 2026-10-08 measurement (S1 to S3 in docs/plans/2026-10-08-block-attributed-credits.md) refuted the paragraph below where it says the defect is unit mode only and not a false green in the default configuration.
 Unit mode only: `gr_req_scan` is reached through the units machinery, so a
 single-unit project cannot meet this. The consequence is bounded and is not a
 false green in the default configuration, which is why it is recorded rather
