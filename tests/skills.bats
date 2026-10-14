@@ -1153,6 +1153,26 @@ gr_all_sh_fences() {
     grep -q 'change the approach' "$skill"
 }
 
+@test "develop-change: a conformance finding that recurs after its fix stops the loop; a new one does not" {
+    # verifies: D1, D2 (docs/plans/2026-10-14-derailment-conformance.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    derail=$(section_of '### Derailment: the one stop this skill adds' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$derail" | grep -qF 'a conformance review reports a finding again after the fix dispatched for it was merged'
+    printf '%s\n' "$derail" | grep -qF 'A conformance round with new findings is the loop working, not a repeat'
+    # Review round 1, finding-1: a place is what the earlier finding cited.
+    printf '%s\n' "$derail" | grep -qF 'A place is the file and lines the earlier finding cited; the same clause at another site is a new finding, not a recurrence.'
+    # D2: only a finding above low counts toward the third stop.
+    printf '%s\n' "$derail" | grep -qF 'Only a finding above low counts: a round with nothing above low is the last, whatever recurs in it.'
+    # Review round 1, finding-3: the remedy names a recurring finding's choices.
+    printf '%s\n' "$derail" | grep -qF 'for a recurring conformance finding, accept the finding, or rule against the guideline clause.'
+    # The loop's own section is where a dispatcher reads when to stop it, so
+    # it must point at the stop as well as the derailment list stating it.
+    section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$section" | grep -qF 'stops at the first finding that recurs (Derailment)'
+    # D1's third statement: the recurrence is the only stop, so no round cap.
+    printf '%s\n' "$section" | grep -qF 'No round count bounds the loop'
+}
+
 @test "verify-before-merge: check 8 asks that each conformance review ran and was dispositioned" {
     # verifies: D5 (docs/plans/2026-10-13-code-guidelines.md); D6 (docs/plans/2026-09-14-clanker-adoption.md)
     # In a suite where every other step is mechanically checked, an

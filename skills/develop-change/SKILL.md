@@ -86,12 +86,23 @@ else: no diffs, no logs, no narrative.
 **Stop only when the answer is the user's.** Repeated failure at the same
 point qualifies:
 
-- the same task fails its red -> green cycle twice, or
-- review returns findings on the same task twice.
+- the same task fails its red -> green cycle twice,
+- review returns findings on the same task twice, or
+- a conformance review reports a finding again after the fix dispatched for
+  it was merged.
+
+A conformance round with new findings is the loop working, not a repeat:
+only a recurring finding counts, the same guideline clause at the same
+place. A place is the file and lines the earlier finding cited; the same
+clause at another site is a new finding, not a recurrence. Only a finding
+above low counts: a round with nothing above low is the last, whatever
+recurs in it. Compare against the findings already written in the plan; the
+reviewer is fresh each round and does not know them.
 
 Then stop, report what is stuck and what was tried, and put the choice to the
-user: raise the effort level, or decompose the task differently. A task that
-is hard is not a reason to stop.
+user: raise the effort level, or decompose the task differently; for a
+recurring conformance finding, accept the finding, or rule against the
+guideline clause. A task that is hard is not a reason to stop.
 
 Below that threshold, keep looping and re-dispatch, but **change the approach**
 in the new prompt. A re-dispatch that restates the same task the same way
@@ -151,9 +162,10 @@ Return the report the skill states.
 ```
 
 Then run the reviews again; the first round with nothing above low is the
-last. Write each finding and its disposition into the plan as it arrives,
-as the `red -> green:` lines are; `merge-change` step 6b copies them into the
-record's `## Guideline reviews`. These reviews run here, before
+last. No round count bounds the loop; it stops at the first finding that
+recurs (Derailment). Write each finding and its disposition into the plan as
+it arrives, as the `red -> green:` lines are; `merge-change` step 6b copies
+them into the record's `## Guideline reviews`. These reviews run here, before
 `merge-change`, not at its 6a: that sequence **reruns from step 1** on any
 finding.
 

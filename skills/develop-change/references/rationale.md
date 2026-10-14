@@ -70,6 +70,18 @@ effort, or a different decomposition. A red baseline and an accepted coverage
 gap are the user's call for the same reason, so those two stops are not
 violations of this rule.
 
+A conformance finding stops the loop only when it recurs, not after a count of
+rounds. A second round with new findings is what the loop is for: in
+`code-guidelines` the round-1 fix covered only the cited lines, round 2 found
+the same kind of problem elsewhere, and round 3 was the last. A finding that
+recurs after its fix was merged shows the fixer cannot fix it as dispatched,
+and what to do next is the user's choice, as it is for a task stuck at
+red -> green.
+
+A recurring low does not stop the loop. A round with nothing above low has
+converged, so the stop that bounds a loop that does not converge does not
+apply.
+
 ## A reviewer gets no task worktree
 
 Every other dispatch in these skills names a nested task worktree, so a
