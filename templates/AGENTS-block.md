@@ -65,11 +65,6 @@ in their setup notes.
 | Confirm work is done | `verify-before-merge` |
 | Integrate to the base branch | `merge-change` |
 
-## Code: names
-
-- No single-character names. No code golf.
-- Name in concrete terms.
-
 ## Check scripts (run from repo root)
 
 - `.guardrails/scripts/new-id.sh PREFIX [COUNT]` — mint item IDs

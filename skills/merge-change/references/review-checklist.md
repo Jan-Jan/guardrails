@@ -60,7 +60,7 @@ The reviewer checks each item and raises a finding for each one that fails.
 The reviewer checks each new or edited test against the floor, which no
 guidelines file changes, and raises a finding for each one that fails. The
 project's guidelines file states where a test attaches and which doubles it
-may use, and `review-guidelines` checked those rules before this step.
+may use, and `review-conformance` checked those rules before this step.
 That each new test was watched red is `verify-before-merge` check 4's, from
 the `red -> green:` lines.
 
@@ -73,7 +73,8 @@ the `red -> green:` lines.
   dependency failure.
 - At class C, every SDD item the change touches is tested at its own
   interface, not only end-to-end.
-- Once for the change: the plan lists a guideline review for each file
-  `guidelines-file.sh TEST` prints for the diff, every finding with a
+- Once for the change: the plan lists a conformance review for each file
+  `guidelines-file.sh TEST` prints for the diff and for each file
+  `guidelines-file.sh CODE` prints for it, every finding with a
   disposition, and so does the record's `## Guideline reviews` where the
   record exists.

@@ -601,3 +601,32 @@ nothing goes red. The default reaches `.guardrails/templates/` with the
 scripts. Run `tailor-guidelines` for `TEST` to make the file the project's
 own; on later upgrades, its upgrade mode walks each changed clause of the new
 default before it is copied.
+
+## Code guidelines are a project file
+
+The managed block no longer has a `## Code: names` section. Its rules are
+the Names clauses of the code guidelines default,
+`.guardrails/templates/CODE_GUIDELINES.md`, which reaches the project with
+the scripts, and the block refresh removes the section. An upgraded project
+with no `docs/CODE_GUIDELINES.md` follows the installed default, which also
+states Simplicity, Errors and Comments clauses. Run `tailor-guidelines` for
+`CODE` to make the file the project's own. A project that kept naming rules
+in AGENTS.md outside the managed markers moves them into
+`docs/CODE_GUIDELINES.md`, so they have one home.
+
+`develop-change` now dispatches each plan task under `develop-tdd`. The
+deslop pass is gone: once every task branch is merged, one
+`review-conformance` review runs per file `guidelines-file.sh TEST` and
+`guidelines-file.sh CODE` print, all at once, and their findings are fixed
+under `develop-refactor` (`CODE`) or `develop-tdd` (`TEST`).
+`review-guidelines` is renamed `review-conformance`. `install.sh` links each
+skill directory by name, so a pull neither adds the new skills nor removes
+the old link: rerun `install.sh`, and delete the dangling `review-guidelines`
+link it leaves. With `install.sh --copy`, a rerun skips every skill directory
+that already exists (`SKIP`), so it adds the new skills and leaves every old
+copy as it was: delete each guardrails skill directory it copied from the
+skills directory (`~/.claude/skills`, or `CLAUDE_SKILLS_DIR`),
+`review-guidelines` included, then rerun `install.sh --copy`. Until the
+upgrade copies the scripts and templates,
+`guidelines-file.sh CODE` exits 2 and the conformance reviews stop there. No
+gate reads either guidelines file, so nothing goes red.

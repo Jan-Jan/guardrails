@@ -106,7 +106,7 @@ retirement to the user.
 - A superseded or retired REQ or LLR is out of force. It owes no test, and it
   discharges nothing: it covers no REQ through `satisfies:`, implements no
   RC, and, exported, meets no `expects:`.
-- The successor owes its own test, written red-first (`develop-change`).
+- The successor owes its own test, written red-first (`develop-tdd`).
   Never add the new ID to the old item's green test. A test that verified
   only the old item now fails as `OUT-OF-FORCE-VERIFIES`: delete it, or point
   it at the successor and record it as inherited (`verify-before-merge`

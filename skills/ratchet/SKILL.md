@@ -88,7 +88,7 @@ above all) are the worklist for the disclaimers question.
    - `templates/soup.md` → `docs/architecture/soup.md`
    - `templates/problems.md` → `docs/problems/README.md`
    - `templates/CONTEXT.md` → `docs/CONTEXT.md`
-   - `templates/TEST_GUIDELINES.md` → `.guardrails/templates/TEST_GUIDELINES.md`
+   - `templates/*_GUIDELINES.md` → `.guardrails/templates/`
    - `templates/CLAUDE.md` → `CLAUDE.md` (skip if one exists)
    - `templates/AGENTS-block.md` → becomes the body of a new `AGENTS.md`
 
@@ -125,8 +125,8 @@ above all) are the worklist for the disclaimers question.
 6. Run the **safety-class interview** (step 4), write the answer to
    `safety_class:`, replacing the `TBD` sentinel, and set `verify_commands`
    to the project's real test command.
-   Run `tailor-guidelines` for `TEST` (once more per unit that wants its own
-   file).
+   Run `tailor-guidelines` for `TEST` and `CODE` (once more per unit that
+   wants its own file).
 7. Commit in the worktree, then integrate with `merge-change`. The check
    scripts must pass on the result.
 
@@ -164,9 +164,6 @@ Never overwrite. Sequence:
    verification evidence worth archiving under `docs/verification/`; test
    layout and command; CI config; signing of recent commits
    (`git log -20 --format='%h %G? %s'`).
-   - A managed block with no `## Code: names` section is a gap that no check
-     reports. Record it in the gap analysis; the first tooth's block merge
-     replaces it.
 2. **Write the gap analysis** to `docs/plans/<YYYY-MM-DD>-ratchet-gap-analysis.md`:
    what exists, what is missing, what conflicts, and a proposed adoption order.
 3. **First tooth** (this change only): install `.guardrails/` (config,

@@ -94,13 +94,14 @@ for it.
    accepts a documented gap; record the acceptance in the verification
    record.
 6. **Robustness completeness** (class B/C): every Implements ID has both
-   normal-case and abnormal-input tests, per `develop-change`'s robustness
+   normal-case and abnormal-input tests, per `develop-tdd`'s robustness
    rule.
 7. `git status`: no uncommitted work, no stray files.
-8. **The deslop pass was run** and the dispatcher fixed its findings
-   (`develop-change`). Answer it from the pass's report, as you answer check
-   4's other half from the dispatch reports; the tree cannot show whether a
-   diff was reviewed.
+8. **Each conformance review ran** and the dispatcher fixed or
+   dispositioned every finding (`develop-change`). Answer it from the plan,
+   where the findings and their dispositions are written, as you answer
+   check 4's other half from the dispatch reports; the tree cannot show
+   whether a diff was reviewed.
 
 Do not add `check-review.sh` to this list. The verification record it reads is
 written at `merge-change` step 6b and checked at 6c.

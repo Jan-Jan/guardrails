@@ -157,7 +157,7 @@ STUB
     # passed against it. It therefore verifies nothing about PR-74gcqg — the test
     # above does, and that one was watched failing. Annotating it anyway would
     # put a `verifies:` line behind no red->green attestation, which is the one
-    # thing `develop-change` forbids in the rule that opens its Steps section,
+    # thing `develop-tdd` forbids in the rule that opens its Steps section,
     # "No production code without a failing test first", and in step 2,
     # "Verify RED". What it IS is a pin: the
     # wording changed, the verdict must not, and the tolerant mode must not

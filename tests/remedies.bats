@@ -327,3 +327,20 @@ EOF
     [ "$(line_of '^checked: ')" -gt "$(line_of '^fix MISSING-TEST: ')" ] \
         || { echo "$output"; false; }
 }
+
+@test "check-trace: the MISSING-TEST remedy names develop-tdd, where the annotation rule lives" {
+    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # The lowest-level annotation rule moved from develop-change to
+    # develop-tdd, the only skill a task subagent loads; a remedy that names
+    # develop-change sends the author to the orchestrator, which no longer
+    # states the rule.
+    two_rules_fixture
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    missing_fix=$(printf '%s\n' "$output" | grep '^fix MISSING-TEST: ' || true)
+    printf '%s\n' "$missing_fix" | grep -qF 'LLR before REQ (develop-tdd)' \
+        || { echo "$output"; false; }
+    if printf '%s\n' "$missing_fix" | grep -qF 'develop-change'; then
+        echo "the MISSING-TEST remedy still names develop-change: $missing_fix"; false
+    fi
+}

@@ -46,9 +46,10 @@ gained an Implements ID is still a re-annotation, and still fails the check.
 
 ## Check 8 is the dispatcher's
 
-The tree records no difference between a diff the deslop pass reviewed and a
-diff nobody reviewed, so the gate subagent cannot answer the check. The
-dispatcher answers it from the pass's report.
+The tree records no difference between a diff a conformance review checked
+and a diff nobody reviewed, so the gate subagent cannot answer the check.
+The dispatcher answers it from the plan, where each finding and its
+disposition are written.
 
 ## check-review.sh is not a check here
 

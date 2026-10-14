@@ -42,16 +42,19 @@ protection, CI).
 ```mermaid
 flowchart TD
     R[ratchet<br/>bootstrap / retrofit] --> G[grill-requirements<br/>REQ items + glossary]
-    R --> TG[tailor-guidelines<br/>the project's TEST_GUIDELINES.md]
+    R --> TG[tailor-guidelines<br/>the project's TEST_GUIDELINES.md<br/>and CODE_GUIDELINES.md]
     G <--> A[analyze-risks<br/>HAZ / RC items]
     G --> D[design-architecture<br/>SDD items + SOUP]
     A --> D
     D --> P[plan-change]
     P --> W[worktree-discipline<br/>isolate + draft IDs]
-    W --> DEV[develop-change<br/>TDD, verifies: annotations,<br/>plan tasks dispatched to subagents]
+    W --> DEV[develop-change<br/>plan tasks dispatched to subagents,<br/>task branches merged]
     B[resolve-problem<br/>PR items for every bug] --> DEV
-    DEV --> RG[review-guidelines<br/>one review per project guidelines file]
-    RG --> CT[check-traceability]
+    DEV --> TDD[develop-tdd<br/>one task per subagent: TDD,<br/>verifies: annotations]
+    TDD --> RC[review-conformance<br/>one read-only review per guidelines file]
+    RC --> RF[develop-refactor<br/>fixes CODE findings;<br/>develop-tdd fixes TEST findings]
+    RF --> RC
+    RC --> CT[check-traceability]
     CT --> V[verify-before-merge<br/>dispatched evidence + coverage gate]
     V --> M[merge-change<br/>finalize ledger files, independent review,<br/>verification record + check-review.sh,<br/>signed squash merge, cleanup worktree]
 ```

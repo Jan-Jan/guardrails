@@ -1,6 +1,6 @@
 ---
 name: tailor-guidelines
-description: Make one guidelines file (such as docs/TEST_GUIDELINES.md) the project's own - seed a complete copy of the default, walk its clauses one question at a time, keep the compliance floor, and adopt a new default clause by clause on upgrade. Use when ratchet sets up or upgrades a project, or when a project wants to change its test guidelines.
+description: Make one guidelines file (such as docs/TEST_GUIDELINES.md or docs/CODE_GUIDELINES.md) the project's own - seed a complete copy of the default, walk its clauses one question at a time, keep the compliance floor, and adopt a new default clause by clause on upgrade. Use when ratchet sets up or upgrades a project, or when a project wants to change its test or code guidelines.
 ---
 
 # Tailor Guidelines
@@ -11,7 +11,8 @@ description: Make one guidelines file (such as docs/TEST_GUIDELINES.md) the proj
 
 - You are in a change worktree (`worktree-discipline`). A guidelines file is
   a change like any other.
-- You know the kind: `TEST` (`docs/TEST_GUIDELINES.md`). Where
+- You know the kind: `TEST` (`docs/TEST_GUIDELINES.md`) or `CODE`
+  (`docs/CODE_GUIDELINES.md`). Where
   `.guardrails/units.yaml` exists, you know whether the file is for the root
   or for one unit; ask if you were not told.
 - A guidelines file holds the project's preferences. The floor, which a
@@ -30,11 +31,12 @@ description: Make one guidelines file (such as docs/TEST_GUIDELINES.md) the proj
 2. **Walk the clauses one per message.** Show the clause and its reason, and
    ask: keep, change or drop? Recommend an answer. A change rewrites the
    reason and the examples with the rule, so the reason still fits it.
-3. **Make the examples the project's.** For each clause under `## Seams` and
-   `## Doubles`, ask for an example in the project's own stack (its language,
-   test runner and dependencies), and replace the generic one with it.
-4. **Drop `## UI` where the project has no user interface.** Ask; do not
-   infer it from the file tree.
+3. **Make the examples the project's.** For `TEST`, for each clause under
+   `## Seams` and `## Doubles`; for `CODE`, for every clause:
+   ask for an example in the project's own stack (its language, test runner
+   and dependencies), and replace the generic one with it.
+4. **Drop `## UI` where the project has no user interface** (`TEST` only).
+   Ask; do not infer it from the file tree.
 5. **Reject a change that contradicts the floor**, and say which floor item
    it breaks. The floor, listed here in full:
    - every test carries `verifies:`;
@@ -76,7 +78,7 @@ copied over the installed default.
 | "The new default is better, I'll replace the file" | Clause by clause. Never overwrite. |
 | "This clause is only a preference, the floor can bend here" | The floor wins. Reject the change and say why. |
 | "I'll ask about all the clauses in one message" | One clause per message, with its reason. |
-| "The generic examples will do" | Ask for the project's own for Seams and Doubles. |
+| "The generic examples will do" | Ask for the project's own: Seams and Doubles for `TEST`, every clause for `CODE`. |
 
 ## Done when
 

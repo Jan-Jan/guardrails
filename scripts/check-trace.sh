@@ -252,7 +252,7 @@ set -u
 # Prints the remedy for report $1, or returns 1 for a report with none.
 check_trace_remedy() {
     case "$1" in
-        (MISSING-TEST) echo 'Write a test annotated verifies: <ID> at the lowest level that exists, LLR before REQ (develop-change); sharpen an untestable REQ with grill-requirements.' ;;
+        (MISSING-TEST) echo 'Write a test annotated verifies: <ID> at the lowest level that exists, LLR before REQ (develop-tdd); sharpen an untestable REQ with grill-requirements.' ;;
         (UNMITIGATED-HAZARD) echo 'Run analyze-risks for the hazard and add a risk control whose mitigates: line names it.' ;;
         (UNIMPLEMENTED-CONTROL) echo 'Write a testable REQ whose implements: line names the control (grill-requirements) — see the script header.' ;;
         (UNTRACED-DESIGN) echo 'Add a traces: line naming the REQ the design item serves; where no REQ exists, delete the item or grill the requirement first.' ;;

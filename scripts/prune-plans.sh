@@ -225,7 +225,7 @@ END {
                 # An attestation line opens with `red -> green`, and the
                 # line naming an inherited test with `inherited:`, after
                 # optional indentation and a list or bold marker, on any line
-                # of the fence (the develop-change dispatch report opens with
+                # of the fence (the develop-tdd dispatch report opens with
                 # `task:`); a fence that names it only mid-line is a draft.
                 fence_kept[fence_count] = 1
             }

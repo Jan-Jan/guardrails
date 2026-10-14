@@ -1,11 +1,11 @@
 ---
-name: review-guidelines
-description: Review a change diff against one project guidelines file (such as docs/TEST_GUIDELINES.md) in a fresh context, citing a clause for every finding. Dispatched by develop-change after the deslop pass, once per guidelines file that governs the diff.
+name: review-conformance
+description: Review a change diff for conformance to one project guidelines file (such as docs/TEST_GUIDELINES.md or docs/CODE_GUIDELINES.md) in a fresh context, read-only, citing a clause for every finding. Dispatched by develop-change once per guidelines file that governs the diff, all at once, after every task branch is merged.
 ---
 
-# Review Guidelines
+# Review Conformance
 
-**Announce at start:** "Using the review-guidelines skill against <file>."
+**Announce at start:** "Using the review-conformance skill against <file>."
 
 ## Preconditions
 
@@ -18,6 +18,8 @@ description: Review a change diff against one project guidelines file (such as d
 - Read the guidelines file and the diff, nothing else of the project's
   guidance: not another guidelines file, not the installed default, not a unit's
   file or the root's in its place. The file you were handed stands alone.
+- Change nothing: no edit, no commit, no task worktree. Another agent fixes
+  your findings, and the next round reviews the fix.
 
 ## Steps
 
@@ -69,6 +71,7 @@ description: Review a change diff against one project guidelines file (such as d
 | "I'll read the installed default for context" | You read one file. |
 | "The floor is someone else's review" | A clause that contradicts it is yours to report. |
 | "This finding is obvious, the clause need not be cited" | A finding with no clause is a note. |
+| "The fix is one line; I'll make it" | You change nothing. Report it; a fixer makes it. |
 
 ## Done when
 

@@ -80,7 +80,7 @@ Escalate when the investigation finds one of these:
 ### 3. Fix under TDD
 
 Reproduce the bug as a **failing test first**, annotated with the ID it
-violates (`verifies: …`), per `develop-change`. Then write the minimal fix, go
+violates (`verifies: …`), per `develop-tdd`. Then write the minimal fix, go
 green, and refactor. Keep the reproduction test: it is permanent regression
 evidence.
 

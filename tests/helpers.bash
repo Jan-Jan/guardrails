@@ -112,6 +112,16 @@ output_lacks() {
     return 0
 }
 
+# section_of HEADING FILE — prints the lines of FILE under the heading line
+# HEADING up to the next heading of the same or a higher level.
+section_of() {
+    awk -v heading="$1" '
+        $0 == heading { inside = 1; level = index($0, " "); next }
+        inside && /^#+ / && index($0, " ") <= level { inside = 0 }
+        inside
+    ' "$2"
+}
+
 # Print the environment a temp-file fault would be identified by, on any test
 # that did not complete.
 #

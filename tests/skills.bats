@@ -1076,58 +1076,72 @@ gr_all_sh_fences() {
     grep -q 'relative link' "$skill"
 }
 
-@test "clanker: the managed block names concrete naming rules" {
-    # verifies: D2 (docs/plans/2026-10-05-drop-prose-rules.md)
-    # The section is code-only, under its own heading, and contains the
-    # naming rules. The past-participle rule is removed.
-    block="$BATS_TEST_DIRNAME/../templates/AGENTS-block.md"
-    grep -q '^## Code: names$' "$block"
-    grep -q 'single-character' "$block"
-    grep -q 'No code golf' "$block"
-    grep -q 'Name in concrete terms' "$block"
-    ! grep -qE 'past participle|write_timestamp' "$block" \
-        || { echo "the block still contains the past-participle rule"; false; }
+@test "code guidelines: the naming rules left the managed block for the code guidelines template" {
+    # verifies: D2 (docs/plans/2026-10-13-code-guidelines.md); D2 (docs/plans/2026-10-05-drop-prose-rules.md)
+    # Naming is a preference no standard or gate needs, so its rules are the
+    # Names clauses of the shipped code guidelines, which a project tailors;
+    # a rule with two homes drifts. Neither file states a past-participle
+    # rule: the Names clauses are the whole of the naming rules.
+    # code-guidelines.bats pins the clauses and sweeps for ## Code: names.
+    root="$BATS_TEST_DIRNAME/.."
+    block="$root/templates/AGENTS-block.md"
+    template="$root/templates/CODE_GUIDELINES.md"
+    # A missing file makes grep exit 2, which the negative checks below read
+    # as "no match", so each file's existence is asserted first.
+    [ -f "$block" ] || { echo "templates/AGENTS-block.md is missing"; false; }
+    [ -f "$template" ] || { echo "templates/CODE_GUIDELINES.md is missing"; false; }
+    if grep -q 'single-character' "$block"; then echo "the block still states the naming rules"; false; fi
+    if grep -qE 'past participle|write_timestamp' "$block" "$template"; then
+        echo "the past-participle rule is back"; false
+    fi
 }
 
-@test "clanker: this repository follows the same block" {
-    # verifies: D1, D2 (docs/plans/2026-10-05-drop-prose-rules.md)
-    # AGENTS.md is guardrails' own copy of the rules it ships. A rule that
-    # ships to adopters and does not bind this repository is a rule this
-    # repository will break first. The prose section is removed from both.
-    agents="$BATS_TEST_DIRNAME/../AGENTS.md"
-    block="$BATS_TEST_DIRNAME/../templates/AGENTS-block.md"
-    grep -q '^## Code: names$' "$agents"
-    grep -q 'single-character' "$agents"
+@test "code guidelines: this repository's naming rules live in its own code guidelines file" {
+    # verifies: D2 (docs/plans/2026-10-13-code-guidelines.md); D1, D2 (docs/plans/2026-10-05-drop-prose-rules.md)
+    # AGENTS.md is guardrails' own copy of the rules it ships, and the naming
+    # rules it ships are code guidelines clauses, so this repository's code
+    # guidelines file carries them. Neither the block nor AGENTS.md has a
+    # prose section: no rule it would hold is shipped. code-guidelines.bats
+    # pins the file's clauses and sweeps for ## Code: names.
+    root="$BATS_TEST_DIRNAME/.."
+    agents="$root/AGENTS.md"
+    block="$root/templates/AGENTS-block.md"
     ! grep -q '^## Writing: prose, names and messages$' "$agents" \
         || { echo "AGENTS.md still contains the prose section"; false; }
     ! grep -q '^## Writing: prose, names and messages$' "$block" \
         || { echo "the block still contains the prose section"; false; }
+    code_guidelines="$root/docs/CODE_GUIDELINES.md"
+    [ -f "$code_guidelines" ] || { echo "docs/CODE_GUIDELINES.md is missing"; false; }
+    grep -q '^## Names$' "$code_guidelines" \
+        || { echo "docs/CODE_GUIDELINES.md has no Names section"; false; }
+    [ -f "$agents" ] || { echo "AGENTS.md is missing"; false; }
+    if grep -q '^## Code: names$' "$agents"; then
+        echo "AGENTS.md has a Code: names section again: the naming rules have two homes"; false
+    fi
 }
 
-@test "clanker: develop-change dispatches one deslop pass over the whole diff" {
-    # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md)
-    # The dispatcher never reads the code and each subagent sees one task, so
-    # cross-task duplication is invisible to both. This pass is the only agent
-    # that sees the whole change, which is why it is a dispatch over the diff
-    # and not a per-task review.
-    #
+@test "develop-change: one conformance review per guidelines file replaces the old whole-diff pass" {
+    # verifies: D4, D5 (docs/plans/2026-10-13-code-guidelines.md)
     # Three dots, pinned literally. `main...<branch>` is the diff since the two
     # diverged — what this change did — while `main..<branch>` also reports
     # whatever the base branch gained meanwhile, which is not this change's
-    # work to deslop. A two-dot range grows as main advances and the pass ends
-    # up reviewing other people's commits.
+    # to review. A two-dot range grows as main advances and the reviews end up
+    # reviewing other people's commits.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -q 'deslop pass' "$skill"
-    grep -qF 'main...<change-branch>' "$skill"
-    grep -q 'cross-task' "$skill"
+    section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$section" ] || { echo "no conformance reviews section"; false; }
+    printf '%s\n' "$section" | grep -qF 'sh .guardrails/scripts/guidelines-file.sh TEST \ $(git diff --name-only main...<change-branch>)'
+    printf '%s\n' "$section" | grep -qF 'sh .guardrails/scripts/guidelines-file.sh CODE \ $(git diff --name-only main...<change-branch>)'
+    printf '%s\n' "$section" | grep -qF 'dispatch one subagent under the `review-conformance` skill, all at once'
+    if grep -qF '### The refactor pass' "$skill"; then echo "develop-change still has a refactor pass"; false; fi
 }
 
-@test "clanker: the deslop pass is not deferred to the merge review" {
-    # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md)
+@test "clanker: the conformance reviews are not deferred to the merge review" {
+    # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
     # merge-change reruns from step 1 on any finding, so a naming nit raised
     # at 6a costs a full merge-sequence restart. The skill has to state why the
-    # pass is here, or a later editor moves it to the review that already
-    # reads the whole diff.
+    # conformance reviews run here, or a later editor moves them to the review
+    # that already reads the whole diff.
     #
     # Anchored on the bold markers, not the bare phrase: the same words appear
     # in the dispatch-report section, split across a line break, so a bare
@@ -1135,19 +1149,20 @@ gr_all_sh_fences() {
     # paragraph and the bare form would match it while this passage was gone.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     grep -qF '**reruns from step 1**' "$skill"
+    # The reviews run before merge-change, not at its 6a: with only the
+    # reason pinned, the section could move them to 6a and still pass.
+    section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$section" | grep -qF 'These reviews run here, before `merge-change`, not at its 6a'
 }
 
-@test "clanker: the deslop dispatch prohibits a task worktree" {
-    # verifies: D8 (docs/plans/2026-09-14-clanker-adoption.md)
-    # Every other dispatch in these skills names a nested task worktree, so a
-    # subagent given no location follows that pattern and leaves its fixes on a
-    # task branch — for the one pass whose purpose is to edit the change branch
-    # in place. Both halves are pinned: the prompt line that gives the location
-    # and the paragraph that states why no task worktree is created.
+@test "develop-change: a conformance reviewer changes nothing and gets no task worktree" {
+    # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md); D8 (docs/plans/2026-09-14-clanker-adoption.md)
+    # Every other dispatch names a nested task worktree, so a reviewer given
+    # no location follows that pattern and creates one. The prompt line and
+    # the paragraph that states why are both pinned.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -qF 'Work in the change worktree at <path>, on <change-branch>. Do NOT create a task' "$skill"
-    grep -q 'this pass fixes on the change branch directly' "$skill"
-    grep -qF '**This is the one dispatch that does not get its own task worktree**' "$skill"
+    tr '\n' ' ' < "$skill" | tr -s ' ' | grep -qF 'Read the change worktree at <path>; do not create a task worktree, edit, or commit.'
+    grep -qF '**A reviewer changes nothing and gets no task worktree.**' "$skill"
 }
 
 @test "clanker: develop-change tells a stuck task to change approach" {
@@ -1158,14 +1173,22 @@ gr_all_sh_fences() {
     grep -q 'change the approach' "$skill"
 }
 
-@test "clanker: the gate checks that the deslop pass was run" {
-    # verifies: D6 (docs/plans/2026-09-14-clanker-adoption.md)
+@test "verify-before-merge: check 8 asks that each conformance review ran and was dispositioned" {
+    # verifies: D5 (docs/plans/2026-10-13-code-guidelines.md); D6 (docs/plans/2026-09-14-clanker-adoption.md)
     # In a suite where every other step is mechanically checked, an
     # unenforced step is the one that stops running. The enforcement is
     # cheap: an existing gate with one more check in it.
     skill="$BATS_TEST_DIRNAME/../skills/verify-before-merge/SKILL.md"
-    grep -q 'deslop pass was run' "$skill"
-    grep -q 'dispatcher fixed its findings' "$skill"
+    rationale="$BATS_TEST_DIRNAME/../skills/verify-before-merge/references/rationale.md"
+    flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
+    printf '%s\n' "$flat" | grep -qF '8. **Each conformance review ran** and the dispatcher fixed or dispositioned every finding (`develop-change`).'
+    grep -qF 'a diff a conformance review checked' "$rationale"
+}
+
+@test "verify-before-merge: check 6 cites the robustness rule where develop-tdd states it" {
+    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/verify-before-merge/SKILL.md"
+    tr '\n' ' ' < "$skill" | tr -s ' ' | grep -qF "per \`develop-tdd\`'s robustness rule"
 }
 
 @test "clanker: a bug caused by the design escalates to design-architecture" {
@@ -1179,25 +1202,28 @@ gr_all_sh_fences() {
     grep -q 'design-architecture' "$skill"
 }
 
-@test "clanker: ratchet reports a managed block with no code section" {
-    # verifies: D6 (docs/plans/2026-10-05-drop-prose-rules.md)
-    # A project ratcheted before the `## Code: names` heading existed has a
-    # block without it. No other check reports it.
-    # Anchored on the inventory bullet itself, not on a phrase the upgrade
-    # announcement also contains, so deleting the bullet turns this red.
+@test "ratchet: the retrofit inventory no longer looks for a ## Code: names section" {
+    # verifies: D2 (docs/plans/2026-10-13-code-guidelines.md)
+    # The managed block has no ## Code: names section, so a block without one
+    # is no gap for the retrofit inventory to report.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
-    grep -q 'A managed block with no `## Code: names` section' "$skill"
-    grep -q 'Record it in the gap analysis' "$skill"
+    [ -f "$skill" ] || { echo "missing: $skill"; false; }
+    if grep -qF 'Code: names' "$skill"; then echo "ratchet still names ## Code: names"; false; fi
 }
 
-@test "clanker: the deslop pass reviews against the code rules" {
-    # verifies: D3 (docs/plans/2026-10-05-drop-prose-rules.md)
-    # The prose rules are removed, so the dispatch prompt names the section
-    # that remains rather than one that no longer exists.
+@test "develop-change: a CODE finding is fixed under develop-refactor, a TEST finding under develop-tdd" {
+    # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md); D3 (docs/plans/2026-10-05-drop-prose-rules.md)
+    # The agent that fixes does not review its fix, and the naming rules are
+    # the code guidelines file's, not AGENTS.md's.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -q 'the code rules in AGENTS.md' "$skill"
-    ! grep -q 'writing and naming rules' "$skill" \
-        || { echo "develop-change still names: writing and naming rules"; false; }
+    section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$section" | grep -qF 'Once every review has reported, dispatch the fixes'
+    printf '%s\n' "$section" | grep -qF '`develop-refactor` for a `CODE` file'"'"'s findings and `develop-tdd` for a `TEST` file'"'"'s'
+    printf '%s\n' "$section" | grep -qF 'under the develop-refactor skill (develop-tdd for a TEST file)'
+    printf '%s\n' "$section" | grep -qF 'The agent that fixes a finding never reviews it.'
+    printf '%s\n' "$section" | grep -qF 'the first round with nothing above low is the last'
+    if grep -qF 'the code rules in AGENTS.md' "$skill"; then echo "develop-change still names the code rules in AGENTS.md"; false; fi
+    if grep -q 'writing and naming rules' "$skill"; then echo "develop-change still names: writing and naming rules"; false; fi
 }
 
 @test "develop-change: the mutation-anchor rule lives in this repository's TEST_GUIDELINES.md, not develop-change" {
@@ -2257,15 +2283,10 @@ adr_file_is_named_by_its_item() {
     grep -qF 'coverage, never red-first evidence' "$check" \
         || { echo "check 4 does not call an inherited test coverage"; false; }
 
-    report="$root/skills/develop-change/SKILL.md"
-    grep -qxF 'inherited: <test name> — from <old ID>' "$report" \
-        || { echo "the dispatch report form has no inherited: line"; false; }
-    grep -qF 'any `inherited:` lines into the plan' "$report" \
+    # The report form and the coverage sentence belong to the TDD loop, which
+    # develop-tdd holds; tests/develop-tdd.bats pins them there.
+    grep -qF 'any `inherited:` lines into the plan' "$root/skills/develop-change/SKILL.md" \
         || { echo "develop-change does not write the inherited: lines into the plan"; false; }
-    # Moved to the rationale when main's test-seams change left no room in the
-    # SKILL.md word budget (2026-10-08).
-    grep -qF 'It is coverage, not red-first evidence' "$root/skills/develop-change/references/rationale.md" \
-        || { echo "develop-change does not call an inherited test coverage"; false; }
 
     record="$root/templates/verification.md"
     grep -qF 'list it below the table as `inherited: <test name> — from <old ID>`' "$record" \
@@ -2483,38 +2504,50 @@ adr_file_is_named_by_its_item() {
 }
 
 # --- test guidelines (docs/plans/2026-10-08-test-guidelines.md) --------------
-# The seam and double rules moved to templates/TEST_GUIDELINES.md (T2 pins
-# them there); develop-change keeps the floor and reads one guidelines file.
+# The seam and double rules are clauses of templates/TEST_GUIDELINES.md
+# (tests/test-guidelines.bats pins them there). The floor and the one-file rule belong to the TDD loop,
+# which develop-tdd holds (docs/plans/2026-10-13-code-guidelines.md, D1), and
+# tests/develop-tdd.bats pins them there; develop-change holds the dispatch.
 
-@test "develop-change: every test fails when the behavior it verifies breaks" {
-    # verifies: D2 (docs/plans/2026-10-08-test-guidelines.md)
-    # The floor rule no guidelines file may override: a test that passes
-    # whatever the code does is no verification evidence.
+@test "develop-change: it is the dispatcher, which no subagent loads" {
+    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -qxF '**Every test fails when the behavior it `verifies:` breaks.**' "$skill"
-    grep -qF 'An assertion only that a double was called meets this only where the' "$skill"
-    grep -qxF 'call is the requirement.' "$skill"
+    grep -qxF 'name: develop-change' "$skill"
+    description=$(grep '^description: ' "$skill")
+    printf '%s\n' "$description" | grep -qF 'develop-tdd' || { echo "the description does not name develop-tdd"; false; }
+    printf '%s\n' "$description" | grep -qF 'review-conformance' || { echo "the description does not name review-conformance"; false; }
+    preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$preconditions" | grep -qF 'A task subagent loads `develop-tdd`, a reviewer loads `review-conformance`, and a fixer loads `develop-tdd` or `develop-refactor`, never this skill.'
 }
 
-@test "develop-change: before RED, guidelines-file.sh picks the one guidelines file" {
+@test "develop-change: task subagents load develop-tdd, and the loop is stated there, not here" {
+    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    prompt=$(awk '/^  Execute task 3 of/ { inside = 1 } inside && /^  ```$/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$prompt" | grep -qF 'under the develop-tdd skill' || { echo "the prompt does not name develop-tdd"; false; }
+    for moved in '**No production code without a failing test first.**' '### The loop, one behavior at a time' \
+        '**Class rules.**' '**Bugs.**' '### Test guidelines' 'task: <ID>' 'inherited: <test name> — from <old ID>'; do
+        if grep -qF -- "$moved" "$skill"; then echo "develop-change still states: $moved"; false; fi
+    done
+}
+
+@test "develop-change: the task prompt names the guidelines file guidelines-file.sh TEST printed" {
     # verifies: D8, D6 (docs/plans/2026-10-08-test-guidelines.md)
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -qF 'sh .guardrails/scripts/guidelines-file.sh TEST <the paths the task touches>' "$skill"
-    grep -qF 'read no other guidelines file' "$skill"
     grep -qF 'the guidelines file `guidelines-file.sh TEST` printed for' "$skill"
 }
 
-@test "develop-change: the guideline reviews follow the deslop pass, before merge-change" {
-    # verifies: D1 (docs/plans/2026-10-08-test-guidelines.md)
+@test "develop-change: the conformance reviews follow derailment, before merge-change" {
+    # verifies: D1 (docs/plans/2026-10-08-test-guidelines.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     headings=$(grep '^### ' "$skill")
-    following=$(printf '%s\n' "$headings" | grep -A1 -xF '### The deslop pass' | sed -n 2p)
-    [ "$following" = '### The guideline reviews' ] \
-        || { echo "after the deslop pass: '$following'"; false; }
-    section=$(awk '/^### The guideline reviews$/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill")
-    printf '%s\n' "$section" | grep -qF '`review-guidelines`'
+    last_heading=$(printf '%s\n' "$headings" | tail -n 1)
+    [ "$last_heading" = '### The conformance reviews' ] || { echo "last section: '$last_heading'"; false; }
+    if printf '%s\n' "$headings" | grep -qxF '### The guideline reviews'; then echo "the old heading remains"; false; fi
+    section=$(section_of '### The conformance reviews' "$skill")
+    printf '%s\n' "$section" | grep -qF '`review-conformance`'
     printf '%s\n' "$section" | grep -qF '`## Guideline reviews`'
-    printf '%s\n' "$section" | grep -qF 'before `merge-change`'
+    printf '%s\n' "$section" | grep -qF '`merge-change`, not at its 6a'
 }
 
 @test "develop-change: guideline review findings go into the plan as they arrive, and step 6b copies them" {
@@ -2523,7 +2556,7 @@ adr_file_is_named_by_its_item() {
     # as the red -> green lines do; 6a reads them there, and 6b copies them
     # into the record it writes after 6a (finding-4, review round 1).
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    section=$(awk '/^### The guideline reviews$/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
     if printf '%s\n' "$section" | grep -qF 'which `merge-change` step 6b fills in'; then
         echo "still says step 6b fills in the guideline reviews"; false
     fi
@@ -2532,15 +2565,6 @@ adr_file_is_named_by_its_item() {
     merge="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     record_step=$(awk '/^6b\. / { inside = 1 } /^6c\. / { inside = 0 } inside' "$merge" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$record_step" | grep -qF 'any `inherited:` lines from the plan, its guideline reviews (`## Guideline reviews`)'
-}
-
-@test "develop-change: a missing or broken guidelines-file.sh stops the task" {
-    # verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)
-    # Exit 2 means the install is broken; no task proceeds on a guess at the
-    # guidelines (finding-5, review round 1).
-    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    section=$(awk '/^### Test guidelines$/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$section" | grep -qF 'If it exits 2 or is missing, stop and reinstall the guardrails scripts and templates (`ratchet`'"'"'s upgrade); never proceed without a guidelines file.'
 }
 
 @test "develop-change: the dispatch prompt names the guidelines file for each of the task's paths" {
@@ -2553,12 +2577,6 @@ adr_file_is_named_by_its_item() {
     [ -n "$prompt" ] || { echo "no dispatch prompt template"; false; }
     printf '%s\n' "$prompt" | grep -qF 'For each of the task'"'"'s paths, follow the guidelines file `guidelines-file.sh TEST` printed for it'
     printf '%s\n' "$prompt" | grep -qF '<file>: <paths> (one line per file it printed)'
-}
-
-@test "develop-change: a clause that contradicts the skill is a finding against the clause" {
-    # verifies: D2 (docs/plans/2026-10-08-test-guidelines.md)
-    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -qF 'is a finding against the clause' "$skill"
 }
 
 @test "develop-change: the seam reference files are gone" {
@@ -2576,7 +2594,7 @@ adr_file_is_named_by_its_item() {
 @test "merge-change: the review checklist's test section is the floor, and checks the guideline reviews ran" {
     # verifies: D2, D9 (docs/plans/2026-10-08-test-guidelines.md)
     # The seam and double rules are a project's preference, checked by
-    # review-guidelines against its own file; 6a holds the floor alone and
+    # review-conformance against its own file; 6a holds the floor alone and
     # checks that each guideline review ran and was dispositioned.
     checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     grep -qF 'checklist applies when the diff touches documentation, and the test' "$checklist"
@@ -2591,7 +2609,8 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$section" | grep -qF -- '- At class C, every SDD item the change touches is tested at its own interface'
     # The plan holds the guideline reviews when 6a runs; 6b copies them into
     # the record afterwards (finding-4, review round 1).
-    printf '%s\n' "$section" | grep -qF 'the plan lists a guideline review for each file `guidelines-file.sh TEST` prints for the diff'
+    printf '%s\n' "$section" | grep -qF 'the plan lists a conformance review for each file `guidelines-file.sh TEST` prints for the diff'
+    printf '%s\n' "$section" | grep -qF 'and for each file `guidelines-file.sh CODE` prints for it'
     printf '%s\n' "$section" | grep -qF 'every finding with a disposition'
     printf '%s\n' "$section" | grep -qF 'and so does the record'"'"'s `## Guideline reviews` where the record exists'
     for removed in 'three kinds' 'markup snapshot' 'runs for real on the normal path'; do
@@ -2621,6 +2640,9 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$section" | grep -q '^disposition: '
     flat=$(printf '%s\n' "$section" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$flat" | grep -qF 'guidelines-file.sh TEST'
+    printf '%s\n' "$flat" | grep -qF 'guidelines-file.sh CODE'
+    printf '%s\n' "$flat" | grep -qF '(`develop-change`, "The conformance reviews")'
+    grep -qF '(`review-conformance`)' "$template"
     printf '%s\n' "$flat" | grep -qF 'kept apart from `## Review` so compliance and preference findings stay distinguishable'
     printf '%s\n' "$flat" | grep -qF 'State no number of rounds, findings or dispositions in prose, as under `## Review`'
 }

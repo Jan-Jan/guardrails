@@ -102,13 +102,13 @@ disposition: <what changed in the record, citing the record's own path,
 
 ## Guideline reviews
 
-One review per file `guidelines-file.sh TEST` printed for the change diff
-(`develop-change`, "The guideline reviews"), each with its findings verbatim
-and a disposition for every one. This section is kept apart from `## Review`
-so compliance and preference findings stay distinguishable: a finding here is
-against the project's guidelines file, versioned in this tree, not against
-the floor a standard or a gate needs. A review that raised nothing is legal;
-say so under its heading.
+One review per file `guidelines-file.sh TEST` or `guidelines-file.sh CODE`
+printed for the change diff (`develop-change`, "The conformance reviews"),
+each with its findings verbatim and a disposition for every one. This section
+is kept apart from `## Review` so compliance and preference findings stay
+distinguishable: a finding here is against the project's guidelines file,
+versioned in this tree, not against the floor a standard or a gate needs. A
+review that raised nothing is legal; say so under its heading.
 
 Under each review's heading, put each round's blocks under its own
 `### Round <N>` heading and number its findings from 1, replacing each
@@ -158,7 +158,7 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
 - A field with no value after it is an omission, not compliance.
 - A finding's value OPENS with its tag — `code`, `requirement` or `record`
   (`merge-change` step 6a), or `guideline` under `## Guideline reviews`
-  (`review-guidelines`), which takes a severity as `code` does. A `code` or
+  (`review-conformance`), which takes a severity as `code` does. A `code` or
   `requirement` tag is followed by its severity, `high`, `medium` or `low`;
   a `record` finding states none.
   check-review.sh never reads the value, so the tag and the severity cost no

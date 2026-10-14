@@ -54,14 +54,6 @@ delegation. The subagent that executed the loop is the only party that saw the
 test fail, and this line is the only channel by which that observation reaches
 the dispatcher and the gate.
 
-## An inherited line is coverage, not evidence
-
-An `inherited:` line names a pre-existing test of a superseded item that the
-task pointed at its successor. It is coverage, not red-first evidence: the
-successor still needs its own `red -> green:` test. Any other test that was
-green before the task is not re-annotated with a new ID
-(`verify-before-merge` check 4).
-
 ## Write the red -> green lines into the plan
 
 `merge-change` step 6b copies them into the verification record, many steps
@@ -78,20 +70,21 @@ effort, or a different decomposition. A red baseline and an accepted coverage
 gap are the user's call for the same reason, so those two stops are not
 violations of this rule.
 
-## The deslop pass dispatch has no task worktree
+## A reviewer gets no task worktree
 
 Every other dispatch in these skills names a nested task worktree, so a
-subagent given no location follows that pattern and creates one. Its fixes
-then are on a task branch the dispatcher has to merge, for a pass whose
-purpose is to edit the change branch in place.
+subagent given no location follows that pattern and creates one. A reviewer
+changes nothing, so it has nothing to commit or merge, and the prompt says so.
 
-## The deslop pass is the only whole-change view
+## Reviews and fixes are separate dispatches
 
-The dispatcher keeps the plan and the trace and does not read the code, and
-each task subagent sees one task. Cross-task duplication is invisible to every
-other party.
+The agent that fixes a finding does not review its own fix: the next round's
+reviewers do, in fresh contexts. The reviews run all at once because each
+only reads; the fixes run in task worktrees because each writes. Each
+reviewer reads one guidelines file, and a reviewer with one file misses
+less.
 
-## The deslop pass runs before merge-change
+## The conformance reviews run before merge-change
 
 - The merge sequence reruns from step 1 on any finding, so a variable name
   reported at 6a costs a full restart.

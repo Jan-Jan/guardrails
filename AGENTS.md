@@ -56,11 +56,6 @@ Guardrails is developed under the rules it ships, without exception.
    State it in the verification record: "base merged from local `main` at
    `<commit>`, per AGENTS.md non-negotiable 4".
 
-## Code: names
-
-- No single-character names. No code golf.
-- Name in concrete terms.
-
 ## Rules
 
 - Write scripts in `scripts/` in POSIX sh only: no bash-isms, no dependencies

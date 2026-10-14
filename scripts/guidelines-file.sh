@@ -4,7 +4,8 @@
 # guidelines-file.sh KIND PATH...
 #
 # Prints the one guidelines file that governs each PATH
-# (docs/plans/2026-10-08-test-guidelines.md D3, D8), one line per distinct
+# (docs/plans/2026-10-08-test-guidelines.md D3, D8;
+# docs/plans/2026-10-13-code-guidelines.md D4), one line per distinct
 # file in the order each is first needed:
 #
 #   <file>: <path> <path>...
@@ -31,7 +32,7 @@
 set -u
 
 # The kinds this script knows, space-separated.
-KNOWN_KINDS='TEST'
+KNOWN_KINDS='TEST CODE'
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || exit 2
 . "$script_dir/lib.sh"

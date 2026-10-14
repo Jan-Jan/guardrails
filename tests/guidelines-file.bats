@@ -68,11 +68,44 @@ docs/TEST_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
     [ "$output" = ".guardrails/templates/TEST_GUIDELINES.md: src/a.sh" ] || { echo "$output"; false; }
 }
 
-# verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)
-@test "guidelines-file: an unknown kind is exit 2" {
+# verifies: D8 (docs/plans/2026-10-08-test-guidelines.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
+@test "guidelines-file: an unknown kind is exit 2, naming the known kinds" {
+    run sh .guardrails/scripts/guidelines-file.sh ARCHITECTURE src/a.sh
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"unknown kind: ARCHITECTURE (known: TEST CODE)"* ]] || { echo "$output"; false; }
+}
+
+# verifies: D4, D5 (docs/plans/2026-10-13-code-guidelines.md); D3, D8 (docs/plans/2026-10-08-test-guidelines.md)
+@test "guidelines-file: CODE picks the unit's, the root's or the installed default file, as TEST does" {
+    printf '# Code guidelines (installed default)\n' > .guardrails/templates/CODE_GUIDELINES.md
+    run sh .guardrails/scripts/guidelines-file.sh CODE src/a.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = ".guardrails/templates/CODE_GUIDELINES.md: src/a.sh" ] || { echo "$output"; false; }
+    write_units_manifest
+    printf '# Code guidelines (project)\n' > docs/CODE_GUIDELINES.md
+    printf '# Code guidelines (pump)\n' > apps/pump/docs/CODE_GUIDELINES.md
+    run sh .guardrails/scripts/guidelines-file.sh CODE apps/pump/x.c apps/ui/y.ts vendor/v.c
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    expected="apps/pump/docs/CODE_GUIDELINES.md: apps/pump/x.c
+docs/CODE_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
+    [ "$output" = "$expected" ] || { echo "$output"; false; }
+}
+
+# verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
+@test "guidelines-file: one kind's project file never governs another kind" {
+    printf '# Code guidelines (installed default)\n' > .guardrails/templates/CODE_GUIDELINES.md
+    write_root_guidelines
+    run sh .guardrails/scripts/guidelines-file.sh CODE src/a.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = ".guardrails/templates/CODE_GUIDELINES.md: src/a.sh" ] || { echo "$output"; false; }
+}
+
+# verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
+@test "guidelines-file: a missing CODE default is exit 2 though the TEST default is installed" {
     run sh .guardrails/scripts/guidelines-file.sh CODE src/a.sh
     [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"unknown kind: CODE"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"no installed default"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"CODE_GUIDELINES.md"* ]] || { echo "$output"; false; }
 }
 
 # verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)
