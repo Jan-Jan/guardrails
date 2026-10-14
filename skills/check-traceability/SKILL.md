@@ -19,11 +19,8 @@ description: Run and interpret the guardrails traceability checker - orphaned re
 
    ```sh
    .guardrails/scripts/check-trace.sh              # traceability gates
-   .guardrails/scripts/check-ids.sh --allow-draft-files  # ID sanity while developing
+   .guardrails/scripts/check-ids.sh                # ID sanity
    ```
-
-   At the merge, run `check-ids.sh` without `--allow-draft-files`: no ledger
-   file with a draft name may reach the base branch.
 
 2. **Read the exit status.** Exit 2 is an environment error and always fatal:
    a gate did not run. Read `references/config.md`, fix the config, and run
@@ -117,7 +114,6 @@ description: Run and interpret the guardrails traceability checker - orphaned re
 | "I'll bullet the annotations so the item reads better" | A bulleted column-one field such as `status:` is not read inside a block; the field is reported missing (step 5). |
 | "A bold note in the item body is harmless" | A bold line with a colon closes the block; annotations below it belong to no item (step 5). |
 | "The `implements:` is in the SRS, so the control is covered" | Only a line inside a REQ block credits it; the same holds for `mitigates:` inside an RC block (step 5). |
-| "`--allow-draft-files` at the merge too" | No ledger file with a draft name may reach the base branch (step 1). |
 
 ## Done when
 

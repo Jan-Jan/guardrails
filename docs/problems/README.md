@@ -1,10 +1,9 @@
 # Problem-report ledger
 
-This directory is a per-change ledger: each merged change contributes one
-dated file, `YYYY-MM-DD-<slug>.md` (the finalize date, assigned by `merge-change`
-from your worktree's `DRAFT-<branch>-<slug>.md`). A problem's `status:` flip
-to resolved happens **in the file that defines the PR** (the fix's change
-edits it in place).
+This directory is a per-change ledger: each change contributes one dated
+file, `YYYY-MM-DD-<slug>.md`, dated the day the change creates it and never
+renamed. A problem's `status:` flip to resolved happens **in the file that
+defines the PR** (the fix's change edits it in place).
 
 <!--
 Item grammar (surfaced by .guardrails/scripts/check-trace.sh):

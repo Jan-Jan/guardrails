@@ -232,8 +232,8 @@ origin_main_ahead() {
     has_line "fix IDS: fix each check-ids.sh finding above; its script header documents every rule."
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-@test "merge-preflight: IDS fails on a draft-named ledger file, because check-ids.sh runs without --allow-draft-files" {
+# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md), D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+@test "merge-preflight: IDS fails on a draft-named ledger file, and its fix line renames it" {
     make_passing_change
     # The name is built at run time, as the draft ID above is.
     draft=DRAFT
@@ -244,9 +244,9 @@ origin_main_ahead() {
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
     output_has "DRAFT-FILE"
     output_has "$ledger_file"
-    # The pre-flight runs after step 3, so the fix line must name the merge
-    # half: a line that only states to leave the file loops on this failure.
-    output_has "At merge, run merge-change step 3 (finalize-docs.sh), which renames it"
+    # No merge step renames a ledger file (ADR-cy7ahd), so the fix line is the
+    # rename: a line that only states to leave the file loops on this failure.
+    output_has "git mv it to <YYYY-MM-DD>-<slug>.md"
     failed_at IDS
 }
 

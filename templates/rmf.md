@@ -1,11 +1,10 @@
 # Risk management ledger
 
-This directory is a per-change ledger: each merged change contributes one
-dated file, `YYYY-MM-DD-<slug>.md` (the finalize date, assigned by `merge-change`
-from your worktree's `DRAFT-<branch>-<slug>.md`). **Edit existing items in
-the file that defines them.** This README contains the project-wide
-acceptability matrix; the dated files contain hazards, controls, derived
-assessments, and residual-risk statements.
+This directory is a per-change ledger: each change contributes one dated
+file, `YYYY-MM-DD-<slug>.md`, dated the day the change creates it and never
+renamed. **Edit existing items in the file that defines them.** This README
+contains the project-wide acceptability matrix; the dated files contain
+hazards, controls, derived assessments, and residual-risk statements.
 
 <!--
 Item grammar (enforced by .guardrails/scripts/check-trace.sh):

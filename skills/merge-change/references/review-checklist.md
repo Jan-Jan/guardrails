@@ -25,7 +25,7 @@ review round (`merge-change` step 6a).
 
 The reviewer checks each item and raises a finding for each one that fails.
 
-- New items are in this change's draft ledger file, and no definition moved
+- New items are in this change's own ledger file, and no definition moved
   to another file.
 - IDs are minted tokens. An amendment edits the defining file in place.
 - Item form: `**<ID>**: The software shall <single, testable behavior>`.

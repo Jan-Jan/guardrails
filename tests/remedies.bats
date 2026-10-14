@@ -155,30 +155,18 @@ MD
     printf '%s\n' "$output" | grep -q '^fix DRAFT-ID: .*new-id\.sh' || { echo "$output"; false; }
 }
 
-@test "check-ids: --allow-draft-files prints no fix line for a draft file" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
-    printf '**PR-a3k9z2**: a real item.\nstatus: open\n' > docs/problems/DRAFT-x-new.md
-    commit_all draftfile
-    run sh .guardrails/scripts/check-ids.sh --allow-draft-files
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ "$(fix_count)" -eq 0 ] || { echo "$output"; false; }
-    # The same tree without the flag does print one, so the zero above is the
-    # flag's doing and not a fixture that fires nothing.
-    run sh .guardrails/scripts/check-ids.sh
-    [ "$status" -eq 1 ] || { echo "$output"; false; }
-    printf '%s\n' "$output" | grep -q '^fix DRAFT-FILE: ' || { echo "$output"; false; }
-}
-
-@test "check-ids: the DRAFT-FILE fix line names both the mid-change flag and the merge step that renames the file" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
-    # Without the flag is how merge-preflight.sh runs it, after step 3; a line
-    # that only states to leave the file gives the pre-flight no way forward.
+@test "check-ids: the DRAFT-FILE fix line is the git mv to a dated name" {
+    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md), D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # No merge step renames a ledger file (ADR-cy7ahd), so the fix line is the
+    # rename itself: a line that only states to leave the file loops on this
+    # failure.
     printf '**PR-a3k9z2**: a real item.\nstatus: open\n' > docs/problems/DRAFT-x-new.md
     commit_all draftfile
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    printf '%s\n' "$output" | grep -qxF 'fix DRAFT-FILE: Mid-change, leave it: check-ids.sh --allow-draft-files passes it. At merge, run merge-change step 3 (finalize-docs.sh), which renames it, then run this check again.' \
+    printf '%s\n' "$output" | grep -qxF 'fix DRAFT-FILE: git mv it to <YYYY-MM-DD>-<slug>.md, dated the day its change created it: no merge step renames a ledger file. Then fix each reference check-trace.sh reports as DANGLING-FILE.' \
         || { echo "$output"; false; }
+    remedies_within_limit || { echo "$output"; false; }
 }
 
 @test "check-trace: every report it prints has a remedy line" {
@@ -271,16 +259,31 @@ MD
     printf '%s\n' "$output" | grep -q '^fix UNANALYZED-DERIVED: .*assesses: ' || { echo "$output"; false; }
 }
 
-@test "check-trace: the DANGLING-FILE remedy names the dated file" {
-    # verifies: PR-58zsvf
-    # A reference to a draft another change already merged: the fix is the
-    # dated name it was merged under, never deleting the reference.
+@test "check-trace: the DANGLING-FILE remedy and message name the file's current name" {
+    # verifies: PR-58zsvf, D4 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # A reference to a draft file renamed to its dated name: the fix is the
+    # name the file has now, never deleting the reference.
     printf '\nHazards: docs/risk/DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
     commit_all dangling-file
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    printf '%s\n' "$output" | grep -q '^fix DANGLING-FILE: .*dated name' || { echo "$output"; false; }
-    printf '%s\n' "$output" | grep -q '^fix DANGLING-FILE: .*never delete the reference' || { echo "$output"; false; }
+    printf '%s\n' "$output" | grep -qxF 'fix DANGLING-FILE: Write the name the file has now: the dated name a draft-named ledger file was renamed to. Never delete the reference to pass the gate — see the script header.' \
+        || { echo "$output"; false; }
+    printf '%s\n' "$output" | grep -qF 'found neither at the repository root nor beside the file naming it — write the name the file has now)' \
+        || { echo "$output"; false; }
+    remedies_within_limit || { echo "$output"; false; }
+}
+
+@test "check-trace: a bare DANGLING-FILE name says to write the name the file has now, or the path across units" {
+    # verifies: D4 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # A bare name resolves against this unit's ledger directories only, so the
+    # message also names the path form for a draft in another unit.
+    printf '\nSee DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
+    commit_all dangling-bare
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    printf '%s\n' "$output" | grep -qF "found in none of this config's ledger directories — write the name the file has now; across units, write the path)" \
+        || { echo "$output"; false; }
 }
 
 @test "check-trace: an exit 2 after a collected violation still prints the violation" {

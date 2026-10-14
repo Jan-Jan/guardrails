@@ -56,7 +56,7 @@ flowchart TD
     RF --> RC
     RC --> CT[check-traceability]
     CT --> V[verify-before-merge<br/>dispatched evidence + coverage gate]
-    V --> M[merge-change<br/>finalize ledger files, independent review,<br/>verification record + check-review.sh,<br/>signed squash merge, cleanup worktree]
+    V --> M[merge-change<br/>independent review,<br/>verification record + check-review.sh,<br/>signed squash merge, cleanup worktree]
 ```
 
 Three rules define the whole system:
@@ -85,13 +85,12 @@ rules, reports and exit codes in full.
 |---|---|
 | `new-id.sh` | Mint item IDs. |
 | `find-items.sh` | List, show and find references to ledger items without reading whole ledgers. |
-| `check-ids.sh` | Draft IDs, draft-named ledger files, duplicate and malformed IDs. |
+| `check-ids.sh` | Draft IDs, draft-named files, duplicate and malformed IDs. |
 | `check-trace.sh` | The traceability and problem-report gates, with the `checked:`, `problems:` and `sources:` summary. |
 | `check-units.sh` | The multi-unit repository: manifest validation, unit claims, the class floor, the impact set. |
 | `check-review.sh` | The verification record of the change under merge, and its findings, and, opt-in, that each disposition cites something the tree resolves. |
 | `check-signing.sh` | Commit signatures, and with `--setup` proof that the project can sign. |
 | `guidelines-file.sh` | Print the one guidelines file that governs each path: the unit's, the project's, or the installed default. |
-| `finalize-docs.sh` | Rename this change's draft ledger files to dated names and rewrite references to them. |
 | `prune-plans.sh` | Replace the fenced code in this change's plan tasks with pointers, at `merge-change` step 1. |
 | `merge-preflight.sh` | The mechanical checks of `merge-change` steps 4 and 6c, in one command. |
 | `finish-merge.sh` | The guarded cleanup half of the signed merge command the user runs. |

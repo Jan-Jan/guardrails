@@ -1,16 +1,16 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
-# check-ids.sh [--allow-draft-files]
+# check-ids.sh
 #
 # Fails (exit 1) on:
 #   DRAFT-ID      — a draft ID token (<PREFIX>-DRAFT-<slug>-<n>) anywhere in the
 #                   tree. Always fatal: nothing mints one any more, so nothing
 #                   would ever turn it into a real ID.
-#   DRAFT-FILE    — a draft-named ledger file (DRAFT-<branch>-<slug>.md).
-#                   Legitimate inside a change and renamed by finalize-docs.sh
-#                   at merge, so --allow-draft-files suppresses it while the
-#                   change is in flight.
+#   DRAFT-FILE    — a draft-named ledger file (DRAFT-<branch>-<slug>.md), the
+#                   ledger file name from before ADR-cy7ahd. Under that ADR a
+#                   ledger file is named at creation and no step renames it,
+#                   so a draft name stays until its author renames it.
 #   DUPLICATE-ID  — an ID defined (**ID**: ...) at more than one site in the
 #                   tree. A definition line declares the ID at its start and no
 #                   other, so naming further IDs in the same sentence is safe.
@@ -46,7 +46,7 @@ set -u
 check_ids_remedy() {
     case "$1" in
         (DRAFT-ID) echo 'Run .guardrails/scripts/new-id.sh <PREFIX> and replace each draft token with the ID it prints.' ;;
-        (DRAFT-FILE) echo 'Mid-change, leave it: check-ids.sh --allow-draft-files passes it. At merge, run merge-change step 3 (finalize-docs.sh), which renames it, then run this check again.' ;;
+        (DRAFT-FILE) echo 'git mv it to <YYYY-MM-DD>-<slug>.md, dated the day its change created it: no merge step renames a ledger file. Then fix each reference check-trace.sh reports as DANGLING-FILE.' ;;
         (DUPLICATE-ID) echo 'Keep one definition and give the other item a fresh ID from .guardrails/scripts/new-id.sh <PREFIX>.' ;;
         (MALFORMED-ID) echo 'Give each item an ID from .guardrails/scripts/new-id.sh <PREFIX>; never widen a pattern to accept the token that is there.' ;;
         (*) return 1 ;;
@@ -76,14 +76,13 @@ gr_unit_engage
 # got no config validation at all.
 gr_check_config
 
-allow_draft_files=0
 while [ $# -gt 0 ]; do
     case "$1" in
-        (--allow-draft-files) allow_draft_files=1 ;;
-        # --allow-drafts and --base are rejected, not ignored. Both named a gate
-        # that no longer exists, and a flag accepted in silence is a check the
-        # caller believes they configured. Failing here is what makes a stale
-        # CI line or an un-upgraded skill visible at the upgrade.
+        # --allow-drafts, --base and --allow-draft-files are rejected, not
+        # ignored. Each named a gate or a tolerance that no longer exists, and
+        # a flag accepted in silence is a check the caller believes they
+        # configured. Failing here is what makes a stale CI line or an
+        # un-upgraded skill visible at the upgrade.
         (*) gr_die "unknown argument: $1" ;;
     esac
     shift
@@ -132,18 +131,20 @@ if [ -n "$drafts" ]; then
 fi
 
 # --- DRAFT-FILE: no draft-named ledger files may reach the base branch ------
-if [ "$allow_draft_files" -eq 0 ]; then
-    # Scoped, the same narrowing as DRAFT-ID above: a sibling's draft-named
-    # ledger is the sibling's change in flight. "." when unscoped is the
-    # whole tree from the root this script already cd'd to.
-    draft_files=$(git ls-files --cached --others --exclude-standard \
-            -- "${GR_UNIT:-.}" 2>/dev/null \
-        | grep -E "$GR_DRAFT_FILE_RE" || true)
-    if [ -n "$draft_files" ]; then
-        printf '%s\n' "$draft_files" | sed 's/^/DRAFT-FILE /'
-        fired_rules="$fired_rules DRAFT-FILE"
-        fail=1
-    fi
+# Scoped, the same narrowing as DRAFT-ID above: a sibling unit's draft name is
+# that unit's to rename. "." when unscoped is the whole tree from the root this
+# script already cd'd to.
+tree_paths=$(git ls-files --cached --others --exclude-standard -- "${GR_UNIT:-.}") \
+    || gr_die "listing files for draft-named ledger files failed (git ls-files exit $?)"
+# grep exits 1 when no path carries a draft name, which is the passing case,
+# and 2 on an error; statuses 0 and 1 pass, and 2 or above is fatal.
+_st=0
+draft_files=$(printf '%s\n' "$tree_paths" | grep -E "$GR_DRAFT_FILE_RE") || _st=$?
+[ "$_st" -le 1 ] || gr_die "matching draft-named ledger files failed (grep exit $_st)"
+if [ -n "$draft_files" ]; then
+    printf '%s\n' "$draft_files" | sed 's/^/DRAFT-FILE /'
+    fired_rules="$fired_rules DRAFT-FILE"
+    fail=1
 fi
 
 # --- MALFORMED-ID: a definition form whose body is not an ID ----------------

@@ -70,11 +70,11 @@ renumbered at merge. The alphabet drops the characters that are read wrong
 `REQ-argued` in prose from reading as an ID. A hand-typed token can break
 either property.
 
-## Step 6: one draft file per change
+## Step 6: one ledger file per change
 
-Each change writes its new items to its own draft file, so parallel worktrees
-never edit the same file, and the dated rename at merge keeps the ledger in
-chronological order. A definition moved between files breaks that order and
+Each change writes its new items to its own file, so parallel worktrees never
+edit the same file, and the date it is named with at creation keeps the ledger
+in chronological order. A definition moved between files breaks that order and
 the history of the item.
 
 ## Step 8: when a task worktree is removed

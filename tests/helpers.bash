@@ -240,14 +240,60 @@ EOF
 # date reads `-d "-1 days ago"` and answers with tomorrow; BSD date is handed
 # `-v--1d`, cannot parse the doubled sign, and rejects it — so the sign is
 # folded into the adjustment here rather than spelled twice.
+# With a pinned day (pin_today) it counts back from that day: GNU
+# `-d "12:00 <day> N days ago"`, BSD `-j -f %Y-%m-%d -v±Nd <day>`. GNU reads a
+# bare day as its local midnight, and a zone that springs forward at 00:00
+# (America/Santiago) has no such midnight, so GNU rejects the day; noon exists
+# on every day. The time goes before the day: GNU reads a signed number
+# straight after a time as that time's zone offset, so "<day> 12:00 -1 days
+# ago" means noon at UTC-1 one day back, not tomorrow. BSD needs no anchor: with -j, -f fills the unparsed hour from
+# the current clock and normalizes a missing hour forward within the same day.
 days_ago() {
-    date -d "$1 days ago" +%Y-%m-%d 2>/dev/null && return 0
+    if [ -n "${PINNED_TODAY:-}" ]; then
+        if date -d "12:00 $PINNED_TODAY $1 days ago" +%Y-%m-%d 2>/dev/null; then
+            return 0
+        fi
+    else
+        if date -d "$1 days ago" +%Y-%m-%d 2>/dev/null; then
+            return 0
+        fi
+    fi
     case "$1" in
         (-*) _adj="+${1#-}d" ;;
         (*)  _adj="-${1}d" ;;
     esac
+    if [ -n "${PINNED_TODAY:-}" ]; then
+        date -j -f %Y-%m-%d -v"$_adj" "$PINNED_TODAY" +%Y-%m-%d 2>/dev/null \
+            || { echo "no usable date(1) for relative dates" >&2; return 1; }
+        return 0
+    fi
     date -v"$_adj" +%Y-%m-%d 2>/dev/null \
         || { echo "no usable date(1) for relative dates" >&2; return 1; }
+}
+
+# pin_today [YYYY-MM-DD] — fix "today" for the rest of the test (PR-pc6byk).
+# A `date` stub first on PATH answers `date +%Y-%m-%d` with the pinned day
+# (the given one, else the real date at the first call) and passes every
+# other call to the real date(1); days_ago counts back from the same day.
+# Without it a test asserting an exact age reads the clock twice, once for
+# its fixture and once in check-trace.sh, and a run crossing local midnight
+# between the two sees one day more. A test that stubs date itself puts its
+# stub ahead of this one on PATH, and its stub wins. A second call re-pins.
+pin_today() {
+    if [ -z "${PINNED_REAL_DATE:-}" ]; then
+        PINNED_REAL_DATE=$(command -v date) \
+            || { echo "pin_today: no date(1) on PATH" >&2; return 1; }
+        export PINNED_REAL_DATE
+        PATH="$BATS_TEST_TMPDIR/pinned-date:$PATH"
+    fi
+    PINNED_TODAY=${1:-$("$PINNED_REAL_DATE" +%Y-%m-%d)} \
+        || { echo "pin_today: $PINNED_REAL_DATE +%Y-%m-%d failed" >&2; return 1; }
+    export PINNED_TODAY
+    mkdir -p "$BATS_TEST_TMPDIR/pinned-date"
+    printf '#!/bin/sh\nif [ "$#" -eq 1 ] && [ "$1" = "+%%Y-%%m-%%d" ]; then echo %s; exit 0; fi\nexec %s "$@"\n' \
+        "$PINNED_TODAY" "$PINNED_REAL_DATE" > "$BATS_TEST_TMPDIR/pinned-date/date" \
+        || { echo "pin_today: cannot write $BATS_TEST_TMPDIR/pinned-date/date" >&2; return 1; }
+    chmod +x "$BATS_TEST_TMPDIR/pinned-date/date"
 }
 
 # A problem-report item containing every field the gate requires, appended to

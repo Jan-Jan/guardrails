@@ -1,5 +1,8 @@
 #!/bin/sh
 # describes: finalize-docs.sh: the config is not validated before the renames
+# retired: scripts/finalize-docs.sh was deleted by ledger-names-at-creation
+# (ADR-cy7ahd): nothing renames a ledger file at merge, so the behavior
+# this mutation removed no longer exists, and its tests went with it.
 # A mutation that stops matching is a silent no-op, and a no-op row reads as
 # "no test detects this". Fail loudly instead — mutate.sh reports exit 3 as an
 # unusable mutation. Independent review, N6.

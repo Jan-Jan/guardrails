@@ -44,10 +44,9 @@ comments. A ledger elsewhere under `.guardrails/` is read normally.
 
 The scans cannot see `.guardrails/scripts/`, `.git/`, gitignored paths, or a
 symlink that points outside the repository. A `doc_*` aimed at one of those is
-still accepted: `checked:` counts its items as zero, and `finalize-docs.sh`
-renames a draft ledger there as it would anywhere else. Whether any gate warns
-first depends on the location, on whether git tracks or ignores the file, and
-on whether the ledger still has its `DRAFT-` name. Some combinations are
+still accepted: `checked:` counts its items as zero. Whether any gate warns
+first depends on the location, and on whether git tracks or ignores the file.
+Some combinations are
 silent. The measured matrix is in the guardrails repository, at
 `docs/verification/2026-08-20-scan-pathspec.md`. It was measured before IDs
 became tokens, so its rows about minting describe a step that no longer

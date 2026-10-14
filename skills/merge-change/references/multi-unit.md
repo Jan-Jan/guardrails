@@ -23,10 +23,8 @@ there.
 
 The rest is yours, per unit:
 
-- dispatch each unit's `verify_commands` with its `GR_CONFIG` (steps 2 and 6),
-  for every unit in the impact set;
-- run `finalize-docs.sh` (step 3) once per touched unit, with `GR_CONFIG`
-  pointing at each. A dependent has no drafts to rename.
+- dispatch each unit's `verify_commands` with its `GR_CONFIG` (steps 2 and 3),
+  for every unit in the impact set.
 
 At step 6b, the record also names the units touched, and the impact set,
 beside its `branch:` line. One branch, one squash, one record, however many units were

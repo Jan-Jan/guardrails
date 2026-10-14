@@ -88,16 +88,14 @@ code as review rounds fix it. Pruning replaces each code block in a plan's
 task sections with a one-line pointer naming its line count and the task's
 `**Files touched:**` value, and the squash commit holds the merged code.
 
-Pruning runs at step 1, after the base merge, and not with the draft renames at
-step 3, because it changes the tree on nearly every merge. Step 3 runs after
-the step 2 gate, so a tree changed there would fail step 6's hash comparison
-and dispatch a second full suite run. Run at step 1, the change is
+Pruning runs at step 1, after the base merge, because it changes the tree on
+nearly every merge. Run after the step 2 gate, it would fail step 3's hash
+comparison and dispatch a second full suite run. Run at step 1, the change is
 in the tree the step 2 gate measures. The maintainer ruled this on
 2026-10-08, and `ADR-bh4xgr` records it.
 
-The commit is conditional for the reason step 3's is: on a rerun the plans are
-already pruned, nothing changes, and an unconditional commit would halt the
-sequence for no defect. The prune and its commit are chained on the merge's
+The commit is conditional: on a rerun the plans are already pruned, nothing
+changes, and an unconditional commit would halt the sequence for no defect. The prune and its commit are chained on the merge's
 success: run after a conflicted merge, the commit would conclude the merge
 with its conflict markers staged. The commit names the plans directory, so an
 unrelated edit pending in the worktree stays out of it. Diffing against the
@@ -109,58 +107,47 @@ block is left whole, because pruning would move the cited line. Records cite
 plans as evidence, and so do other plans. Listing it in the record shows the
 reviewer which plan still carries its code.
 
+## Step 1: two ledger files with one name
+
+A change names its ledger file when it creates it (`ADR-cy7ahd`), so two
+changes can choose one name. Git reports that as an add/add conflict at the
+base merge, which is where every conflict is resolved. The renamed file is
+this change's, because the base's is already merged and other changes may cite
+it. No gate checks a reference to a dated name, so the author finds this
+change's citations with `git grep`. The rename it replaces suffixed `-2`
+against the local disk only.
+
 ## Step 2: recording the tree
 
 A gate summary with no tree beside it cannot be re-identified one round
-later, and step 6 compares against this hash.
+later, and step 3 compares against this hash.
 
-## Step 3: the conditional commit and the unrewritten report
+## Step 3: the tree hash decides re-verification
 
-On the second and later findings rounds the drafts are already dated, so
-an unconditional commit exits 1 with nothing to commit: a halt for no
-defect, in a sequence that stops at any failure.
+The suite runs in the background for minutes, and anything that changes the
+worktree meanwhile leaves a summary describing a tree that is no longer there;
+a fresh summary is what shows nothing broke. Where the tree is unchanged, a
+second run would reproduce an answer already in hand. Steps 4 and 5 only read,
+and every fix reruns from step 1, so the check is needed once per round. The
+hash makes it a mechanical test rather than a judgment about what the round
+touched.
 
-Nothing later repeats the `unrewritten` report. `DANGLING-FILE` reads the
-scope the rewrite reads, so a dead name in a plan or a verification record is
-found at step 3 or not at all.
+## Step 5: a draft name another change left behind
 
-## Step 3: the finalize date
-
-The date in the new name is the day step 3 first retired the draft name, and
-it is not derived again. The filename is a handle for the file; git records the day
-of the merge.
-
-## Steps 3 and 5: a draft another change left behind
-
-Step 3 renames every draft ledger file it finds, including one another change
-left behind, and nothing distinguishes the two mechanically. Such a draft
-is adopted into this change silently: it is renamed into this diff, this
-record and this change's `Implements:` line, with no item to explain it. A rename you
-do not recognise at step 3 is that case.
-
-A `DRAFT-FILE` report names no change. A draft leaked by a change that already merged fails step 4 for every later change.
-A `DRAFT-FILE` on a path this change did not create, ruled on at step 5, is
-that case.
+A `DRAFT-FILE` report names no change. A draft name a change merged before
+ledger files were named at creation fails step 4 for every later change. A
+`DRAFT-FILE` on a path this change did not add, ruled on at step 5, is that
+case.
 
 Whether the name opens `DRAFT-<this branch>-` is not a discriminator, because
-the convention does not require a draft to embed its branch. That gap is a
-problem item in this toolkit's own ledger.
+the draft convention, before `ADR-cy7ahd` retired it, did not require a draft
+to embed its branch, so a legacy draft name need not carry one.
 
 ## Step 5: `MALFORMED-ID`
 
 Widening the definition pattern to accept the token makes the item visible to
 every gate, and admits everywhere an ID that was not minted and whose form the
 pattern exists to reject.
-
-## Step 6: the tree hash decides re-verification
-
-The renames at step 3 move files the tests may read, so a fresh gate summary
-is what shows that nothing broke.
-
-Where step 3 renamed nothing, step 3 was a no-op, step 4 only reads, and
-step 1 merged a base already merged. The tree is the tree step 2 measured, and
-a second suite run would reproduce an answer already in hand. The hash makes
-that a mechanical test rather than a judgment about what the round touched.
 
 ## Step 6a: independence, and findings copied verbatim
 

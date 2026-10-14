@@ -15,7 +15,7 @@
 #                    prints `preflight: BASE-MERGED ok (local base only)`. This
 #                    script never fetches; merging the base in is merge-change
 #                    step 1.
-#   IDS              check-ids.sh, with no --allow-draft-files.
+#   IDS              check-ids.sh.
 #   TRACE            check-trace.sh.
 #   UNITS            only when .guardrails/units.yaml exists, and then in place
 #                    of IDS and TRACE: check-units.sh once, then check-ids.sh

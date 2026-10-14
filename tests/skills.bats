@@ -977,15 +977,6 @@ gr_all_sh_fences() {
     grep -q 'check-units.sh` with no flag' "$skill"
 }
 
-@test "merge-finalizes-touched-units-only: the finalize loop is scoped" {
-    # verifies: architecture item 6 — finalize-docs.sh is unit-scoped; drafts
-    # are in touched units by the paths-inside-the-unit rule, so dependents
-    # have nothing to rename.
-    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
-    grep -q 'once per touched unit' "$skill"
-}
-
 @test "merge-record-names-units: the verification record contains the impact set" {
     # verifies: D6 — one record per change; the record names the units.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
@@ -1063,17 +1054,6 @@ gr_all_sh_fences() {
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'Derived assessments are now declared' "$skill"
     grep -q 'DANGLING-FILE' "$skill"
-}
-
-@test "merge-step-3-reports-rewrites: merge-change expects finalize to print what it rewrote" {
-    # verifies: PR-58zsvf — D2
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'rewrote' "$skill"
-    grep -q 'DANGLING-FILE' "$BATS_TEST_DIRNAME/../scripts/finalize-docs.sh"
-    grep -q 'reported as left' "$BATS_TEST_DIRNAME/../scripts/finalize-docs.sh"
-    grep -q 'root-relative' "$BATS_TEST_DIRNAME/../scripts/finalize-docs.sh"
-    grep -q 'root-relative' "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'relative link' "$skill"
 }
 
 @test "code guidelines: the naming rules left the managed block for the code guidelines template" {
@@ -1340,24 +1320,111 @@ gr_all_sh_fences() {
     grep -q 'copied forward from an earlier round' "$template"
 }
 
-@test "merge-change: step 6 stands on step 2 where the tree is unchanged" {
+@test "ledger files: the skills and templates name a ledger file at creation, and nothing renames it" {
+    # verifies: D1, D2 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    root="$BATS_TEST_DIRNAME/.."
+    # The ratchet files name the old convention on purpose: they tell an
+    # adopter how to retire it (T5 pins what they say).
+    # grep exits 1 when nothing matches, the passing case, and 2 on a path it
+    # cannot read; each status is kept so that 0 and 1 pass and 2 or above
+    # fails the test.
+    grep_status=0
+    taught=$(grep -rnE 'finalize-docs|DRAFT-<branch>-<slug>|<finalize-date>' \
+            "$root"/skills "$root"/templates "$root"/README.md \
+            "$root"/docs/problems/README.md) || grep_status=$?
+    [ "$grep_status" -le 1 ] || { echo "the convention scan failed: grep exit $grep_status"; false; }
+    grep_status=0
+    hits=$(printf '%s\n' "$taught" \
+        | grep -v -e '/skills/ratchet/references/upgrade-notes\.md:' \
+                  -e '/skills/ratchet/SKILL\.md:') || grep_status=$?
+    [ "$grep_status" -le 1 ] || { echo "filtering the ratchet files failed: grep exit $grep_status"; false; }
+    [ -z "$hits" ] || { echo "the old convention is still taught: $hits"; false; }
+    for skill_and_path in \
+        'grill-requirements docs/requirements/<YYYY-MM-DD>-<slug>.md' \
+        'analyze-risks docs/risk/<YYYY-MM-DD>-<slug>.md' \
+        'design-architecture docs/architecture/<YYYY-MM-DD>-<slug>.md' \
+        'resolve-problem docs/problems/<YYYY-MM-DD>-<slug>.md' \
+        'worktree-discipline docs/<area>/<YYYY-MM-DD>-<slug>.md'; do
+        skill_name=${skill_and_path%% *}
+        ledger_path=${skill_and_path#* }
+        grep -qF "\`$ledger_path\`" "$root/skills/$skill_name/SKILL.md" \
+            || { echo "$skill_name does not name $ledger_path"; false; }
+    done
+    grep -qF '`docs/<area>/<YYYY-MM-DD>-<slug>.md`' "$root/templates/AGENTS-block.md" \
+        || { echo "the managed block does not name the dated path"; false; }
+    for readme in templates/srs.md templates/rmf.md templates/sad.md \
+            templates/problems.md docs/problems/README.md; do
+        tr '\n' ' ' < "$root/$readme" | tr -s ' ' \
+            | grep -qF 'dated the day the change creates it and never renamed' \
+            || { echo "$readme does not state the rule"; false; }
+    done
+    [ ! -e "$root/scripts/finalize-docs.sh" ] || { echo "finalize-docs.sh still ships"; false; }
+    grep_status=0
+    script_hits=$(grep -rln 'finalize-docs' "$root"/scripts) || grep_status=$?
+    [ "$grep_status" -le 1 ] || { echo "the script scan failed: grep exit $grep_status"; false; }
+    [ -z "$script_hits" ] || { echo "a script still names finalize-docs: $script_hits"; false; }
+}
+
+@test "merge-change: no step renames a ledger file, and step 3 confirms the tree the summary describes" {
+    # verifies: D5 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    if grep -qi 'finaliz' "$skill"; then
+        grep -ni 'finaliz' "$skill"; false
+    fi
+    step3=$(awk '/^3\. \*\*/ { inside = 1 } /^4\. \*\*/ { inside = 0 } inside' "$skill")
+    printf '%s\n' "$step3" | grep -q '^3\. \*\*Confirm the step 2 summary describes this tree\*\*' \
+        || { echo "step 3 is not the tree check: $step3"; false; }
+    printf '%s\n' "$step3" | grep -q 'the step 2 summary stands' || { echo "$step3"; false; }
+    printf '%s\n' "$step3" | grep -qF 'git status --porcelain' || { echo "$step3"; false; }
+    six_at=$(grep -n '^6\. \*\*Review the change and record it\*\*' "$skill" | cut -d: -f1)
+    a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    [ -n "$six_at" ] && [ -n "$a_at" ] && [ "$six_at" -lt "$a_at" ] \
+        || { echo "no step 6 heading before 6a: '$six_at' '$a_at'"; false; }
+    for step in 1 2 4 5 7 8; do
+        grep -q "^$step\. \*\*" "$skill" || { echo "no step $step"; false; }
+    done
+}
+
+@test "merge-change: two changes that name a ledger file alike meet at step 1, and the documented resolution keeps both" {
+    # verifies: D6 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill" \
+        | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$step1" | grep -qF 'An add/add conflict on a ledger file' || { echo "$step1"; false; }
+    printf '%s\n' "$step1" | grep -qF '`git show :2:<path> > <new path>`' || { echo "$step1"; false; }
+    printf '%s\n' "$step1" | grep -qF '`git checkout --theirs -- <path>`' || { echo "$step1"; false; }
+
+    make_fixture_repo
+    mkdir -p docs/problems
+    git checkout -q -b change
+    printf '**PR-a3k9z2**: this change.\n' > docs/problems/2026-01-02-fixes.md
+    commit_all 'the change names its ledger file'
+    git checkout -q main
+    printf '**PR-b4m8p3**: the base.\n' > docs/problems/2026-01-02-fixes.md
+    commit_all 'another change merged the same name'
+    git checkout -q change
+
+    run env GIT_MERGE_AUTOEDIT=no git merge main
+    [ "$status" -ne 0 ] || { echo "the base merged cleanly: $output"; false; }
+    [[ "$output" == *"CONFLICT (add/add)"*"docs/problems/2026-01-02-fixes.md"* ]] \
+        || { echo "$output"; false; }
+
+    # The resolution step 1 documents, with <path> and <new path> filled in.
+    git show :2:docs/problems/2026-01-02-fixes.md > docs/problems/2026-01-02-change-fixes.md
+    git checkout --theirs -- docs/problems/2026-01-02-fixes.md
+    git add docs/problems/2026-01-02-fixes.md docs/problems/2026-01-02-change-fixes.md
+    git -c commit.gpgsign=false commit -q --no-edit
+    grep -q 'PR-b4m8p3' docs/problems/2026-01-02-fixes.md || { echo "the base's file was not kept"; false; }
+    grep -q 'PR-a3k9z2' docs/problems/2026-01-02-change-fixes.md || { echo "this change's file was lost"; false; }
+}
+
+@test "merge-change: step 3 stands on step 2 where the tree is unchanged" {
     # verifies: PR-dkm5tq
-    # Steps 4 and 5 are read-only and step 3 renames nothing on a second
-    # findings round, so the second dispatch measures the tree the first one
-    # already measured.
+    # Steps 4 and 5 only read, and every fix reruns from step 1, so a second
+    # dispatch on an unchanged tree measures what the first already measured.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'the step 2 summary stands' "$skill"
     grep -qF 'rev-parse HEAD^{tree}' "$skill"
-}
-
-@test "merge-change: step 3 commits only when it renamed something" {
-    # verifies: PR-dkm5tq
-    # The unconditional commit exits 1 with nothing to commit on a round where
-    # the drafts are already dated — a halt for no defect, in a sequence that
-    # stops at any failure.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'only where there were renames' "$skill"
-    grep -qF 'git diff --cached --quiet ||' "$skill"
 }
 
 @test "merge-change: the reviewer tags every finding" {
@@ -1385,12 +1452,12 @@ gr_all_sh_fences() {
     [ "$status" -ne 0 ]
 }
 
-@test "the skills and templates name the finalize date, not the merge date" {
+@test "the skills and templates name the creation date, not the merge date" {
     # verifies: PR-xec7dd
-    # finalize-docs.sh dates a draft when it retires the draft name, which is
-    # merge-change step 3 and is not re-derived afterwards: 49 of 193 dated
-    # ledger files differ from the day their change reached the base branch,
-    # the largest gap 6 days. The documents claimed otherwise in fourteen places.
+    # A ledger file is dated the day its change creates it (ADR-cy7ahd), and
+    # nothing re-dates it at merge, so the date is not the merge date, and no
+    # skill, template or README may say it is. PR-xec7dd lists the sites that
+    # did.
     #
     # The scan covers docs/problems/README.md as well, which is this repository's
     # own copy of templates/problems.md: fixing the template does not fix the
@@ -1405,25 +1472,15 @@ gr_all_sh_fences() {
 
 @test "merge-change: step 2 records the tree its gate summary describes" {
     # verifies: PR-dkm5tq
-    # Step 6 compares the current tree against the one step 2 measured, so step
+    # Step 3 compares the current tree against the one step 2 measured, so step
     # 2 has to have written that hash down. Without it the comparison has no
     # left-hand side and the rule is unusable on its first pass.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'Record the tree the summary describes' "$skill"
-    # ...and upstream of the step 6 comparison that reads it.
+    # ...and upstream of the step 3 comparison that reads it.
     recorded=$(grep -n 'Record the tree the summary describes' "$skill" | cut -d: -f1)
     compared=$(grep -n 'the step 2 summary stands' "$skill" | cut -d: -f1)
     [ "$recorded" -lt "$compared" ]
-}
-
-@test "merge-change: step 3 tells the author to read the unrewritten lines" {
-    # verifies: PR-9zvb36
-    # The report's entire value is a human ruling narration against link, and
-    # step 3 is the only place an author is told what to read out of
-    # finalize-docs.sh. It enumerated `rewrote FILE:` and `left FILE:` only.
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'unrewritten FILE' "$skill"
-    grep -q 'would leave unrewritten' "$skill"
 }
 
 @test "verification template opens every finding with its tag" {
@@ -1830,15 +1887,11 @@ gr_write_skill_fixture() {
     grep -q 'usage or environment error from the pre-flight or a tool it runs' "$skill"
     grep -q 'their shell has none of your variables' "$rationale"
     grep -q 'cannot be re-identified one round' "$rationale"
-    grep -q 'an unconditional commit exits 1 with nothing to' "$rationale"
-    grep -q 'Nothing later repeats the `unrewritten` report' "$rationale"
     # Review round 6: the rationale file no longer points into script
     # comments (see "the rationale file describes no script"), so what remains
     # to assert here is the reasons it keeps.
     grep -q 'what the duplicate scan at step 4 was compared against' "$rationale"
-    grep -q 'is adopted into this change silently' "$rationale"
     grep -q 'fails step 4 for every later change' "$rationale"
-    grep -q 'move files the tests may read' "$rationale"
     grep -q 'not the counts it was handed' "$rationale"
     grep -q 'reports on a suite it could not run' "$rationale"
     grep -q 'in the software or in the account of it' "$rationale"
@@ -2301,9 +2354,8 @@ adr_file_is_named_by_its_item() {
 @test "merge-change: step 1 prunes the plans after the base merge and commits what changed" {
     # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
     # Pruning runs after `git merge`, so the step 2 gate measures the pruned
-    # tree; run inside finalize-docs.sh at step 3, it would change the tree
-    # after the gate on nearly every merge, and step 6 would dispatch a second
-    # suite run (the deviation from D11 in docs/plans/2026-10-08-prune-plans.md).
+    # tree; run after the step 2 gate, it would change the tree after the gate
+    # on nearly every merge, and step 3 would dispatch a second suite run.
     # The prune and its commit are chained on the merge's success, and the
     # commit takes only docs/plans: run as separate lines, a conflicted merge
     # was concluded as "chore: prune plans" with its markers staged, and
@@ -2326,8 +2378,8 @@ adr_file_is_named_by_its_item() {
         { echo "step 1 does not say to read the left whole lines"; false; }
     grep -q '^## Step 1: plans are pruned after the base merge$' "$rationale" ||
         { echo "no rationale section for pruning at step 1"; false; }
-    tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -q 'and not with the draft renames at step 3' ||
-        { echo "the rationale does not say why not at step 3"; false; }
+    tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -q 'Run after the step 2 gate, it would fail step 3' ||
+        { echo "the rationale does not say why not after the gate"; false; }
 }
 
 @test "merge-change: step 1's fence prunes only after a clean merge, and commits only the plans" {
@@ -2503,6 +2555,22 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$adr_text" | grep -q '`merge-change` step 1' || { echo "no step 1"; false; }
 }
 
+@test "ADRs: the ledger-naming decision is recorded and accepted" {
+    # verifies: D1 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # The ID is built from a prefix variable: the gates scan tests/.
+    adr_prefix=ADR
+    adr_file="$BATS_TEST_DIRNAME/../docs/adr/$adr_prefix-cy7ahd-ledger-files-named-at-creation.md"
+    [ -f "$adr_file" ] || { echo "no $adr_file"; false; }
+    adr_file_is_named_by_its_item "$adr_file"
+    grep -qx 'Status: accepted' "$adr_file"
+    adr_text=$(tr '\n' ' ' < "$adr_file" | tr -s ' ')
+    for wanted in '`docs/<area>/<YYYY-MM-DD>-<slug>.md`' 'finalize-docs.sh' \
+            'add/add conflict' 'PR-8ucezf' '`DRAFT-FILE`' '`DANGLING-FILE`'; do
+        printf '%s\n' "$adr_text" | grep -qF -- "$wanted" \
+            || { echo "the ADR lacks $wanted"; false; }
+    done
+}
+
 # --- test guidelines (docs/plans/2026-10-08-test-guidelines.md) --------------
 # The seam and double rules are clauses of templates/TEST_GUIDELINES.md
 # (tests/test-guidelines.bats pins them there). The floor and the one-file rule belong to the TDD loop,
@@ -2645,4 +2713,29 @@ adr_file_is_named_by_its_item() {
     grep -qF '(`review-conformance`)' "$template"
     printf '%s\n' "$flat" | grep -qF 'kept apart from `## Review` so compliance and preference findings stay distinguishable'
     printf '%s\n' "$flat" | grep -qF 'State no number of rounds, findings or dispositions in prose, as under `## Review`'
+}
+
+@test "ratchet: the upgrade notes say ledger files are named at creation, and how to rename a draft in flight" {
+    # verifies: D7 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    grep -q '^## Ledger files are named at creation$' "$notes" || { echo "no section"; false; }
+    section=$(awk '/^## Ledger files are named at creation$/ { inside = 1; next }
+        /^## / { inside = 0 } inside' "$notes" | tr '\n' ' ' | tr -s ' ')
+    for wanted in 'finalize-docs.sh' '`--allow-draft-files`' 'git mv' \
+            'DANGLING-FILE' 'add/add conflict' '<YYYY-MM-DD>-<slug>.md'; do
+        printf '%s\n' "$section" | grep -qF -- "$wanted" \
+            || { echo "the section lacks $wanted"; false; }
+    done
+    notes_text=$(tr '\n' ' ' < "$notes" | tr -s ' ')
+    printf '%s\n' "$notes_text" | grep -qF '("Ledger files are named at creation" below)' \
+        || { echo "order of work does not point at the section"; false; }
+    skill_text=$(tr '\n' ' ' < "$skill" | tr -s ' ')
+    printf '%s\n' "$skill_text" | grep -qF 'Delete `.guardrails/scripts/finalize-ids.sh` and `finalize-docs.sh` if present.' \
+        || { echo "the upgrade does not delete finalize-docs.sh"; false; }
+    printf '%s\n' "$skill_text" | grep -qF '`YYYY-MM-DD-<slug>.md`, dated the day the change creates it' \
+        || { echo "ratchet still describes a rename"; false; }
+    if grep -q 'DRAFT-<branch>-<slug>' "$skill"; then
+        echo "ratchet still names the draft convention"; false
+    fi
 }

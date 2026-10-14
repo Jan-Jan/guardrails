@@ -17,7 +17,9 @@ cannot be told apart.
    time, or replace each `REQ-DRAFT-<branch>-<n>` token by hand with an ID from
    `new-id.sh`, and update any CI line that calls `finalize-ids.sh`. Do this
    before the new `scripts/` are copied and `finalize-ids.sh` is deleted
-   ("Item IDs are random tokens" below states why).
+   ("Item IDs are random tokens" below states why). A change in flight with a
+   `DRAFT-` ledger file renames it after the upgrade ("Ledger files are named
+   at creation" below).
 2. Before copying the new `scripts/`, run `check-trace.sh` once,
    keep its output for item 7, and work through what it reports.
 3. Run the sizing grep in "List-item annotations" below. What it prints is the
@@ -139,19 +141,16 @@ prints `REQ-a3k9z2` — instead of a sequential number assigned at merge.
 Existing sequential IDs keep working without conversion: every pattern in the
 toolkit accepts both forms, and nothing renumbers an SRS.
 
-* **Delete `.guardrails/scripts/finalize-ids.sh`.** `finalize-docs.sh`
-  replaces it; it renames the change's draft ledger file and does nothing to
-  IDs. Copying in the new `scripts/` leaves the old file behind, and
-  `merge-change` step 3 would find a script that still tries to mint. Update
-  any CI line that calls it.
+* **Delete `.guardrails/scripts/finalize-ids.sh`.** Copying in the new
+  `scripts/` leaves the old file behind. Update any CI line that calls it.
 * **Finish or discard drafts in flight before upgrading.** A
   `REQ-DRAFT-<branch>-<n>` token is a hard failure in `check-ids.sh` under
   every flag, because nothing will turn it into a real ID. Run the old
   `finalize-ids.sh` one last time, or replace each token by hand with an ID
   from `new-id.sh`.
 * **`check-ids.sh --allow-drafts` and `--base` are rejected, not ignored.**
-  The first is now `--allow-draft-files`, and it covers only ledger files with
-  a draft name. The second referred to a gate that no longer exists: IDs are
+  So is `--allow-draft-files` ("Ledger files are named at creation" below).
+  `--base` referred to a gate that no longer exists: IDs are
   allocated against nothing, and the in-tree duplicate scan sees everything
   once `merge-change` step 1 has merged the base branch in. `UNANCHORED-DEF`
   and `SKIPPED-DUPLICATE-BASE` are gone with it.
@@ -489,12 +488,29 @@ gate exists to detect.
 
 ## `DANGLING-FILE`
 
-`finalize-docs.sh` rewrites references to the files it renames, across the
-ledger directories and the SOUP file, and prints each rewrite. `check-trace.sh`
-reports `DANGLING-FILE` for a `DRAFT-*.md` reference in those files that names
-no existing file. Links left dangling by earlier merges go red at the first
-run; fix each by writing the merged file's dated name. Plans and verification
-records are neither rewritten nor scanned.
+`check-trace.sh` reports `DANGLING-FILE` for a `DRAFT-*.md` reference in the
+ledger directories and the SOUP file that names no existing file. Links left
+dangling by earlier merges go red at the first run; fix each by writing the
+name the file has now. Plans and verification records are not scanned.
+
+## Ledger files are named at creation
+
+* A change creates `docs/<area>/<YYYY-MM-DD>-<slug>.md`, dated the day it
+  creates the file, and nothing renames it. `finalize-docs.sh` and the
+  finalize step of `merge-change` are gone. Delete
+  `.guardrails/scripts/finalize-docs.sh` (copying in the new scripts leaves it
+  behind), and update any CI line that calls it.
+* `check-ids.sh` rejects `--allow-draft-files` with exit 2, as it rejects
+  `--allow-drafts`. Remove the flag from CI lines and `verify_commands`.
+* `DRAFT-FILE` still fails a draft-named file, now at every run. For a change
+  begun before the upgrade:
+  `git mv <dir>/DRAFT-<branch>-<slug>.md <dir>/<YYYY-MM-DD>-<slug>.md`, dated
+  the day the change created it
+  (`git log --diff-filter=A --format=%ad --date=short -- <file>`). Then write
+  the new name wherever a ledger cites it: `DANGLING-FILE` names each such
+  reference.
+* Two changes that pick one name meet as an add/add conflict at
+  `merge-change` step 1; give this change's file a new slug.
 
 ## Prose rules removed from the managed block
 

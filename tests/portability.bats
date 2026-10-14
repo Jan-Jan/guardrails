@@ -160,9 +160,8 @@ EOF
     # exit 0: a script that died on its config before reaching any awk would
     # pass a message-only assertion while proving nothing.
     #
-    # Covered: check-ids.sh, check-trace.sh, check-review.sh, finalize-docs.sh,
-    # new-id.sh, find-items.sh. check-signing.sh calls no awk and is not
-    # listed.
+    # Covered: check-ids.sh, check-trace.sh, check-review.sh, new-id.sh,
+    # find-items.sh. check-signing.sh calls no awk and is not listed.
     # finish-merge.sh DOES call awk and is absent for a different reason: every
     # script here is asserted at exit 0, and finish-merge.sh has nothing to
     # verify on this tree, so it would reject the run — correctly, and the
@@ -201,13 +200,12 @@ EOF
     make_change_worktree my-change
     write_record mine my-change
     printf '\n**REQ-a3k9z2**: The system shall log the dose. (implements: RC-001)\n' \
-        > docs/requirements/DRAFT-my-change-dose-logging.md
+        > docs/requirements/2026-01-02-dose-logging.md
     printf '# verifies: REQ-a3k9z2\ntrue\n' > tests/test_b.sh
     commit_all draft
 
     # Each script with the arguments that make it do its job on this tree:
-    # check-ids must tolerate the draft filename that is still a draft, and
-    # finalize-docs must not actually rename it out from under the sweep.
+    # check-ids reads a ledger file named at creation.
     bin=$(make_strict_awk)
     swept=0
     while IFS='|' read -r script arg; do
@@ -217,17 +215,16 @@ EOF
         [ "$status" -eq 0 ] || { echo "$script exited $status: $output"; false; }
         swept=$((swept + 1))
     done <<'EOF'
-check-ids.sh|--allow-draft-files
+check-ids.sh|
 check-trace.sh|
 check-review.sh|
-finalize-docs.sh|--dry-run
 new-id.sh|PR
 find-items.sh|list
 EOF
     # A loop over an empty list passes every assertion inside it. State how many
     # scripts were actually run, so a mangled here-document is a failure and
     # not a clean sweep of nothing.
-    [ "$swept" -eq 6 ] || { echo "swept $swept scripts, expected 6"; false; }
+    [ "$swept" -eq 5 ] || { echo "swept $swept scripts, expected 5"; false; }
 }
 
 # verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)
@@ -322,6 +319,103 @@ real_bsd_date_dir() {
     [[ "$(days_ago -1)" > "$today" ]] || { echo "days_ago -1 = $(days_ago -1)"; false; }
     [[ "$(days_ago -2)" > "$(days_ago -1)" ]] \
         || { echo "days_ago -2 = $(days_ago -2), -1 = $(days_ago -1)"; false; }
+}
+
+# --- PR-pc6byk --------------------------------------------------------------
+
+# pin_today's `date` stub is a fake of date(1) for the one call check-trace.sh
+# makes, `date +%Y-%m-%d`, so it gets a contract test (TEST_GUIDELINES.md,
+# Doubles 3): the same assertions against the stub and against the real date.
+# A stub answering in a shape the real date never would — a second line, a
+# time, a different format — would let every pinned test pass against a
+# "today" check-trace.sh never sees in use.
+today_is_one_iso_date_check_trace_accepts() {
+    run env PATH="$1:$PATH" date +%Y-%m-%d
+    [ "$status" -eq 0 ] || { echo "date exited $status: $output"; false; }
+    [ "${#lines[@]}" -eq 1 ] || { echo "expected one line, got: $output"; false; }
+    [[ "$output" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
+        || { echo "not YYYY-MM-DD: $output"; false; }
+    today=$output
+    write_traced_docs
+    write_pr PR-001 open "$today"
+    commit_all "opened $today"
+    run env PATH="$1:$PATH" sh .guardrails/scripts/check-trace.sh
+    [[ "$output" != *"not a date"* ]] || { echo "$output"; false; }
+    [[ "$output" != *"not a calendar date"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 0 ] || { echo "check-trace exited $status: $output"; false; }
+    # The real clock is read here and again inside check-trace.sh, so a run
+    # that crosses local midnight between the two sees the item one day old.
+    # A third read after the run says whether a crossing happened, and only
+    # then is one day accepted. The stub answers one day throughout, so
+    # against it the age is exactly 0.
+    day_after_run=$(env PATH="$1:$PATH" date +%Y-%m-%d)
+    if [ "$day_after_run" = "$today" ]; then
+        [[ "$output" == *"UNRESOLVED-PR PR-001 (open 0 days)"* ]] || { echo "$output"; false; }
+    else
+        [[ "$output" == *"UNRESOLVED-PR PR-001 (open 0 days)"* \
+            || "$output" == *"UNRESOLVED-PR PR-001 (open 1 days)"* ]] \
+            || { echo "crossed midnight to $day_after_run: $output"; false; }
+    fi
+}
+
+@test "pinned date stub: answers today as one YYYY-MM-DD line check-trace accepts" {
+    # verifies: PR-pc6byk
+    pin_today 2026-03-01
+    today_is_one_iso_date_check_trace_accepts "$BATS_TEST_TMPDIR/pinned-date"
+}
+
+@test "pinned date contract: the real date answers today the same way" {
+    # verifies: PR-pc6byk
+    # The real date is on every machine this suite runs on, so this never
+    # skips. It goes first on PATH alone, through a link, so no other tool in
+    # its directory shadows the one the scripts would otherwise find.
+    real_date=$(command -v date)
+    mkdir "$BATS_TEST_TMPDIR/real-date"
+    ln -s "$real_date" "$BATS_TEST_TMPDIR/real-date/date"
+    today_is_one_iso_date_check_trace_accepts "$BATS_TEST_TMPDIR/real-date"
+}
+
+@test "days_ago counts back from a pinned day whose local midnight does not exist" {
+    # verifies: PR-pc6byk
+    # America/Santiago springs forward at 00:00 on 2026-09-06, so that day has
+    # no 00:00. GNU date reads `-d "2026-09-06 1 days ago"` as that missing
+    # midnight and rejects it; days_ago then fell through to the BSD spelling,
+    # which GNU date also rejects. A negative count is the future: GNU date
+    # reads a signed number straight after a time of day as that time's zone
+    # offset, so `-d "2026-09-06 12:00 -1 days ago"` answered the day before.
+    # Each date(1) this machine has is asked for a count on both sides.
+    tried=0
+    for flavor in gnu bsd; do
+        dir="$BATS_TEST_TMPDIR/date-$flavor"
+        mkdir -p "$dir"
+        candidate=""
+        if [ "$flavor" = gnu ]; then
+            for name in gdate date; do
+                path=$(command -v "$name") || continue
+                "$path" --version 2>/dev/null | grep -q 'GNU coreutils' || continue
+                candidate=$path
+                break
+            done
+        else
+            path=$(command -v date) || true
+            if [ -n "$path" ] && "$path" -v+0d +%Y-%m-%d >/dev/null 2>&1; then
+                candidate=$path
+            fi
+        fi
+        [ -n "$candidate" ] || continue
+        ln -s "$candidate" "$dir/date"
+        tried=$((tried + 1))
+        counted_days=$(
+            unset PINNED_REAL_DATE PINNED_TODAY
+            export TZ=America/Santiago
+            PATH="$dir:$PATH"
+            pin_today 2026-09-06
+            echo "$(days_ago 1) $(days_ago -1) $(days_ago -2)"
+        ) || true
+        [ "$counted_days" = "2026-09-05 2026-09-07 2026-09-08" ] \
+            || { echo "$flavor date: days_ago 1, -1, -2 = '$counted_days'"; false; }
+    done
+    [ "$tried" -gt 0 ] || skip "neither GNU nor BSD date on this machine"
 }
 
 # --- PR-44z762 --------------------------------------------------------------

@@ -34,14 +34,10 @@ write_srs_reference() {
         > docs/requirements/0001-01-01-base.md
 }
 
-# assert_check_ids_clean — check-ids.sh exits 0 with no output, with and
-# without --allow-draft-files.
+# assert_check_ids_clean — check-ids.sh exits 0 with no output.
 assert_check_ids_clean() {
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 0 ] || { echo "check-ids.sh exit $status: $output"; return 1; }
-    [ -z "$output" ] || { echo "$output"; return 1; }
-    run sh .guardrails/scripts/check-ids.sh --allow-draft-files
-    [ "$status" -eq 0 ] || { echo "check-ids.sh --allow-draft-files exit $status: $output"; return 1; }
     [ -z "$output" ] || { echo "$output"; return 1; }
 }
 
@@ -90,9 +86,6 @@ assert_check_ids_clean() {
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
     output_has "DUPLICATE-ID $adr_id (defined more than once in tree)"
-    run sh .guardrails/scripts/check-ids.sh --allow-draft-files
-    [ "$status" -eq 1 ]
-    output_has "DUPLICATE-ID $adr_id (defined more than once in tree)"
     # check-trace.sh has no duplicate rule.
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
@@ -120,9 +113,6 @@ assert_check_ids_clean() {
     write_adr_item docs/adr/2026-08-22-short.md "$short_id"
     commit_all "two-digit ADR header"
     run sh .guardrails/scripts/check-ids.sh
-    [ "$status" -eq 1 ]
-    output_has "MALFORMED-ID docs/adr/2026-08-22-short.md:1:**$short_id**:"
-    run sh .guardrails/scripts/check-ids.sh --allow-draft-files
     [ "$status" -eq 1 ]
     output_has "MALFORMED-ID docs/adr/2026-08-22-short.md:1:**$short_id**:"
 }
@@ -154,16 +144,13 @@ assert_check_ids_clean() {
     output_has "PR 0, ADR 0"
 }
 
-@test "ADR IDs: an ADR draft token is DRAFT-ID, with and without --allow-draft-files" {
+@test "ADR IDs: an ADR draft token is DRAFT-ID" {
     # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
     draft_marker=DRAFT
     draft_token="$adr_prefix-$draft_marker-x-1"
     write_adr_item docs/adr/draft.md "$draft_token"
     commit_all "ADR draft token"
     run sh .guardrails/scripts/check-ids.sh
-    [ "$status" -eq 1 ]
-    output_has "DRAFT-ID docs/adr/draft.md:1:**$draft_token**:"
-    run sh .guardrails/scripts/check-ids.sh --allow-draft-files
     [ "$status" -eq 1 ]
     output_has "DRAFT-ID docs/adr/draft.md:1:**$draft_token**:"
 }

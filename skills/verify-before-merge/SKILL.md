@@ -65,11 +65,9 @@ for it.
 1. Every command in `verify_commands` (`.guardrails/config.yaml`): full test
    suite, type checks, linters. Zero failures, pristine output.
 2. `.guardrails/scripts/check-trace.sh`: clean.
-3. `.guardrails/scripts/check-ids.sh --allow-draft-files`: no duplicate and
-   no malformed IDs. The flag covers the change's own
-   `DRAFT-<branch>-<slug>.md` ledger file, which `merge-change` renames; it
-   relaxes nothing about IDs. A draft ID token is a failure at this gate and
-   at every other one.
+3. `.guardrails/scripts/check-ids.sh`: no draft ID, no draft-named file, no
+   duplicate and no malformed ID. A `DRAFT-FILE` is answered by the rename its
+   fix line gives, never passed.
 4. The change's own claims, split between the two parties who can answer:
    - **the subagent's half:** every ID the plan states it **Implements** has a
      `verifies:` test present in the change worktree, and the gate summary
@@ -124,7 +122,7 @@ to investigate, not a pass to assume.
 - The subagent reports; it does not fix. Its findings come back to you and
   follow the same route.
 - Never weaken a check to get through it (skipping tests, loosening the
-  config, `--allow-draft-files` beyond check 3, editing expected outputs), and
+  config, editing expected outputs), and
   never weaken one in the dispatch prompt.
 - If you must stop, report the failure faithfully: what failed, the actual
   output, what you tried.
@@ -152,7 +150,6 @@ Only a fully green gate authorizes `merge-change`.
 | "I'll run the suite myself, it is quicker" | Dispatch it. The logs stay out of your context. |
 | "It exited 0, so it passed" | Read the counts. A runner can report failures and exit 0. |
 | "The summary is green, the gate is green" | Not until your half of check 4 and check 8 are answered. |
-| "Add `--allow-draft-files` to the other checks too" | That weakens a check. It applies to check 3 only. |
 | "Re-run only the check that failed" | Dispatch the whole gate again. |
 
 ## Done when

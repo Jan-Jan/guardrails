@@ -93,9 +93,9 @@ above all) are the worklist for the disclaimers question.
    - `templates/AGENTS-block.md` → becomes the body of a new `AGENTS.md`
 
    The requirements, risk, architecture and problems directories are
-   per-change ledgers: each merged change adds one file,
-   `DRAFT-<branch>-<slug>.md` until `merge-change` renames it
-   `YYYY-MM-DD-<slug>.md`. Each README contains the item grammar.
+   per-change ledgers: each change adds one file,
+   `YYYY-MM-DD-<slug>.md`, dated the day the change creates it. Each README
+   contains the item grammar.
 4. Create `docs/adr/`, `docs/plans/` and `docs/verification/`, and copy
    `templates/verification.md` → `.guardrails/templates/verification.md`.
    **Never put the template in `docs/verification/`**: every `*.md` there is
@@ -140,7 +140,7 @@ Work in a worktree, as a change of its own.
    guidelines file. Then copy `scripts/*.sh` → `.guardrails/scripts/`,
    keeping executable bits, and
    `templates/*_GUIDELINES.md` → `.guardrails/templates/`. Delete
-   `.guardrails/scripts/finalize-ids.sh` if present.
+   `.guardrails/scripts/finalize-ids.sh` and `finalize-docs.sh` if present.
 3. **Update the files that document the grammar with the scripts.**
    Re-copy the four ledger READMEs and the verification template from the
    same guardrails version, and re-replace the AGENTS.md managed block between

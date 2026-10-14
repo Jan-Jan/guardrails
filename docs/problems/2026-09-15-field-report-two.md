@@ -151,6 +151,13 @@ revert was made, and to the current base now, since later changes rewrote both
 files
 and this change took their versions whole.
 
+Amended 2026-10-13 by ledger-names-at-creation (ADR-cy7ahd). The script that
+adopted every draft before step 4 could convict it is deleted, and nothing
+creates a draft name any more, so a leftover draft name reaches the base only
+through a change that skips the gate. The verdict still reads the whole tree and
+names no change. The discriminator this item wants is still presence on the base
+branch: a file this branch adds, `git diff --diff-filter=A <base>...HEAD`.
+
 **PR-dkm5tq**: `merge-change` dispatches the verification suite at step 2 and
 again at step 6 on every findings round, and after the first round the two runs
 are the same run over the same tree — step 3 renames nothing once the drafts are
@@ -428,7 +435,13 @@ steps 3 and 4, which state both limitations in prose because no gate states them
 names no change. This item and `PR-8ucezf` are two halves of one problem and want
 one discriminator; a fix to either alone is what this change tried and withdrew.
 opened: 2026-09-15
-status: open
+status: resolved
+Resolved: `finalize-docs.sh` is deleted and nothing renames a ledger file at
+merge (ADR-cy7ahd), so no change can adopt another's file. The behavior is
+removed, not repaired, so no test reproduces it; what meets a leftover draft
+name now is `DRAFT-FILE`, whose fix line is the `git mv`, pinned by
+`check-ids: the DRAFT-FILE fix line is the git mv to a dated name` in
+`tests/remedies.bats`.
 Found by the independent review of the change that added `FOREIGN-DRAFT`
 (`PR-8ucezf`), which is the item that misdiagnosed it — the symptom was read at
 `check-ids.sh` when the adoption happens a step earlier. Reproduced in a clean

@@ -67,17 +67,17 @@
 # The key is not read through gr_check_config, so a project with no config
 # file runs this as an adopter does.
 #
-# Why merge-change step 1 and not finalize-docs.sh at step 3: pruning changes
-# the tree on nearly every merge, and step 3 runs after the step 2 gate, so the
-# tree-hash rule of step 6 would dispatch a second full suite run each time.
-# Run after the base merge, the step 2 gate measures the pruned tree.
+# Why merge-change step 1: pruning changes the tree on nearly every merge. Run
+# after the step 2 gate, it would fail step 3's tree-hash check and dispatch a
+# second full suite run. Run after the base merge, the step 2 gate measures the
+# pruned tree.
 #
 # Exit codes: 0 success, 2 usage/environment error.
 set -u
 
 . "$(dirname "$0")/lib.sh"
 # The status is taken from the substitution: gr_die inside it exits only the
-# subshell (finalize-docs.sh gives the dash `cd ""` reason).
+# subshell (under dash, `cd ""` returns 0 and stays put).
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
 

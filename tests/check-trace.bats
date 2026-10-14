@@ -28,6 +28,7 @@ EOF
 }
 
 setup() {
+    pin_today
     make_fixture_repo
     write_traced_docs
     commit_all good
@@ -3974,6 +3975,21 @@ CFG
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     [[ "$output" == *"INCOMPLETE-PROBLEM PR-001 (open, no opened:)"* ]] || { echo "$output"; false; }
+}
+
+@test "check-trace: an age is counted from the pinned day on both sides" {
+    # verifies: PR-pc6byk, D10 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # The fixture's date and the script's "today" must come from one day, or
+    # a run that crosses local midnight between them reports one day more.
+    pin_today 2026-03-01
+    [ "$(date +%Y-%m-%d)" = 2026-03-01 ] || { echo "date: $(date +%Y-%m-%d)"; false; }
+    [ "$(days_ago 1)" = 2026-02-28 ] || { echo "days_ago 1: $(days_ago 1)"; false; }
+    [ "$(days_ago -1)" = 2026-03-02 ] || { echo "days_ago -1: $(days_ago -1)"; false; }
+    write_pr PR-001 open "$(days_ago 1)"
+    commit_all pinned
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNRESOLVED-PR PR-001 (open 1 days)"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: trailing whitespace on a field is not part of its value" {

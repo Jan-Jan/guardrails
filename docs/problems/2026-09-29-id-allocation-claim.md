@@ -15,3 +15,6 @@ it. `scripts/check-ids.sh` names the collision case in the same sentence as
 "vanishing", so the gate is right and the prose around it is not. The
 `merge-change` reference file for `agent-first-skills` names no script, so it
 points into none of these texts.
+
+2026-10-13: `scripts/finalize-docs.sh` was deleted by
+ledger-names-at-creation (ADR-cy7ahd); its header is no longer a site.

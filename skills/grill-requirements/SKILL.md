@@ -64,9 +64,9 @@ The ledgers must not enter this conversation's context.
 
 Update the requirements ledger (`doc_srs`) one item at a time. Do not batch.
 
-- Write new items in this change's draft file,
-  `docs/requirements/DRAFT-<branch>-<slug>.md`. `merge-change` renames it to a
-  dated name when it finalizes the draft.
+- Write new items in this change's own file,
+  `docs/requirements/<YYYY-MM-DD>-<slug>.md`, dated the day you create it;
+  nothing renames it.
 - Edit an amendment to an existing requirement in the dated file that defines
   it. Definitions never move. Where `doc_srs` points at a single file, edit
   that file. An amendment that supersedes or retires an item follows

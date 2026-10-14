@@ -1,11 +1,10 @@
 # Architecture ledger
 
-This directory is a per-change ledger: each merged change contributes one
-dated file, `YYYY-MM-DD-<slug>.md` (the finalize date, assigned by `merge-change`
-from your worktree's `DRAFT-<branch>-<slug>.md`). **Edit existing items in
-the file that defines them.** Use this README's Overview section for the
-system-wide decomposition picture; `soup.md` (single file) contains the SOUP
-inventory.
+This directory is a per-change ledger: each change contributes one dated
+file, `YYYY-MM-DD-<slug>.md`, dated the day the change creates it and never
+renamed. **Edit existing items in the file that defines them.** Use this
+README's Overview section for the system-wide decomposition picture; `soup.md`
+(single file) contains the SOUP inventory.
 
 <!--
 Item grammar (enforced by .guardrails/scripts/check-trace.sh):

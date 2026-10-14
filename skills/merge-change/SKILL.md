@@ -1,6 +1,6 @@
 ---
 name: merge-change
-description: The compliance chokepoint - integrate a worktree into the base branch via ID finalization, full checks, and a verified signed squash merge, then clean up the worktree. Use when a change has passed verify-before-merge and is ready to integrate.
+description: The compliance chokepoint - integrate a worktree into the base branch via full checks and a verified signed squash merge, then clean up the worktree. Use when a change has passed verify-before-merge and is ready to integrate.
 ---
 
 # Merge Change
@@ -53,6 +53,11 @@ The tag must be unique per dispatch.
      why, and the record states it too. Never adopt that by analogy.
    - Run this step every round. Resolve conflicts here, never on the base
      branch, then rerun.
+   - An add/add conflict on a ledger file means the base merged a file of the
+     same name. Keep the base's file, `git checkout --theirs -- <path>`, after
+     saving this change's version under a new slug,
+     `git show :2:<path> > <new path>`. Then `git add` both, and write the new
+     name wherever this change cites it.
    - A `shared:` line names a file this change edits that the base edited
      after the last reviewed commit: 6a then reviews the whole change again,
      even after the last review round. Otherwise the gate rerun covers it.
@@ -67,32 +72,15 @@ The tag must be unique per dispatch.
    git rev-parse HEAD^{tree}   # clean worktree, at dispatch
    ```
 
-3. **Finalize the draft doc files.** Preview, then run:
+3. **Confirm the step 2 summary describes this tree**, when it arrives:
 
    ```sh
-   .guardrails/scripts/finalize-docs.sh --dry-run
-   .guardrails/scripts/finalize-docs.sh
+   git status --porcelain      # must be empty
+   git rev-parse HEAD^{tree}   # compare with the hash recorded at step 2
    ```
 
-   Read every line it prints:
-
-   - `rewrote FILE: old -> new` — check the edited prose.
-   - `left FILE: …` — write the reference as a path by hand.
-   - `unrewritten FILE:LINE: NAME` (`would leave unrewritten` under
-     `--dry-run`) — narration of the rename stays; a citation meant to resolve
-     is dead, so repair it.
-   - A rename you do not recognise is another change's leftover draft.
-     Stop: its repair is a separate change.
-
-   Only root-relative paths and bare names are rewritten. Step 4 reports a
-   relative link as `DANGLING-FILE`; write the dated name by hand.
-
-   Commit the renames **only where there were renames**:
-
-   ```sh
-   git add -A
-   git diff --cached --quiet || git -c commit.gpgsign=false commit -m "chore: finalize ledger files"
-   ```
+   Same hash and a clean worktree: **the step 2 summary stands**. Otherwise
+   dispatch the suite again.
 
 4. **Run the pre-flight** before the review:
 
@@ -112,17 +100,9 @@ The tag must be unique per dispatch.
 
    - `MALFORMED-ID`: give the item an ID from `new-id.sh`. Never widen a
      pattern to accept the token.
-   - `DRAFT-FILE` on a path this change did not create is another change's
-     unfinished step 3, repaired by a separate change.
-6. **Dispatch the verification suite again, where step 3 renamed something.**
-
-   ```sh
-   git status --porcelain      # must be empty
-   git rev-parse HEAD^{tree}   # compare with the hash recorded at step 2
-   ```
-
-   Same hash and a clean worktree: **the step 2 summary stands**. Otherwise
-   dispatch the suite again.
+   - `DRAFT-FILE` on a path this change did not add is a draft name another
+     change left behind, renamed by a separate change.
+6. **Review the change and record it**, in steps 6a to 6d.
 
 6a. **Independent review** — dispatch a fresh subagent (or a human reviewer
    where team policy requires one) with the diff, the plan and
@@ -146,7 +126,7 @@ The tag must be unique per dispatch.
    **Hand the reviewer `references/review-checklist.md`**, every round.
 
    **The reviewer runs the suite itself** in its worktree and reports the
-   counts. Only a documentation-only diff may use the step 6 gate
+   counts. Only a documentation-only diff may use the step 2 gate
    summary instead; the record states the substitution.
 
    **Every finding opens with its tag** — `code`, `requirement` or `record`:

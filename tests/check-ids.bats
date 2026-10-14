@@ -46,6 +46,19 @@ EOF
     [[ "$output" == *"DRAFT-FILE docs/requirements/DRAFT-mybranch-dose.md"* ]] || { echo "$output"; false; }
 }
 
+@test "check-ids: a file listing that fails is an error, not a tree with no draft-named ledger file" {
+    # verifies: D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # A git that fails `ls-files` lists nothing, and nothing listed is what a
+    # tree with no draft-named ledger file looks like. The draft name below
+    # proves the run would otherwise have failed DRAFT-FILE.
+    printf '# placeholder\n' > docs/requirements/DRAFT-mybranch-dose.md
+    commit_all draftfile
+    failing_git_directory=$(make_git_failing_on '*" ls-files "*')
+    PATH="$failing_git_directory:$PATH" run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "failed listing read as a clean tree: $status $output"; false; }
+    [[ "$output" == *"git ls-files exit 128"* ]] || { echo "$output"; false; }
+}
+
 @test "check-ids: duplicate LLR definitions fail with DUPLICATE-ID" {
     printf '**LLR-001**: clamp dose. satisfies: REQ-001\n' > docs/architecture/0001-01-01-base.md
     printf '**LLR-001**: duplicate.\n' > src/extra.md
@@ -107,6 +120,7 @@ EOF
 }
 
 @test "every gr_def_re call site is still a call site, and no copy joins them" {
+    # verifies: AC5 (docs/plans/2026-08-19-id-consistency.md)
     cd "$BATS_TEST_DIRNAME/.."
     # Two assertions, because neither is sufficient on its own and the first
     # two attempts at this test were both false greens.
@@ -131,7 +145,6 @@ EOF
     calls_check_units=0
     calls_find_items=0
     calls_check_trace=3
-    calls_finalize_docs=0
     calls_finish_merge=0
     calls_guidelines_file=0
     calls_lib=0
@@ -146,7 +159,6 @@ EOF
     forms_check_units=0
     forms_find_items=0
     forms_check_trace=0
-    forms_finalize_docs=0
     forms_finish_merge=0
     forms_guidelines_file=0
     forms_lib=0
@@ -174,7 +186,6 @@ EOF
     # 9 since the out-of-force scan (PR-kzst5n): its awk takes the same body.
     # 10 since credit_scan (PR-44ww7q, PR-z7w5bf): the same body again.
     body_check_trace=10
-    body_finalize_docs=0
     body_finish_merge=0
     body_guidelines_file=0
     # 3 since gr_req_scan (units change): its awk takes body="$GR_ID_BODY"
@@ -197,7 +208,6 @@ EOF
     token_check_units=1
     token_find_items=0
     token_check_trace=0
-    token_finalize_docs=0
     token_finish_merge=0
     token_guidelines_file=0
     token_lib=1
@@ -217,7 +227,6 @@ EOF
     loose_check_units=0
     loose_find_items=0
     loose_check_trace=0
-    loose_finalize_docs=0
     loose_finish_merge=0
     loose_guidelines_file=0
     loose_lib=0
@@ -237,7 +246,6 @@ EOF
     # 7 since the out-of-force scan (PR-kzst5n): it reads blocks the same way.
     # 8 since credit_scan (PR-44ww7q, PR-z7w5bf): the same fragment again.
     block_check_trace=8
-    block_finalize_docs=0
     block_finish_merge=0
     block_guidelines_file=0
     # 1 since gr_req_scan (units change): its awk composes the shared
@@ -262,7 +270,6 @@ EOF
     # 2 since credit_scan (PR-44ww7q, PR-z7w5bf): it skips front matter by
     # the shared rule, as the orphan backstop does.
     fm_check_trace=2
-    fm_finalize_docs=0
     fm_finish_merge=0
     fm_guidelines_file=0
     fm_lib=0
@@ -285,7 +292,6 @@ EOF
     # 4 since the out-of-force scan (PR-kzst5n): it checks a `retired:` date
     # with the shared gr_date_ok rather than its own calendar.
     civil_check_trace=4
-    civil_finalize_docs=0
     civil_finish_merge=0
     civil_guidelines_file=0
     civil_lib=0
@@ -370,7 +376,7 @@ EOF
             false
         }
     done
-    [ "$seen" -eq 14 ] || { echo "expected 14 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 13 ] || { echo "expected 13 scripts, scanned $seen"; false; }
 
     # And the constructor and the body each exist exactly once, so the counts
     # above are counts of uses of something real rather than of a name nothing
@@ -403,6 +409,7 @@ EOF
 }
 
 @test "every script parses as POSIX sh" {
+    # verifies: PR-xyu6en
     cd "$BATS_TEST_DIRNAME/.."
     # Twice during this change an apostrophe inside a single-quoted awk program
     # closed the quote and left a script that could not be parsed at all. Both
@@ -413,7 +420,7 @@ EOF
         seen=$((seen + 1))
         sh -n "$f" || { echo "does not parse: $f"; false; }
     done
-    [ "$seen" -eq 14 ] || { echo "expected 14 scripts, scanned $seen"; false; }
+    [ "$seen" -eq 13 ] || { echo "expected 13 scripts, scanned $seen"; false; }
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {
@@ -462,21 +469,19 @@ EOF
 }
 
 @test "check-ids: a stock install does not report its own tooling" {
-    # AC9. The exclusion narrowed in this change exists only so the installed
-    # scripts — whose comments contain `REQ-DRAFT-b-1` and definition-form
-    # examples — do not trip the gates they implement. That is the criterion
-    # the narrowing trades against, so assert it rather than assume it.
+    # verifies: AC9 (docs/plans/2026-08-20-scan-pathspec.md), its check-ids.sh half
+    # The scan exclusion, which names .guardrails/scripts and nothing wider,
+    # exists only so the installed scripts — whose comments contain
+    # `REQ-DRAFT-b-1` and definition-form examples — do not trip the gates
+    # they implement. That is the criterion the exclusion's width trades
+    # against, so assert it rather than assume it.
     #
-    # Green against main on arrival: it guards the narrowing, and cannot be
-    # presented as evidence that the narrowing works.
+    # It passes with a wider exclusion too, so it is no evidence that the
+    # exclusion is narrow.
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 0 ] || { echo "tooling reports itself: $output"; false; }
     [[ "$output" != *"DRAFT-ID"* ]] || { echo "own draft token: $output"; false; }
     [[ "$output" != *"MALFORMED-ID"* ]] || { echo "own def form: $output"; false; }
-
-    run sh .guardrails/scripts/finalize-docs.sh --dry-run
-    [ "$status" -eq 0 ]
-    [ -z "$output" ] || { echo "tooling looks renamable: $output"; false; }
 }
 
 @test "check-ids: a draft ID in a project file under .guardrails/ is reported" {
@@ -627,16 +632,19 @@ EOF
     [[ "$output" != *"MALFORMED-ID"* ]] || { echo "$output"; false; }
 }
 
-# --- drafts are gone, and the flag now only covers ledger FILENAMES --------
+# --- a draft-named ledger file fails, and no flag tolerates one -----------
 
-@test "check-ids: a draft ID fails even with --allow-draft-files" {
-    printf '**PR-DRAFT-x-1**: a leftover draft.\nstatus: open\n' \
-        > docs/problems/z.md
-    commit_all draft
-
+@test "check-ids: --allow-draft-files is gone, and is rejected rather than ignored" {
+    # verifies: D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # No step creates or renames a draft-named ledger file (ADR-cy7ahd), so a
+    # flag that let one pass would be a gate the caller believes they ran.
+    # Rejected like --allow-drafts, so a stale CI line or an un-upgraded skill
+    # breaks loudly at the upgrade.
+    printf '**PR-a3k9z2**: a real item.\nstatus: open\n' > docs/problems/DRAFT-x-new.md
+    commit_all draftfile
     run sh .guardrails/scripts/check-ids.sh --allow-draft-files
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-ID"* ]] || { echo "$output"; false; }
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"unknown argument: --allow-draft-files"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: the draft failure states what to run instead" {
@@ -660,17 +668,8 @@ EOF
         || { echo "$output"; false; }
 }
 
-@test "check-ids: --allow-draft-files tolerates a draft ledger filename" {
-    printf '**PR-a3k9z2**: a real item.\nstatus: open\n' \
-        > docs/problems/DRAFT-x-new.md
-    commit_all draftfile
-
-    run sh .guardrails/scripts/check-ids.sh --allow-draft-files
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"DRAFT-FILE"* ]] || { echo "$output"; false; }
-}
-
-@test "check-ids: a draft ledger filename still fails without the flag" {
+@test "check-ids: a draft-named ledger file fails" {
+    # verifies: D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
     printf '**PR-a3k9z2**: a real item.\nstatus: open\n' \
         > docs/problems/DRAFT-x-new.md
     commit_all draftfile
@@ -678,6 +677,15 @@ EOF
     run sh .guardrails/scripts/check-ids.sh
     [ "$status" -eq 1 ]
     [[ "$output" == *"DRAFT-FILE"* ]] || { echo "$output"; false; }
+}
+
+@test "check-ids: a ledger file named at creation passes" {
+    # verifies: D1, D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    printf '**PR-a3k9z2**: a real item.\nstatus: open\n' > docs/problems/2026-10-13-new.md
+    commit_all dated
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [[ "$output" != *"DRAFT-FILE"* ]] || { echo "$output"; false; }
 }
 
 @test "check-ids: --allow-drafts is gone, and is rejected rather than ignored" {

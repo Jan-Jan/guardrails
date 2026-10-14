@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
-# guardrails shared helpers — POSIX sh, sourced by the check/finalize scripts.
+# guardrails shared helpers — POSIX sh, sourced by the scripts in this directory.
 # Scripts run from the target repo root. GR_CONFIG overrides the config path.
 #
 # Several helpers below call gr_die, which exits 2. A helper invoked inside a

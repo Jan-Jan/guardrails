@@ -50,12 +50,12 @@
 #   DANGLING-FILE FILE       — a `DRAFT-<name>.md` ledger file (name
 #                              characters [A-Za-z0-9_.-]) named in a doc_*
 #                              file, by path or bare name, that does not exist.
-#                              Usual causes: a draft another change merged and
-#                              renamed, or a draft in another unit.
-#                              finalize-docs.sh does not rewrite a relative
-#                              link, a name in emphasis or a name joined to a
-#                              longer word. Plans and verification records are
-#                              not scanned. A reference to an existing draft
+#                              Usual causes: a draft-named ledger file
+#                              renamed to its dated name (ADR-cy7ahd) while a
+#                              ledger still names the old one, or a draft in
+#                              another unit.
+#                              Plans and verification records are not
+#                              scanned. A reference to an existing draft
 #                              passes. A bare name resolves against this unit's
 #                              ledger directories only; across units, write the
 #                              path.
@@ -259,7 +259,7 @@ check_trace_remedy() {
         (UNSATISFIED-LLR) echo 'Add satisfies: <REQ> to the LLR block, or mark it satisfies: derived and assess it with analyze-risks.' ;;
         (UNANALYZED-DERIVED) echo 'Run analyze-risks and put assesses: <ID> on its own line under the RMF derived-requirements heading; a mention elsewhere does not count.' ;;
         (DANGLING-REF) echo 'Correct the typo in the reference, or remove every reference to a deleted item — see the script header.' ;;
-        (DANGLING-FILE) echo 'Write the dated name the draft file was merged under; never delete the reference to pass the gate — see the script header.' ;;
+        (DANGLING-FILE) echo 'Write the name the file has now: the dated name a draft-named ledger file was renamed to. Never delete the reference to pass the gate — see the script header.' ;;
         (MISPLACED-ITEM) echo 'Move the definition into the document configured for its prefix: REQ doc_srs, HAZ and RC doc_rmf, SDD and LLR doc_sad, PR doc_problems.' ;;
         (NON-RECIPROCAL-SUPERSESSION) echo 'Add the missing half at column one inside the named item block; never delete the half that is present.' ;;
         (ORPHAN-ANNOTATION) echo 'Move the line into the item block it describes, at column one with no list marker — see the script header.' ;;
@@ -1367,24 +1367,26 @@ $(ids_defined "$pfx")"
     done
 fi
 
-# --- DANGLING-FILE: a draft ledger file named in a ledger must exist --------
-# finalize-docs.sh rewrites references to the files it renames, over exactly
-# these files. What it cannot reach is convicted here: a reference contained in
-# another worktree when the draft's own change merged and renamed it, or a
-# reference in another unit's ledger, which that unit's finalize never
-# scanned. Resolve, never ban — a reference to a draft that EXISTS is the
-# in-flight state of every unmerged change, and a gate on the prefix alone
-# would fire on every worktree doing this correctly.
+# --- DANGLING-FILE: a draft-named ledger file named in a ledger must exist --
+# Under ADR-cy7ahd no merge step renames a ledger file. A draft-named ledger
+# file carries the name from before that ADR, which DRAFT-FILE in check-ids.sh
+# tells its author to `git mv` to its dated name, and that rename leaves every
+# reference to the old name behind, in this tree or in another worktree: those
+# are convicted here. Resolve, never ban — a reference to a draft that EXISTS
+# is a change not yet renamed, and a gate on the prefix alone is DRAFT-FILE's
+# job, not this one's.
 #
-# Scope is the rewrite's scope and not strict_paths (D3, 2026-09-08): plans
-# and verification records narrate the rename, and "created as DRAFT-x.md"
-# is a true sentence that must stay true. The token must look like a real
-# file name, so the grammar placeholder `DRAFT-<branch>-<slug>.md` in the
-# shipped ledger READMEs matches nothing. A path-shaped reference resolves
-# from the repository root and then from the referencing file's own
-# directory, so the relative link a markdown renderer actually follows is not
-# convicted while its target exists (review finding 4). Each arm's message
-# names the places it looked rather than asserting the file exists nowhere:
+# Scope is the doc_* files and the SOUP file, not strict_paths (D3,
+# 2026-09-08): plans and verification records narrate history, and "created
+# as DRAFT-x.md" is a true sentence that must stay true. The token must look
+# like a real file name, so the grammar placeholder
+# `DRAFT-<branch>-<slug>.md`, which the ledger READMEs carried before
+# ADR-cy7ahd and an older adopter's copy may still carry, matches nothing. A
+# path-shaped reference resolves from the repository root and then from the
+# referencing file's own directory, so the relative link a markdown renderer
+# actually follows is not convicted while its target exists (review finding
+# 4). Each arm's message names the places it looked rather than asserting the
+# file exists nowhere:
 # in a manifest repository a path written relative to another unit's root
 # resolves against neither root, and "does not exist" would be false of it
 # (findings 19 and 22). A bare basename resolves against every ledger
@@ -1392,7 +1394,7 @@ fi
 #
 # The token class is the ledger grammar's — letters, digits, underscore, dot,
 # hyphen — so a draft named outside it (a + or @ in the slug) is not looked
-# for; finalize renames any DRAFT-*.md, so this is narrower than the rename,
+# for; DRAFT-FILE convicts any DRAFT- name, so this is narrower than that gate,
 # deliberately: widening it to any non-space character makes prose match
 # (review finding 18). A bare name resolves against THIS config's ledger
 # directories: in a manifest repository a bare reference to another unit's
@@ -1425,14 +1427,14 @@ if [ -n "$file_scope" ]; then
                 [ -e "$_dref" ] && continue
                 case "$_dfile" in (*/*) _ddir=${_dfile%/*} ;; (*) _ddir=. ;; esac
                 [ -e "$_ddir/$_dref" ] && continue
-                _why="names a draft ledger file found neither at the repository root nor beside the file naming it — after a merge, write the dated name" ;;
+                _why="names a draft-named ledger file found neither at the repository root nor beside the file naming it — write the name the file has now" ;;
             (*)
                 _found=0
                 for _d in $doc_dirs; do
                     [ -e "$_d/$_dref" ] && { _found=1; break; }
                 done
                 [ "$_found" -eq 1 ] && continue
-                _why="names a draft ledger file found in none of this config's ledger directories — after a merge, write the dated name; across units, write the path" ;;
+                _why="names a draft-named ledger file found in none of this config's ledger directories — write the name the file has now; across units, write the path" ;;
         esac
         print_violations "DANGLING-FILE $_dref ($_dfile:$_dline $_why)"
         fail=1

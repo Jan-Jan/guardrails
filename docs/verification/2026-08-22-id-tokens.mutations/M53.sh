@@ -1,5 +1,8 @@
 #!/bin/sh
 # describes: finalize-docs.sh: --dry-run exits before printing the renames it planned
+# retired: scripts/finalize-docs.sh was deleted by ledger-names-at-creation
+# (ADR-cy7ahd): nothing renames a ledger file at merge, so the behavior
+# this mutation removed no longer exists, and its tests went with it.
 python3 - <<'PY'
 s = open('scripts/finalize-docs.sh').read()
 old = '[ -n "$renames" ] || exit 0\n'

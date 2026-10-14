@@ -1,5 +1,10 @@
 #!/bin/sh
 # describes: check-ids.sh: DRAFT-ID is suppressed by --allow-draft-files again
+# retired: --allow-draft-files was removed by ledger-names-at-creation
+# (ADR-cy7ahd), so no flag exists that could suppress DRAFT-ID, and the
+# test that killed this mutation went with the flag. "check-ids:
+# --allow-draft-files is gone, and is rejected rather than ignored" pins
+# the rejection.
 python3 - <<'PY'
 s = open('scripts/check-ids.sh').read()
 old = 'drafts=$(git grep -In --untracked -E "$draft_re" -- . "$GR_SCAN_EXCLUDE")'

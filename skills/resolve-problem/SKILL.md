@@ -24,9 +24,9 @@ Check first that the problem is not already recorded:
 open problem reports, and `find-items.sh show ID` prints one. If an open item
 describes this problem, work under its ID and do not record a second one.
 
-Otherwise, add the problem to this change's draft file in the problems ledger,
-`docs/problems/DRAFT-<branch>-<slug>.md` (directory from `doc_problems` in
-`.guardrails/config.yaml`).
+Otherwise, add the problem to this change's own file in the problems ledger,
+`docs/problems/<YYYY-MM-DD>-<slug>.md`, dated the day you create it (directory
+from `doc_problems` in `.guardrails/config.yaml`).
 
 Mint the ID first, with `.guardrails/scripts/new-id.sh PR`, and write the item
 with the ID it printed:

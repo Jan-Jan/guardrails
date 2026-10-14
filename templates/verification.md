@@ -24,7 +24,7 @@ measurement nobody made.
 
 Measured on: `<commit>` — `git rev-parse HEAD` — tree `<tree hash>`, from
 `git rev-parse HEAD^{tree}` on a clean worktree. Where `merge-change` step 3
-renamed nothing, this is the tree step 2 measured and the step 2 gate summary
+found the tree unchanged, this is the tree step 2 measured and the step 2 gate summary
 is what the rows below report.
 
 A figure that describes the repository rather than this change does not belong

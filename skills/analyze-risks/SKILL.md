@@ -18,9 +18,9 @@ description: ISO 14971 risk analysis interview - identify hazards, hazardous sit
   you need with `find-items.sh show ID`, and find what cites an item with
   `find-items.sh refs ID`. Read the RMF whole only when these do not answer
   the question.
-- New HAZ and RC items and new derived assessments go into this change's draft
-  file, `docs/risk/DRAFT-<branch>-<slug>.md`. Amend an existing item in the
-  dated file that defines it.
+- New HAZ and RC items and new derived assessments go into this change's own
+  file, `docs/risk/<YYYY-MM-DD>-<slug>.md`, dated the day you create it. Amend
+  an existing item in the dated file that defines it.
 
 ## Steps
 

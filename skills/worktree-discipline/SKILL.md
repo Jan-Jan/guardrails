@@ -143,12 +143,11 @@ description: Mandatory isolation for every change in a guardrails project - crea
    `MALFORMED-ID`. Reference the minted IDs freely in code, tests
    (`verifies:`) and the plan. They are final from the first keystroke; nothing
    rewrites them later.
-6. **Draft doc files.** On ledger-layout projects (doc config keys point at
-   directories), new items go into this change's own file:
-   `docs/<area>/DRAFT-<branch>-<slug>.md`. `merge-change` renames it to
-   `YYYY-MM-DD-<slug>.md`, dated when the draft name is retired. Edit an
-   amendment to an existing item in the dated file that defines it; never move
-   a definition between files.
+6. **Ledger files.** On ledger-layout projects (doc config keys point at
+   directories), new items go into this change's own file,
+   `docs/<area>/<YYYY-MM-DD>-<slug>.md`, dated the day you create it. Nothing
+   renames it. Edit an amendment to an existing item in the dated file that
+   defines it; never move a definition between files.
 7. **Commit early and often.** Worktree commits may be unsigned
    (`git -c commit.gpgsign=false commit`); they are squashed away, and only the
    merge commit on the base branch must be signed. Never check out or commit
@@ -220,7 +219,7 @@ description: Mandatory isolation for every change in a guardrails project - crea
   dispatched task is in a task worktree at the path the dispatcher named,
   confirmed with `git -C <path> status`.
 - The baseline was run, and a red baseline has an explicit decision.
-- Every new item has an ID from `new-id.sh`, in this change's draft file on a
+- Every new item has an ID from `new-id.sh`, in this change's own file on a
   ledger-layout project.
 - Every task worktree is merged or discarded and removed, with its branch.
 - The plan, the ledger and the verification record contain the change's state.

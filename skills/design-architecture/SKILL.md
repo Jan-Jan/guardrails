@@ -18,9 +18,9 @@ description: Create or evolve the IEC 62304 software architecture - SDD items tr
 
 ## Steps
 
-**Where items go.** Write new SDD and LLR items into this change's draft file,
-`docs/architecture/DRAFT-<branch>-<slug>.md`. Edit an amendment to an existing
-item in the dated file that defines it. Keep `soup.md` a single inventory
+**Where items go.** Write new SDD and LLR items into this change's own file,
+`docs/architecture/<YYYY-MM-DD>-<slug>.md`, dated the day you create it. Edit
+an amendment to an existing item in the dated file that defines it. Keep `soup.md` a single inventory
 file.
 
 1. **Read first:** the REQs this design serves, the controls (RC) that

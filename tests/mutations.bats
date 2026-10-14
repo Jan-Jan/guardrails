@@ -106,6 +106,7 @@ EOS
 }
 
 @test "mutations: the retirement count is pinned, so one more is a visible edit" {
+    # verifies: D8 (docs/plans/2026-10-13-ledger-names-at-creation.md)
     # A `# retired:` declaration is believed, by design: D2 makes retirement
     # declared rather than inferred, because inferring it would let every newly
     # broken anchor retire itself. The cost is that the declaration is also the
@@ -123,8 +124,8 @@ EOS
     # Raising this number is legitimate whenever a behaviour genuinely goes
     # away. Raise it in the commit that retires the script, never separately.
     retired=$(grep -rlE '^# retired: ' "$root"/docs/verification/*.mutations/M*.sh | wc -l | tr -d ' ')
-    [ "$retired" -eq 17 ] || {
-        echo "the corpus declares $retired retired mutations, expected 17"
+    [ "$retired" -eq 24 ] || {
+        echo "the corpus declares $retired retired mutations, expected 24"
         echo "a new retirement is deliberate — raise this number in the same commit"
         grep -rlE '^# retired: ' "$root"/docs/verification/*.mutations/M*.sh
         false

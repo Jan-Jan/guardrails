@@ -724,6 +724,7 @@ PY
 }
 
 @test "every script stops outside a git repository, at gr_root" {
+    # verifies: the fail-closed gr_root guard (docs/verification/2026-08-27-config-schema.md, its fixes carried)
     # `cd "$(gr_root)" || exit 2` does not fail closed under dash. The fix
     # was merged into all seven scripts and the evidence in one of them, so a
     # mutation reverting the other six was not detected by the whole suite.
@@ -756,7 +757,7 @@ PY
     done
     # Pinned, so a script added later without the guard reddens here rather
     # than being quietly excluded from the question.
-    [ "$n" -eq 13 ] || { echo "expected 13 scripts, got $n"; false; }
+    [ "$n" -eq 12 ] || { echo "expected 12 scripts, got $n"; false; }
     [ "$shell" = dash ] || skip "no dash present: this was run under $shell and cannot discriminate"
 }
 
