@@ -677,3 +677,21 @@ gate reads either guidelines file, so nothing goes red.
 * `check-signing.sh` reads its verdict with `--no-show-signature`, so
   `log.showSignature` set to true no longer turns a good signature into
   `UNVERIFIED`.
+
+## Architecture guidelines are a project file
+
+Architecture preferences are now a third guidelines file. An upgraded
+project with no `docs/ARCHITECTURE_GUIDELINES.md` follows the installed
+default, `.guardrails/templates/ARCHITECTURE_GUIDELINES.md`, which reaches
+the project with the scripts: a domain-language public interface, a core
+that performs no I/O behind adapters, items entered only through their
+interfaces. Run `tailor-guidelines` for `ARCHITECTURE` to make the file the
+project's own. `design-architecture` reads it, and `develop-change` runs one
+more `review-conformance` review per file `guidelines-file.sh ARCHITECTURE`
+prints. `develop-refactor` fixes the findings that need no design change;
+the rest go to `design-architecture`. A structural rule the project wants a
+tool to enforce, such as "this item performs no I/O", is an LLR with a test
+the project writes with its own tooling; there is no config key for it.
+Until the upgrade copies the scripts and templates,
+`guidelines-file.sh ARCHITECTURE` exits 2 and the conformance reviews stop
+there. No gate reads the file, so nothing goes red.

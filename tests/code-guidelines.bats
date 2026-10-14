@@ -6,34 +6,6 @@ load helpers
 
 template="$BATS_TEST_DIRNAME/../templates/CODE_GUIDELINES.md"
 
-# Prints one "<heading> | <N>. **<rule>**" line per top-level clause of $1.
-clause_list() {
-    awk '
-        /^## / { heading = $0 }
-        /^[0-9]+\. \*\*/ {
-            match($0, /^[0-9]+\. \*\*[^*]*\*\*/)
-            print heading " | " substr($0, 1, RLENGTH)
-        }
-    ' "$1"
-}
-
-# Fails when $1 names a guardrails document or any skill.
-names_no_guardrails_document_or_skill() {
-    guidelines_file="$1"
-    for forbidden in 'ADR-' 'docs/plans/' 'references/' 'SKILL.md' 'AGENTS.md'; do
-        # grep -c exits 1 when it counts no match, the passing case, and
-        # `|| true` keeps the 0 it prints. An unreadable file (exit 2) prints
-        # nothing, so `[ "" -eq 0 ]` errors and the test fails.
-        count=$(grep -cF -- "$forbidden" "$guidelines_file" || true)
-        [ "$count" -eq 0 ] || { echo "names $forbidden $count times"; return 1; }
-    done
-    for skill_dir in "$BATS_TEST_DIRNAME"/../skills/*/; do
-        skill_name=$(basename "$skill_dir")
-        count=$(grep -cF -- "$skill_name" "$guidelines_file" || true)
-        [ "$count" -eq 0 ] || { echo "names skill $skill_name $count times"; return 1; }
-    done
-}
-
 # Prints the lines of the grep -rn output in $output that are not in the
 # upgrade notes, which keep an old name on purpose: they tell an upgrading
 # project it is gone.
@@ -80,16 +52,7 @@ hits_outside_upgrade_notes() {
 
 @test "code guidelines: every clause states a reason and an example" {
     # verifies: D3 (docs/plans/2026-10-13-code-guidelines.md)
-    missing=$(awk '
-        function close_clause() {
-            if (clause != "" && !(has_reason && has_example)) print clause
-        }
-        /^## / { close_clause(); clause = ""; heading = $0; next }
-        /^[0-9]+\. \*\*/ { close_clause(); clause = heading " " $1; has_reason = 0; has_example = 0 }
-        /Why:/ { has_reason = 1 }
-        /Example:/ { has_example = 1 }
-        END { close_clause() }
-    ' "$template")
+    missing=$(clauses_missing_reason_or_example "$template")
     [ -z "$missing" ] || { echo "clauses with no reason or example: $missing"; false; }
 }
 

@@ -42,7 +42,7 @@ protection, CI).
 ```mermaid
 flowchart TD
     R[ratchet<br/>bootstrap / retrofit] --> G[grill-requirements<br/>REQ items + glossary]
-    R --> TG[tailor-guidelines<br/>the project's TEST_GUIDELINES.md<br/>and CODE_GUIDELINES.md]
+    R --> TG[tailor-guidelines<br/>the project's TEST_GUIDELINES.md,<br/>CODE_GUIDELINES.md and ARCHITECTURE_GUIDELINES.md]
     G <--> A[analyze-risks<br/>HAZ / RC items]
     G --> D[design-architecture<br/>SDD items + SOUP]
     A --> D

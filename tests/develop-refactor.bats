@@ -1,7 +1,8 @@
 # Content lints over skills/develop-refactor/SKILL.md: the fixer of one CODE
-# conformance review's findings (docs/plans/2026-10-13-code-guidelines.md,
-# D1 and D4). The section shape and word count are covered by the
-# skill-shape tests in skills.bats.
+# or ARCHITECTURE conformance review's findings
+# (docs/plans/2026-10-13-code-guidelines.md, D1 and D4;
+# docs/plans/2026-10-14-architecture-guidelines.md, D3 and D6). The section
+# shape and word count are covered by the skill-shape tests in skills.bats.
 
 load helpers
 
@@ -9,11 +10,12 @@ setup() {
     skill="$BATS_TEST_DIRNAME/../skills/develop-refactor/SKILL.md"
 }
 
-@test "develop-refactor: the skill is named, and fixes one CODE review's findings" {
-    # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md)
+@test "develop-refactor: the skill is named, and fixes one CODE or ARCHITECTURE review's findings" {
+    # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md); D3 (docs/plans/2026-10-14-architecture-guidelines.md)
     grep -qxF 'name: develop-refactor' "$skill"
+    grep -E '^description:' "$skill" | grep -qF 'Load it only when develop-change dispatched you to fix CODE or ARCHITECTURE findings.'
     preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$preconditions" | grep -qF 'with the findings of one `review-conformance` review against a code guidelines file'
+    printf '%s\n' "$preconditions" | grep -qF 'with the findings of one `review-conformance` review against a code or architecture guidelines file'
     printf '%s\n' "$preconditions" | grep -qF 'you do not review your own fix: the next review round does'
 }
 
@@ -55,4 +57,16 @@ setup() {
         'result: <N passed, N failed>'; do
         printf '%s\n' "$report" | grep -qxF -- "$line" || { echo "the shape lacks: $line"; false; }
     done
+}
+
+@test "develop-refactor: a finding that needs a design change comes back not fixed" {
+    # verifies: D3 (docs/plans/2026-10-14-architecture-guidelines.md)
+    flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
+    printf '%s\n' "$flat" | grep -qF 'a finding that needs an SDD or LLR item changed, or a different structure: you do not edit design items'
+    grep -qF '| "The finding needs a design item reworded; I'"'"'ll edit it" |' "$skill"
+}
+
+@test "develop-refactor: the floor names the architecture items" {
+    # verifies: D3, D6 (docs/plans/2026-10-14-architecture-guidelines.md)
+    states_architecture_floor "$skill"
 }

@@ -96,8 +96,8 @@ disposition: <what changed in the record, citing the record's own path,
 
 ## Guideline reviews
 
-One review per file `guidelines-file.sh TEST` or `guidelines-file.sh CODE`
-printed for the change diff (`develop-change`, "The conformance reviews"),
+One review per file `guidelines-file.sh TEST`, `guidelines-file.sh CODE` or
+`guidelines-file.sh ARCHITECTURE` printed for the change diff (`develop-change`, "The conformance reviews"),
 each with its findings verbatim and a disposition for every one. This section
 is kept apart from `## Review` so compliance and preference findings stay
 distinguishable: a finding here is against the project's guidelines file,

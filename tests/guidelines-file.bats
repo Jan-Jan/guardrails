@@ -68,11 +68,11 @@ docs/TEST_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
     [ "$output" = ".guardrails/templates/TEST_GUIDELINES.md: src/a.sh" ] || { echo "$output"; false; }
 }
 
-# verifies: D8 (docs/plans/2026-10-08-test-guidelines.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
+# verifies: D8 (docs/plans/2026-10-08-test-guidelines.md); D4 (docs/plans/2026-10-13-code-guidelines.md); D2 (docs/plans/2026-10-14-architecture-guidelines.md)
 @test "guidelines-file: an unknown kind is exit 2, naming the known kinds" {
-    run sh .guardrails/scripts/guidelines-file.sh ARCHITECTURE src/a.sh
+    run sh .guardrails/scripts/guidelines-file.sh NO_SUCH_KIND src/a.sh
     [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"unknown kind: ARCHITECTURE (known: TEST CODE)"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"unknown kind: NO_SUCH_KIND (known: TEST CODE ARCHITECTURE)"* ]] || { echo "$output"; false; }
 }
 
 # verifies: D4, D5 (docs/plans/2026-10-13-code-guidelines.md); D3, D8 (docs/plans/2026-10-08-test-guidelines.md)
@@ -91,6 +91,22 @@ docs/CODE_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
     [ "$output" = "$expected" ] || { echo "$output"; false; }
 }
 
+# verifies: D2, D7 (docs/plans/2026-10-14-architecture-guidelines.md)
+@test "guidelines-file: ARCHITECTURE picks the unit's, the root's or the installed default file, as TEST does" {
+    printf '# Architecture guidelines (installed default)\n' > .guardrails/templates/ARCHITECTURE_GUIDELINES.md
+    run sh .guardrails/scripts/guidelines-file.sh ARCHITECTURE src/a.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = ".guardrails/templates/ARCHITECTURE_GUIDELINES.md: src/a.sh" ] || { echo "$output"; false; }
+    write_units_manifest
+    printf '# Architecture guidelines (project)\n' > docs/ARCHITECTURE_GUIDELINES.md
+    printf '# Architecture guidelines (pump)\n' > apps/pump/docs/ARCHITECTURE_GUIDELINES.md
+    run sh .guardrails/scripts/guidelines-file.sh ARCHITECTURE apps/pump/x.c apps/ui/y.ts vendor/v.c
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    expected="apps/pump/docs/ARCHITECTURE_GUIDELINES.md: apps/pump/x.c
+docs/ARCHITECTURE_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
+    [ "$output" = "$expected" ] || { echo "$output"; false; }
+}
+
 # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
 @test "guidelines-file: one kind's project file never governs another kind" {
     printf '# Code guidelines (installed default)\n' > .guardrails/templates/CODE_GUIDELINES.md
@@ -106,6 +122,14 @@ docs/CODE_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
     [ "$status" -eq 2 ] || { echo "$output"; false; }
     [[ "$output" == *"no installed default"* ]] || { echo "$output"; false; }
     [[ "$output" == *"CODE_GUIDELINES.md"* ]] || { echo "$output"; false; }
+}
+
+# verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+@test "guidelines-file: a missing ARCHITECTURE default is exit 2 though the TEST default is installed" {
+    run sh .guardrails/scripts/guidelines-file.sh ARCHITECTURE src/a.sh
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"no installed default"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"ARCHITECTURE_GUIDELINES.md"* ]] || { echo "$output"; false; }
 }
 
 # verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)

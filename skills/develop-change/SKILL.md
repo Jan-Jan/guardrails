@@ -81,7 +81,7 @@ else: no diffs, no logs, no narrative.
   arrives**, beside their task, and mark the task done. `merge-change` step
   6b copies them from the plan into the verification record.
 
-### Derailment: the one stop this skill adds
+### Derailment and the other stops
 
 **Stop only when the answer is the user's.** Repeated failure at the same
 point qualifies:
@@ -108,9 +108,15 @@ Below that threshold, keep looping and re-dispatch, but **change the approach**
 in the new prompt. A re-dispatch that restates the same task the same way
 produces the same failure.
 
-Two other stops are deliberate and are the user's call:
-`worktree-discipline` step 4 (a red baseline) and `verify-before-merge`
-check 5 (accepting a documented coverage gap). Outside those, keep looping.
+Three other stops are deliberate and are the user's call:
+
+- `worktree-discipline` step 4 (a red baseline),
+- `verify-before-merge` check 5 (accepting a documented coverage gap), and
+- an architecture finding `develop-refactor` returns as needing a design
+  change, which `design-architecture` takes up: the alternatives are the
+  user's.
+
+Outside those, keep looping.
 
 **Read code only when a decision requires it:** a dispatch report states
 something unexpected, two tasks look like they diverge, or a finding needs
@@ -126,10 +132,12 @@ sh .guardrails/scripts/guidelines-file.sh TEST \
     $(git diff --name-only main...<change-branch>)
 sh .guardrails/scripts/guidelines-file.sh CODE \
     $(git diff --name-only main...<change-branch>)
+sh .guardrails/scripts/guidelines-file.sh ARCHITECTURE \
+    $(git diff --name-only main...<change-branch>)
 ```
 
-If either exits 2 or is missing, stop and reinstall the guardrails scripts
-and templates (`ratchet`'s upgrade). For each file either prints, dispatch
+If any exits 2 or is missing, stop and reinstall the guardrails scripts
+and templates (`ratchet`'s upgrade). For each file any prints, dispatch
 one subagent under the `review-conformance` skill, all at once: each reads
 one file and changes nothing, so no two can conflict.
 
@@ -146,8 +154,10 @@ subagent follows the other dispatches and creates a task worktree.
 
 Once every review has reported, dispatch the fixes: one subagent per review
 with findings, in a nested task worktree as any task, `develop-refactor` for
-a `CODE` file's findings and `develop-tdd` for a `TEST` file's, and merge each
-with `task-worktree.sh merge`. Fan out only across disjoint files. The agent
+a `CODE` or `ARCHITECTURE` file's findings and `develop-tdd` for a `TEST`
+file's, and merge each with `task-worktree.sh merge`. An architecture finding
+`develop-refactor` returns as needing a design change goes to
+`design-architecture` (Derailment). Fan out only across disjoint files. The agent
 that fixes a finding never reviews it.
 
 ```
@@ -179,13 +189,14 @@ finding.
 | "Re-dispatch with the same prompt" | Change the approach first. |
 | "Fix the names at `merge-change` step 6a" | That reruns the merge sequence. Run the conformance reviews here. |
 | "The reviewer saw the problem; it can fix it too" | A reviewer changes nothing. The fix is a separate dispatch, and the next round reviews it. |
-| "One reviewer can check both files" | One file per review. A reviewer with one file misses less. |
+| "One reviewer can check every file" | One file per review. A reviewer with one file misses less. |
 
 ## Done when
 
 - Every plan task is complete and its `red -> green:` lines are in the plan.
 - The suite is green.
-- Each conformance review, for `TEST` and for `CODE`, ran in its last round
+- Each conformance review, for `TEST`, `CODE` and `ARCHITECTURE`, ran in
+  its last round
   with nothing above low, and every finding is fixed or dispositioned.
 - `check-traceability` and `verify-before-merge` follow. Never claim done
   without them.

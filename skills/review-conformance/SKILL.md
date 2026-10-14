@@ -1,6 +1,6 @@
 ---
 name: review-conformance
-description: Review a change diff for conformance to one project guidelines file (such as docs/TEST_GUIDELINES.md or docs/CODE_GUIDELINES.md) in a fresh context, read-only, citing a clause for every finding. Dispatched by develop-change once per guidelines file that governs the diff, all at once, after every task branch is merged.
+description: Review a change diff for conformance to one project guidelines file (such as docs/TEST_GUIDELINES.md, docs/CODE_GUIDELINES.md or docs/ARCHITECTURE_GUIDELINES.md) in a fresh context, read-only, citing a clause for every finding. Dispatched by develop-change once per guidelines file that governs the diff, all at once, after every task branch is merged.
 ---
 
 # Review Conformance
@@ -50,7 +50,14 @@ description: Review a change diff for conformance to one project guidelines file
      only that a double was called meets it only where the call is the
      requirement;
    - class B and C: abnormal-input tests for every REQ and LLR;
-   - class C: tests at every touched SDD item's interface.
+   - class C: tests at every touched SDD item's interface;
+   - every SDD item traces to a REQ;
+   - class C items have LLRs;
+   - a mechanism is stated for segregation between items of different
+     classes;
+   - every third-party component is in `soup.md`;
+   - a cross-unit dependency is declared in `depends_on:`, with
+     `segregated_from:` where the classes differ.
 4. **Report a clause that no longer stands as written**, each as a finding
    against the clause:
    - a clause whose reason no longer fits its rule, because the rule was

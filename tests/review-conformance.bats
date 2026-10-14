@@ -22,11 +22,13 @@ setup() {
 
 @test "review-conformance: the floor is listed in full" {
     # verifies: D2, D4 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: D6 (docs/plans/2026-10-14-architecture-guidelines.md)
     grep -qF 'every test carries `verifies:`' "$skill"
     grep -qF 'every new test was watched red' "$skill"
     grep -qF 'every test fails when the behavior it `verifies:` breaks' "$skill"
     grep -qF 'class B and C: abnormal-input tests for every REQ and LLR' "$skill"
     grep -qF "class C: tests at every touched SDD item's interface" "$skill"
+    states_architecture_floor "$skill"
 }
 
 @test "review-conformance: a clause that contradicts the floor is a finding against the clause" {
@@ -57,11 +59,13 @@ setup() {
     grep -qF '| "I'"'"'ll read the installed default for context" |' "$skill"
 }
 
-@test "review-conformance: the old name is gone, and the description names both kinds" {
+@test "review-conformance: the old name is gone, and the description names every kind" {
     # verifies: D4, D6 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: D7 (docs/plans/2026-10-14-architecture-guidelines.md)
     [ ! -e "$BATS_TEST_DIRNAME/../skills/review-""guidelines" ] || { echo "the old skill directory still exists"; false; }
     description=$(grep '^description: ' "$skill")
     printf '%s\n' "$description" | grep -qF 'docs/CODE_GUIDELINES.md'
+    printf '%s\n' "$description" | grep -qF 'docs/ARCHITECTURE_GUIDELINES.md'
     printf '%s\n' "$description" | grep -qF 'after every task branch is merged'
 }
 

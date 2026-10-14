@@ -621,3 +621,58 @@ STUB
     chmod +x "$stub_directory/git"
     printf '%s\n' "$stub_directory"
 }
+
+# Prints one "<heading> | <N>. **<rule>**" line per top-level clause of $1.
+clause_list() {
+    awk '
+        /^## / { heading = $0 }
+        /^[0-9]+\. \*\*/ {
+            match($0, /^[0-9]+\. \*\*[^*]*\*\*/)
+            print heading " | " substr($0, 1, RLENGTH)
+        }
+    ' "$1"
+}
+
+# Prints "<heading> <N>." for each top-level clause of $1 with no "Why:" or
+# no "Example:" before the next clause.
+clauses_missing_reason_or_example() {
+    awk '
+        function close_clause() {
+            if (clause != "" && !(has_reason && has_example)) print clause
+        }
+        /^## / { close_clause(); clause = ""; heading = $0; next }
+        /^[0-9]+\. \*\*/ { close_clause(); clause = heading " " $1; has_reason = 0; has_example = 0 }
+        /Why:/ { has_reason = 1 }
+        /Example:/ { has_example = 1 }
+        END { close_clause() }
+    ' "$1"
+}
+
+# Fails when $1 names a guardrails document or any skill.
+names_no_guardrails_document_or_skill() {
+    guidelines_file="$1"
+    for forbidden in 'ADR-' 'docs/plans/' 'references/' 'SKILL.md' 'AGENTS.md'; do
+        # grep -c exits 1 when it counts no match, the passing case, and
+        # `|| true` keeps the 0 it prints. An unreadable file (exit 2) prints
+        # nothing, so `[ "" -eq 0 ]` errors and the test fails.
+        count=$(grep -cF -- "$forbidden" "$guidelines_file" || true)
+        [ "$count" -eq 0 ] || { echo "names $forbidden $count times"; return 1; }
+    done
+    for skill_dir in "$BATS_TEST_DIRNAME"/../skills/*/; do
+        skill_name=$(basename "$skill_dir")
+        count=$(grep -cF -- "$skill_name" "$guidelines_file" || true)
+        [ "$count" -eq 0 ] || { echo "names skill $skill_name $count times"; return 1; }
+    done
+}
+
+# Fails, naming the first one missing, unless $1 states each architecture
+# floor item. Line breaks in $1 are flattened, so an item may wrap.
+states_architecture_floor() {
+    flat=$(tr '\n' ' ' < "$1" | tr -s ' ')
+    for floor_item in 'every SDD item traces to a REQ' 'class C items have LLRs' \
+        'a mechanism is stated for segregation between items of different classes' \
+        'every third-party component is in `soup.md`' \
+        'a cross-unit dependency is declared in `depends_on:`, with `segregated_from:` where the classes differ'; do
+        printf '%s\n' "$flat" | grep -qF -- "$floor_item" || { echo "the floor lacks: $floor_item"; return 1; }
+    done
+}

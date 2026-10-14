@@ -125,8 +125,8 @@ above all) are the worklist for the disclaimers question.
 6. Run the **safety-class interview** (step 4), write the answer to
    `safety_class:`, replacing the `TBD` sentinel, and set `verify_commands`
    to the project's real test command.
-   Run `tailor-guidelines` for `TEST` and `CODE` (once more per unit that
-   wants its own file).
+   Run `tailor-guidelines` for `TEST`, `CODE` and `ARCHITECTURE` (once more
+   per unit that wants its own file).
 7. Commit in the worktree, then integrate with `merge-change`. The check
    scripts must pass on the result.
 

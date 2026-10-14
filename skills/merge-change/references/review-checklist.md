@@ -74,7 +74,8 @@ the `red -> green:` lines.
 - At class C, every SDD item the change touches is tested at its own
   interface, not only end-to-end.
 - Once for the change: the plan lists a conformance review for each file
-  `guidelines-file.sh TEST` prints for the diff and for each file
+  `guidelines-file.sh TEST` prints for the diff, for each file
+  `guidelines-file.sh ARCHITECTURE` prints for it, and for each file
   `guidelines-file.sh CODE` prints for it, every finding with a
   disposition, and so does the record's `## Guideline reviews` where the
   record exists.

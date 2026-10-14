@@ -11,8 +11,9 @@ description: Create or evolve the IEC 62304 software architecture - SDD items tr
 
 - You are in a worktree (`worktree-discipline`). Integrate through
   `merge-change`.
-- The requirements this design serves exist in the SRS. If they do not, run
-  `grill-requirements` first.
+- The requirements this design serves exist in the SRS, or `develop-change`
+  sent you an architecture finding that needs a design change. If neither,
+  run `grill-requirements` first.
 - Read `safety_class` and the ledger paths (`doc_sad`, the SOUP inventory
   `docs/architecture/soup.md`) from `.guardrails/config.yaml`.
 
@@ -24,14 +25,16 @@ an amendment to an existing item in the dated file that defines it. Keep `soup.m
 file.
 
 1. **Read first:** the REQs this design serves, the controls (RC) that
-   constrain it, `CONTEXT.md` (use the project's language), and the existing
-   SAD items (SDD, LLR). Find items with
+   constrain it, `CONTEXT.md` (use the project's language), the architecture
+   guidelines file `guidelines-file.sh ARCHITECTURE` prints for the paths the
+   design touches, and no other guidelines file, and the existing SAD items
+   (SDD, LLR). Find items with
    `.guardrails/scripts/find-items.sh list --kind <PREFIX>`, read each one you
    need with `find-items.sh show ID`, and find where an item is already used
    with `find-items.sh refs ID`. Read a ledger file whole only when these do
    not answer the question.
-2. **Decompose into software items.** Each item is one responsibility with a
-   defined interface. Item grammar, checked by `check-trace.sh`:
+2. **Decompose into software items.** Each item has a defined interface. Item
+   grammar, checked by `check-trace.sh`:
 
    `**SDD-…**: <software item and its responsibility>. traces: REQ-…[, REQ-…]`
 
@@ -40,7 +43,8 @@ file.
    design item that no requirement needs.
 3. **Propose 2 or 3 architectures** for anything non-trivial, with their
    trade-offs, and lead with your recommendation. Present them in sections and
-   confirm with the user before writing the final SAD.
+   confirm with the user before writing the final SAD. A proposal that
+   departs from a clause of that file names the clause, and the user decides.
 4. **Scale to the class** from `safety_class`. A per-item override is allowed;
    record it in the item text.
    - **A:** architecture documentation is optional. Keep the SAD to a sketch.

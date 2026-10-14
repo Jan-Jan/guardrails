@@ -1,6 +1,6 @@
 ---
 name: tailor-guidelines
-description: Make one guidelines file (such as docs/TEST_GUIDELINES.md or docs/CODE_GUIDELINES.md) the project's own - seed a complete copy of the default, walk its clauses one question at a time, keep the compliance floor, and adopt a new default clause by clause on upgrade. Use when ratchet sets up or upgrades a project, or when a project wants to change its test or code guidelines.
+description: Make one guidelines file (such as docs/TEST_GUIDELINES.md, docs/CODE_GUIDELINES.md or docs/ARCHITECTURE_GUIDELINES.md) the project's own. That means seeding a complete copy of the default, walking its clauses one question at a time, keeping the compliance floor, and adopting a new default clause by clause on upgrade. Use when ratchet sets up or upgrades a project, or when a project wants to change its test, code or architecture guidelines.
 ---
 
 # Tailor Guidelines
@@ -11,10 +11,11 @@ description: Make one guidelines file (such as docs/TEST_GUIDELINES.md or docs/C
 
 - You are in a change worktree (`worktree-discipline`). A guidelines file is
   a change like any other.
-- You know the kind: `TEST` (`docs/TEST_GUIDELINES.md`) or `CODE`
-  (`docs/CODE_GUIDELINES.md`). Where
-  `.guardrails/units.yaml` exists, you know whether the file is for the root
-  or for one unit; ask if you were not told.
+- You know the kind: `TEST` (`docs/TEST_GUIDELINES.md`), `CODE`
+  (`docs/CODE_GUIDELINES.md`) or `ARCHITECTURE`
+  (`docs/ARCHITECTURE_GUIDELINES.md`). Where `.guardrails/units.yaml`
+  exists, you know whether the file is for the root or for one unit; ask if
+  you were not told.
 - A guidelines file holds the project's preferences. The floor, which a
   standard or a gate needs, stays in the skills, and no clause overrides it.
 
@@ -32,7 +33,8 @@ description: Make one guidelines file (such as docs/TEST_GUIDELINES.md or docs/C
    ask: keep, change or drop? Recommend an answer. A change rewrites the
    reason and the examples with the rule, so the reason still fits it.
 3. **Make the examples the project's.** For `TEST`, for each clause under
-   `## Seams` and `## Doubles`; for `CODE`, for every clause:
+   `## Seams` and `## Doubles`; for `CODE` and `ARCHITECTURE`, for every
+   clause:
    ask for an example in the project's own stack (its language, test runner
    and dependencies), and replace the generic one with it.
 4. **Drop `## UI` where the project has no user interface** (`TEST` only).
@@ -45,7 +47,14 @@ description: Make one guidelines file (such as docs/TEST_GUIDELINES.md or docs/C
      only that a double was called meets it only where the call is the
      requirement;
    - class B and C: abnormal-input tests for every REQ and LLR;
-   - class C: tests at every touched SDD item's interface.
+   - class C: tests at every touched SDD item's interface;
+   - every SDD item traces to a REQ;
+   - class C items have LLRs;
+   - a mechanism is stated for segregation between items of different
+     classes;
+   - every third-party component is in `soup.md`;
+   - a cross-unit dependency is declared in `depends_on:`, with
+     `segregated_from:` where the classes differ.
 
    A clause may tighten the floor, never loosen it.
 6. **Check the file stands alone.** No clause refers to another guidelines
@@ -78,7 +87,7 @@ copied over the installed default.
 | "The new default is better, I'll replace the file" | Clause by clause. Never overwrite. |
 | "This clause is only a preference, the floor can bend here" | The floor wins. Reject the change and say why. |
 | "I'll ask about all the clauses in one message" | One clause per message, with its reason. |
-| "The generic examples will do" | Ask for the project's own: Seams and Doubles for `TEST`, every clause for `CODE`. |
+| "The generic examples will do" | Ask for the project's own: Seams and Doubles for `TEST`, every clause for `CODE` and `ARCHITECTURE`. |
 
 ## Done when
 

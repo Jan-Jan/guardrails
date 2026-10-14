@@ -41,6 +41,8 @@ setup() {
     grep -qF 'every test fails when the behavior it `verifies:` breaks' "$tailor"
     grep -qF 'class B and C: abnormal-input tests for every REQ and LLR' "$tailor"
     grep -qF "class C: tests at every touched SDD item's interface" "$tailor"
+    # verifies: D6 (docs/plans/2026-10-14-architecture-guidelines.md)
+    states_architecture_floor "$tailor"
 }
 
 @test "tailor-guidelines: upgrade mode walks the template diff and never overwrites" {
@@ -52,11 +54,11 @@ setup() {
     grep -qF '| "The new default is better, I'"'"'ll replace the file" |' "$tailor"
 }
 
-@test "ratchet: the scaffold installs every guidelines default and tailors TEST and CODE" {
-    # verifies: D6, D7 (docs/plans/2026-10-08-test-guidelines.md); D5 (docs/plans/2026-10-13-code-guidelines.md)
+@test "ratchet: the scaffold installs every guidelines default and tailors TEST, CODE and ARCHITECTURE" {
+    # verifies: D6, D7 (docs/plans/2026-10-08-test-guidelines.md); D5 (docs/plans/2026-10-13-code-guidelines.md); D7 (docs/plans/2026-10-14-architecture-guidelines.md)
     scaffold=$(section_of '### Step 2 (greenfield): Scaffold' "$ratchet")
     printf '%s\n' "$scaffold" | grep -qF '`templates/*_GUIDELINES.md` → `.guardrails/templates/`'
-    printf '%s\n' "$scaffold" | grep -qF 'Run `tailor-guidelines` for `TEST` and `CODE`'
+    printf '%s\n' "$scaffold" | tr '\n' ' ' | tr -s ' ' | grep -qF 'Run `tailor-guidelines` for `TEST`, `CODE` and `ARCHITECTURE`'
 }
 
 @test "ratchet: an upgrade runs tailor-guidelines' upgrade mode before the template is re-copied" {
@@ -96,12 +98,12 @@ setup() {
     printf '%s\n' "$section" | grep -qF 'tailor-guidelines'
 }
 
-@test "tailor-guidelines: the kinds are TEST and CODE, and CODE's examples are the project's" {
-    # verifies: D5 (docs/plans/2026-10-13-code-guidelines.md)
+@test "tailor-guidelines: the kinds are TEST, CODE and ARCHITECTURE, and CODE's and ARCHITECTURE's examples are the project's" {
+    # verifies: D5 (docs/plans/2026-10-13-code-guidelines.md); D7 (docs/plans/2026-10-14-architecture-guidelines.md)
     preconditions=$(section_of '## Preconditions' "$tailor" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$preconditions" | grep -qF '`TEST` (`docs/TEST_GUIDELINES.md`) or `CODE` (`docs/CODE_GUIDELINES.md`)'
+    printf '%s\n' "$preconditions" | grep -qF '`TEST` (`docs/TEST_GUIDELINES.md`), `CODE` (`docs/CODE_GUIDELINES.md`) or `ARCHITECTURE` (`docs/ARCHITECTURE_GUIDELINES.md`)'
     steps=$(section_of '## Steps' "$tailor" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$steps" | grep -qF 'for `CODE`, for every clause: ask for an example in the project'"'"'s own stack'
+    printf '%s\n' "$steps" | grep -qF 'for `CODE` and `ARCHITECTURE`, for every clause: ask for an example in the project'"'"'s own stack'
     printf '%s\n' "$steps" | grep -qF 'Drop `## UI` where the project has no user interface** (`TEST` only)'
 }
 
@@ -123,4 +125,18 @@ setup() {
         || { echo "no copy-mode rerun: $section"; false; }
     printf '%s\n' "$section" | grep -qF 'outside the managed markers moves them into `docs/CODE_GUIDELINES.md`' \
         || { echo "no move for naming rules kept outside the markers: $section"; false; }
+}
+
+@test "upgrade notes: architecture guidelines are a project file" {
+    # verifies: D1, D3, D7 (docs/plans/2026-10-14-architecture-guidelines.md)
+    section=$(section_of '## Architecture guidelines are a project file' "$notes" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$section" ] || { echo "no Architecture guidelines section"; false; }
+    printf '%s\n' "$section" | grep -qF 'with no `docs/ARCHITECTURE_GUIDELINES.md` follows the installed default'
+    printf '%s\n' "$section" | grep -qF 'guidelines-file.sh ARCHITECTURE'
+    printf '%s\n' "$section" | grep -qF 'Run `tailor-guidelines` for `ARCHITECTURE`'
+    # D3: a refactor fixes what it can; a design change goes to design-architecture.
+    printf '%s\n' "$section" | grep -qF '`develop-refactor` fixes the findings that need no design change; the rest go to `design-architecture`.' \
+        || { echo "no D3 routing of architecture findings: $section"; false; }
+    printf '%s\n' "$section" | grep -qF 'is an LLR with a test'
+    printf '%s\n' "$section" | grep -qF '`guidelines-file.sh ARCHITECTURE` exits 2 and the conformance reviews stop there'
 }

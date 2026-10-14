@@ -1,6 +1,6 @@
 ---
 name: develop-refactor
-description: Fix the findings of one CODE conformance review in a guardrails project - each finding against the project's code guidelines file, in a nested task worktree, with no behavior change. Load it only when develop-change dispatched you to fix CODE findings.
+description: Fix the findings of one CODE or ARCHITECTURE conformance review in a guardrails project - each finding against the project's code or architecture guidelines file, in a nested task worktree, with no behavior change. Load it only when develop-change dispatched you to fix CODE or ARCHITECTURE findings.
 ---
 
 # Develop Refactor
@@ -10,8 +10,8 @@ description: Fix the findings of one CODE conformance review in a guardrails pro
 ## Preconditions
 
 - You were dispatched by `develop-change` with the findings of one
-  `review-conformance` review against a code guidelines file, that file, the
-  diff range and your task worktree path.
+  `review-conformance` review against a code or architecture guidelines
+  file, that file, the diff range and your task worktree path.
 - Create the task worktree as the prompt says, from the change worktree you
   start in, and work only there. Commit on the task branch and leave it
   there. Do not merge it, and do not dispatch again.
@@ -30,12 +30,18 @@ description: Fix the findings of one CODE conformance review in a guardrails pro
    unsigned (`git -c commit.gpgsign=false commit`). Never delete, skip or
    loosen a test to keep the suite green.
 4. **Report a finding you cannot fix as not fixed, with the reason:** a fix
-   that would change behavior, a finding the code does not bear out, or a
-   clause that contradicts the floor, which is a finding against the clause.
-   The floor: every test carries `verifies:`; every test fails when the
-   behavior it `verifies:` breaks; class B and C keep abnormal-input tests
-   for every REQ and LLR; class C keeps tests at every touched SDD item's
-   interface. The dispatcher decides each one.
+   that would change behavior, a finding the code does not bear out, a
+   clause that contradicts the floor, which is a finding against the clause,
+   or a finding that needs an SDD or LLR item changed, or a different
+   structure: you do not edit design items. The floor: every test carries
+   `verifies:`; every test fails when the behavior it `verifies:` breaks;
+   class B and C keep abnormal-input tests for every REQ and LLR; class C
+   keeps tests at every touched SDD item's interface; every SDD item traces
+   to a REQ; class C items have LLRs; a mechanism is stated for segregation
+   between items of different classes; every third-party component is in
+   `soup.md`; a cross-unit dependency is declared in `depends_on:`, with
+   `segregated_from:` where the classes differ. The dispatcher decides each
+   one.
 5. **Return the report** below and nothing else: no diffs, no logs.
 
 ### The report
@@ -56,6 +62,7 @@ result: <N passed, N failed>
 | "This rewrite is cleaner and changes behavior only a little" | No behavior change. Report it as not fixed, with the reason. |
 | "The test is in the way of the fix; I'll loosen it" | Never. The suite stays green as it is. |
 | "This finding is wrong; I'll skip it quietly" | Report it as not fixed, with the reason. The dispatcher decides. |
+| "The finding needs a design item reworded; I'll edit it" | Report it as not fixed. A design change goes through `design-architecture`, and its alternatives are the user's. |
 | "I'll merge my task branch when I am done" | Leave it on the task branch. The dispatcher runs `task-worktree.sh merge`. |
 
 ## Done when

@@ -1123,6 +1123,91 @@ gr_all_sh_fences() {
     if grep -qF '### The refactor pass' "$skill"; then echo "develop-change still has a refactor pass"; false; fi
 }
 
+@test "develop-change: the conformance reviews run for ARCHITECTURE too" {
+    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$section" ] || { echo "no conformance reviews section"; false; }
+    printf '%s\n' "$section" | grep -qF 'sh .guardrails/scripts/guidelines-file.sh ARCHITECTURE \ $(git diff --name-only main...<change-branch>)' \
+        || { echo "no ARCHITECTURE guidelines-file line"; false; }
+    printf '%s\n' "$section" | grep -qF '`develop-refactor` for a `CODE` or `ARCHITECTURE` file'"'"'s findings' \
+        || { echo "ARCHITECTURE findings not sent to develop-refactor"; false; }
+    done_when=$(section_of '## Done when' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$done_when" | grep -qF 'Each conformance review, for `TEST`, `CODE` and `ARCHITECTURE`, ran' \
+        || { echo "Done when does not name the ARCHITECTURE review"; false; }
+}
+
+@test "develop-change: an architecture finding that needs a design change is a stop" {
+    # verifies: D3 (docs/plans/2026-10-14-architecture-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    # The heading names more than one stop: D3's architecture finding is one
+    # (D3, docs/plans/2026-10-14-architecture-guidelines.md).
+    derail=$(section_of '### Derailment and the other stops' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$derail" ] || { echo "no derailment section"; false; }
+    printf '%s\n' "$derail" | grep -qF 'an architecture finding `develop-refactor` returns as needing a design change' \
+        || { echo "no architecture-finding stop"; false; }
+    printf '%s\n' "$derail" | grep -qF '`design-architecture`' \
+        || { echo "the stop does not name design-architecture"; false; }
+    printf '%s\n' "$derail" | grep -qF "the alternatives are the user's" \
+        || { echo "the stop does not leave the alternatives to the user"; false; }
+}
+
+@test "design-architecture: reads the architecture guidelines file, and a departure names its clause" {
+    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
+    steps=$(section_of '## Steps' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$steps" ] || { echo "no Steps section"; false; }
+    printf '%s\n' "$steps" | grep -qF 'the architecture guidelines file `guidelines-file.sh ARCHITECTURE` prints for the paths the design touches, and no other guidelines file' \
+        || { echo "step 1 does not read the architecture guidelines file"; false; }
+    printf '%s\n' "$steps" | grep -qF 'A proposal that departs from a clause of that file names the clause, and the user decides.' \
+        || { echo "a departure does not name its clause"; false; }
+}
+
+@test "design-architecture: an architecture finding stands in for the requirements, not for reading the config" {
+    # verifies: D3 (docs/plans/2026-10-14-architecture-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
+    pre=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$pre" ] || { echo "no Preconditions section"; false; }
+    printf '%s\n' "$pre" | grep -qF 'The requirements this design serves exist in the SRS, or `develop-change` sent you an architecture finding that needs a design change. If neither, run `grill-requirements` first.' \
+        || { echo "the architecture finding is not the alternative to the requirements: $pre"; false; }
+    if printf '%s\n' "$pre" | grep -qF -- '- Or `develop-change`'; then
+        echo "the architecture finding is still a bullet of its own after the config bullet"; false
+    fi
+}
+
+@test "design-architecture: one responsibility per item lives in the guidelines template" {
+    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
+    template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
+    step2=$(section_of '## Steps' "$skill" | awk '/^2\. / { inside = 1 } /^3\. / { inside = 0 } inside' | tr '\n' ' ' | tr -s ' ')
+    [ -n "$step2" ] || { echo "no step 2"; false; }
+    if printf '%s\n' "$step2" | grep -qF 'one responsibility'; then
+        echo "step 2 still states one responsibility; the rule lives in the guidelines template"; false
+    fi
+    grep -qF '**One responsibility per item.**' "$template" \
+        || { echo "the template has no one-responsibility clause"; false; }
+}
+
+@test "merge-change: the review checklist asks for the ARCHITECTURE reviews" {
+    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
+    tr '\n' ' ' < "$checklist" | tr -s ' ' | grep -qF 'guidelines-file.sh ARCHITECTURE' \
+        || { echo "the checklist does not ask for the ARCHITECTURE reviews"; false; }
+}
+
+@test "verification template: guideline reviews name the ARCHITECTURE kind" {
+    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    tr '\n' ' ' < "$template" | tr -s ' ' | grep -qF 'guidelines-file.sh ARCHITECTURE' \
+        || { echo "the template does not name the ARCHITECTURE kind"; false; }
+}
+
+@test "README: tailor-guidelines names the architecture guidelines file" {
+    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    grep -qF 'ARCHITECTURE_GUIDELINES.md' "$BATS_TEST_DIRNAME/../README.md" \
+        || { echo "README does not name ARCHITECTURE_GUIDELINES.md"; false; }
+}
+
 @test "clanker: the conformance reviews are not deferred to the merge review" {
     # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
     # merge-change reruns from step 1 on any finding, so a naming nit raised
@@ -1163,7 +1248,9 @@ gr_all_sh_fences() {
 @test "develop-change: a conformance finding that recurs after its fix stops the loop; a new one does not" {
     # verifies: D1, D2 (docs/plans/2026-10-14-derailment-conformance.md)
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    derail=$(section_of '### Derailment: the one stop this skill adds' "$skill" | tr '\n' ' ' | tr -s ' ')
+    # The heading names more than one stop: D3's architecture finding is one
+    # (D3, docs/plans/2026-10-14-architecture-guidelines.md).
+    derail=$(section_of '### Derailment and the other stops' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$derail" | grep -qF 'a conformance review reports a finding again after the fix dispatched for it was merged'
     printf '%s\n' "$derail" | grep -qF 'A conformance round with new findings is the loop working, not a repeat'
     # Review round 1, finding-1: a place is what the earlier finding cited.
@@ -1225,7 +1312,7 @@ gr_all_sh_fences() {
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$section" | grep -qF 'Once every review has reported, dispatch the fixes'
-    printf '%s\n' "$section" | grep -qF '`develop-refactor` for a `CODE` file'"'"'s findings and `develop-tdd` for a `TEST` file'"'"'s'
+    printf '%s\n' "$section" | grep -qF '`develop-refactor` for a `CODE` or `ARCHITECTURE` file'"'"'s findings and `develop-tdd` for a `TEST` file'"'"'s'
     printf '%s\n' "$section" | grep -qF 'under the develop-refactor skill (develop-tdd for a TEST file)'
     printf '%s\n' "$section" | grep -qF 'The agent that fixes a finding never reviews it.'
     printf '%s\n' "$section" | grep -qF 'the first round with nothing above low is the last'
