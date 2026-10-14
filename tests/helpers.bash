@@ -122,6 +122,16 @@ section_of() {
     ' "$2"
 }
 
+# step_of FILE N — prints the lines of FILE's numbered step N, from its
+# `N. **` line up to the `N+1. **` line.
+step_of() {
+    awk -v n="$2" '
+        index($0, n ". **") == 1 { inside = 1 }
+        index($0, (n + 1) ". **") == 1 { inside = 0 }
+        inside
+    ' "$1"
+}
+
 # Print the environment a temp-file fault would be identified by, on any test
 # that did not complete.
 #

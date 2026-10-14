@@ -646,3 +646,34 @@ skills directory (`~/.claude/skills`, or `CLAUDE_SKILLS_DIR`),
 upgrade copies the scripts and templates,
 `guidelines-file.sh CODE` exits 2 and the conformance reviews stop there. No
 gate reads either guidelines file, so nothing goes red.
+
+## The squash commit certifies the gate
+
+* `finish-merge.sh` has a fifth guard. It refuses the cleanup, exit 1 with
+  nothing removed and nothing deleted, unless the signed squash's message
+  has exactly one `Gate-tree:` trailer and its value is the commit's own
+  tree. `merge-change` step 7 writes it, the tree the step 2 gate measured,
+  with a `Gate:` trailer per verify command and a `Base:` trailer. A squash
+  written from an older copy of the skill has none: refresh the installed
+  skills when the scripts are copied.
+* git reads trailers only in a message's last paragraph. A
+  `Co-Authored-By:` line after a blank line, or a wrapped trailer line that
+  does not open with whitespace, leaves `Gate-tree:` in the body.
+* The guard reads the trailer with
+  `%(trailers:key=Gate-tree,valueonly,unfold)`, which needs git 2.22 or
+  later; an older git leaves the placeholder unexpanded, and the guard
+  refuses.
+* A squash signed without the trailer stays on the base branch. Correct the
+  message file: its `Gate-tree:` is the tree a gate measured. If no gate
+  measured HEAD's tree, dispatch the gate on it first, as the guard 5 remedy
+  of `merge-change`'s `references/cleanup-rejections.md` says. Then have the
+  user run `git commit --amend -S -F <message file>`, which keeps the tree,
+  and run `finish-merge.sh <branch>` alone; that file gives each rejection's
+  remedy.
+* `templates/verification.md` drops the gate table, the `Measured on:` line
+  and the `Branched from` clause: a record names no commit or tree the gate
+  measured, no base commit and no gate figure. Records already merged are left as they are. Remove any CI line
+  that reads a record for `Measured on:`.
+* `check-signing.sh` reads its verdict with `--no-show-signature`, so
+  `log.showSignature` set to true no longer turns a good signature into
+  `UNVERIFIED`.

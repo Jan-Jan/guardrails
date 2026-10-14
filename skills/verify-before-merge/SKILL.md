@@ -137,9 +137,10 @@ to investigate, not a pass to assume.
    Do not re-run the commands to see the output; the summary is the report.
 3. Copy the `red -> green:` and `inherited:` lines into the verification
    record `merge-change` step 6b writes.
-4. Anything that record needs from the gate (totals, per-command results,
-   coverage summary, verdict) must be in the gate summary. If a figure is
-   missing, ask the subagent for it rather than running the command again.
+4. Anything `merge-change` step 7's trailers need from the gate must be in
+   the gate summary: each command's totals and, where configured, the
+   coverage figure. If a figure is missing, ask the subagent for it rather
+   than running the command again.
 
 Only a fully green gate authorizes `merge-change`.
 

@@ -736,19 +736,26 @@ gr_all_sh_fences() {
 @test "merge-change: step 8 maps guard 4's rejection to a remedy" {
     # verifies: PR-n57ayn
     # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
     # Step 7 counts the guards finish-merge.sh proves and step 8's table is the
     # one place that maps a rejection to a remedy. Guard 4 was added without
     # either being updated, leaving the rejection an operator is now most likely
     # to meet unexplained in both. The row quotes what the script prints.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'proves four things' "$skill"
+    grep -q 'proves five things' "$skill"
     grep -q 'a registered worktree lies inside' \
+        "$(dirname "$skill")/references/cleanup-rejections.md"
+    grep -q 'carries no Gate-tree: trailer with a value' \
+        "$(dirname "$skill")/references/cleanup-rejections.md"
+    grep -q 'more than one Gate-tree: trailer' \
+        "$(dirname "$skill")/references/cleanup-rejections.md"
+    grep -q "Gate-tree: trailer names <tree>, but HEAD's tree is <tree>" \
         "$(dirname "$skill")/references/cleanup-rejections.md"
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
     # the test's — but that is a property of its position, not an assertion.)
-    run grep -rq 'proves three things' "$(dirname "$skill")"
+    run grep -rq -e 'proves three things' -e 'proves four things' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
 }
 
@@ -785,7 +792,7 @@ gr_all_sh_fences() {
     # finish-merge.sh prints at exit 0: three lines prefixed `finish-merge:`.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     script="$BATS_TEST_DIRNAME/../scripts/finish-merge.sh"
-    step7=$(awk '/^7\. \*\*/ { inside = 1 } /^8\. \*\*/ { inside = 0 } inside' "$skill")
+    step7=$(step_of "$skill" 7)
     [ -n "$step7" ]
     printf '%s\n' "$step7" | tr '\n' ' ' | grep -q 'Success ends with three *`finish-merge:` lines'
     printf '%s\n' "$step7" | tr '\n' ' ' | grep -q 'otherwise, they paste the output'
@@ -1266,18 +1273,37 @@ gr_all_sh_fences() {
 
 @test "merge-change: the commit template states the Resolves and Opens trailers" {
     # verifies: PR-hkc376
-    # Deltas are checkable against the diff forever; no script parses the
-    # message, so the trailers cost nothing.
+    # Deltas are checkable against the diff forever; no script parses
+    # these two lines, so they cost nothing; only `Gate-tree:` is read (finish-merge.sh guard 5).
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -qF 'Resolves: <PR IDs this change closes>' "$skill"
     grep -qF 'Opens: <PR IDs this change raises>' "$skill"
 }
 
-@test "verification template: a repository figure does not belong in the gate table" {
+@test "verification template: a repository figure does not belong in the record" {
     # verifies: PR-hkc376
     # Measuring the open count fresh does not make it a fact about this change.
     template="$BATS_TEST_DIRNAME/../templates/verification.md"
     grep -q 'describes the repository rather than this change' "$template"
+}
+
+@test "verify-before-merge: the gate summary holds what step 7's trailers need" {
+    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    root="$BATS_TEST_DIRNAME/.."
+    skill_text=$(tr '\n' ' ' < "$root/skills/verify-before-merge/SKILL.md" | tr -s ' ')
+    printf '%s\n' "$skill_text" | grep -qF 'Anything `merge-change` step 7'"'"'s trailers need from the gate' \
+        || { echo "verify-before-merge still feeds the gate figures to the record"; false; }
+    rationale_text=$(tr '\n' ' ' < "$root/skills/verify-before-merge/references/rationale.md" | tr -s ' ')
+    printf '%s\n' "$rationale_text" | grep -qF 'the squash commit'"'"'s `Gate:` trailers' \
+        || { echo "the rationale does not name the trailers as the durable evidence"; false; }
+    printf '%s\n' "$rationale_text" | grep -qF 'the evidence moves from the chat log to the log file and the squash commit'"'"'s trailers' \
+        || { echo "the rationale still sends the gate evidence to the verification record"; false; }
+    block_text=$(tr '\n' ' ' < "$root/templates/AGENTS-block.md" | tr -s ' ')
+    printf '%s\n' "$block_text" | grep -qF 'a `Gate-tree:` trailer naming the tree the gate measured' \
+        || { echo "the AGENTS block does not require the trailer"; false; }
+    readme_text=$(tr '\n' ' ' < "$root/README.md" | tr -s ' ')
+    printf '%s\n' "$readme_text" | grep -qF 'whose `Gate-tree:` trailer names the tree its gate measured' \
+        || { echo "the README does not state the trailer"; false; }
 }
 
 @test "verification template: a record does not count itself, and narrates once" {
@@ -1326,18 +1352,26 @@ gr_all_sh_fences() {
     grep -q 'Name the IDs that moved' "$skill"
 }
 
-@test "verification template: the gate table names the tree the figures describe" {
-    # verifies: PR-dkm5tq
-    # Gate evidence is keyed to a tree or it is keyed to nothing; the practice
-    # was already ahead of the template.
+@test "verification template: the gate's figures and their tree are in the squash commit, not the record" {
+    # verifies: PR-dkm5tq, PR-k4y59t
+    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # Gate evidence is keyed to a tree or it is keyed to nothing (PR-dkm5tq).
+    # A record cannot name the tree it is part of, so the template sends the
+    # gate's tree and figures to the squash commit's trailers and states that
+    # the record names no commit or tree the gate measured, no base commit and
+    # no gate figure (PR-k4y59t). It may cite a fix commit in a disposition.
     template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    grep -q 'Measured on:' "$template"
-    grep -qF 'rev-parse HEAD^{tree}' "$template"
-    # Naming the tree does not imply the older rule, and the older rule is the
-    # one 2026-09-10-field-report-items.md finding-21 turned on: a figure
-    # reproduced from an earlier round describes whichever tree that round
-    # measured, whatever the name above the table claims.
-    grep -q 'copied forward from an earlier round' "$template"
+    text=$(tr '\n' ' ' < "$template" | tr -s ' ')
+    for wanted in '`Gate-tree:` names the tree the step 2 gate measured' \
+            'a `Gate:` line gives each command'"'"'s totals' \
+            'this record names no commit or tree the gate measured, no base commit and no gate figure' \
+            'it does not change when the sequence reruns'; do
+        printf '%s\n' "$text" | grep -qF -- "$wanted" \
+            || { echo "the template lacks: $wanted"; false; }
+    done
+    run grep -n -e 'Measured on' -e 'Branched from' -e 'HEAD^{tree}' -e '<tree hash>' \
+        -e '<commit>' -e '| Gate | Result |' "$template"
+    [ "$status" -eq 1 ] || { echo "the template still names a tree or a gate figure: $output"; false; }
 }
 
 @test "ledger files: the skills and templates name a ledger file at creation, and nothing renames it" {
@@ -1924,7 +1958,7 @@ gr_write_skill_fixture() {
     grep -q 'the units whose gates the verdict covers' "$rationale"
     grep -q 'A deleted finding and a finding that never existed read identically' "$rationale"
     grep -q 'removing the change worktree does not touch it' "$rationale"
-    grep -q 'No script parses the message' "$rationale"
+    grep -q 'No script parses these two lines' "$rationale"
     grep -q 'starts a blocking wait on the user' "$rationale"
     grep -q 'a chance to remove the wrong directory' "$rationale"
     grep -q 'so a pass added nothing' "$rationale"
@@ -2098,7 +2132,7 @@ gr_write_skill_fixture() {
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     # Prose wraps, so a phrase is matched on the file with its lines joined.
     rationale_text=$(tr '\n' ' ' < "$rationale")
-    step7=$(awk '/^7\. \*\*/ { inside = 1 } /^8\. \*\*/ { inside = 0 } inside' "$skill")
+    step7=$(step_of "$skill" 7)
     [ -n "$step7" ]
     printf '%s\n' "$step7" | grep -qE '^ *git diff --cached --quiet && git merge --squash <branch>$'
     # The squash command appears only in its joined form.
@@ -2221,6 +2255,99 @@ gr_write_skill_fixture() {
     git reset -q --merge
     git diff --cached --quiet HEAD
     [ -z "$(git status --porcelain)" ]
+}
+
+@test "merge-change: step 7 writes the gate's trailers and compares the staged tree with the step 2 tree before the hand-over" {
+    # verifies: D1, D2, D4 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    multi="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
+    step7=$(step_of "$skill" 7)
+    [ -n "$step7" ]
+    for wanted in 'Base: <base ref> at <its commit>' 'Gate-tree: <step 2 tree>' \
+            'Gate: <verify_commands entry> <passed>/<total>' \
+            'Gate: <coverage_command> <figure>'; do
+        printf '%s\n' "$step7" | grep -qxF "   $wanted" \
+            || { echo "the message template lacks: $wanted"; false; }
+    done
+    step7_text=$(printf '%s\n' "$step7" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$step7_text" | grep -qF 'and one for `coverage_command` where configured' \
+        || { echo "step 7 gives coverage no Gate: line"; false; }
+    printf '%s\n' "$step7_text" | grep -qF 'Keep every trailer, `Co-Authored-By:` included, in this last paragraph' \
+        || { echo "step 7 does not keep the trailers in the last paragraph"; false; }
+    printf '%s\n' "$step7_text" | grep -qF '`<its commit>` is `git rev-parse <base ref>`' \
+        || { echo "step 7 does not say where the Base: commit comes from"; false; }
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    rationale_text=$(tr '\n' ' ' < "$rationale" | tr -s ' ')
+    for wanted in '`Base:` names the commit of the base ref that step 1 merged' \
+            'its ID and trace checks read the tree, and can be rerun on the tree `Gate-tree:` names'; do
+        printf '%s\n' "$rationale_text" | grep -qF -- "$wanted" \
+            || { echo "rationale.md lacks: $wanted"; false; }
+    done
+    if printf '%s\n' "$rationale_text" | grep -qF 'checks read only the tree `Gate-tree:` names'; then
+        echo "rationale.md still says the pre-flight reads only the named tree"; false
+    fi
+    tr '\n' ' ' < "$multi" | tr -s ' ' | grep -qF 'Gate: <unit>: <verify_commands entry> <passed>/<total>' \
+        || { echo "multi-unit.md does not name the per-unit Gate: line"; false; }
+
+    # The comparison is the second sh fence of step 7, after the message and
+    # before the hand-over command.
+    fence=$(printf '%s\n' "$step7" | awk '
+        /^ *```sh$/ { sh_fences++; fenced = 1; next }
+        fenced && /^ *```$/ { fenced = 0; next }
+        fenced && sh_fences == 2 { sub(/^ +/, ""); print }
+    ')
+    [ "$fence" = '[ "$(git write-tree)" = <step 2 tree> ]' ] \
+        || { echo "the second fence of step 7 is: $fence"; false; }
+    message_at=$(printf '%s\n' "$step7" | grep -n 'Gate-tree: <step 2 tree>' | cut -d: -f1)
+    compare_at=$(printf '%s\n' "$step7" | grep -n 'git write-tree' | cut -d: -f1)
+    handover_at=$(printf '%s\n' "$step7" | grep -n 'git commit -S -F' | cut -d: -f1)
+    [ "$message_at" -lt "$compare_at" ] \
+        || { echo "the comparison at $compare_at precedes the message at $message_at"; false; }
+    [ "$compare_at" -lt "$handover_at" ] \
+        || { echo "the hand-over at $handover_at precedes the comparison at $compare_at"; false; }
+    printf '%s\n' "$step7_text" | grep -qF 'A mismatch: run `git reset --merge`, then rerun from step 1.' \
+        || { echo "step 7 gives a mismatch no remedy"; false; }
+
+    # The comparison, run against git: a squash of the gated tree passes, and
+    # a squash of a branch that gained a commit after the gate does not.
+    make_fixture_repo
+    git checkout -q -b feature
+    printf 'feature\n' > feature.txt
+    commit_all 'the change'
+    gate_tree=$(git rev-parse 'HEAD^{tree}')
+    git checkout -q main
+    git merge -q --squash feature
+    compare=$(printf '%s\n' "$fence" | sed "s/<step 2 tree>/$gate_tree/")
+    run sh -c "$compare"
+    [ "$status" -eq 0 ] || { echo "the gated squash failed the comparison"; false; }
+    git reset -q --merge
+    git checkout -q feature
+    printf 'branch: feature\n' > record.md
+    commit_all 'the record, after the gate'
+    git checkout -q main
+    git merge -q --squash feature
+    run sh -c "$compare"
+    [ "$status" -eq 1 ] || { echo "a squash of a tree the gate never measured passed: $status"; false; }
+    git reset -q --merge
+}
+
+@test "merge-change: the record is written before the last rerun and holds no gate figure" {
+    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    grep -qF 'Write the record (6b) before that rerun.' "$skill"
+    step_6b=$(awk '/^6b\. \*\*/ { inside = 1 } /^6c\. \*\*/ { inside = 0 } inside' "$skill")
+    [ -n "$step_6b" ]
+    if printf '%s\n' "$step_6b" | grep -q -e 'totals' -e 'tree they describe' -e "check's result"; then
+        echo "6b still puts gate figures in the record"; false
+    fi
+    grep -q '^## Step 6b: the record names no tree$' "$rationale"
+    grep -q '^## Step 7: the trailers certify the gate$' "$rationale"
+    rationale_text=$(tr '\n' ' ' < "$rationale" | tr -s ' ')
+    printf '%s\n' "$rationale_text" | grep -qF 'not one computed again at step 7' \
+        || { echo "the rationale does not say why Gate-tree is the step 2 hash"; false; }
+    printf '%s\n' "$rationale_text" | grep -qF 'The pre-flight has no trailer' \
+        || { echo "the rationale does not say why the pre-flight has no trailer"; false; }
 }
 
 @test "merge-change: the rationale file describes no script" {
@@ -2591,6 +2718,98 @@ adr_file_is_named_by_its_item() {
     done
 }
 
+@test "ADRs: the gate-proof decision is recorded, and the base statement is the Base: trailer" {
+    # verifies: D3, D7 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # The IDs are built from a prefix variable: the gates scan tests/.
+    adr_prefix=ADR
+    root="$BATS_TEST_DIRNAME/.."
+    adr_file="$root/docs/adr/$adr_prefix-f6ytg7-squash-commit-certifies-the-gate.md"
+    [ -f "$adr_file" ] || { echo "no $adr_file"; false; }
+    adr_file_is_named_by_its_item "$adr_file"
+    grep -qx 'Status: accepted' "$adr_file"
+    adr_text=$(tr '\n' ' ' < "$adr_file" | tr -s ' ')
+    for wanted in '`Gate-tree:`' '`Gate:`' '`Base:`' 'finish-merge.sh' \
+            'git write-tree' 'PR-k4y59t' "$adr_prefix-y8jmes"; do
+        printf '%s\n' "$adr_text" | grep -qF -- "$wanted" \
+            || { echo "the ADR lacks $wanted"; false; }
+    done
+    printf '%s\n' "$adr_text" | grep -qF 'tree checks, `check-ids.sh` and `check-trace.sh`, can be rerun on the tree `Gate-tree:` names' \
+        || { echo "the ADR does not limit the rerun to the tree checks"; false; }
+    if printf '%s\n' "$adr_text" | grep -qF 'anyone can run them again on the tree'; then
+        echo "the ADR still says every halting check reruns on the named tree"; false
+    fi
+    statement='Base: local main at <commit>, per AGENTS.md non-negotiable 4'
+    base_adr="$root/docs/adr/$adr_prefix-y8jmes-local-main-is-the-base.md"
+    for file in "$root/AGENTS.md" "$base_adr"; do
+        tr '\n' ' ' < "$file" | tr -s ' ' | grep -qF -- "$statement" \
+            || { echo "$file does not state the Base: trailer"; false; }
+    done
+    tr '\n' ' ' < "$base_adr" | tr -s ' ' | grep -qF "$adr_prefix-f6ytg7" \
+        || { echo "the base ADR does not name the decision that moved its statement"; false; }
+    tr '\n' ' ' < "$base_adr" | tr -s ' ' | grep -qF 'moved the base commit it named into the `Base:` trailer' \
+        || { echo "the base ADR does not say only the base commit moved into a trailer"; false; }
+    run grep -n 'State it in the verification record' "$root/AGENTS.md"
+    [ "$status" -eq 1 ] || { echo "AGENTS.md still puts the base in the record: $output"; false; }
+}
+
+@test "merge-change: the forge flow after the push is an open item, not a procedure" {
+    # verifies: D11 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # A forge rebase or squash merge after the push replaces the signed
+    # squash; how pull requests land is undecided, so the ADR names the open
+    # item and no reference ships a recipe for it.
+    # The IDs are built from prefix variables: the gates scan tests/.
+    adr_prefix=ADR
+    pr_prefix=PR
+    root="$BATS_TEST_DIRNAME/.."
+    ledger="$root/docs/problems/2026-10-14-gate-proof-in-trailers.md"
+    grep -q "^\*\*$pr_prefix-m7gcuq\*\*: " "$ledger" || { echo "the ledger has no forge-flow item"; false; }
+    item=$(awk -v id="**$pr_prefix-m7gcuq**: " 'index($0, id) == 1 { inside = 1 }
+        inside && /^$/ { exit } inside' "$ledger")
+    printf '%s\n' "$item" | grep -qx 'status: open' || { echo "the item is not open: $item"; false; }
+    printf '%s\n' "$item" | grep -qF "$pr_prefix-yd4pug" || { echo "the item does not relate to the fetched-base item"; false; }
+    consequences=$(section_of '## Consequences' \
+        "$root/docs/adr/$adr_prefix-f6ytg7-squash-commit-certifies-the-gate.md" | tr '\n' ' ' | tr -s ' ')
+    for wanted in "$pr_prefix-m7gcuq" 'replaces the signed squash' 'nothing in guardrails re-checks `Gate-tree:`'; do
+        printf '%s\n' "$consequences" | grep -qF -- "$wanted" \
+            || { echo "the ADR's Consequences lack: $wanted"; false; }
+    done
+    for unwanted in 'references/setup-checklist.md' 'references/cleanup-rejections.md'; do
+        if printf '%s\n' "$consequences" | grep -qF -- "$unwanted"; then
+            echo "the ADR's Consequences still point at a forge recipe: $unwanted"; false
+        fi
+    done
+    rejections="$root/skills/merge-change/references/cleanup-rejections.md"
+    run grep -n -i 'rebase' "$rejections"
+    [ "$status" -eq 1 ] || { echo "cleanup-rejections.md still has a rebase procedure: $output"; false; }
+    run grep -n 'Gate-tree' "$root/skills/ratchet/references/setup-checklist.md"
+    [ "$status" -eq 1 ] || { echo "the setup checklist still has a Gate-tree CI recipe: $output"; false; }
+    references=$(section_of '## References' "$root/skills/merge-change/SKILL.md" | tr '\n' ' ' | tr -s ' ')
+    if printf '%s\n' "$references" | grep -qF 'rebased'; then
+        echo "the References line still sends a rebase to cleanup-rejections.md"; false
+    fi
+}
+
+@test "AGENTS.md: non-negotiable 2 says finish-merge.sh checks the Gate-tree trailer" {
+    # verifies: D5, D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    agents="$BATS_TEST_DIRNAME/../AGENTS.md"
+    text=$(tr '\n' ' ' < "$agents" | tr -s ' ')
+    printf '%s\n' "$text" | grep -qF \
+        'verifies the signature, and that the `Gate-tree:` trailer names the commit'"'"'s own tree, before it removes anything' \
+        || { echo "non-negotiable 2 does not name the Gate-tree check"; false; }
+}
+
+@test "worktree-discipline: the record holds the reviews, and the squash's trailers hold what was run" {
+    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
+    text=$(tr '\n' ' ' < "$skill" | tr -s ' ')
+    printf '%s\n' "$text" | grep -qF 'reviews, dispositions, red -> green, gaps' \
+        || { echo "the record's contents are not stated"; false; }
+    printf '%s\n' "$text" | grep -qF "the squash's trailers hold what was run and what it reported" \
+        || { echo "the trailers are not named"; false; }
+    run grep -n 'what was run and *$' "$skill"
+    [ "$status" -eq 1 ] || { echo "the old description remains: $output"; false; }
+}
+
 # --- test guidelines (docs/plans/2026-10-08-test-guidelines.md) --------------
 # The seam and double rules are clauses of templates/TEST_GUIDELINES.md
 # (tests/test-guidelines.bats pins them there). The floor and the one-file rule belong to the TDD loop,
@@ -2757,5 +2976,23 @@ adr_file_is_named_by_its_item() {
         || { echo "ratchet still describes a rename"; false; }
     if grep -q 'DRAFT-<branch>-<slug>' "$skill"; then
         echo "ratchet still names the draft convention"; false
+    fi
+}
+
+@test "ratchet: the upgrade notes say the squash commit certifies the gate, and how to repair a squash without its trailer" {
+    # verifies: D9 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    grep -q '^## The squash commit certifies the gate$' "$notes" || { echo "no section"; false; }
+    section=$(awk '/^## The squash commit certifies the gate$/ { inside = 1; next }
+        /^## / { inside = 0 } inside' "$notes" | tr '\n' ' ' | tr -s ' ')
+    for wanted in '`Gate-tree:`' '`finish-merge.sh`' 'git 2.22' 'last paragraph' \
+            'git commit --amend -S' '`Measured on:`' 'log.showSignature' 'exit 1' \
+            '%(trailers:key=Gate-tree,valueonly,unfold)' 'its `Gate-tree:` is the tree a gate measured' \
+            'If no gate measured HEAD'"'"'s tree, dispatch the gate on it first' 'the guard 5 remedy'; do
+        printf '%s\n' "$section" | grep -qF -- "$wanted" \
+            || { echo "the section lacks $wanted"; false; }
+    done
+    if printf '%s\n' "$section" | grep -qF 'references/setup-checklist.md'; then
+        echo "the section still adds a CI check for the forge flow"; false
     fi
 }

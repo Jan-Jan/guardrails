@@ -25,7 +25,8 @@ Guardrails is developed under the rules it ships, without exception.
    honors `commit.gpgsign` and otherwise blocks on the key. Sign the squash
    commit (`git commit -S`) and verify it before the worktree is removed. The
    agent stages the squash and hands over one command; **the user runs the
-   signing**, and `finish-merge.sh` verifies the signature before it removes
+   signing**, and `finish-merge.sh` verifies the signature, and that the
+   `Gate-tree:` trailer names the commit's own tree, before it removes
    anything (`merge-change` steps 7 and 8).
 3. **Run `tests/run-tests.sh` before any merge.** Every bats test must pass.
    Dispatch it to a subagent, which runs the gate and returns the gate summary
@@ -53,8 +54,8 @@ Guardrails is developed under the rules it ships, without exception.
    record names whose decision it was and which commit was merged
    (ADR-y8jmes, Scope).
 
-   State it in the verification record: "base merged from local `main` at
-   `<commit>`, per AGENTS.md non-negotiable 4".
+   State it in the squash commit's `Base:` trailer (`merge-change` step 7):
+   `Base: local main at <commit>, per AGENTS.md non-negotiable 4`.
 
 ## Rules
 

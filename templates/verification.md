@@ -2,45 +2,39 @@
 
 One record per change, written at `merge-change` step 6b and checked at step 6c
 by `.guardrails/scripts/check-review.sh`. The squash commit references it on
-its `Verified:` line, so this file is the evidence that travels with the change.
+its `Verified:` line and carries the gate's figures in its own trailers; this
+file is the rest of the evidence that travels with the change.
 
 branch: <the change branch this record covers>
 reviewer: <who performed the independent review at step 6a>
 verdict: <what the review concluded>
 reproduced: <was the defect reproduced before the fix, and how — or why not>
 
-Change: <one sentence>. Branched from `<base>` at `<commit>`.
+Change: <one sentence>.
 Plan: `docs/plans/<plan file>`.
 
 ## The gate
 
-Every figure below is measured on one tree, and the table names it, so a later
-reader can re-measure the same tree instead of guessing which round produced
-these numbers. **No figure here is copied forward from an earlier round.**
-Naming the tree does not soften that rule, it is what makes breaking it
-visible: a number reproduced from a previous round's record describes whichever
-tree that round measured, so under the name above it the table would claim a
-measurement nobody made.
+The gate's figures are not in this record. The squash commit carries them as
+trailers (`merge-change` step 7): `Gate-tree:` names the tree the step 2 gate
+measured, a `Gate:` line gives each command's totals, and `Base:` names the
+base and the commit step 1 merged. `finish-merge.sh` refuses the cleanup
+unless `Gate-tree:` is the commit's own tree.
 
-Measured on: `<commit>` — `git rev-parse HEAD` — tree `<tree hash>`, from
-`git rev-parse HEAD^{tree}` on a clean worktree. Where `merge-change` step 3
-found the tree unchanged, this is the tree step 2 measured and the step 2 gate summary
-is what the rows below report.
+So this record names no commit or tree the gate measured, no base commit and
+no gate figure. A record that did would be part of the tree it names, and
+every rerun after a base update would rewrite it. Written this way it does not
+change when the sequence reruns, and the tree the gate measured is the tree
+squashed.
 
 A figure that describes the repository rather than this change does not belong
-in this table at all, freshly measured or not: the open-problem count, the
-roll-call total, the age of the oldest item. Each is true of one instant of a
-ledger every other change edits, and a record outlives that instant. The
-`check-trace.sh` row takes the exit status, plus which of **this change's own**
-IDs entered or left the roll-call.
+in this record either: the open-problem count, the roll-call total, the age of
+the oldest item. Each is true of one instant of a ledger every other change
+edits, and a record outlives that instant. Name which of **this change's own**
+IDs it resolves, accepts or opens.
 
-| Gate | Result |
-| --- | --- |
-| `<verify_commands entry>` | |
-| `check-ids.sh` | |
-| `check-trace.sh` | |
-| Coverage, against the class target | |
-| Working tree | |
+A coverage gap the user accepted (`verify-before-merge` check 5) is a
+decision, not a figure: state it under Gaps.
 
 ## Red → green
 

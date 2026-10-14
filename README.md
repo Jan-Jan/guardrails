@@ -65,8 +65,9 @@ Three rules define the whole system:
    gets one change worktree on one change branch, and the base branch moves
    only by merge.
 2. **Integration is a signed squash merge.** The base branch receives one
-   signed, verified commit per change; the user signs it, and
-   `finish-merge.sh` cleans up only after its guards pass.
+   signed, verified commit per change, whose `Gate-tree:` trailer names the
+   tree its gate measured; the user signs it, and `finish-merge.sh` cleans up
+   only after its guards pass.
 3. **Traceability is mechanical.** Grep-able IDs link requirements, risks,
    design and tests, and scripts gate every merge.
 

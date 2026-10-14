@@ -190,8 +190,9 @@ description: Mandatory isolation for every change in a guardrails project - crea
    - **the ledger** — the requirement, risk, design and problem items, with
      their minted IDs and their `satisfies:` / `implements:` / `verifies:`
      references;
-   - **the verification record** written by `merge-change` — what was run and
-     what it reported.
+   - **the verification record** (`merge-change`) — reviews, dispositions,
+     red -> green, gaps; the squash's trailers hold what was run and what
+     it reported.
 10. **Leave the change worktree to `merge-change`.** It is removed after a
     verified signed squash merge, not before, and never with unmerged work in
     it without the user's explicit say-so. Task worktrees are removed by their

@@ -156,6 +156,10 @@ carries_signature() {
 check_commits() {
     _fail=0
     for c in $1; do
+        # --no-show-signature: with log.showSignature set, git log prints the
+        # verifier's output above the letter, and a good signature would read
+        # as no verdict (PR-nyw3ww).
+        #
         # `%G?` is asked for the verdict letter only; whatever git states
         # about how it got there is collected deliberately by verifier_reason
         # instead, where it is indented under the verdict it explains and where
@@ -170,7 +174,7 @@ check_commits() {
         # git writes to it: SIGPIPE, exit 141, intermittent under load
         # (PR-8zcc72). An unsigned commit falls to `*)` and is reported from
         # its own headers, as before.
-        if ! gstat=$(git log -1 --format='%G?' "$c" 2>/dev/null) &&
+        if ! gstat=$(git log -1 --no-show-signature --format='%G?' "$c" 2>/dev/null) &&
             carries_signature "$c"; then
             gstat=failed
         fi

@@ -15,7 +15,7 @@
 # reject it and `-D` is the only spelling available. Nothing in a chain stands
 # between a subtly incomplete squash and unrecoverable work; this does.
 #
-# Four guards, all proved before anything is removed:
+# Five guards, all proved before anything is removed:
 #
 #   1. check-signing.sh --strict passes on HEAD. Always --strict: the default
 #      mode passes a signature it cannot verify, and cleaning up on that is a
@@ -25,15 +25,21 @@
 #      trees identical. A difference is work the squash did not capture.
 #   3. `git worktree remove` WITHOUT --force — git's own rejection of a dirty
 #      worktree is the guard.
-#   4. No registered worktree lies INSIDE the one about to be removed. Numbered
-#      last because it was added last; proved before guard 3, because guard 3's
-#      removal is the destructive act it exists to prevent. Guard 3 delegates to
+#   4. No registered worktree lies INSIDE the one about to be removed. Proved
+#      before guard 3, because guard 3's removal is the destructive act it
+#      exists to prevent. Guard 3 delegates to
 #      git, and git's own check does not detect a nested worktree: task
 #      worktrees are at `.worktrees/<change-branch>-t<N>` inside the change
 #      worktree, that directory is gitignored, so the change worktree's `git
 #      status` is clean and the removal takes the nested worktree's uncommitted
 #      work with it at exit 0 — leaving a `prunable` registration and an orphan
 #      branch behind.
+#   5. HEAD's message has exactly one `Gate-tree:` trailer, and its value is
+#      HEAD's own tree. merge-change step 7 writes there the tree its step 2
+#      gate measured, so a signed squash of any other tree was never gated.
+#      Proved third, after guard 2: guards 1, 2 and 5 read the squash
+#      commit, guards 4 and 3 read the worktrees, and an ungated squash is
+#      refused before the worktree list is read or anything is removed.
 #
 # A failing guard exits non-zero having removed nothing and deleted nothing. The
 # one exit 1 that follows a removal is a failed `git branch -D` after guard 3
@@ -49,8 +55,8 @@
 # `--check` (`-n`) answers guard 4 AND NOTHING ELSE, before the squash exists
 # and from anywhere in the repository — including the change worktree, where
 # the rest of this script will not run. It removes nothing and deletes
-# nothing. Guards 1 and 2 both read the squash commit, so neither can be
-# preflighted at all; guard 3 IS the removal and cannot be proved without
+# nothing. Guards 1, 2 and 5 all read the squash commit, so none of them can
+# be preflighted at all; guard 3 IS the removal and cannot be proved without
 # doing it. Guard 4 is the one that is fully knowable in advance, and it is
 # also the one whose rejection used to cost a wasted key touch to discover.
 #
@@ -143,9 +149,9 @@ done
 # NESTED-WORKTREE check, in the change worktree, before the squash is staged.
 #
 # It proves guard 4 and NOTHING ELSE, from anywhere in the repository, and
-# removes nothing. Guards 1 and 2 both read the squash commit; at the point
-# this mode is for that commit does not exist, so a mode claiming all four
-# guards would have to invent two verdicts. Guard 3 is `git worktree remove`
+# removes nothing. Guards 1, 2 and 5 all read the squash commit; at the point
+# this mode is for that commit does not exist, so a mode claiming all five
+# guards would have to invent three verdicts. Guard 3 is `git worktree remove`
 # itself and cannot be proved without doing it.
 #
 # Exit 1 means guard 4 WOULD reject, so the operator learns it now instead of
@@ -292,6 +298,50 @@ git diff --quiet HEAD "$branch" || gr_refuse \
 
   then redo the squash and run this script again on its own."
 
+# Guard 5 — HEAD certifies its own tree. merge-change step 7 writes the tree
+# its step 2 gate measured into the squash message as a `Gate-tree:` trailer,
+# so a squash of any other tree is one no gate measured. The trailers are read
+# with git's own parser, which reads trailers only in the message's last
+# paragraph, so this counts them exactly where git does. It needs git 2.22; an
+# older git leaves the placeholder unexpanded, which equals no tree, so the
+# guard refuses. --no-show-signature: log.showSignature would print the
+# verifier's output above the trailers. unfold: a trailer continued on a line
+# that opens with whitespace is one trailer, read as one line, not as two.
+#
+# The count reads each trailer with its key, so every trailer is a non-empty
+# line, an empty value included: one trailer arrives with no newline, since
+# command substitution strips the trailing one, and two or more arrive with one
+# between them. The value is read only once the count is one.
+gate_trailers=$(git log -1 --no-show-signature --format='%(trailers:key=Gate-tree,unfold)' HEAD) || gr_die \
+"git log failed, so HEAD's Gate-tree: trailer cannot be read. Nothing was
+  removed and $branch was NOT deleted."
+gr_nl='
+'
+case "$gate_trailers" in
+    (*"$gr_nl"*) gr_refuse \
+"HEAD's message has more than one Gate-tree: trailer, so it names no one tree
+  a gate measured. Nothing was removed and $branch was NOT deleted. Leave one,
+  the tree the step 2 gate measured, as merge-change's
+  references/cleanup-rejections.md states, then run this script again on its own." ;;
+esac
+gate_tree=$(git log -1 --no-show-signature --format='%(trailers:key=Gate-tree,valueonly,unfold)' HEAD) || gr_die \
+"git log failed, so HEAD's Gate-tree: trailer cannot be read. Nothing was
+  removed and $branch was NOT deleted."
+head_tree=$(git rev-parse 'HEAD^{tree}') || gr_die \
+"git rev-parse failed, so HEAD's tree cannot be read. Nothing was removed and
+  $branch was NOT deleted."
+[ -n "$gate_tree" ] || gr_refuse \
+"HEAD's message carries no Gate-tree: trailer with a value, so nothing in the
+  commit names the tree a gate measured. Nothing was removed and $branch was
+  NOT deleted. git reads trailers only in a message's last paragraph. Fix the
+  message as merge-change's references/cleanup-rejections.md states, then run
+  this script again on its own."
+[ "$gate_tree" = "$head_tree" ] || gr_refuse \
+"HEAD's Gate-tree: trailer names $gate_tree, but HEAD's tree is $head_tree:
+  the signed commit holds a tree its gate did not measure. Nothing was removed
+  and $branch was NOT deleted. Gate this tree as merge-change's
+  references/cleanup-rejections.md states, then run this script again on its own."
+
 # git's own registry, read ONCE and captured with its status taken. Both the
 # derivation below and guard 4 read it, and neither may confuse "git failed"
 # with "nothing registered": for guard 4 those two answers differ by an entire
@@ -344,8 +394,6 @@ if [ -n "$wt" ]; then
         # number, and an embedded newline is what tells them apart: command
         # substitution strips TRAILING newlines, so one path arrives with none
         # at all and two or more arrive with one between them.
-        gr_nl='
-'
         case "$nested" in
             (*"$gr_nl"*)
                 gr_lead="registered worktrees lie inside $wt"

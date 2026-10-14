@@ -51,11 +51,20 @@ make_squashed_change() {
     git -c commit.gpgsign=false commit -qm work
     cd "$REPO"
     git merge --squash my-change >/dev/null
+    # The trailer merge-change step 7 writes: the tree the step 2 gate
+    # measured, which for a correct squash is the tree the index now holds.
+    _gate_tree=$(git write-tree)
     if [ "${1:-signed}" = unsigned ]; then
-        git -c commit.gpgsign=false commit -qm "squash my-change"
+        git -c commit.gpgsign=false commit -qm "squash my-change" -m "Gate-tree: $_gate_tree"
     else
-        git -c commit.gpgsign=true commit -qS -m "squash my-change"
+        git -c commit.gpgsign=true commit -qS -m "squash my-change" -m "Gate-tree: $_gate_tree"
     fi
+}
+
+# Replaces HEAD's message with stdin and signs again, keeping HEAD's tree:
+# the squash a guard 5 test needs, with every other guard still passing.
+resign_with_message() {
+    git -c commit.gpgsign=true commit -q --amend -S -F -
 }
 
 branch_exists() { git show-ref --verify --quiet "refs/heads/$1"; }
@@ -711,13 +720,221 @@ lock_change_branch_ref() {
     assert_nothing_removed
 }
 
+# --- Guard 5: the squash certifies its own tree ------------------------------
+
+@test "finish-merge: a squash whose message has no Gate-tree trailer is refused with everything intact" {
+    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    setup_ssh_signing
+    make_squashed_change
+    printf 'squash my-change\n\nPlan: docs/plans/x.md\n' | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "carries no Gate-tree: trailer with a value"
+    assert_nothing_removed
+}
+
+@test "finish-merge: a Gate-tree trailer with no value is refused" {
+    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    setup_ssh_signing
+    make_squashed_change
+    printf 'squash my-change\n\nGate-tree:\nPlan: docs/plans/x.md\n' | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "carries no Gate-tree: trailer with a value"
+    assert_nothing_removed
+}
+
+@test "finish-merge: a Gate-tree line outside the message's last paragraph is not read" {
+    # verifies: D1, D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # git reads trailers only in the last paragraph. A Co-Authored-By line
+    # after a blank line is that paragraph, and the Gate-tree line above it
+    # is then body text, as git log --format=%(trailers) shows.
+    setup_ssh_signing
+    make_squashed_change
+    head_tree=$(git rev-parse 'HEAD^{tree}')
+    printf 'squash my-change\n\nGate-tree: %s\n\nCo-Authored-By: A <a@example.com>\n' "$head_tree" \
+        | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "carries no Gate-tree: trailer with a value"
+    output_has "last paragraph"
+    assert_nothing_removed
+}
+
+@test "finish-merge: two Gate-tree trailers are refused, even when both name HEAD's tree" {
+    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    setup_ssh_signing
+    make_squashed_change
+    head_tree=$(git rev-parse 'HEAD^{tree}')
+    printf 'squash my-change\n\nGate-tree: %s\nGate-tree: %s\n' "$head_tree" "$head_tree" | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "more than one Gate-tree: trailer"
+    assert_nothing_removed
+}
+
+@test "finish-merge: an empty Gate-tree trailer after one naming HEAD's tree is a second trailer, and refused" {
+    # verifies: D5, D11 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # The empty value is the last line of git's output, the one command
+    # substitution strips; the trailers are counted with their keys, so it
+    # still counts.
+    setup_ssh_signing
+    make_squashed_change
+    head_tree=$(git rev-parse 'HEAD^{tree}')
+    printf 'squash my-change\n\nGate-tree: %s\nGate-tree:\n' "$head_tree" | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "more than one Gate-tree: trailer"
+    assert_nothing_removed
+}
+
+@test "finish-merge: an empty Gate-tree trailer before one naming HEAD's tree is a second trailer, and refused" {
+    # verifies: D5, D11 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    setup_ssh_signing
+    make_squashed_change
+    head_tree=$(git rev-parse 'HEAD^{tree}')
+    printf 'squash my-change\n\nGate-tree:\nGate-tree: %s\n' "$head_tree" | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "more than one Gate-tree: trailer"
+    assert_nothing_removed
+}
+
+@test "finish-merge: one Gate-tree trailer folded onto a second line is read as one value, and refused as another tree" {
+    # verifies: D5, D11 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # A continuation line opens with whitespace and belongs to the trailer
+    # above it. The guard reads the trailers unfolded into one line each, so
+    # the continuation is part of the one value, not a second trailer; one
+    # trailer whose value is not HEAD's tree is a mismatch.
+    setup_ssh_signing
+    make_squashed_change
+    head_tree=$(git rev-parse 'HEAD^{tree}')
+    printf 'squash my-change\n\nGate-tree: %s\n  continued\n' "$head_tree" | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_lacks "more than one Gate-tree: trailer"
+    output_has "Gate-tree: trailer names $head_tree continued, but HEAD's tree is $head_tree"
+    assert_nothing_removed
+}
+
+@test "finish-merge: a git log that cannot count the Gate-tree trailers exits 2 with everything intact" {
+    # verifies: D5, D11 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # Only the guard's counting git log fails; every other git call is the
+    # real one, so guards 1 and 2 pass and the failure is guard 5's.
+    setup_ssh_signing
+    make_squashed_change
+    stub_directory=$(make_git_failing_on '*"trailers:key=Gate-tree,unfold"*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    output_has "git log failed, so HEAD's Gate-tree: trailer cannot be read"
+    assert_nothing_removed
+}
+
+@test "finish-merge: a git log that cannot read the Gate-tree value exits 2 with everything intact" {
+    # verifies: D5, D11 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # The count passes on the real git; only the read of the value fails.
+    setup_ssh_signing
+    make_squashed_change
+    stub_directory=$(make_git_failing_on '*"trailers:key=Gate-tree,valueonly,unfold"*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    output_has "git log failed, so HEAD's Gate-tree: trailer cannot be read"
+    assert_nothing_removed
+}
+
+@test "finish-merge: a git rev-parse that cannot read HEAD's tree exits 2 with everything intact" {
+    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # The guard's rev-parse is the script's only one that names HEAD^{tree}.
+    setup_ssh_signing
+    make_squashed_change
+    stub_directory=$(make_git_failing_on '*" rev-parse HEAD^{tree} "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    output_has "git rev-parse failed, so HEAD's tree cannot be read"
+    assert_nothing_removed
+}
+
+@test "finish-merge: a Gate-tree trailer naming another tree is refused, naming both trees" {
+    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    setup_ssh_signing
+    make_squashed_change
+    head_tree=$(git rev-parse 'HEAD^{tree}')
+    parent_tree=$(git rev-parse 'HEAD~1^{tree}')
+    printf 'squash my-change\n\nGate-tree: %s\n' "$parent_tree" | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "Gate-tree: trailer names $parent_tree, but HEAD's tree is $head_tree"
+    assert_nothing_removed
+}
+
+@test "finish-merge: a record committed after the gate leaves a squash its Gate-tree does not name" {
+    # verifies: PR-k4y59t
+    # The defect's sequence: the gate measures the change branch, the record
+    # is committed after it, and the squash carries the tree the gate
+    # measured. The signed commit then holds a tree no gate saw.
+    setup_ssh_signing
+    CHANGE_WT="$BATS_TEST_TMPDIR/wt"
+    git worktree add -q "$CHANGE_WT" -b my-change
+    printf 'work\n' > "$CHANGE_WT/src/work.txt"
+    git -C "$CHANGE_WT" add -A
+    git -C "$CHANGE_WT" -c commit.gpgsign=false commit -qm work
+    gate_tree=$(git -C "$CHANGE_WT" rev-parse 'HEAD^{tree}')
+    mkdir -p "$CHANGE_WT/docs/verification"
+    printf 'branch: my-change\n' > "$CHANGE_WT/docs/verification/record.md"
+    git -C "$CHANGE_WT" add -A
+    git -C "$CHANGE_WT" -c commit.gpgsign=false commit -qm "the record, after the gate"
+    git merge --squash my-change >/dev/null
+    git -c commit.gpgsign=true commit -qS -m "squash my-change" -m "Gate-tree: $gate_tree"
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 1 ] || { echo "cleaned up after a squash its gate never measured: $output"; false; }
+    output_has "Gate-tree: trailer names $gate_tree"
+    assert_nothing_removed
+}
+
+@test "finish-merge: guard 5 reads the trailer when log.showSignature is set" {
+    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md), PR-nyw3ww
+    # With log.showSignature, git log prints the verifier's output above the
+    # formatted value, which would read as a second trailer.
+    setup_ssh_signing
+    make_squashed_change
+    git config log.showSignature true
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    if branch_exists my-change; then echo "branch still exists"; false; fi
+}
+
+@test "finish-merge: the message merge-change step 7 documents passes guard 5" {
+    # verifies: D1, D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # The template is taken from the skill, its placeholders filled, and a
+    # Co-Authored-By line added in its last paragraph, as step 7 says.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    step7=$(step_of "$skill" 7)
+    template=$(printf '%s\n' "$step7" | awk '
+        /^ *```sh$/ { fenced = 1; next }
+        fenced && /^ *```$/ { fenced = 0; next }
+        fenced { next }
+        /^ *```$/ { if (message) exit; message = 1; next }
+        message { sub(/^   /, ""); print }
+    ')
+    printf '%s\n' "$template" | grep -q '^Gate-tree: <step 2 tree>$' \
+        || { echo "no Gate-tree line in the template: $template"; false; }
+    setup_ssh_signing
+    make_squashed_change
+    head_tree=$(git rev-parse 'HEAD^{tree}')
+    { printf '%s\n' "$template" | sed -e "s/<step 2 tree>/$head_tree/" -e 's/<[^>]*>/x/g'
+      printf 'Co-Authored-By: A <a@example.com>\n'
+    } | resign_with_message
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 0 ] || { echo "the documented message failed: $output"; false; }
+}
+
 # --- --check: guard 4 proved before the signing touch ------------------------
 #
 # Guard 4 is fully knowable before the squash commit exists, but every guard in
 # this script was run only as the chained tail of the signed commit — so a
 # rejection
 # was discovered AFTER the hardware-key touch merge-change step 7 hands to the
-# user. `--check` proves guard 4 and nothing else: guards 1 and 2 both read the
+# user. `--check` proves guard 4 and nothing else: guards 1, 2 and 5 read the
 # squash commit, which does not exist at the point this mode is for, and guard
 # 3 is `git worktree remove` itself and cannot be proved without doing it.
 

@@ -73,8 +73,9 @@ step 1 merged the base first.
 Skip the fetch and the scan checks a smaller set. A failed fetch that is
 swallowed merges against a stale remote-tracking ref and reports success.
 
-A base merged from a local ref is recorded with its commit so that a later
-reader knows what the duplicate scan at step 4 was compared against.
+A base merged from a local ref is named with its commit in step 7's `Base:`
+trailer, so that a later reader knows
+what the duplicate scan at step 4 was compared against.
 
 A project may still put the remote out of scope, as this toolkit's own
 repository does, because its fetch blocks on a hardware key only the user can
@@ -120,7 +121,9 @@ against the local disk only.
 ## Step 2: recording the tree
 
 A gate summary with no tree beside it cannot be re-identified one round
-later, and step 3 compares against this hash.
+later, and step 3 compares against this hash. Step 7 writes the same hash as
+the `Gate-tree:` trailer: the tree the gate measured, not one computed again
+at step 7.
 
 ## Step 3: the tree hash decides re-verification
 
@@ -230,10 +233,31 @@ The removal rejects untracked files. It never reports an ignored file,
 because git does not see one, and that is the property guard 4 exists for.
 Forcing the removal would delete the scratch the rejection reported.
 
+## Step 6a: the record is written before the last rerun
+
+A record committed after the step 2 gate changes the tree, so step 7's
+comparison finds a mismatch and the sequence reruns from step 1 for one more
+gate run. Written once the last review's fixes are merged and before that
+rerun, the record is in the tree the gate measures, and the rerun's 6b leaves
+it as it is. Where 6b is first reached with no record, as for a class A
+change with no review, the first step 7 costs that one rerun.
+
 ## Step 6b: the record is committed in the worktree
 
 The record is committed on the change branch, so the squash commit contains the evidence
 on the base branch, and its `Verified:` line cites the record.
+
+## Step 6b: the record names no tree
+
+A record that names the commit, the tree, the base commit or the gate totals
+of its change is part of the tree it names. Every base update, and every
+rebase after a shared remote moves, made those lines stale, so the record was
+rewritten and committed again, which changed the tree it named: a loop, and a
+late commit on the review evidence. The commit can carry what the record could
+not, because nothing it carries changes its tree. So the record holds only
+what the commit cannot prove, and nothing in it is measured from the tree. It
+does not change when the sequence reruns, and the tree the gate measured is
+the tree squashed. `ADR-f6ytg7` records the decision.
 
 ## Step 6b: the delta, never the total
 
@@ -357,8 +381,34 @@ was pending.
 ## Step 7: `Resolves:` and `Opens:`
 
 These lines repeat the step 6b delta in the commit that is the change on the
-base branch. No script parses the message, so each costs one line, and anyone
-can check them against the diff without a ledger to compare them to.
+base branch. No script parses these two lines, so each costs one line, and
+anyone can check them against the diff without a ledger to compare them to.
+
+## Step 7: the trailers certify the gate
+
+`Gate-tree:` is the hash step 2 recorded, not `git write-tree` at step 7: a
+tree computed at step 7 describes what is staged, which is what the check
+questions. The comparison before the hand-over catches a branch that changed
+after the gate, such as a record committed at 6b, before the key touch; the
+cleanup would refuse the same squash after it.
+
+`Base:` names the commit of the base ref that step 1 merged. At step 7 that is
+`git rev-parse <base ref>` in the primary checkout: the squash is staged, not
+committed, so the base has not moved onto it, and `git diff --cached --quiet
+<branch>` exits 0 only when no other commit reached the base after step 1.
+
+git reads trailers only in a message's last paragraph. A blank line before
+`Co-Authored-By:`, or a wrapped trailer line that does not open with
+whitespace, leaves `Gate-tree:` in the body, and the cleanup is refused.
+
+The `Gate:` lines are copied from the step 2 summary. No script checks them:
+checking a total means running the gate again. What is checked is the tree
+they describe. Coverage gets a `Gate:` line because it is a measured figure
+and the record no longer holds one. The pre-flight has no trailer: the
+sequence halts when it fails, so every squash exists only after it passed. Not
+all of it reads the tree: `BASE-MERGED` reads ancestry, `NESTED-WORKTREE` the
+worktree registry, and the `DUPLICATE-ID` scan the base's IDs. But its ID and
+trace checks read the tree, and can be rerun on the tree `Gate-tree:` names.
 
 ## Step 7: the branch name, never a path
 

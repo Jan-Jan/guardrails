@@ -87,6 +87,37 @@ STUB
     [ "$status" -eq 0 ]
 }
 
+@test "check-signing: a good signature passes --strict with log.showSignature set" {
+    # verifies: PR-nyw3ww
+    # log.showSignature makes git log print the verifier's output above the
+    # %G? letter: without --no-show-signature, the value read back is that
+    # output plus the letter, not G alone.
+    setup_ssh_signing
+    signed_commit a
+    git config log.showSignature true
+    run sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    output_lacks "UNVERIFIED"
+}
+
+@test "check-signing: with log.showSignature set, an unsigned commit and an untrusted signature still fail --strict" {
+    # verifies: PR-nyw3ww
+    # The setting must not reach the verdict in either direction: reading the
+    # letter past the verifier's output may not turn a failure into a pass.
+    git config log.showSignature true
+    run sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 1 ] || { echo "an unsigned commit: expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"UNSIGNED"* ]] || { echo "an unsigned commit is not reported UNSIGNED: $output"; false; }
+    setup_ssh_signing
+    signed_commit a
+    ssh-keygen -t ed25519 -N '' -f "$BATS_TEST_TMPDIR/other_key" -q
+    printf 'test@example.com %s\n' "$(cut -d' ' -f1-2 < "$BATS_TEST_TMPDIR/other_key.pub")" \
+        > "$BATS_TEST_TMPDIR/allowed_signers"
+    run sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 1 ] || { echo "an untrusted signature: expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"UNVERIFIED"* ]] || { echo "an untrusted signature is not reported UNVERIFIED: $output"; false; }
+}
+
 @test "check-signing: signed but unverifiable warns and passes" {
     setup_ssh_signing
     signed_commit a

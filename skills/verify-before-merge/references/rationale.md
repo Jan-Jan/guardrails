@@ -8,8 +8,8 @@ before proposing to change one. Each heading names the rule it explains.
 Test logs, type-checker output and coverage tables displace the plan and the
 trace in the dispatcher's context, and none of them has to be in that context
 to be evidence. Evidence before assertions still applies: the evidence moves
-from the chat log to the log file and the verification record. It does not
-become anyone's recollection.
+from the chat log to the log file and the squash commit's trailers. It does
+not become anyone's recollection.
 
 ## The log goes outside the tree
 
@@ -72,7 +72,7 @@ rule after the conversation ends.
 
 ## The log is not kept
 
-The log is deleted with the change worktree. The durable evidence is the
-verification record `merge-change` step 6b writes: totals, per-command
-results, coverage summary, verdict. That is why the record's figures must all
-be in the gate summary.
+The log is deleted with the change worktree. The durable evidence of the
+gate is the squash commit's `Gate:` trailers, beside the `Gate-tree:` they
+describe, which `merge-change` step 7 writes. That is why each command's
+totals must be in the gate summary.

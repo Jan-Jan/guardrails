@@ -198,6 +198,11 @@ template: the gate table names the tree the figures describe`
 was incomplete and the independent read of it caught that: step 6 compared
 against a hash step 2 never recorded, so the rule was unusable on its first
 pass.
+Note (2026-10-14): ADR-f6ytg7 and PR-k4y59t moved the tree out of the record
+and into the squash commit's `Gate-tree:` trailer, which `finish-merge.sh`
+checks against the commit's own tree; the record no longer names it. The
+template test is now `verification template: the gate's figures and their
+tree are in the squash commit, not the record` (tests/skills.bats).
 
 **PR-xec7dd**: `finalize-docs.sh` names its output `<merge-date>-<slug>.md` and
 states that "the merge date cannot be known until the merge", but the date comes

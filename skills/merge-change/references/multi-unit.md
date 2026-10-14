@@ -24,7 +24,10 @@ there.
 The rest is yours, per unit:
 
 - dispatch each unit's `verify_commands` with its `GR_CONFIG` (steps 2 and 3),
-  for every unit in the impact set.
+  for every unit in the impact set;
+- write one `Gate:` trailer per unit and command at step 7,
+  `Gate: <unit>: <verify_commands entry> <passed>/<total>`. The one
+  `Gate-tree:` trailer names the tree every unit's gate measured.
 
 At step 6b, the record also names the units touched, and the impact set,
 beside its `branch:` line. One branch, one squash, one record, however many units were

@@ -14,8 +14,9 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 2. **Integration is a signed squash merge** performed by the `merge-change`
    skill. The base branch receives exactly one signed commit per change.
    Intermediate worktree commits may be unsigned; the squash commit must be
-   signed and is verified with `check-signing.sh` before the worktree is
-   cleaned up. There is no unsigned fallback.
+   signed and carry a `Gate-tree:` trailer naming the tree the gate measured,
+   and `finish-merge.sh` verifies both before the worktree is cleaned up.
+   There is no unsigned fallback.
 3. **Traceability is mechanical.** A new requirement/hazard/control/design/
    problem item gets its ID the moment it is written: run
    `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The ID

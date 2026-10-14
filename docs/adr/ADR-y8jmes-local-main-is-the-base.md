@@ -21,9 +21,11 @@ Agents in this repository never fetch, never push, and never read
 branches from it, `merge-change` step 1 merges it in, and the signed squash is
 merged onto it. Pushing is the maintainer's, done when they choose.
 
-This overrides `merge-change` step 1's fetch. The verification record states
-"base merged from local `main` at `<commit>`, per AGENTS.md non-negotiable 4",
-so a later reader knows the remote was out of scope by policy.
+This overrides `merge-change` step 1's fetch. The squash commit's `Base:`
+trailer states `Base: local main at <commit>, per AGENTS.md non-negotiable 4`,
+so a later reader knows the remote was out of scope by policy. The
+verification record stated it until ADR-f6ytg7 (2026-10-14) moved the base
+commit it named into the `Base:` trailer.
 
 ## Cost
 

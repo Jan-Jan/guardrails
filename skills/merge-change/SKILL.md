@@ -47,10 +47,10 @@ The tag must be unique per dispatch.
    { git diff --quiet -- docs/plans || git -c commit.gpgsign=false commit -m "chore: prune plans" -- docs/plans; }
    ```
 
-   - A failed fetch is a **stop**. Fetch from a session that can, or record
-     the local ref and commit the base was merged from.
+   - A failed fetch is a **stop**. Fetch from a session that can, or merge
+     the local ref and name it in step 7's `Base:` trailer.
    - A project may put the remote out of scope only if its own AGENTS.md states
-     why, and the record states it too. Never adopt that by analogy.
+     why, and the `Base:` trailer states it too. Never adopt that by analogy.
    - Run this step every round. Resolve conflicts here, never on the base
      branch, then rerun.
    - An add/add conflict on a ledger file means the base merged a file of the
@@ -146,6 +146,7 @@ The tag must be unique per dispatch.
    are all `low` is the last review round.** Fix each low finding whose fix is
    mechanical, record each other one as an open problem item, and rerun from
    step 1 — but no further reviewer is dispatched, and the rerun ends at 6b.
+   Write the record (6b) before that rerun.
    The reviewer still reads the record and raises what is wrong.
 
    **Remove the review worktree, every round that created one**, when the
@@ -170,9 +171,7 @@ The tag must be unique per dispatch.
 
 6b. **Verification record** — copy `.guardrails/templates/verification.md` to
    `docs/verification/<date>-<branch>.md`, fill it in, and commit it unsigned:
-   the gate summary's totals and the tree they describe, coverage if
-   configured, each check's result, the IDs this change
-   resolves, accepts or opens (never the open count or oldest age),
+   the IDs this change resolves, accepts or opens,
    `red -> green:` and any `inherited:` lines from the plan, its guideline
    reviews (`## Guideline reviews`), the reviewer's verdict and every finding
    with its disposition.
@@ -221,7 +220,7 @@ The tag must be unique per dispatch.
      outdated one of this change. Stop and tell the user; once they sign or
      clear it, rerun from step 1.
 
-   Write the commit message to a file **outside the repository**, such as
+   Write the commit message to a file **outside the repository**, like
    `/tmp/merge-<branch>.msg`:
 
    ```
@@ -232,9 +231,24 @@ The tag must be unique per dispatch.
    Opens: <PR IDs this change raises>
    Plan: docs/plans/<plan file>
    Verified: docs/verification/<record file>
+   Base: <base ref> at <its commit>
+   Gate-tree: <step 2 tree>
+   Gate: <verify_commands entry> <passed>/<total>
+   Gate: <coverage_command> <figure>
    ```
 
-   Omit an empty `Resolves:` or `Opens:` line.
+   Omit an empty `Resolves:` or `Opens:` line. Write one `Gate:` line per
+   `verify_commands` entry, and one for `coverage_command` where configured.
+   `<its commit>` is `git rev-parse <base ref>`.
+   Keep every trailer, `Co-Authored-By:` included, in this last paragraph.
+
+   Before the hand-over, compare the index with the step 2 tree:
+
+   ```sh
+   [ "$(git write-tree)" = <step 2 tree> ]
+   ```
+
+   A mismatch: run `git reset --merge`, then rerun from step 1.
 
    Hand the user exactly one command, paths and branch substituted, and
    **stop**:
@@ -246,7 +260,7 @@ The tag must be unique per dispatch.
    **Never run `git commit -S` yourself.** Tell them signing may need a
    hardware-key touch. Success ends with three
    `finish-merge:` lines; otherwise, they paste the output.
-   `finish-merge.sh` proves four things before it removes anything. Pass it
+   `finish-merge.sh` proves five things before it removes anything. Pass it
    the branch name, never a path. If the harness created the worktree,
    leave or remove it with the harness tool.
    With no worktree registered for the branch, the script still deletes the
@@ -279,7 +293,8 @@ The tag must be unique per dispatch.
 ## Done when
 
 - The base branch HEAD is one squash commit for this change, whose message
-  names the plan and the record, verified by `finish-merge.sh`.
+  names the plan, the record and the gated tree,
+  verified by `finish-merge.sh`.
 - The change worktree and branch are gone, removed by `finish-merge.sh` and
   not by hand with `--force` or `-D`.
 - You reported the merge and recommended compacting.
