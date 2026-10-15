@@ -80,8 +80,8 @@ description: Mandatory isolation for every change in a guardrails project - crea
    ```
 
    **Then get inside it — harness tool first.** If your harness has a worktree
-   tool (e.g. `EnterWorktree`, a `/worktree` command), pass it the path you
-   just created. Otherwise remain where you are and drive the worktree by path,
+   tool (e.g. `EnterWorktree`, a `/worktree` command), pass it the new
+   path. Otherwise remain where you are and drive the worktree by path,
    with `git -C .worktrees/<change-branch>-t<N> ...` and absolute paths for
    every edit. Either way, before you edit anything, confirm the worktree is
    usable with `git -C .worktrees/<change-branch>-t<N> status`; that spelling
@@ -89,8 +89,9 @@ description: Mandatory isolation for every change in a guardrails project - crea
    reports success and then rejects every shell call; re-enter the change
    worktree's own path with the same tool.
 
-   Then edit, run the project's `verify_commands`, commit on the task branch
-   (unsigned, `develop-tdd` step 6), report, and stop. The dispatcher merges.
+   Then edit, run the selection `develop-tdd` step 4 or `develop-refactor`
+   step 3 states, commit on the task branch (unsigned, `develop-tdd` step 6),
+   report, and stop. The dispatcher merges.
 
    **A fresh task worktree contains only tracked files.** `start` copies the
    change worktree's ignored entries into it: a vendored test runner, installed
@@ -163,9 +164,9 @@ description: Mandatory isolation for every change in a guardrails project - crea
    sh .guardrails/scripts/task-worktree.sh merge t<N>
    ```
 
-   The path is the one the dispatcher named in the prompt,
+   The path is the one the dispatcher named,
    `.worktrees/<change-branch>-t<N>` (step 1), and `t<N>` is its tag; the
-   report's `worktree:` line confirms the subagent went there.
+   report's `worktree:` line confirms it.
 
    A review worktree has nothing to merge.
    `task-worktree.sh remove review` removes the worktree and its task branch,

@@ -25,10 +25,12 @@ description: Fix the findings of one CODE or ARCHITECTURE conformance review in 
    as `Heading N` and a `file:line`.
 2. **Fix each finding at its line, as its clause states.** Fix every place
    the same finding names; leave the rest of the code as it is.
-3. **Change no behavior.** Do not change behavior: the suite must stay
-   green. Run the project's `verify_commands` after each fix, and commit it
-   unsigned (`git -c commit.gpgsign=false commit`). Never delete, skip or
-   loosen a test to keep the suite green.
+3. **Change no behavior.** Do not change behavior: the tests you run must
+   stay green. After each fix, run the tests the fix touches: those that
+   verify what it changes, and those it adds or edits. Where the runner
+   cannot select, run `verify_commands`. Commit each fix unsigned
+   (`git -c commit.gpgsign=false commit`). Never delete, skip or
+   loosen a test to keep those tests green.
 4. **Report a finding you cannot fix as not fixed, with the reason:** a fix
    that would change behavior, a finding the code does not bear out, a
    clause that contradicts the floor, which is a finding against the clause,
@@ -60,7 +62,7 @@ result: <N passed, N failed>
 |---|---|
 | "While I'm here, I'll tidy the rest of the file" | Fix the findings. Anything else is the next review's to find. |
 | "This rewrite is cleaner and changes behavior only a little" | No behavior change. Report it as not fixed, with the reason. |
-| "The test is in the way of the fix; I'll loosen it" | Never. The suite stays green as it is. |
+| "The test is in the way of the fix; I'll loosen it" | Never. The tests you run stay green as they are. |
 | "This finding is wrong; I'll skip it quietly" | Report it as not fixed, with the reason. The dispatcher decides. |
 | "The finding needs a design item reworded; I'll edit it" | Report it as not fixed. A design change goes through `design-architecture`, and its alternatives are the user's. |
 | "I'll merge my task branch when I am done" | Leave it on the task branch. The dispatcher runs `task-worktree.sh merge`. |
@@ -69,5 +71,5 @@ result: <N passed, N failed>
 
 - Each finding is fixed or reported not fixed with its reason.
 - Each fix is committed on the task branch, which is not merged.
-- The suite is green.
+- Those tests are green.
 - The report is returned.

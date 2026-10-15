@@ -37,8 +37,8 @@ setup() {
 @test "develop-refactor: no behavior change, and no test loosened" {
     # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
     flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
-    printf '%s\n' "$flat" | grep -qF 'Do not change behavior: the suite must stay green.'
-    printf '%s\n' "$flat" | grep -qF 'Never delete, skip or loosen a test to keep the suite green.'
+    printf '%s\n' "$flat" | grep -qF 'Do not change behavior: the tests you run must stay green.'
+    printf '%s\n' "$flat" | grep -qF 'Never delete, skip or loosen a test to keep those tests green.'
 }
 
 @test "develop-refactor: a finding it cannot fix is reported, with the reason" {
@@ -69,4 +69,25 @@ setup() {
 @test "develop-refactor: the floor names the architecture items" {
     # verifies: D3, D6 (docs/plans/2026-10-14-architecture-guidelines.md)
     states_architecture_floor "$skill"
+}
+
+@test "develop-refactor: a fix runs the tests that verify what it changes" {
+    # verifies: D3 (docs/plans/2026-10-15-test-selection-guideline.md)
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    step=$(step_of "$skill" 3 | tr '\n' ' ' | tr -s ' ')
+    printf '%s' "$step" | grep -qF 'tests the fix touches: those that verify what it changes' ||
+        { echo "step 3 does not scope the run"; false; }
+    printf '%s' "$step" | grep -qF 'cannot select' ||
+        { echo "step 3 has no fallback for a runner that cannot select"; false; }
+    if printf '%s' "$step" | grep -qF 'verify_commands` after each fix'; then
+        echo "step 3 still runs the whole suite per fix"; false
+    fi
+    grep -qF '## Test runs' "$notes" ||
+        { echo "no upgrade note names the Test runs section"; false; }
+    done_when=$(section_of '## Done when' "$skill" | tr '\n' ' ' | tr -s ' ')
+    if printf '%s' "$done_when" | grep -qF 'The suite is green'; then
+        echo "Done when still implies the whole suite"; false
+    fi
+    printf '%s' "$done_when" | grep -qF 'Those tests are green' ||
+        { echo "Done when does not state the run tests are green"; false; }
 }

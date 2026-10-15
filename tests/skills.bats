@@ -1295,6 +1295,40 @@ sh_fence() {
         || { echo "Done when does not name the ARCHITECTURE review"; false; }
 }
 
+@test "worktree-discipline: a task subagent runs develop-tdd's selection, not verify_commands" {
+    # verifies: D4 (docs/plans/2026-10-15-test-selection-guideline.md)
+    skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
+    step=$(step_of "$skill" 1 | tr '\n' ' ' | tr -s ' ')
+    [ -n "$step" ] || { echo "no step 1"; false; }
+    if printf '%s\n' "$step" | grep -qF "run the project's \`verify_commands\`"; then
+        echo "step 1 sends a task subagent to verify_commands"; false
+    fi
+    printf '%s\n' "$step" | grep -qF '`develop-tdd` step 4' \
+        || { echo "step 1 does not name develop-tdd step 4"; false; }
+    # A develop-refactor fix dispatch also runs under step 1; its selection
+    # is develop-refactor step 3.
+    printf '%s\n' "$step" | grep -qF '`develop-refactor` step 3' \
+        || { echo "step 1 does not name develop-refactor step 3"; false; }
+    # The whole-suite baseline when a change worktree opens stays.
+    baseline=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$baseline" | grep -qF "run the project's \`verify_commands\`" \
+        || { echo "step 4 lost the baseline run"; false; }
+}
+
+@test "develop-change: the dispatcher claims no whole-suite run before the gate" {
+    # verifies: D4 (docs/plans/2026-10-15-test-selection-guideline.md)
+    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
+    flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
+    if printf '%s\n' "$flat" | grep -qF 'and the suite is green'; then
+        echo "the conformance reviews wait on a whole-suite run"; false
+    fi
+    done_when=$(section_of '## Done when' "$skill" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$done_when" ] || { echo "no Done when section"; false; }
+    if printf '%s\n' "$done_when" | grep -qF 'The suite is green'; then
+        echo "Done when claims a whole-suite run"; false
+    fi
+}
+
 @test "develop-change: an architecture finding that needs a design change is a stop" {
     # verifies: D3 (docs/plans/2026-10-14-architecture-guidelines.md)
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"

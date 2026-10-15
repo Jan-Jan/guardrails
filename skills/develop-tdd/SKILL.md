@@ -47,8 +47,10 @@ the same violation.
    nothing.
 3. **GREEN:** write the minimal code that passes. No extra features, no
    speculative options.
-4. **Verify GREEN:** run the test; every other test still passes; the output
-   is clean.
+4. **Verify GREEN:** run the test, then the selection the guidelines file's
+   `Test runs` section states; the output is clean. A guidelines file with
+   no `Test runs` section, or a runner that cannot select, means the
+   project's `verify_commands`.
 5. **REFACTOR:** duplication, names, helpers. Behavior is unchanged and the
    tests stay green.
 6. **Commit** (unsigned is fine in the worktree) and take the next test.
@@ -122,7 +124,7 @@ surprises: <anything unexpected, or "none">
 | "This helper is complex, I'll test it directly" | Do what the guidelines file's `## Seams` says. |
 | "The project file leaves this out; I'll read the default too" | One file per path. A rule the project dropped is dropped. |
 | "I'll merge my task branch when I am done" | Leave it on the task branch. The dispatcher runs `task-worktree.sh merge`. |
-| "The suite is green, the red -> green lines can go" | Each new test needs its line; the gate reads them at check 4. |
+| "That selection is green, the red -> green lines can go" | Each new test needs its line; the gate reads them at check 4. |
 | "This finding is wrong; I'll skip it quietly" | Report it as not fixed, with the reason. The dispatcher decides. |
 
 ## Done when
@@ -130,7 +132,7 @@ surprises: <anything unexpected, or "none">
 - Each behavior of the task has a test that was watched fail for the right
   reason, then pass; on a fix dispatch, each finding is fixed or reported
   not fixed with its reason.
-- The suite is green and its output is clean.
+- That selection is green and its output is clean.
 - The work is committed on the task branch, which is not merged.
 - The dispatch report is returned, with one `red -> green:` line per new
   test.

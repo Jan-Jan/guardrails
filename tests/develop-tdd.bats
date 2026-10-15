@@ -108,3 +108,21 @@ setup() {
     grep -qF 'RC[review-conformance<br/>' "$root/README.md"
     grep -qF 'RF[develop-refactor<br/>' "$root/README.md"
 }
+
+@test "develop-tdd: GREEN runs the guidelines file's selection, not the whole suite" {
+    # verifies: D2 (docs/plans/2026-10-15-test-selection-guideline.md)
+    body=$(tr '\n' ' ' < "$skill" | tr -s ' ')
+    step=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
+    printf '%s' "$step" | grep -qF "the selection the guidelines file's \`Test runs\` section states" ||
+        { echo "step 4 does not run the Test runs section's selection"; false; }
+    printf '%s' "$body" | grep -qF 'no `Test runs` section' ||
+        { echo "develop-tdd has no fallback for a file without the section"; false; }
+    printf '%s' "$step" | grep -qF 'a runner that cannot select' ||
+        { echo "step 4 has no fallback for a runner that cannot select"; false; }
+    if printf '%s' "$body" | grep -qF 'every other test still passes'; then
+        echo "step 4 still implies the whole suite"; false
+    fi
+    if printf '%s' "$body" | grep -qF -- '- The suite is green'; then
+        echo "Done when still implies the whole suite"; false
+    fi
+}

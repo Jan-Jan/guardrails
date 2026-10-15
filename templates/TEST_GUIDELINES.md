@@ -211,6 +211,14 @@ Keep this section only where the project has a user interface.
    any visual change, so it is evidence only where appearance is the
    requirement.
 
+## Test runs
+
+1. **During development, run the tests the work touches**: those that
+   verify what it changes, and those it adds or edits, through the
+   runner's file or name selection. The whole suite runs at the merge
+   gate. Why: a whole-suite run per step costs minutes and finds what
+   the gate finds. Example: `<runner> tests/parser_test.ext`.
+
 ## Existing suites
 
 1. **These rules bind the tests a change writes or edits.** They spare the

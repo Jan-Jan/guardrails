@@ -751,3 +751,23 @@ there. No gate reads the file, so nothing goes red.
 * Step 5 captures the suite's exit status in `rc`, not `status`, which zsh
   makes read-only.
 * No gate changes: no check script reads any of this.
+
+## Development runs a selection; the merge gate runs the suite
+
+The test guidelines default, `.guardrails/templates/TEST_GUIDELINES.md`,
+gained a `## Test runs` section: during development, run the tests the work
+touches: those that verify what it changes, and those it adds or edits,
+through the runner's file or name selection; the whole suite runs at the
+merge gate. A
+project with its own `docs/TEST_GUIDELINES.md` adopts the clause on upgrade,
+clause by clause, through `tailor-guidelines`, with its own runner in the
+example. `develop-tdd` runs the selection that section states, and the
+project's `verify_commands` where the file has no `Test runs` section.
+After each fix, `develop-refactor` runs the tests the fix touches: those
+that verify what it changes, and those it adds or edits. It runs
+`verify_commands` where the runner cannot select. `develop-tdd` also runs
+`verify_commands` where the runner cannot select. A task subagent's and the
+dispatcher's own steps no longer run the whole suite; the baseline at
+`worktree-discipline` step 4 still runs it once, when a change worktree
+opens. `verify-before-merge` still runs the whole suite, so no gate changes
+and nothing goes red.

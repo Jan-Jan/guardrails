@@ -89,8 +89,8 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
     grep -qxF '   breaks the rules and still passes is left alone, since deleting it without a' "$template"
 }
 
-@test "test guidelines: the template has the seven headings, in order" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+@test "test guidelines: the template has the eight headings, in order" {
+    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D1 (docs/plans/2026-10-15-test-selection-guideline.md)
     expected='# Test guidelines
 ## Seams
 ## Doubles
@@ -98,6 +98,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 ## Property tests
 ## Mutants
 ## UI
+## Test runs
 ## Existing suites'
     run grep -E '^##? ' "$template"
     [ "$status" -eq 0 ]
@@ -236,15 +237,16 @@ section_text() {
 repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
 
 @test "test guidelines: this repository's file has the template's headings except UI" {
-    # verifies: D6, D10 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: D6, D10 (docs/plans/2026-10-08-test-guidelines.md); D1 (docs/plans/2026-10-15-test-selection-guideline.md)
     # This repository has no user interface, so its file drops ## UI and
-    # keeps the seven other headings in the template's order.
+    # keeps the eight other headings in the template's order.
     expected='# Test guidelines
 ## Seams
 ## Doubles
 ## Owned services
 ## Property tests
 ## Mutants
+## Test runs
 ## Existing suites'
     run grep -E '^##? ' "$repo_guidelines"
     [ "$status" -eq 0 ]
@@ -326,5 +328,17 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
             (*"$amendment"*) ;;
             (*) echo "$adr carries no amendment note"; false ;;
         esac
+    done
+}
+
+@test "test guidelines: Test runs scopes development runs and leaves the whole suite to the merge gate" {
+    # verifies: D1 (docs/plans/2026-10-15-test-selection-guideline.md)
+    for guidelines in "$template" "$repo_guidelines"; do
+        body=$(section_of '## Test runs' "$guidelines" | tr '\n' ' ' | tr -s ' ')
+        [ -n "$body" ] || { echo "$guidelines has no Test runs section"; false; }
+        printf '%s' "$body" | grep -qF 'merge gate' ||
+            { echo "$guidelines does not leave the whole suite to the merge gate"; false; }
+        printf '%s' "$body" | grep -qF 'Why:' || { echo "$guidelines clause has no Why:"; false; }
+        printf '%s' "$body" | grep -qF 'Example:' || { echo "$guidelines clause has no Example:"; false; }
     done
 }

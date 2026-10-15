@@ -219,6 +219,14 @@ A project that changes a clause rewrites its reason and examples with it.
    the hit while the edit is in progress. Nothing checks that a re-cut anchor
    still kills tests.
 
+## Test runs
+
+1. **During development, run the tests the work touches**: those that
+   verify what it changes, and those it adds or edits, through the
+   runner's file or name selection. The whole suite runs at the merge
+   gate. Why: a whole-suite run per step costs minutes and finds what
+   the gate finds. Example: `sh tests/run-tests.sh tests/<file>.bats`.
+
 ## Existing suites
 
 1. **These rules bind the tests a change writes or edits.** They spare the

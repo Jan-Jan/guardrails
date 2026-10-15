@@ -124,8 +124,8 @@ adjudicating.
 
 ### The conformance reviews
 
-When the last task branch is merged and the suite is green, pick the
-guidelines files for the change diff:
+When the last task branch is merged, pick the guidelines files for the
+change diff:
 
 ```sh
 sh .guardrails/scripts/guidelines-file.sh TEST \
@@ -194,7 +194,6 @@ finding.
 ## Done when
 
 - Every plan task is complete and its `red -> green:` lines are in the plan.
-- The suite is green.
 - Each conformance review, for `TEST`, `CODE` and `ARCHITECTURE`, ran in
   its last round
   with nothing above low, and every finding is fixed or dispositioned.
