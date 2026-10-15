@@ -115,10 +115,14 @@ it.
 1. **These rules bind the structure a change writes.** Code a change adds or
    moves follows them. Existing code that breaks them is restructured only
    where a change edits it for its own reason, and only as far as that edit
-   reaches; code that breaks them and is not edited is left alone. No change
-   restructures a codebase wholesale for compliance. Why: a wholesale
-   restructuring is a change of its own, with its own design and review, and
-   mixing it into an unrelated change hides both. Example: a change that
-   adds a clock read to a core function passes `now` in instead; the core
-   function beside it that already reads the clock is left until a change
-   edits it.
+   reaches; code that breaks them and is not edited is left alone. Correcting
+   a comment or a citation alone does not edit code. No change restructures a
+   codebase wholesale for compliance. Why: a wholesale restructuring is a
+   change of its own, with its own design and review, and mixing it into an
+   unrelated change hides both. If correcting a comment or a citation pulled
+   the code around it into scope, every moved rule would force a restructure
+   wherever it is cited, and citations would be left wrong instead. Example:
+   a change that adds a clock read to a core function passes `now` in
+   instead; the core function beside it that already reads the clock is left
+   until a change edits it, and a change that repoints a stale citation in
+   the comment above that function leaves the function as it is.

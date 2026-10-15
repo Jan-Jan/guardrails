@@ -229,10 +229,16 @@ A project that changes a clause rewrites its reason and examples with it.
 
 ## Existing suites
 
-1. **These rules bind the tests a change writes or edits.** They spare the
-   existing suite: a change that must edit an existing test that breaks them
-   moves it to the seam instead of repairing it in place: such a test usually
-   broke because a refactor moved the internal it was pinned to. A test that
-   breaks the rules and still passes is left alone, since deleting it without a
-   replacement at the seam loses coverage. No change rewrites a suite wholesale
-   for compliance.
+1. **These rules bind the tests a change writes, and those whose setup,
+   doubles, calls or assertions it edits.** Correcting a comment or a citation
+   alone does not edit a test. The rules spare the rest of the suite, but the
+   floor binds every test. Of the edited tests, one pinned below the seam
+   moves to the seam, and a mock of owned code is replaced. No change
+   rewrites a suite wholesale for compliance. Why: deleting a test without a
+   replacement at the seam loses coverage. If correcting a comment or a
+   citation pulled the test around it into scope, every moved rule would
+   force a test rewrite wherever it is cited, and citations would be left
+   wrong instead. Example: a change that edits the assertions of a `@test`
+   that mocks an owned script with a `PATH` stub replaces the mock; one that
+   repoints a stale citation in the `# ` comment above it leaves the mock as
+   it is.

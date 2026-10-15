@@ -61,10 +61,12 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: a UI's interface is what the user perceives, and a markup snapshot verifies nothing" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D7 (docs/plans/2026-10-07-test-seams.md)
-    grep -qF 'A markup snapshot carries no `verifies:` annotation.' "$template"
+    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D7 (docs/plans/2026-10-07-test-seams.md), point 3's snapshot sentence superseded by D1 (docs/plans/2026-10-15-guidelines-field-report.md); PR-kqesz5; D1 (docs/plans/2026-10-15-guidelines-field-report.md)
+    flat=$(tr '\n' ' ' < "$template" | tr -s ' ')
+    printf '%s' "$flat" | grep -qF 'a markup snapshot has no behavior to verify' ||
+        { echo "UI 6 does not say a markup snapshot has no behavior to verify"; false; }
     grep -qF 'The REQ interface of a UI is what the user perceives and does' "$template"
-    grep -qF '. **A markup snapshot carries no `verifies:` annotation.**' "$template"
+    grep -qF '. **No markup snapshot test.**' "$template"
     grep -qF '. **Keep the UI layer thin.**' "$template"
     grep -qF 'text, not by test identifier or class name.' "$template"
     grep -qF 'Visual regression verifies a REQ only where the REQ is about appearance' "$template"
@@ -81,12 +83,24 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
     grep -qxF '   and CSS classes are implementation: a test that names them breaks on a' "$template"
 }
 
-@test "test guidelines: the rules bind new and edited tests, not the existing suite" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D10 (docs/plans/2026-10-07-test-seams.md)
-    grep -qF 'These rules bind the tests a change writes or edits.' "$template"
-    grep -qF 'No change rewrites a suite wholesale' "$template"
-    grep -qxF '   moves it to the seam instead of repairing it in place: such a test usually' "$template"
-    grep -qxF '   breaks the rules and still passes is left alone, since deleting it without a' "$template"
+@test "test guidelines: the rules bind new tests and tests whose code a change edits, and the floor binds every test" {
+    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D10 (docs/plans/2026-10-07-test-seams.md), its one remedy for every edited test superseded by D3 (docs/plans/2026-10-15-guidelines-field-report.md); PR-9n87ec; D3 (docs/plans/2026-10-15-guidelines-field-report.md)
+    for guidelines in "$template" "$repo_guidelines"; do
+        [ -f "$guidelines" ] || { echo "no $guidelines"; false; }
+        flat=$(section_of '## Existing suites' "$guidelines" | tr '\n' ' ' | tr -s ' ')
+        [ -n "$flat" ] || { echo "$guidelines has no Existing suites section"; false; }
+        for phrase in \
+            'the tests a change writes, and those whose setup, doubles, calls or assertions it edits' \
+            'Correcting a comment or a citation alone does not edit a test.' \
+            'the floor binds every test' \
+            'one pinned below the seam moves to the seam' \
+            'a mock of owned code is replaced' \
+            'No change rewrites a suite wholesale for compliance.' \
+            'and citations would be left wrong instead.'; do
+            printf '%s\n' "$flat" | grep -qF -- "$phrase" \
+                || { echo "$guidelines Existing suites 1 lacks: $phrase"; false; }
+        done
+    done
 }
 
 @test "test guidelines: the template has the eight headings, in order" {
@@ -341,4 +355,23 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
         printf '%s' "$body" | grep -qF 'Why:' || { echo "$guidelines clause has no Why:"; false; }
         printf '%s' "$body" | grep -qF 'Example:' || { echo "$guidelines clause has no Example:"; false; }
     done
+}
+
+@test "guidelines: no guidelines file exempts a test from verifies: or from being watched red" {
+    # verifies: PR-kqesz5; D2 (docs/plans/2026-10-15-guidelines-field-report.md)
+    guidelines_count=0
+    for guidelines in "$BATS_TEST_DIRNAME"/../templates/*_GUIDELINES.md "$BATS_TEST_DIRNAME"/../docs/*_GUIDELINES.md; do
+        [ -f "$guidelines" ] || { echo "no guidelines file matches $guidelines"; false; }
+        guidelines_count=$((guidelines_count + 1))
+        flat=$(tr '\n' ' ' < "$guidelines" | tr -s ' ')
+        grep_status=0
+        exempting_phrase=$(printf '%s' "$flat" |
+            grep -oiE '(no|without) (a |an |the |its )?`verifies:`|without (being )?watched red') ||
+            grep_status=$?
+        # grep exits 1 when nothing matches, which is the passing outcome: no
+        # exempting phrase. Any higher status is a failed scan, not a pass.
+        [ "$grep_status" -le 1 ] || { echo "grep exited $grep_status scanning $guidelines"; false; }
+        [ -z "$exempting_phrase" ] || { echo "$guidelines exempts a test from the floor: $exempting_phrase"; false; }
+    done
+    [ "$guidelines_count" -ge 2 ] || { echo "only $guidelines_count guidelines files found"; false; }
 }

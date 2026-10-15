@@ -27,9 +27,8 @@ A project that changes a clause rewrites its reason and examples with it.
       algorithm has a contract worth stating independently of its caller.
 
    Convenience is not on the list. A case reachable from the REQ interface
-   with a boundary fake is tested there, even where a deeper seam would be
-   easier. Why: an LLR freezes an interface, which should be a recorded
-   design decision, not a side effect of a test.
+   with a boundary fake is tested there. Why: an LLR freezes an interface,
+   which should be a recorded design decision, not a side effect of a test.
 
 3. **Deep IO with complex error handling follows the same order.** An error
    the code handles (retried, turned into a fallback, translated for the
@@ -71,7 +70,7 @@ A project that changes a clause rewrites its reason and examples with it.
 
 4. **An interaction is asserted only where it is the requirement.** "The
    software shall send an alarm to the pager service": the outgoing message
-   is observable output, so asserting it is a behavior test, not a mock.
+   is observable output.
    Why: there the message is the behavior, so asserting it pins nothing the
    requirement does not state.
 
@@ -98,18 +97,15 @@ A project that changes a clause rewrites its reason and examples with it.
 1. **A service the project owns runs for real on the normal path**, and
    its failures may be injected or faked. A backend, database or sync service
    that the codebase contains, or that the application configuration declares
-   part of the system, runs for real in a REQ-level test of the normal case.
-   Why: a fake of it there verifies the main behavior against something the
-   project never ships, and a fake drifts from what it stands in for. A
-   failure case may come from:
+   part of the system, is one. Why: faking it on the normal path verifies the
+   main behavior against something the project never ships. A failure case
+   may come from:
 
    - fault injection on the real connection: a proxy that drops or resets
      traffic;
    - the real service put into the failing state: conflicting data seeded;
    - a fake of the service, under the same contract test as any fake, so that
-     its error responses are the ones the real service gives. A double that
-     returns the service's own error, such as a conflict response with its
-     body, is this kind, not a fault injector.
+     its error responses are the ones the real service gives.
 
 2. **A failure test may fake the successes before its failure**, such as a
    first sync that succeeds before the second times out, where each of those
@@ -125,8 +121,7 @@ A project that changes a clause rewrites its reason and examples with it.
 1. **Generate inputs where an invariant holds for all of them.** Where an
    interface's cases are combinatorial, or it is maths, parsing or
    encoding (criteria 2 and 3 above), prefer a property test: generated inputs,
-   checked against an invariant that holds for all of them. Typical
-   invariants:
+   checked against the invariant. Typical invariants:
 
    - round-trip: decoding what was encoded gives the input back;
    - idempotence: applying the operation twice equals applying it once;
@@ -134,8 +129,8 @@ A project that changes a clause rewrites its reason and examples with it.
      function;
    - monotonicity or bounds.
 
-   It is a preference, not a rule. Where no invariant is useful, write none:
-   a property that restates the implementation proves nothing.
+   Where no invariant is useful, write none: a property that restates the
+   implementation proves nothing.
    Why: a generator reaches inputs no one thought to write.
 
 2. **Repeatable.** Every property test runs with a fixed seed, or prints its
@@ -150,7 +145,7 @@ A project that changes a clause rewrites its reason and examples with it.
 1. **A surviving mutant means a missing test at the
    seam, or dead code: never a test below the seam.** Line coverage shows
    that a line ran, not that a test would notice it changing; a mutant no
-   test kills is a route the tests do not check. A survivor means one of:
+   test kills is a route the tests do not check. For a survivor:
 
    - a test is missing **at the seam**: add it there;
    - the mutated code is dead: delete it.
@@ -202,9 +197,9 @@ Keep this section only where the project has a user interface.
    Why: a simulated DOM implements none of these, so a test of them there
    passes against behavior no browser shows.
 
-6. **A markup snapshot carries no `verifies:` annotation.** It records markup,
-   not behavior: it fails on a refactor that changes nothing a user sees, and
-   passes a regression that the markup does not show.
+6. **No markup snapshot test.** Every test carries `verifies:`, and a markup
+   snapshot has no behavior to verify: it fails on a refactor that changes
+   nothing a user sees, and passes a regression that the markup does not show.
 
 7. **Visual regression verifies a REQ only where the REQ is about appearance
    itself**, such as the color of an alarm. Why: a pixel comparison fails on
@@ -221,10 +216,15 @@ Keep this section only where the project has a user interface.
 
 ## Existing suites
 
-1. **These rules bind the tests a change writes or edits.** They spare the
-   existing suite: a change that must edit an existing test that breaks them
-   moves it to the seam instead of repairing it in place: such a test usually
-   broke because a refactor moved the internal it was pinned to. A test that
-   breaks the rules and still passes is left alone, since deleting it without a
-   replacement at the seam loses coverage. No change rewrites a suite wholesale
-   for compliance.
+1. **These rules bind the tests a change writes, and those whose setup,
+   doubles, calls or assertions it edits.** Correcting a comment or a citation
+   alone does not edit a test. The rules spare the rest of the suite, but the
+   floor binds every test. Of the edited tests, one pinned below the seam
+   moves to the seam, and a mock of owned code is replaced. No change
+   rewrites a suite wholesale for compliance. Why: deleting a test without a
+   replacement at the seam loses coverage. If correcting a comment or a
+   citation pulled the test around it into scope, every moved rule would
+   force a test rewrite wherever it is cited, and citations would be left
+   wrong instead. Example: a change that edits the assertions of a test that
+   mocks owned code replaces the mock; one that repoints a stale citation in
+   the comment above it leaves the mock as it is.

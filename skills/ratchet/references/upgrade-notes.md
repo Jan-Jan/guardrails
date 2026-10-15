@@ -771,3 +771,35 @@ dispatcher's own steps no longer run the whole suite; the baseline at
 `worktree-discipline` step 4 still runs it once, when a change worktree
 opens. `verify-before-merge` still runs the whole suite, so no gate changes
 and nothing goes red.
+
+## The test default forbids a markup snapshot test, and the defaults say what edits a test or code
+
+UI 6 of the test guidelines default, `.guardrails/templates/TEST_GUIDELINES.md`,
+read "A markup snapshot carries no `verifies:` annotation", which exempted a
+test from `verifies:`, the first item of the compliance floor. It now reads
+"**No markup snapshot test.** Every test carries `verifies:`, and a markup
+snapshot has no behavior to verify". A project whose own
+`docs/TEST_GUIDELINES.md` keeps the old clause adopts the new one on upgrade,
+clause by clause, through `tailor-guidelines`; until it does,
+`review-conformance` reports the old clause as contradicting the floor. No
+gate changes: no check script reads the clause.
+
+Existing suites 1 of the same default now binds the tests a change writes
+and those whose setup, doubles, calls or assertions it edits, and says that
+correcting a comment or a citation alone does not edit a test. It states
+that the floor binds every test, the existing suite included, and names a
+remedy per breach in an edited test: one pinned below the seam moves to the
+seam, and a mock of owned code is replaced. It gains a `Why:` sentence
+giving the reason a comment or citation correction stays out of scope, and
+an `Example:`. Existing code 1 of the architecture default,
+`.guardrails/templates/ARCHITECTURE_GUIDELINES.md`, gains "Correcting a
+comment or a citation alone does not edit code.", with a `Why:` sentence
+giving the reason and an `Example:` extended to a repointed citation. A
+project whose own files keep the old clauses adopts the new ones the same
+way, through `tailor-guidelines`. No gate changes.
+
+To keep the test default within its word cap, other clauses were shortened
+without changing their rule, each dropping text that the clause or another
+clause states elsewhere: Seams 2, Doubles 4, Owned services 1, Property
+tests 1 and Mutants 1. `tailor-guidelines` upgrade mode shows each as a
+clause diff; a project may decline them and keep its own wording.

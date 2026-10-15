@@ -134,3 +134,14 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/ARCHITECTURE_GUIDELINES.md"
     words=$(wc -w < "$repo_guidelines" | tr -d ' ')
     [ "$words" -le 1500 ] || { echo "$words words"; false; }
 }
+
+@test "architecture guidelines: correcting a comment or a citation does not edit code" {
+    # verifies: PR-9n87ec; D3 (docs/plans/2026-10-15-guidelines-field-report.md)
+    for guidelines in "$template" "$repo_guidelines"; do
+        [ -f "$guidelines" ] || { echo "no $guidelines"; false; }
+        flat=$(section_of '## Existing code' "$guidelines" | tr '\n' ' ' | tr -s ' ')
+        [ -n "$flat" ] || { echo "$guidelines has no Existing code section"; false; }
+        printf '%s\n' "$flat" | grep -qF 'Correcting a comment or a citation alone does not edit code.' \
+            || { echo "$guidelines Existing code 1 does not say a comment or citation fix edits no code"; false; }
+    done
+}
