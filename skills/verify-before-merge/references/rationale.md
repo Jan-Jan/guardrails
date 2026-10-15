@@ -53,9 +53,10 @@ disposition are written.
 
 ## check-review.sh is not a check here
 
-The verification record it reads does not exist yet: `merge-change` step 6b
-writes it, after the independent review at 6a, and 6c checks it. Adding it
-here would fail every change for a record it is not yet time to write.
+`merge-change` step 5 writes the verification record it reads, after the
+independent review at step 4, and 6c checks it with the other pre-flight
+checks. Adding it here would check it twice in a merge round, and would fail
+every gate run before `merge-change` for a record it is not yet time to write.
 
 ## Exit 0 is not a pass
 

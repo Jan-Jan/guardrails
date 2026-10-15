@@ -29,7 +29,7 @@ qualification basis, then print it and save it to
       the branch: `check-review.sh --branch <head-branch>`.
 - [ ] Decide the human review and approval policy for merges (who signs off),
       including who acts as the independent reviewer in `merge-change`
-      step 6a when a human is preferred over a fresh agent.
+      step 4 when a human is preferred over a fresh agent.
 - [ ] Install GNU `parallel` (`brew install parallel` on macOS,
       `apt install parallel` on Debian-family systems). `tests/run-tests.sh`
       then runs the qualification suite with one bats job per CPU; without

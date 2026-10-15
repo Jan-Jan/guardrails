@@ -122,12 +122,12 @@ section_of() {
     ' "$2"
 }
 
-# step_of FILE N — prints the lines of FILE's numbered step N, from its
-# `N. **` line up to the `N+1. **` line.
+# step_of FILE LABEL — prints the lines of FILE's step LABEL, numbered (7) or
+# lettered (6b), from its `LABEL. **` line up to the next step's label line.
 step_of() {
-    awk -v n="$2" '
-        index($0, n ". **") == 1 { inside = 1 }
-        index($0, (n + 1) ". **") == 1 { inside = 0 }
+    awk -v label="$2" '
+        inside && /^[0-9]+[a-z]?\. \*\*/ { inside = 0 }
+        index($0, label ". **") == 1 { inside = 1 }
         inside
     ' "$1"
 }

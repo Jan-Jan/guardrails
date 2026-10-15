@@ -93,8 +93,8 @@ Never mark a problem resolved in a change that does not contain its fix. In
 any document, name the IDs a change resolves or opens; never state the open
 count, which the next merge makes false.
 
-Then run the normal gate: `check-traceability`, `verify-before-merge`,
-`merge-change`.
+Then run the normal gate: `check-traceability`, then `merge-change`, whose
+step 6a gate is `verify-before-merge`.
 
 **When the ruling is "we are not fixing this".** A problem that was
 investigated and deliberately not fixed goes to `status: accepted`, with a
@@ -144,7 +144,8 @@ The form is indented and uses `NNNNNN` for the same reason as the form in §1.
 - The item in its dated ledger file is `status: resolved` with a one-line
   resolution, in the change that contains the fix; or it is
   `status: accepted` with a dated `disposition:`.
-- `check-traceability`, `verify-before-merge` and `merge-change` follow.
+- `check-traceability` follows, then `merge-change`, whose step 6a gate is
+  `verify-before-merge`.
 
 ## References
 

@@ -39,7 +39,7 @@ Guardrails is developed under the rules it ships, without exception.
    user's, done when they choose; an agent fetch blocks on a hardware key that
    only the user can touch.
 
-   **This overrides `merge-change` step 1's fetch**, and it makes step 4's
+   **This overrides `merge-change` step 1's fetch**, and it makes step 2's
    `DUPLICATE-ID` scan check a smaller set of IDs.
    `docs/adr/ADR-y8jmes-local-main-is-the-base.md` states that cost, why it is
    accepted in this repository, and why the override does not apply to a

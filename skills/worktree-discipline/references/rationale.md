@@ -83,7 +83,7 @@ Task worktrees are removed with their dispatch so that `merge-change` sees
 exactly one worktree, the change worktree, and the base branch sees exactly one
 squash per change.
 
-The review worktree is removed at the end of `merge-change` step 6a and at no
+The review worktree is removed at the end of `merge-change` step 4 and at no
 later step. A review that returns findings sends the sequence back to step 1,
 so no later step runs on that round, and the review worktree's path and branch
 are fixed, so what one round left behind would collide with the next round's

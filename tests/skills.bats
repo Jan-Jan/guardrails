@@ -352,7 +352,7 @@ ratchet_step() {
 @test "merge-change: the review dispatch names the reviewer's worktree path" {
     # verifies: PR-n57ayn
     # The containment rule was applied at develop-change's dispatch site only.
-    # Step 6a dispatches a reviewer that creates a task worktree of its own,
+    # Step 4 dispatches a reviewer that creates a task worktree of its own,
     # and a reviewer left to choose the location repeats the whole failure —
     # so the path is stated here too. The reviewer has no task number, hence
     # the `-review` tag.
@@ -361,7 +361,7 @@ ratchet_step() {
     # in the file — the dispatch, the removal command, and the prose around it
     # — so a bare `grep -q` for it still passed when the ONE occurrence that
     # states the rule was mutated. The dispatch's occurrence is the first in
-    # the file, it is inside step 6a, and it comes before the removal command
+    # the file, it is inside step 4, and it comes before the removal command
     # that repeats it; mutate it and the first occurrence becomes the removal
     # line, which is not less than itself.
     #
@@ -369,46 +369,45 @@ ratchet_step() {
     # the removal command is `task-worktree.sh remove review`, which takes the
     # tag, so the dispatch is the only occurrence of the path.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    b_at=$(grep -n '^6b\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
     path_at=$(grep -n '\.worktrees/<change-branch>-review' "$skill" | head -n 1 | cut -d: -f1)
     # Re-aimed 2026-10-01 under D4: the review worktree is retired with
     # `remove review`, which merges nothing.
     remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
-    [ -n "$a_at" ]
-    [ -n "$b_at" ]
+    [ -n "$review_at" ]
+    [ -n "$record_at" ]
     [ -n "$path_at" ]
     [ -n "$remove_at" ]
-    [ "$path_at" -gt "$a_at" ]
-    [ "$path_at" -lt "$b_at" ]
+    [ "$path_at" -gt "$review_at" ]
+    [ "$path_at" -lt "$record_at" ]
     [ "$path_at" -lt "$remove_at" ]
 }
 
 @test "merge-change: the review worktree is removed at the end of its own dispatch" {
     # verifies: PR-n57ayn
-    # Step 6d was the only place that removed the review worktree, and step 6a
-    # ends "the sequence reruns from step 1" when findings come back — so 6b,
-    # 6c and 6d are reached only on the final, finding-free round. The path and
-    # the branch are fixed, so every intermediate round's worktree remained and
-    # the next round's dispatch failed with `fatal: a branch named
-    # '<change-branch>-review' already exists`. The removal belongs where the
-    # dispatch ends, inside step 6a, which is what worktree-discipline already
+    # The review step ends "the sequence reruns from step 1" when findings
+    # come back, so the steps after it are reached only on the last round. The
+    # review worktree's path and branch are fixed, so a worktree left by one
+    # round makes the next round's dispatch fail with `fatal: a branch named
+    # '<change-branch>-review' already exists`. The removal therefore sits
+    # where the dispatch ends, inside the review step, as worktree-discipline
     # states of every task worktree. Step 6d keeps the structural check, so a
-    # skipped removal is still caught before the squash rather than at
+    # skipped removal is caught before the squash rather than at
     # finish-merge.sh.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    b_at=$(grep -n '^6b\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
     # Re-aimed 2026-10-01 under D4: the review worktree is retired with
     # `remove review`, which merges nothing.
     remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
-    [ -n "$a_at" ]
-    [ -n "$b_at" ]
+    [ -n "$review_at" ]
+    [ -n "$record_at" ]
     [ -n "$remove_at" ]
-    [ "$remove_at" -gt "$a_at" ]
-    [ "$remove_at" -lt "$b_at" ]
+    [ "$remove_at" -gt "$review_at" ]
+    [ "$remove_at" -lt "$record_at" ]
     # 6d still checks the registry structurally — the removal moved, the check
     # did not.
     d_at=$(grep -n '^6d\. ' "$skill" | head -n 1 | cut -d: -f1)
@@ -425,7 +424,7 @@ ratchet_step() {
     # worktree-discipline cross-references the removal's home, so it follows it
     # there rather than leaving the two skills to drift.
     wd="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
-    grep -q 'the end of `merge-change` step 6a' "$wd"
+    grep -q 'the end of `merge-change` step 4' "$wd"
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
@@ -436,25 +435,25 @@ ratchet_step() {
 
 @test "merge-change: every fix dispatch names the nested task worktree path" {
     # verifies: PR-n57ayn
-    # Two more dispatch statements in this file are normative and were
-    # unasserted: the sequence header's fix dispatch, and 6a's dispatch of the
-    # fix for a finding. A mutant replacing both with "a task worktree"
-    # passed the suite. Both are pinned, and by position, so replacing either
-    # one is not covered by the other.
+    # Two dispatch statements in this file name the nested path: the sequence
+    # header's fix dispatch, and the review step's dispatch of the fix for a
+    # finding. A mutant replacing both with "a task worktree" must fail. Both
+    # are pinned, and by position, so replacing either one is not covered by
+    # the other.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     count=$(grep -c '\.worktrees/<change-branch>-<tag>' "$skill")
     [ "$count" -eq 2 ]
     one_at=$(grep -n '^1\. \*\*Merge the latest base branch' "$skill" | head -n 1 | cut -d: -f1)
-    a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    b_at=$(grep -n '^6b\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
     header_at=$(grep -n '\.worktrees/<change-branch>-<tag>' "$skill" | head -n 1 | cut -d: -f1)
     finding_at=$(grep -n '\.worktrees/<change-branch>-<tag>' "$skill" | tail -n 1 | cut -d: -f1)
     [ -n "$one_at" ]
-    [ -n "$a_at" ]
-    [ -n "$b_at" ]
+    [ -n "$review_at" ]
+    [ -n "$record_at" ]
     [ "$header_at" -lt "$one_at" ]
-    [ "$finding_at" -gt "$a_at" ]
-    [ "$finding_at" -lt "$b_at" ]
+    [ "$finding_at" -gt "$review_at" ]
+    [ "$finding_at" -lt "$record_at" ]
 }
 
 @test "merge-change: a review worktree left dirty by scratch has a remedy" {
@@ -468,7 +467,7 @@ ratchet_step() {
     # Re-aimed 2026-10-01 under D4: the removal is `task-worktree.sh remove`.
     grep -q 'rejects untracked files as well as modified ones' "$skill"
     grep -q 'read the scratch, delete it, and run `remove` again' "$skill"
-    grep -q 'the remedy step 6a gives' "$skill"
+    grep -q 'the remedy step 4 gives' "$skill"
     # The list of causes included "a test runner copied in because it was
     # gitignored and therefore absent" — the one entry that cannot cause the
     # rejection, and self-refuting: git does not see an ignored file, which is
@@ -522,20 +521,20 @@ ratchet_step() {
     # exists: a human reviewer per team policy, and a class A change skipping
     # the step. Under a sequence headed "Halt on any failure", running
     # `git worktree remove` on a path that was never created is a failure. Step
-    # 6d's wording is already conditioned on what this change *created*; 6a's
-    # matches it.
+    # 6d's wording is already conditioned on what this change *created*; step
+    # 4's matches it.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    b_at=$(grep -n '^6b\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    [ -n "$a_at" ]
-    [ -n "$b_at" ]
-    sed -n "${a_at},${b_at}p" "$skill" | grep -q 'every round that created one'
-    sed -n "${a_at},${b_at}p" "$skill" | grep -q 'Not every round creates one'
+    review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    [ -n "$review_at" ]
+    [ -n "$record_at" ]
+    sed -n "${review_at},${record_at}p" "$skill" | grep -q 'every round that created one'
+    sed -n "${review_at},${record_at}p" "$skill" | grep -q 'Not every round creates one'
     # The skip names when no review worktree exists (review round 4, finding
     # 18): a cut left "skip it there" with no antecedent.
-    sed -n "${a_at},${b_at}p" "$skill" | grep -q 'Not every round creates one: a human reviewer uses their checkout'
+    sed -n "${review_at},${record_at}p" "$skill" | grep -q 'Not every round creates one: a human reviewer uses their checkout'
     # Re-aimed 2026-10-01 under D4: `task-worktree.sh remove` takes a tag.
-    sed -n "${a_at},${b_at}p" "$skill" | grep -q 'fails on a tag that was never started'
+    sed -n "${review_at},${record_at}p" "$skill" | grep -q 'fails on a tag that was never started'
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
@@ -553,7 +552,7 @@ ratchet_step() {
     # natural `fix` cannot collide at creation: a task worktree and its branch
     # are removed with their dispatch (`worktree-discipline`, step 8), so
     # round 1's `-fix` branch is gone before round 2 dispatches.
-    # That is the same property step 6a rests on when it keeps the review tag
+    # That is the same property step 4 rests on when it keeps the review tag
     # fixed, so the two rationales cannot both stand. The rule remains as
     # insurance against a cleanup that was missed, and the removal it insures
     # is now stated here as well, not only in `worktree-discipline` and
@@ -674,6 +673,16 @@ gr_all_sh_fences() {
         inside && fenced && /^```$/ { fenced = 0; next }
         inside && fenced { print }
     ' "$1"
+}
+
+# sh_fence — prints the body of the first ```sh fence on standard input,
+# without the three-space indent a fence inside a numbered step carries.
+sh_fence() {
+    awk '
+        /^ *```sh$/ { fenced = 1; next }
+        fenced && /^ *```$/ { exit }
+        fenced { sub(/^   /, ""); print }
+    '
 }
 
 @test "worktree-discipline: a change opens after checking the worktrees and the claimed items" {
@@ -847,11 +856,11 @@ gr_all_sh_fences() {
 
 @test "merge-change: the sequence removes the review worktree before the squash" {
     # verifies: PR-n57ayn
-    # Step 6a now dispatches every reviewer into a worktree nested inside the
-    # change worktree, and finish-merge.sh guard 4 will not remove a change
-    # worktree that has a worktree registered inside it. Nothing in the
-    # sequence removed the review worktree, so the documented happy path of
-    # every change would reach step 7 and be rejected. The removal must come
+    # The review step dispatches every reviewer into a worktree nested inside
+    # the change worktree, and finish-merge.sh guard 4 will not remove a change
+    # worktree that has a worktree registered inside it. Without a removal in
+    # the sequence, the documented happy path of every change would reach
+    # step 7 and be rejected. The removal must come
     # before the squash is staged, so the ordering is asserted and not merely
     # the presence of the command.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
@@ -994,7 +1003,7 @@ gr_all_sh_fences() {
     # Both path forms are spelled out, because "a dispatch without one taking a
     # tag instead" parses as substituting the tag inside `-t<N>` — giving
     # `.worktrees/<change-branch>-treview`, not the `-review` that
-    # `merge-change` step 6a names and that every review worktree here has
+    # `merge-change` step 4 names and that every review worktree here has
     # used. `worktree-discipline` disambiguates with a concrete path; AGENTS.md
     # had none, so it names the second form instead of describing it.
     grep -q '\.worktrees/<change-branch>-<tag>' "$agents"
@@ -1360,7 +1369,7 @@ gr_all_sh_fences() {
 @test "clanker: the conformance reviews are not deferred to the merge review" {
     # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
     # merge-change reruns from step 1 on any finding, so a naming nit raised
-    # at 6a costs a full merge-sequence restart. The skill has to state why the
+    # at step 4 costs a full merge-sequence restart. The skill has to state why the
     # conformance reviews run here, or a later editor moves them to the review
     # that already reads the whole diff.
     #
@@ -1370,10 +1379,10 @@ gr_all_sh_fences() {
     # paragraph and the bare form would match it while this passage was gone.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     grep -qF '**reruns from step 1**' "$skill"
-    # The reviews run before merge-change, not at its 6a: with only the
-    # reason pinned, the section could move them to 6a and still pass.
+    # The reviews run before merge-change, not at its step 4: with only the
+    # reason pinned, the section could move them to step 4 and still pass.
     section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$section" | grep -qF 'These reviews run here, before `merge-change`, not at its 6a'
+    printf '%s\n' "$section" | grep -qF 'These reviews run here, before `merge-change`, not at its step 4'
 }
 
 @test "develop-change: a conformance reviewer changes nothing and gets no task worktree" {
@@ -1497,10 +1506,10 @@ gr_all_sh_fences() {
 
 @test "merge-change: the record states the ledger delta, not the open count" {
     # verifies: PR-hkc376
-    # Step 6b required "open PR warnings" — a census of the whole ledger at one
-    # instant, in a per-change artifact read long afterwards. 78 of 123 records
-    # mention the roll-call and 20 pin a number; one merged change existed only
-    # to correct a count in an already-merged record.
+    # The record states what this change resolves, accepts or opens, not
+    # "open PR warnings": an open count is a census of the whole ledger at one
+    # instant, in a per-change artifact read long afterwards, and a pinned
+    # number goes stale with the next merge.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'resolves, accepts or opens' "$skill"
     ! grep -rq 'open PR warnings' "$(dirname "$skill")" \
@@ -1598,7 +1607,7 @@ gr_all_sh_fences() {
     # no gate figure (PR-k4y59t). It may cite a fix commit in a disposition.
     template="$BATS_TEST_DIRNAME/../templates/verification.md"
     text=$(tr '\n' ' ' < "$template" | tr -s ' ')
-    for wanted in '`Gate-tree:` names the tree the step 2 gate measured' \
+    for wanted in '`Gate-tree:` names the tree the step 6a gate measured' \
             'a `Gate:` line gives each command'"'"'s totals' \
             'this record names no commit or tree the gate measured, no base commit and no gate figure' \
             'it does not change when the sequence reruns'; do
@@ -1655,30 +1664,22 @@ gr_all_sh_fences() {
     [ -z "$script_hits" ] || { echo "a script still names finalize-docs: $script_hits"; false; }
 }
 
-@test "merge-change: no step renames a ledger file, and step 3 confirms the tree the summary describes" {
+@test "merge-change: no step renames a ledger file, and the tree check confirms the tree the gate summary describes" {
     # verifies: D5 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: D5 (docs/plans/2026-10-14-base-move-round.md)
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     if grep -qi 'finaliz' "$skill"; then
         grep -ni 'finaliz' "$skill"; false
     fi
-    step3=$(awk '/^3\. \*\*/ { inside = 1 } /^4\. \*\*/ { inside = 0 } inside' "$skill")
-    printf '%s\n' "$step3" | grep -q '^3\. \*\*Confirm the step 2 summary describes this tree\*\*' \
-        || { echo "step 3 is not the tree check: $step3"; false; }
-    printf '%s\n' "$step3" | grep -q 'the step 2 summary stands' || { echo "$step3"; false; }
-    printf '%s\n' "$step3" | grep -qF 'git status --porcelain' || { echo "$step3"; false; }
-    six_at=$(grep -n '^6\. \*\*Review the change and record it\*\*' "$skill" | cut -d: -f1)
-    a_at=$(grep -n '^6a\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    [ -n "$six_at" ] && [ -n "$a_at" ] && [ "$six_at" -lt "$a_at" ] \
-        || { echo "no step 6 heading before 6a: '$six_at' '$a_at'"; false; }
-    for step in 1 2 4 5 7 8; do
-        grep -q "^$step\. \*\*" "$skill" || { echo "no step $step"; false; }
-    done
+    step_6b=$(step_of "$skill" 6b)
+    printf '%s\n' "$step_6b" | grep -q 'the step 6a summary stands' || { echo "$step_6b"; false; }
+    printf '%s\n' "$step_6b" | grep -qF 'git status --porcelain' || { echo "$step_6b"; false; }
 }
 
 @test "merge-change: two changes that name a ledger file alike meet at step 1, and the documented resolution keeps both" {
     # verifies: D6 (docs/plans/2026-10-13-ledger-names-at-creation.md)
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill" \
+    step1=$(step_of "$skill" 1 \
         | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$step1" | grep -qF 'An add/add conflict on a ledger file' || { echo "$step1"; false; }
     printf '%s\n' "$step1" | grep -qF '`git show :2:<path> > <new path>`' || { echo "$step1"; false; }
@@ -1708,12 +1709,12 @@ gr_all_sh_fences() {
     grep -q 'PR-a3k9z2' docs/problems/2026-01-02-change-fixes.md || { echo "this change's file was lost"; false; }
 }
 
-@test "merge-change: step 3 stands on step 2 where the tree is unchanged" {
+@test "merge-change: the tree check lets the gate summary stand where the tree is unchanged" {
     # verifies: PR-dkm5tq
-    # Steps 4 and 5 only read, and every fix reruns from step 1, so a second
+    # Step 6b follows the 6a gate, and every fix reruns from step 1, so a second
     # dispatch on an unchanged tree measures what the first already measured.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'the step 2 summary stands' "$skill"
+    grep -q 'the step 6a summary stands' "$skill"
     grep -qF 'rev-parse HEAD^{tree}' "$skill"
 }
 
@@ -1760,24 +1761,25 @@ gr_all_sh_fences() {
         || { echo "a merge date is still stated (matches above)"; false; }
 }
 
-@test "merge-change: step 2 records the tree its gate summary describes" {
+@test "merge-change: the gate step records the tree its summary describes" {
     # verifies: PR-dkm5tq
-    # Step 3 compares the current tree against the one step 2 measured, so step
-    # 2 has to have written that hash down. Without it the comparison has no
-    # left-hand side and the rule is unusable on its first pass.
+    # Step 6b compares the current tree against the one step 6a measured, so
+    # step 6a has to have written that hash down. Without it the comparison has
+    # no left-hand side and the rule is unusable on its first pass.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'Record the tree the summary describes' "$skill"
-    # ...and upstream of the step 3 comparison that reads it.
+    # ...and upstream of the step 6b comparison that reads it.
     recorded=$(grep -n 'Record the tree the summary describes' "$skill" | cut -d: -f1)
-    compared=$(grep -n 'the step 2 summary stands' "$skill" | cut -d: -f1)
+    compared=$(grep -n 'the step 6a summary stands' "$skill" | cut -d: -f1)
     [ "$recorded" -lt "$compared" ]
 }
 
 @test "verification template opens every finding with its tag" {
     # verifies: PR-3s74u3
-    # Step 6a requires `code`, `requirement` or `record` as the first word of a
-    # finding's value, and the template a reviewer copies showed an untagged
-    # finding-1 — the one place the shape is demonstrated rather than described.
+    # The review step requires `code`, `requirement` or `record` as the first
+    # word of a finding's value, and the template a reviewer copies is the one
+    # place the shape is demonstrated rather than described, so its findings
+    # carry the tag.
     template="$BATS_TEST_DIRNAME/../templates/verification.md"
     grep -q '^\*\*finding-1\*\*: <code | requirement>, <high | medium | low> —' "$template"
     # A `record` finding states no severity, and the template shows that shape
@@ -1837,8 +1839,8 @@ gr_all_sh_fences() {
     [ "$status" -ne 0 ]
     run grep -rq 'never reaches a later step\.\*\* The paragraph below sends' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
-    # Re-aimed 2026-10-07 (parallel-changes review round 4): this reason for
-    # removing the review worktree in 6a moved to the rationale.
+    # The reason the review worktree is removed whatever the findings is
+    # stated in the rationale.
     grep -q 'any finding at' "$(dirname "$skill")/references/rationale.md"
     grep -q 'whatever the findings were tagged' "$(dirname "$skill")/references/rationale.md"
     # and the red-flag row does not offer the saving either
@@ -1848,20 +1850,20 @@ gr_all_sh_fences() {
 
 @test "merge-change: the mechanical checks are the pre-flight" {
     # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-    # merge-preflight.sh runs the checks steps 4 and 6c used to spell out one
-    # command at a time. Each step names the script, inside its own span, so a
-    # step that goes back to listing the commands is reported.
+    # merge-preflight.sh runs the pre-flight and step 6c's checks in one
+    # command. Each step names the script, inside its own span, so a step that
+    # goes back to listing the commands one at a time is reported.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    four_at=$(grep -n '^4\. ' "$skill" | head -n 1 | cut -d: -f1)
-    five_at=$(grep -n '^5\. ' "$skill" | head -n 1 | cut -d: -f1)
+    preflight_at=$(grep -n '^2\. ' "$skill" | head -n 1 | cut -d: -f1)
+    ruling_at=$(grep -n '^3\. ' "$skill" | head -n 1 | cut -d: -f1)
     c_at=$(grep -n '^6c\. ' "$skill" | head -n 1 | cut -d: -f1)
     d_at=$(grep -n '^6d\. ' "$skill" | head -n 1 | cut -d: -f1)
-    [ -n "$four_at" ] || { echo "no step 4"; false; }
-    [ -n "$five_at" ] || { echo "no step 5"; false; }
+    [ -n "$preflight_at" ] || { echo "no step 2"; false; }
+    [ -n "$ruling_at" ] || { echo "no step 3"; false; }
     [ -n "$c_at" ] || { echo "no step 6c"; false; }
     [ -n "$d_at" ] || { echo "no step 6d"; false; }
-    sed -n "${four_at},${five_at}p" "$skill" | grep -qF 'merge-preflight.sh --before-review' \
-        || { echo "step 4 does not run merge-preflight.sh --before-review"; false; }
+    sed -n "${preflight_at},${ruling_at}p" "$skill" | grep -qF 'merge-preflight.sh --before-review' \
+        || { echo "step 2 does not run merge-preflight.sh --before-review"; false; }
     sed -n "${c_at},${d_at}p" "$skill" | grep -qF 'merge-preflight.sh <' \
         || { echo "step 6c does not run merge-preflight.sh"; false; }
 }
@@ -2156,7 +2158,7 @@ gr_write_skill_fixture() {
     # skill that were neither kept nor listed as dropped history.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
-    grep -q 'The reviewer still reads the record and raises what is' "$skill"
+    grep -q "A later round's reviewer reads the record earlier rounds wrote" "$skill"
     grep -q 'name it so the user can run it' "$skill"
     grep -q 'consider two independent' "$skill"
     # Review round 9: the advice applies to class C only.
@@ -2165,9 +2167,8 @@ gr_write_skill_fixture() {
     grep -q 'INCOMPLETE-RECORD' "$skill"
     grep -q 'With no worktree registered for the branch' "$skill"
     grep -q 'leave or remove it with the harness tool' "$skill"
-    # Moved 2026-09-29 with the documentation checklist of step 6a (D4).
-    # Re-aimed 2026-10-08 (out-of-force items D7): the dual-ID rule it pinned
-    # is gone; the checklist item now states the successor's own test.
+    # The review checklist holds the documentation checks, and its
+    # superseded-item check states the successor's own test.
     grep -q 'The successor has its own test' \
         "$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     # Re-aimed 2026-10-07 (parallel-changes review round 4): two reasons moved
@@ -2180,8 +2181,8 @@ gr_write_skill_fixture() {
     # Review round 6: the rationale file no longer points into script
     # comments (see "the rationale file describes no script"), so what remains
     # to assert here is the reasons it keeps.
-    grep -q 'what the duplicate scan at step 4 was compared against' "$rationale"
-    grep -q 'fails step 4 for every later change' "$rationale"
+    grep -q 'what the duplicate scan at step 2 was compared against' "$rationale"
+    grep -q 'fails step 2 for every later change' "$rationale"
     grep -q 'not the counts it was handed' "$rationale"
     grep -q 'reports on a suite it could not run' "$rationale"
     grep -q 'in the software or in the account of it' "$rationale"
@@ -2248,17 +2249,17 @@ gr_write_skill_fixture() {
     # ruled on 2026-10-07: when the base and the change edited the same file,
     # the whole change goes to a fresh reviewer; when the files are disjoint,
     # the gate rerun covers it. Step 1 lists the files the base edited after
-    # the commit 6a marked as reviewed that the change also edits. It compares
+    # the commit step 4 marked as reviewed that the change also edits. It compares
     # against that marker, not the last base merge, so a rerun after a failed
     # gate lists the file again (review round 5, finding 21). This test runs
-    # step 1's fence and 6a's marker against one fixture, scenario by scenario.
+    # step 1's fence and step 4's marker against one fixture, scenario by scenario.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill")
+    step1=$(step_of "$skill" 1)
     [ -n "$step1" ]
     step1_text=$(printf '%s\n' "$step1" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$step1_text" | grep -qF 'A `shared:` line names a file this change edits that the base edited after the last reviewed commit: 6a then reviews the whole change again, even after the last review round. Otherwise the gate rerun covers it.'
+    printf '%s\n' "$step1_text" | grep -qF 'A `shared:` line names a file this change edits that the base edited after the last reviewed commit: step 4 then reviews the whole change again, even after the last review round. Otherwise the gate rerun covers it.'
     rationale_text=$(tr '\n' ' ' < "$rationale" | tr -s ' ')
     printf '%s\n' "$rationale_text" | grep -q 'A base that moved also changes what the review saw'
     printf '%s\n' "$rationale_text" | grep -q 'any shared file sends the whole change to a fresh reviewer'
@@ -2266,16 +2267,9 @@ gr_write_skill_fixture() {
     printf '%s\n' "$rationale_text" | grep -q 'because the obligation must survive a rerun'
     tr '\n' ' ' < "$template" | tr -s ' ' | grep -q 'name the shared files and that review round'
 
-    sh_fence() {
-        awk '
-            /^ *```sh$/ { fenced = 1; next }
-            fenced && /^ *```$/ { exit }
-            fenced { sub(/^   /, ""); print }
-        '
-    }
     fence=$(printf '%s\n' "$step1" | sh_fence)
     printf '%s\n' "$fence" | grep -q 'git merge "\$base_ref"'
-    review_step=$(awk '/^6a\. \*\*/ { inside = 1 } /^6b\. \*\*/ { inside = 0 } inside' "$skill")
+    review_step=$(step_of "$skill" 4)
     mark=$(printf '%s\n' "$review_step" | sh_fence)
     printf '%s\n' "$mark" | grep -q -- '--allow-empty'
     # Runs step 1's fence and leaves its `shared:` lines in $shared.
@@ -2390,7 +2384,7 @@ gr_write_skill_fixture() {
     # primary checkout is dirty is not a moved base: `git reset --merge` keeps
     # the edit, and the rerun would loop (review round 4, finding 17).
     printf '%s\n' "$step7_text" | grep -qF 'The first line printed that files "would be overwritten": the primary checkout is dirty. Stop and tell the user.'
-    printf '%s\n' "$step7_text" | grep -qF "It printed other output: the base moved after step 1. Run \`git reset --merge\`, then rerun from step 1."
+    printf '%s\n' "$step7_text" | grep -qF "It printed other output: the base moved after step 1. Run \`git reset --merge\`, then rerun from step 1 as a base-move round:"
     # A squash staged before is another change's or an outdated one of this
     # change: the agent stops and the user decides (review round 2, findings
     # 8 and 10).
@@ -2493,13 +2487,13 @@ gr_write_skill_fixture() {
     [ -z "$(git status --porcelain)" ]
 }
 
-@test "merge-change: step 7 writes the gate's trailers and compares the staged tree with the step 2 tree before the hand-over" {
+@test "merge-change: the squash step writes the gate's trailers and compares the staged tree with the gated tree before the hand-over" {
     # verifies: D1, D2, D4 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     multi="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     step7=$(step_of "$skill" 7)
     [ -n "$step7" ]
-    for wanted in 'Base: <base ref> at <its commit>' 'Gate-tree: <step 2 tree>' \
+    for wanted in 'Base: <base ref> at <its commit>' 'Gate-tree: <step 6a tree>' \
             'Gate: <verify_commands entry> <passed>/<total>' \
             'Gate: <coverage_command> <figure>'; do
         printf '%s\n' "$step7" | grep -qxF "   $wanted" \
@@ -2532,9 +2526,9 @@ gr_write_skill_fixture() {
         fenced && /^ *```$/ { fenced = 0; next }
         fenced && sh_fences == 2 { sub(/^ +/, ""); print }
     ')
-    [ "$fence" = '[ "$(git write-tree)" = <step 2 tree> ]' ] \
+    [ "$fence" = '[ "$(git write-tree)" = <step 6a tree> ]' ] \
         || { echo "the second fence of step 7 is: $fence"; false; }
-    message_at=$(printf '%s\n' "$step7" | grep -n 'Gate-tree: <step 2 tree>' | cut -d: -f1)
+    message_at=$(printf '%s\n' "$step7" | grep -n 'Gate-tree: <step 6a tree>' | cut -d: -f1)
     compare_at=$(printf '%s\n' "$step7" | grep -n 'git write-tree' | cut -d: -f1)
     handover_at=$(printf '%s\n' "$step7" | grep -n 'git commit -S -F' | cut -d: -f1)
     [ "$message_at" -lt "$compare_at" ] \
@@ -2553,7 +2547,7 @@ gr_write_skill_fixture() {
     gate_tree=$(git rev-parse 'HEAD^{tree}')
     git checkout -q main
     git merge -q --squash feature
-    compare=$(printf '%s\n' "$fence" | sed "s/<step 2 tree>/$gate_tree/")
+    compare=$(printf '%s\n' "$fence" | sed "s/<step 6a tree>/$gate_tree/")
     run sh -c "$compare"
     [ "$status" -eq 0 ] || { echo "the gated squash failed the comparison"; false; }
     git reset -q --merge
@@ -2567,21 +2561,26 @@ gr_write_skill_fixture() {
     git reset -q --merge
 }
 
-@test "merge-change: the record is written before the last rerun and holds no gate figure" {
+@test "merge-change: the record is written before the gate and holds no gate figure" {
     # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
-    grep -qF 'Write the record (6b) before that rerun.' "$skill"
-    step_6b=$(awk '/^6b\. \*\*/ { inside = 1 } /^6c\. \*\*/ { inside = 0 } inside' "$skill")
-    [ -n "$step_6b" ]
-    if printf '%s\n' "$step_6b" | grep -q -e 'totals' -e 'tree they describe' -e "check's result"; then
-        echo "6b still puts gate figures in the record"; false
+    # The record is step 5, before the 6a gate in every round, so no sentence
+    # has to order it before the last rerun.
+    if grep -qF 'before that rerun' "$skill"; then
+        echo "the skill still orders the record before the last rerun"; false
     fi
-    grep -q '^## Step 6b: the record names no tree$' "$rationale"
+    step_5=$(step_of "$skill" 5)
+    [ -n "$step_5" ]
+    if printf '%s\n' "$step_5" | grep -q -e 'totals' -e 'tree they describe' -e "check's result"; then
+        echo "step 5 still puts gate figures in the record"; false
+    fi
+    grep -q '^## Step 5: the record names no tree$' "$rationale"
     grep -q '^## Step 7: the trailers certify the gate$' "$rationale"
     rationale_text=$(tr '\n' ' ' < "$rationale" | tr -s ' ')
     printf '%s\n' "$rationale_text" | grep -qF 'not one computed again at step 7' \
-        || { echo "the rationale does not say why Gate-tree is the step 2 hash"; false; }
+        || { echo "the rationale does not say why Gate-tree is the step 6a hash"; false; }
     printf '%s\n' "$rationale_text" | grep -qF 'The pre-flight has no trailer' \
         || { echo "the rationale does not say why the pre-flight has no trailer"; false; }
 }
@@ -2707,7 +2706,7 @@ adr_file_is_named_by_its_item() {
     # A test of a superseded item pointed at its successor passes check 4 only
     # when it is listed as inherited, and is coverage, never red-first
     # evidence. The rule is prose in four places that must agree: the check,
-    # the dispatch report form, the record template and step 6b's copy.
+    # the dispatch report form, the record template and step 5's copy.
     root="$BATS_TEST_DIRNAME/.."
     check="$root/skills/verify-before-merge/SKILL.md"
     grep -qF 'Read it per ID. Every Implements ID needs at least one `verifies:` test' "$check" \
@@ -2731,21 +2730,21 @@ adr_file_is_named_by_its_item() {
         || { echo "the verification template puts an inherited test in the table"; false; }
 
     grep -qF 'any `inherited:` lines from the plan' "$root/skills/merge-change/SKILL.md" \
-        || { echo "merge-change step 6b does not copy the inherited: lines"; false; }
+        || { echo "merge-change step 5 does not copy the inherited: lines"; false; }
 }
 
 @test "merge-change: step 1 prunes the plans after the base merge and commits what changed" {
     # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
-    # Pruning runs after `git merge`, so the step 2 gate measures the pruned
-    # tree; run after the step 2 gate, it would change the tree after the gate
-    # on nearly every merge, and step 3 would dispatch a second suite run.
+    # Pruning runs after `git merge`, so the step 6a gate measures the pruned
+    # tree; run after the step 6a gate, it would change the tree after the gate
+    # on nearly every merge, and step 6b would dispatch a second suite run.
     # The prune and its commit are chained on the merge's success, and the
     # commit takes only docs/plans: run as separate lines, a conflicted merge
     # was concluded as "chore: prune plans" with its markers staged, and
     # `git add -u` swept every tracked edit into it (review round 1, finding 1).
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
-    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill")
+    step1=$(step_of "$skill" 1)
     [ -n "$step1" ]
     merge_at=$(printf '%s\n' "$step1" | grep -n '^ *git merge "\$base_ref" &&$' | cut -d: -f1)
     prune_at=$(printf '%s\n' "$step1" | grep -n '^ *sh \.guardrails/scripts/prune-plans\.sh --base "\$base_ref" &&$' | cut -d: -f1)
@@ -2761,7 +2760,7 @@ adr_file_is_named_by_its_item() {
         { echo "step 1 does not say to read the left whole lines"; false; }
     grep -q '^## Step 1: plans are pruned after the base merge$' "$rationale" ||
         { echo "no rationale section for pruning at step 1"; false; }
-    tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -q 'Run after the step 2 gate, it would fail step 3' ||
+    tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -q 'Run after the step 6a gate, it would fail step 6b' ||
         { echo "the rationale does not say why not after the gate"; false; }
 }
 
@@ -2771,12 +2770,7 @@ adr_file_is_named_by_its_item() {
     # conflicting base, then on a clean one with an unrelated edit pending
     # (review round 1, finding 1).
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    step1=$(awk '/^1\. \*\*/ { inside = 1 } /^2\. \*\*/ { inside = 0 } inside' "$skill")
-    fence=$(printf '%s\n' "$step1" | awk '
-        /^ *```sh$/ { fenced = 1; next }
-        fenced && /^ *```$/ { exit }
-        fenced { sub(/^   /, ""); print }
-    ')
+    fence=$(step_of "$skill" 1 | sh_fence)
     printf '%s\n' "$fence" | grep -q 'prune-plans.sh'
     run_step1() { run env GIT_MERGE_AUTOEDIT=no sh -c "BASE=main; $fence"; }
     subject() { git log -1 --format=%s; }
@@ -2824,6 +2818,175 @@ adr_file_is_named_by_its_item() {
     ! git show HEAD:docs/plans/2026-01-01-x.md | grep -q 'task-code' \
         || { echo "the committed plan still holds task-code"; false; }
     [ "$(git diff --name-only)" = 'notes.txt' ] || { git status --short; false; }
+}
+
+@test "merge-change: the base merge stops while a squash is staged in the primary checkout" {
+    # verifies: D1 (docs/plans/2026-10-14-base-move-round.md)
+    # A squash staged in the primary checkout is about to move the base: a
+    # gate run against the current base would be rejected at step 7. Runs
+    # step 1's fence from a change worktree, with and without a staged index.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    fence=$(step_of "$skill" 1 | sh_fence)
+    run_step1() { run env GIT_MERGE_AUTOEDIT=no sh -c "BASE=main; $fence"; }
+
+    make_fixture_repo
+    primary=$(git rev-parse --show-toplevel)
+    git worktree add -q "$BATS_TEST_TMPDIR/change" -b change
+    cd "$BATS_TEST_TMPDIR/change"
+    printf 'change\n' > change.txt
+    commit_all 'the change'
+    before=$(git rev-parse HEAD)
+    printf 'second\n' > "$primary/second.txt"
+    git -C "$primary" add second.txt
+    git -C "$primary" commit -qm 'second base commit'
+    second=$(git -C "$primary" rev-parse HEAD)
+    printf 'staged\n' > "$primary/staged.txt"
+    git -C "$primary" add staged.txt
+
+    # A staged squash: stop, name the primary checkout, merge nothing.
+    run_step1
+    [ "$status" -eq 1 ] || { echo "status $status: $output"; false; }
+    printf '%s\n' "$output" | grep -qxF "the index of $primary is not empty" \
+        || { echo "not the index message: $output"; false; }
+    [ "$(git rev-parse HEAD)" = "$before" ] || { echo "the change branch moved"; false; }
+
+    git -C "$primary" reset -q
+
+    # A failed worktree listing names no primary checkout: stop, merge
+    # nothing, rather than read the change worktree's own index.
+    stub="$BATS_TEST_TMPDIR/stub"
+    mkdir -p "$stub"
+    printf '#!/bin/sh\nif [ "$1 $2" = "worktree list" ]; then exit 128; fi\nexec %s "$@"\n' \
+        "$(command -v git)" > "$stub/git"
+    chmod +x "$stub/git"
+    run env PATH="$stub:$PATH" GIT_MERGE_AUTOEDIT=no sh -c "BASE=main; $fence"
+    [ "$status" -eq 1 ] || { echo "status $status with no primary checkout: $output"; false; }
+    printf '%s\n' "$output" | grep -qF 'no primary checkout' || { echo "no reason in: $output"; false; }
+    [ "$(git rev-parse HEAD)" = "$before" ] || { echo "the change branch moved"; false; }
+
+    # An index git cannot read is not an index that is not empty: stop, say
+    # so, merge nothing.
+    printf '#!/bin/sh\nif [ "$3 $4" = "diff --cached" ]; then exit 128; fi\nexec %s "$@"\n' \
+        "$(command -v git)" > "$stub/git"
+    run env PATH="$stub:$PATH" GIT_MERGE_AUTOEDIT=no sh -c "BASE=main; $fence"
+    [ "$status" -eq 1 ] || { echo "status $status with an unreadable index: $output"; false; }
+    printf '%s\n' "$output" | grep -qxF "cannot read the index of $primary" \
+        || { echo "not the cannot-read message: $output"; false; }
+    [ "$(git rev-parse HEAD)" = "$before" ] || { echo "the change branch moved"; false; }
+
+    # Cleared: the fence merges the new base in.
+    run_step1
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    git merge-base --is-ancestor "$second" HEAD || { echo "the base was not merged"; false; }
+}
+
+@test "merge-change: a round that dispatches no reviewer skips the pre-flight before the review" {
+    # verifies: D2 (docs/plans/2026-10-14-base-move-round.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    step_of "$skill" 2 | tr '\n' ' ' | tr -s ' ' |
+        grep -qF 'Skip this step in a round that dispatches no reviewer: 6c runs every check it runs.' ||
+        { echo "step 2 does not say when it is skipped"; false; }
+    step_of "$skill" 7 | tr '\n' ' ' | tr -s ' ' |
+        grep -qF 'rerun from step 1 as a base-move round: steps 2 to 4 only on a `shared:` line, as a review round whose rerun reaches step 5; otherwise 5 only for a new `left whole` plan; then 6a to 7.' ||
+        { echo "step 7 does not list the base-move round's steps"; false; }
+    grep -qx '## Step 2: skipped when no reviewer is dispatched' "$rationale" ||
+        { echo "no rationale section for skipping step 2"; false; }
+    tr '\n' ' ' < "$rationale" | tr -s ' ' |
+        grep -qF 'a fresh review (steps 2 to 4) only where a `shared:` line shows the base edited a file this change edits, whose rerun writes the record at step 5;' ||
+        { echo "the rationale's base-move round skips the record after a review"; false; }
+}
+
+@test "merge-change: a round with no finding is the last" {
+    # verifies: D3 (docs/plans/2026-10-14-base-move-round.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    awk '
+        index($0, "are all `low` is the last review round.") && index(prev, "findings, if any,") { found = 1 }
+        { prev = $0 }
+        END { exit !found }
+    ' "$skill" || { echo "the last-round sentence does not cover a round with no finding"; false; }
+}
+
+@test "merge-change: the review checklist's last round covers a round with no finding" {
+    # verifies: D3 (docs/plans/2026-10-14-base-move-round.md)
+    # The checklist the reviewer is handed states the same rule as the skill.
+    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
+    checklist_text=$(tr '\n' ' ' < "$checklist" | tr -s ' ')
+    printf '%s\n' "$checklist_text" | grep -qF 'A round whose `code` and `requirement` findings, if any, are all `low` is the last review round' \
+        || { echo "the checklist's last-round sentence does not cover a round with no finding"; false; }
+}
+
+@test "merge-change: the review checklist asks for the record only where it exists" {
+    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # The record follows the review, so a first-round reviewer has none.
+    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
+    checklist_text=$(tr '\n' ' ' < "$checklist" | tr -s ' ')
+    printf '%s\n' "$checklist_text" | grep -qF 'from <old ID>` in the record, where the record exists.' \
+        || { echo "the checklist asks every reviewer for inherited: lines in the record"; false; }
+    printf '%s\n' "$checklist_text" | grep -qF 'a plan left whole is listed in the record, where the record exists.' \
+        || { echo "the checklist asks every reviewer for left whole plans in the record"; false; }
+}
+
+@test "ratchet: the upgrade notes say the base merge stops on a staged squash" {
+    # verifies: D1 (docs/plans/2026-10-14-base-move-round.md)
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    entry=$(awk '/^## The merge steps are renumbered/ { on = 1; next } on && /^## / { exit } on' "$notes" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$entry" ] || { echo "no renumbering entry"; false; }
+    printf '%s\n' "$entry" | grep -qF 'Step 1 now stops when the index of the primary checkout is not empty, or cannot be read' \
+        || { echo "the renumbering entry does not announce step 1's new stop"; false; }
+    printf '%s\n' "$entry" | grep -qF 'It also stops when the primary checkout cannot be found' \
+        || { echo "the renumbering entry does not announce the missing-primary stop"; false; }
+}
+
+@test "merge-change: it starts after develop-change, since the gate runs inside it" {
+    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # The gate runs inside merge-change after the record, so neither the
+    # description nor a precondition can require verify-before-merge first.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    run grep -n -e 'passed verify-before-merge' -e '`verify-before-merge` passed' "$skill"
+    [ "$status" -eq 1 ] || { echo "still requires verify-before-merge first: $output"; false; }
+    grep '^description: ' "$skill" | grep -qF 'develop-change' \
+        || { echo "the description does not say it follows develop-change"; false; }
+    preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$preconditions" | grep -qF '`develop-change` is done, its suite green' \
+        || { echo "the precondition does not name develop-change"; false; }
+}
+
+@test "merge-change: the gate runs after the record, on the tree that is signed" {
+    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # The record is committed before the gate, so one gate per round measures
+    # the tree step 7 squashes. The step labels follow D5.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    labels=$(grep -E '^[0-9]+[a-d]?\. \*\*' "$skill" | sed 's/\. .*//' | tr '\n' ' ')
+    [ "$labels" = '1 2 3 4 5 6a 6b 6c 6d 7 8 ' ] || { echo "step labels: $labels"; false; }
+    step_6a=$(step_of "$skill" 6a)
+    printf '%s\n' "$step_6a" | grep -q '^6a\. \*\*Dispatch the verification suite\*\*' \
+        || { echo "6a is not the gate: $step_6a"; false; }
+    step_6b=$(step_of "$skill" 6b)
+    printf '%s\n' "$step_6b" | grep -q '^6b\. \*\*Confirm the step 6a summary describes this tree\*\*' \
+        || { echo "6b is not the tree check: $step_6b"; false; }
+    printf '%s\n' "$step_6b" | grep -qF 'git rev-parse HEAD^{tree}' \
+        || { echo "6b does not compare the tree: $step_6b"; false; }
+    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | cut -d: -f1)
+    gate_at=$(grep -n '^6a\. \*\*' "$skill" | cut -d: -f1)
+    if [ -z "$record_at" ] || [ -z "$gate_at" ] || [ "$record_at" -ge "$gate_at" ]; then
+        echo "the record ('$record_at') does not precede the gate ('$gate_at')"; false
+    fi
+    step_of "$skill" 7 | grep -qxF '   Gate-tree: <step 6a tree>' \
+        || { echo "step 7's message template does not name the step 6a tree"; false; }
+}
+
+@test "merge-change: a late gate's costs are stated: a reviewer for its fix, and no suite for a docs-only review" {
+    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # The gate follows the review, so its failure's fix needs a reviewer, and a
+    # documentation-only diff has no earlier gate summary for its reviewer.
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    step_4=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
+    [ -n "$step_4" ]
+    printf '%s\n' "$step_4" | grep -qF "A 6a gate failure's fix dispatches a reviewer unless it touches only the record or plan." \
+        || { echo "step 4 does not say a gate failure's fix dispatches a reviewer"; false; }
+    printf '%s\n' "$step_4" | grep -qF "A documentation-only diff's reviewer skips the suite; the record states it, and 6a's gate covers it." \
+        || { echo "step 4 does not say a documentation-only diff's reviewer skips the suite"; false; }
 }
 
 @test "merge-change: the review checklist checks a pruned plan against the diff" {
@@ -3090,23 +3253,23 @@ adr_file_is_named_by_its_item() {
     section=$(section_of '### The conformance reviews' "$skill")
     printf '%s\n' "$section" | grep -qF '`review-conformance`'
     printf '%s\n' "$section" | grep -qF '`## Guideline reviews`'
-    printf '%s\n' "$section" | grep -qF '`merge-change`, not at its 6a'
+    printf '%s\n' "$section" | grep -qF '`merge-change`, not at its step 4'
 }
 
-@test "develop-change: guideline review findings go into the plan as they arrive, and step 6b copies them" {
+@test "develop-change: guideline review findings go into the plan as they arrive, and merge-change's record copies them" {
     # verifies: D1, D9 (docs/plans/2026-10-08-test-guidelines.md)
     # The reviews run before merge-change, so their findings wait in the plan
-    # as the red -> green lines do; 6a reads them there, and 6b copies them
-    # into the record it writes after 6a (finding-4, review round 1).
+    # as the red -> green lines do; step 4 reads them there, and step 5 copies them
+    # into the record it writes after step 4.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
     if printf '%s\n' "$section" | grep -qF 'which `merge-change` step 6b fills in'; then
         echo "still says step 6b fills in the guideline reviews"; false
     fi
     printf '%s\n' "$section" | grep -qF 'Write each finding and its disposition into the plan as it arrives, as the `red -> green:` lines are'
-    printf '%s\n' "$section" | grep -qF '`merge-change` step 6b copies them into the record'"'"'s `## Guideline reviews`'
+    printf '%s\n' "$section" | grep -qF '`merge-change` step 5 copies them into the record'"'"'s `## Guideline reviews`'
     merge="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    record_step=$(awk '/^6b\. / { inside = 1 } /^6c\. / { inside = 0 } inside' "$merge" | tr '\n' ' ' | tr -s ' ')
+    record_step=$(step_of "$merge" 5 | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$record_step" | grep -qF 'any `inherited:` lines from the plan, its guideline reviews (`## Guideline reviews`)'
 }
 
@@ -3137,7 +3300,7 @@ adr_file_is_named_by_its_item() {
 @test "merge-change: the review checklist's test section is the floor, and checks the guideline reviews ran" {
     # verifies: D2, D9 (docs/plans/2026-10-08-test-guidelines.md)
     # The seam and double rules are a project's preference, checked by
-    # review-conformance against its own file; 6a holds the floor alone and
+    # review-conformance against its own file; step 4 holds the floor alone and
     # checks that each guideline review ran and was dispositioned.
     checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     grep -qF 'checklist applies when the diff touches documentation, and the test' "$checklist"
@@ -3150,7 +3313,7 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$section" | grep -qF -- '- It fails when the behavior it verifies breaks: an assertion only that a double was called meets this only where the call is the requirement.'
     printf '%s\n' "$section" | grep -qF -- '- At class B and C, every REQ and LLR has abnormal-input tests'
     printf '%s\n' "$section" | grep -qF -- '- At class C, every SDD item the change touches is tested at its own interface'
-    # The plan holds the guideline reviews when 6a runs; 6b copies them into
+    # The plan holds the guideline reviews when step 4 runs; step 5 copies them into
     # the record afterwards (finding-4, review round 1).
     printf '%s\n' "$section" | grep -qF 'the plan lists a conformance review for each file `guidelines-file.sh TEST` prints for the diff'
     printf '%s\n' "$section" | grep -qF 'and for each file `guidelines-file.sh CODE` prints for it'

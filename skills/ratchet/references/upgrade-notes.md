@@ -11,6 +11,37 @@ green. The one exception is an unrecognised key: a project-local annotation
 was harmless before and is now rejected, because a typo and an extension
 cannot be told apart.
 
+## The merge steps are renumbered, and the gate runs after the record
+
+`merge-change` now runs its gate after the review and the record, on the tree
+that is signed: merge the base, pre-flight, review, record, gate, confirm the
+tree, pre-flight with the review check, squash. The record no longer forces a
+second gate run. Steps 1, 6c, 6d, 7 and 8 keep their numbers; the others
+move:
+
+| Was | Now | Step |
+|---|---|---|
+| 4 | 2 | the pre-flight before the review (`--before-review`) |
+| 5 | 3 | rule on what the pre-flight cannot |
+| 6a | 4 | the independent review |
+| 6b | 5 | the verification record |
+| 2 | 6a | the gate (`verify-before-merge`) |
+| 3 | 6b | confirm the gate's tree |
+
+Step 1 now stops when the index of the primary checkout is not empty, or
+cannot be read: a squash staged there, another change's or an outdated one of
+this change, would make step 7 reject the gate run anyway. Tell the user, and
+once they sign or clear it, rerun step 1. It also stops when the primary
+checkout cannot be found (`git worktree list` failed): the check would
+otherwise read no index and pass.
+
+The sections below use the new numbers. Plans and verification records
+merged before this change use the old ones: read their `merge-change` step
+numbers through this table. A squash message file written from an
+older copy of the skill names `<step 2 tree>`; the tree it names is the one
+the gate measured, now at step 6a. Refresh the installed skills when the
+scripts are copied.
+
 ## Order of work
 
 1. Finish or discard drafts in flight. Run the old `finalize-ids.sh` one last
@@ -280,7 +311,7 @@ The `problems:` summary line gained a field:
 
 ## Supersession reciprocity
 
-This can go red on an existing ledger. `merge-change` step 6a prescribes the
+This can go red on an existing ledger. `merge-change` step 4 prescribes the
 pair — `supersedes: <old ID>` on the replacement, `superseded-by: <new ID>` on
 the replaced item — and older scripts read neither word.
 
@@ -302,7 +333,7 @@ the replaced item — and older scripts read neither word.
 
 The check covers reciprocity only. It does not sweep the tree for other
 references to a superseded ID, because an `affects:` or `traces:` line may name
-an old ID as history. That sweep stays a review job (`merge-change` step 6a).
+an old ID as history. That sweep stays a review job (`merge-change` step 4).
 `DANGLING-REF` already answers existence.
 
 ## Out-of-force items
@@ -652,7 +683,7 @@ gate reads either guidelines file, so nothing goes red.
 * `finish-merge.sh` has a fifth guard. It refuses the cleanup, exit 1 with
   nothing removed and nothing deleted, unless the signed squash's message
   has exactly one `Gate-tree:` trailer and its value is the commit's own
-  tree. `merge-change` step 7 writes it, the tree the step 2 gate measured,
+  tree. `merge-change` step 7 writes it, the tree the step 6a gate measured,
   with a `Gate:` trailer per verify command and a `Base:` trailer. A squash
   written from an older copy of the skill has none: refresh the installed
   skills when the scripts are copied.

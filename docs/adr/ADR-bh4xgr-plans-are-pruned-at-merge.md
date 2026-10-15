@@ -25,26 +25,31 @@ D11 of `docs/plans/2026-10-06-salvage-churn-and-parallel.md`, as built in
   `*(Code pruned at merge: <N> lines.)*` where the task has none. Every
   heading and every line of prose stays. Fences outside task sections stay,
   and so does a fence with a line that opens with `red -> green`: the
-  attestations `merge-change` step 6b copies into the record. (Amended
+  attestations `merge-change` step 5 copies into the record. (Amended
   2026-10-08 for PR-kzst5n: a line that opens with `inherited:` keeps its
-  fence too, since step 6b copies those lines as well.)
+  fence too, since step 5 copies those lines as well.)
 - `merge-change` step 1 runs it only after a base merge that succeeded,
   diffing against the ref it merged, and commits the plans it changed,
   unsigned and only where something changed; the commit takes nothing outside
-  `docs/plans`. The step 6a reviewer
+  `docs/plans`. The step 4 reviewer
   checks the pruned plan against the diff.
 - `prune_plans` in `.guardrails/config.yaml` is `on` when absent; `off` opts
   out. `--all` prunes the plans already on a base branch.
 
 **Deviation from D11.** D11 put the pruning in `finalize-docs.sh`. That script
-runs at `merge-change` step 3, after the step 2 gate, and pruning changes the
-tree on nearly every merge, so step 6's tree-hash comparison would dispatch a
-second full suite run each time. The maintainer ruled on 2026-10-08 that
-pruning is its own script, run at the end of step 1, so the step 2 gate
+runs at `merge-change`'s finalize step (removed by ADR-cy7ahd), after the
+step 6a gate, and pruning changes the tree on nearly every merge, so step 6b's
+tree-hash comparison would dispatch a second full suite run each time. The
+maintainer ruled on 2026-10-08 that pruning is its own script, run at the end
+of step 1, so the step 6a gate
 measures the pruned tree. `finalize-docs.sh` is unchanged. The script reads
 its key without the config check the gates run, so a project with no
 `.guardrails/config.yaml`, such as this repository, runs it as an adopter
 does.
+
+(Amended 2026-10-14: step
+labels in this file are those of D5 of
+`docs/plans/2026-10-14-base-move-round.md`, which renumbered the sequence.)
 
 ## Consequences
 

@@ -78,7 +78,8 @@ description: Write a bite-sized, trace-aware implementation plan for a change in
    4. Every task states **Files touched:** and **Parallel:**, and no two tasks
       marked parallel name the same file.
 10. **Hand off for execution:** `develop-change` (TDD) task by task, then
-    `check-traceability`, `verify-before-merge` and `merge-change`.
+    `check-traceability` and `merge-change`, whose step 6a gate is
+    `verify-before-merge`.
 
 ## Red flags
 

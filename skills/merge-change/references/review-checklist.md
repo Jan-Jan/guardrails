@@ -1,6 +1,6 @@
 # The review severities and the documentation and test checklists
 
-Read this at `merge-change` step 6a, and hand it to the reviewer with the diff
+Read this at `merge-change` step 4, and hand it to the reviewer with the diff
 every round. The severities apply to every review; the documentation
 checklist applies when the diff touches documentation, and the test
 checklist when it touches tests.
@@ -18,8 +18,8 @@ Every `code` and `requirement` finding states one severity after its tag:
 - `low`: needs a rare or contrived state, or the error printed alongside names
   the true cause, or a documentation gap where the tree is right.
 
-A round whose `code` and `requirement` findings are all `low` is the last
-review round (`merge-change` step 6a).
+A round whose `code` and `requirement` findings, if any, are all `low` is the
+last review round (`merge-change` step 4).
 
 ## The documentation checklist
 
@@ -39,10 +39,10 @@ The reviewer checks each item and raises a finding for each one that fails.
 - The successor has its own test with a `red -> green:` attestation. The new
   ID was not added to the old item's green test; a test pointed from the old
   item to the successor is listed as `inherited: <test name> — from <old ID>`
-  in the record. An inherited test is reviewed as an edited test under the
-  test checklist, and the reviewer confirms it verifies the successor's
-  behavior, since it carries no red-first evidence and no gate reads
-  `inherited:`.
+  in the record, where the record exists. An inherited test is reviewed as
+  an edited test under the test checklist, and the reviewer confirms it
+  verifies the successor's behavior, since it carries no red-first evidence
+  and no gate reads `inherited:`.
 - Every other site that names the superseded ID. The trace gate enforces the
   supersession pair (`NON-RECIPROCAL-SUPERSESSION`, `MALFORMED-SUPERSESSION`)
   and only the pair. An `affects:`, `traces:` or table row may name an old ID
@@ -52,8 +52,8 @@ The reviewer checks each item and raises a finding for each one that fails.
   RC, or supersede the REQ too.
 - The plans `merge-change` step 1 pruned: each pointer stands where the
   task's code was, the prose of each task matches the diff, and a plan left
-  whole is listed in the record. After pruning, the prose is the plan's only
-  account of the code.
+  whole is listed in the record, where the record exists. After pruning,
+  the prose is the plan's only account of the code.
 
 ## The test checklist
 

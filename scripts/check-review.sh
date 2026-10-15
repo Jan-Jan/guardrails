@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
 # check-review.sh [--cite] [--branch NAME]
 #
-# The review artefact gate. Independent review (merge-change step 6a) is the
+# The review artefact gate. Independent review (merge-change step 4) is the
 # highest-yield step in the sequence and was the only one with nothing behind
 # it: no check that a reviewer was dispatched, that findings were answered, or
 # that the record states anything at all. Reported by a class B project running
@@ -211,7 +211,7 @@ fi
 # for every other document key. A hand-copy here is how two readers of one rule
 # start to disagree.
 records=$(gr_md_files "$dir" \
-"no verification records in — merge-change step 6b writes one per change, and
+"no verification records in — merge-change step 5 writes one per change, and
   without any this gate would pass over an empty directory and report that the
   review happened. Directory:") || exit 2
 _n=$(printf '%s' "$records" | grep -c . || true)
@@ -664,7 +664,7 @@ cite_report() {
 # path may contain anything a filename may contain:
 #   * committed on this branch since it diverged from the base;
 #   * modified in the working tree but not yet committed;
-#   * present but not yet tracked at all — the record is written at step 6b and
+#   * present but not yet tracked at all — the record is written at step 5 and
 #     committed with the rest of the change, so it is legitimately new here.
 #
 # Skipped, and SAID SO in the summary, when --branch names the change: there is
@@ -756,7 +756,7 @@ done
 
 if [ "$_matched" -eq 0 ]; then
     echo "MISSING-RECORD $branch (no verification record in $dir declares it)"
-    echo "guardrails: merge-change step 6b writes docs/verification/<date>-<branch>.md" >&2
+    echo "guardrails: merge-change step 5 writes docs/verification/<date>-<branch>.md" >&2
     echo "from .guardrails/templates/verification.md. The record declares the change it" >&2
     echo "covers with a 'branch: $branch' line as its FIRST such line; nothing here does." >&2
     fail=1

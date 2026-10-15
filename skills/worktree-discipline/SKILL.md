@@ -57,7 +57,7 @@ description: Mandatory isolation for every change in a guardrails project - crea
    `<N>` is the plan task number: task 3 gets `.worktrees/<change-branch>-t3`,
    on branch `<change-branch>-t3`. A dispatch with no task number takes a tag
    in place of `t<N>`, giving `.worktrees/<change-branch>-<tag>`: the
-   independent review at `merge-change` step 6a goes to
+   independent review at `merge-change` step 4 goes to
    `.worktrees/<change-branch>-review`, and a fix dispatch takes the unique tag
    `merge-change`'s sequence header requires.
 
@@ -174,7 +174,7 @@ description: Mandatory isolation for every change in a guardrails project - crea
    deletes the branch with them. Run `merge` only after a green task report;
    no remedy for a rejection names it. For the independent review the
    dispatcher is `merge-change`, and the removal is at
-   the end of `merge-change` step 6a, where that dispatch ends.
+   the end of `merge-change` step 4, where that dispatch ends.
 
    A verification dispatch has nothing to remove: it runs in the change
    worktree.
@@ -185,7 +185,7 @@ description: Mandatory isolation for every change in a guardrails project - crea
    - **the plan** (`docs/plans/<date>-<slug>.md`) — the tasks, the files each
      touches, which are done, and, beside each completed task, the
      `red -> green:` attestations from its dispatch report, written down as
-     the report arrives (`develop-change`), so `merge-change` step 6b copies
+     the report arrives (`develop-change`), so `merge-change` step 5 copies
      them from a file;
    - **the ledger** — the requirement, risk, design and problem items, with
      their minted IDs and their `satisfies:` / `implements:` / `verifies:`

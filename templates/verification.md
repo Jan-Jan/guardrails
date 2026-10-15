@@ -1,12 +1,12 @@
 # Verification — <slug> (<date>)
 
-One record per change, written at `merge-change` step 6b and checked at step 6c
+One record per change, written at `merge-change` step 5 and checked at step 6c
 by `.guardrails/scripts/check-review.sh`. The squash commit references it on
 its `Verified:` line and carries the gate's figures in its own trailers; this
 file is the rest of the evidence that travels with the change.
 
 branch: <the change branch this record covers>
-reviewer: <who performed the independent review at step 6a>
+reviewer: <who performed the independent review at step 4>
 verdict: <what the review concluded>
 reproduced: <was the defect reproduced before the fix, and how — or why not>
 
@@ -16,7 +16,7 @@ Plan: `docs/plans/<plan file>`.
 ## The gate
 
 The gate's figures are not in this record. The squash commit carries them as
-trailers (`merge-change` step 7): `Gate-tree:` names the tree the step 2 gate
+trailers (`merge-change` step 7): `Gate-tree:` names the tree the step 6a gate
 measured, a `Gate:` line gives each command's totals, and `Base:` names the
 base and the commit step 1 merged. `finish-merge.sh` refuses the cleanup
 unless `Gate-tree:` is the commit's own tree.
@@ -86,7 +86,7 @@ least one of: a file in the tree (not a directory, and not this record),
 with or without `:<line>`; a test's name in backticks or double quotes,
 exactly as the test declares it in a file under `test_paths`; or a defined
 item ID, such as the `PR-…` of a finding recorded as an open problem item
-(`merge-change` step 6a). A finding that needed no change reads
+(`merge-change` step 4). A finding that needed no change reads
 `no change — <reason>`.>
 
 **finding-2**: record — <what the reviewer found in the record; a `record`
@@ -136,7 +136,7 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   reviewer:    required. Catches a review that was never dispatched. The gate
                does not judge independence — with agent reviewers the string is
                whatever the author types — so independence is the author's
-               discipline and step 6a is where it is exercised.
+               discipline and step 4 is where it is exercised.
   verdict:     required. A review that raised nothing must still say so, or
                silence is indistinguishable from absence.
   reproduced:  required, and the VALUE IS NEVER JUDGED. `reproduced: no — the
@@ -151,14 +151,14 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   not a claim about the review.
 - A field with no value after it is an omission, not compliance.
 - A finding's value OPENS with its tag — `code`, `requirement` or `record`
-  (`merge-change` step 6a), or `guideline` under `## Guideline reviews`
+  (`merge-change` step 4), or `guideline` under `## Guideline reviews`
   (`review-conformance`), which takes a severity as `code` does. A `code` or
   `requirement` tag is followed by its severity, `high`, `medium` or `low`;
   a `record` finding states none.
   check-review.sh never reads the value, so the tag and the severity cost no
   field and add no malformed case. They exist for the convergence rule at
-  `merge-change` step 6a: a round whose `code` and `requirement` findings are
-  all `low` is the last REVIEW round. The tag does not shorten the sequence —
+  `merge-change` step 4: a round whose `code` and `requirement` findings, if
+  any, are all `low` is the last REVIEW round. The tag does not shorten the sequence —
   every finding reruns from step 1, whatever its tag — it decides only whether
   another reviewer is dispatched.
 - A finding is `**finding-N**:` at column one, N digits, and its `disposition:`
@@ -178,7 +178,7 @@ Field grammar (surfaced by .guardrails/scripts/check-review.sh):
   can re-observe a test failing once it passes — so nothing downstream
   re-verifies what these rows state, and enforcing them would need a fifth
   required field and a change to the script. What IS independently checkable is
-  the same property from the other side, and step 6a already asks it: do the
+  the same property from the other side, and step 4 already asks it: do the
   tests verify what their `verifies:` annotations claim, and would they fail if
   the behavior broke? A test that could never have gone red is caught by that
   question whatever this table states.

@@ -34,7 +34,7 @@
 # Kept: every heading and every line outside a fence, every fence outside a
 # task section, a fence with a line that opens with `red -> green` or
 # `inherited:`, after optional indentation and a `-`, `*` or `+` list marker
-# and `**` (merge-change step 6b copies those lines into the record), and a
+# and `**` (merge-change step 5 copies those lines into the record), and a
 # fence with no closing line. A fence that names `red -> green` only mid-line,
 # such as a skill draft, is pruned. A plan that any tracked *.md file cites as
 # `<basename>:<line>` or `<basename> line <line>` (a backtick may close the
@@ -68,8 +68,8 @@
 # file runs this as an adopter does.
 #
 # Why merge-change step 1: pruning changes the tree on nearly every merge. Run
-# after the step 2 gate, it would fail step 3's tree-hash check and dispatch a
-# second full suite run. Run after the base merge, the step 2 gate measures the
+# after the step 6a gate, it would fail step 6b's tree-hash check and dispatch a
+# second full suite run. Run after the base merge, the step 6a gate measures the
 # pruned tree.
 #
 # Exit codes: 0 success, 2 usage/environment error.

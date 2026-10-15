@@ -637,8 +637,7 @@ PLAN_EOF
     # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
     # develop-change's dispatch report opens with `task:` and carries its
     # `red -> green:` lines further down; the dispatcher writes it into the
-    # plan, and merge-change step 6b copies it from there (review round 2,
-    # finding 1).
+    # plan, and merge-change step 5 copies it from there.
     cat > "$PLAN" <<'PLAN_EOF'
 ### T1 — do it
 
@@ -860,7 +859,7 @@ PLAN_EOF
 
 @test "prune: a fence holding only an inherited: line keeps its fence" {
     # verifies: D6 (docs/plans/2026-10-08-out-of-force-items.md)
-    # merge-change step 6b copies `inherited:` lines from the plan as it
+    # merge-change step 5 copies `inherited:` lines from the plan as it
     # copies `red -> green:` ones, and step 1 prunes first, so an inherited:
     # line keeps its fence by the same rule.
     printf '### T1 \342\200\224 do it\n\n```text\n- inherited: test one \342\200\224 from REQ-w9hk3p\n```\n' > "$PLAN"

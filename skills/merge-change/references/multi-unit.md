@@ -15,7 +15,7 @@ mechanically, and never hand-pick the unit list.
   `UNCLAIMED-PATH` first; a partial impact set would read as complete.
 - It maps a change under the root `.guardrails/` to every unit.
 
-The pre-flight (steps 4 and 6c) runs the gates per unit:
+The pre-flight (steps 2 and 6c) runs the gates per unit:
 `check-units.sh` with no flag once, then `check-ids.sh` and `check-trace.sh`
 with `GR_CONFIG=<unit>/.guardrails/config.yaml` for **every unit in the
 impact set**. Its `UNITS` output names the unit that failed or warned; fix it
@@ -23,12 +23,12 @@ there.
 
 The rest is yours, per unit:
 
-- dispatch each unit's `verify_commands` with its `GR_CONFIG` (steps 2 and 3),
+- dispatch each unit's `verify_commands` with its `GR_CONFIG` (steps 6a and 6b),
   for every unit in the impact set;
 - write one `Gate:` trailer per unit and command at step 7,
   `Gate: <unit>: <verify_commands entry> <passed>/<total>`. The one
   `Gate-tree:` trailer names the tree every unit's gate measured.
 
-At step 6b, the record also names the units touched, and the impact set,
+At step 5, the record also names the units touched, and the impact set,
 beside its `branch:` line. One branch, one squash, one record, however many units were
 gated.

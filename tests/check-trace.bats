@@ -2299,7 +2299,7 @@ POISON
 }
 
 # --- NON-RECIPROCAL-SUPERSESSION: the pair merge-change prescribes ----------
-# merge-change step 6a prescribes `supersedes:` on the replacement and
+# merge-change step 4 prescribes `supersedes:` on the replacement and
 # `superseded-by:` on the replaced item, and until this gate no script read
 # either word: a half-applied supersession was found by a human reading every
 # site that named the old ID, or not at all.
@@ -2650,7 +2650,7 @@ POISON
     # THE SCOPE BOUNDARY, and it is deliberate. An `affects:` line may name an
     # old ID as history, so there is no unambiguous verdict to give and the
     # gate gives none: reciprocity is the half that is checkable, and the
-    # tree-wide reference sweep stays a review job (merge-change step 6a).
+    # tree-wide reference sweep stays a review job (merge-change step 4).
     printf '\n**REQ-t6gm2s**: The software shall clamp the infusion rate to the configured maximum.\nsupersedes: REQ-w9hk3p\n\n**REQ-w9hk3p**: The software shall limit the infusion rate.\nsuperseded-by: REQ-t6gm2s\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-t6gm2s\ntrue\n' > tests/test_sup.sh

@@ -56,7 +56,7 @@ the dispatcher and the gate.
 
 ## Write the red -> green lines into the plan
 
-`merge-change` step 6b copies them into the verification record, many steps
+`merge-change` step 5 copies them into the verification record, many steps
 later, and the merge sequence reruns from step 1 on any finding. Until they
 are written down they exist only in the conversation, which is not durable
 state (`worktree-discipline` step 9). In the plan they are a file from the
@@ -99,9 +99,10 @@ less.
 ## The conformance reviews run before merge-change
 
 - The merge sequence reruns from step 1 on any finding, so a variable name
-  reported at 6a costs a full restart.
-- By 6a every task branch is merged and the change is staged for the squash,
-  so a fix there costs more than the same fix before the merge sequence.
-- 6a is an independence review. Mixing style into it produces one verdict for
-  correctness and style together, and the style findings dilute the
+  reported at step 4 costs a full restart.
+- By step 4 every task branch is merged and the change is staged for the
+  squash, so a fix there costs more than the same fix before the merge
+  sequence.
+- Step 4 is an independence review. Mixing style into it produces one verdict
+  for correctness and style together, and the style findings dilute the
   correctness findings.

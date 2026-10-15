@@ -10,7 +10,8 @@ description: Run and interpret the guardrails traceability checker - orphaned re
 ## Preconditions
 
 - Run it after any edit to the SRS, RMF, SAD, SOUP or tests, inside
-  `verify-before-merge` and `merge-change`, and in CI on every merge.
+  `merge-change`, whose step 6a gate is `verify-before-merge`, and in CI on
+  every merge.
 - Run every command from the repository root.
 
 ## Steps

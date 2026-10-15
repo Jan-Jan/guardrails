@@ -79,7 +79,7 @@ else: no diffs, no logs, no narrative.
   its implementation existed. Require one line per new test. `verify-before-merge` check 4 reads them back.
 - **Write these and any `inherited:` lines into the plan as each report
   arrives**, beside their task, and mark the task done. `merge-change` step
-  6b copies them from the plan into the verification record.
+  5 copies them from the plan into the verification record.
 
 ### Derailment and the other stops
 
@@ -174,9 +174,9 @@ Return the report the skill states.
 Then run the reviews again; the first round with nothing above low is the
 last. No round count bounds the loop; it stops at the first finding that
 recurs (Derailment). Write each finding and its disposition into the plan as
-it arrives, as the `red -> green:` lines are; `merge-change` step 6b copies
+it arrives, as the `red -> green:` lines are; `merge-change` step 5 copies
 them into the record's `## Guideline reviews`. These reviews run here, before
-`merge-change`, not at its 6a: that sequence **reruns from step 1** on any
+`merge-change`, not at its step 4: that sequence **reruns from step 1** on any
 finding.
 
 ## Red flags
@@ -187,7 +187,7 @@ finding.
 | "The subagent can merge its own branch" | Git rejects an update to the change branch, which your worktree has checked out, and `git merge <change-branch>` from the task worktree merges the wrong direction and exits 0. You run `task-worktree.sh merge`. |
 | "The result line is green, so every test was red once" | Only a `red -> green:` line states that. |
 | "Re-dispatch with the same prompt" | Change the approach first. |
-| "Fix the names at `merge-change` step 6a" | That reruns the merge sequence. Run the conformance reviews here. |
+| "Fix the names at `merge-change` step 4" | That reruns the merge sequence. Run the conformance reviews here. |
 | "The reviewer saw the problem; it can fix it too" | A reviewer changes nothing. The fix is a separate dispatch, and the next round reviews it. |
 | "One reviewer can check every file" | One file per review. A reviewer with one file misses less. |
 
@@ -198,8 +198,8 @@ finding.
 - Each conformance review, for `TEST`, `CODE` and `ARCHITECTURE`, ran in
   its last round
   with nothing above low, and every finding is fixed or dispositioned.
-- `check-traceability` and `verify-before-merge` follow. Never claim done
-  without them.
+- `check-traceability` follows, then `merge-change`, whose step 6a gate is
+  `verify-before-merge`. Never claim the change done before that gate passes.
 
 ## References
 

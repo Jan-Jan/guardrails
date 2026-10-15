@@ -6,7 +6,7 @@ Status: accepted
 ## Context
 
 `merge-change` step 1 fetches `origin` and merges `origin/<base>` into the
-change branch, so that the `DUPLICATE-ID` scan at step 4 reads every ID merged
+change branch, so that the `DUPLICATE-ID` scan at step 2 reads every ID merged
 anywhere. In this repository an agent fetch or push needs a hardware key that
 only the maintainer can touch, and the agent blocks on it.
 
@@ -25,11 +25,13 @@ This overrides `merge-change` step 1's fetch. The squash commit's `Base:`
 trailer states `Base: local main at <commit>, per AGENTS.md non-negotiable 4`,
 so a later reader knows the remote was out of scope by policy. The
 verification record stated it until ADR-f6ytg7 (2026-10-14) moved the base
-commit it named into the `Base:` trailer.
+commit it named into the `Base:` trailer. (Amended 2026-10-14: step
+labels in this file are those of D5 of
+`docs/plans/2026-10-14-base-move-round.md`, which renumbered the sequence.)
 
 ## Cost
 
-Skipping the fetch makes step 4 prove less. The `DUPLICATE-ID` scan sees
+Skipping the fetch makes step 2 prove less. The `DUPLICATE-ID` scan sees
 exactly the IDs in the merged tree, so a base merged from a local ref while
 `origin` is ahead gives it a smaller set to check.
 
@@ -69,7 +71,7 @@ carries out a reconciliation only where the maintainer directs that explicitly,
 as the subject of a change whose verification record names whose decision it
 was and which commit was merged; AGENTS.md non-negotiable 4 states the same
 permission where an agent reads the rule. An
-unreconciled `main` does not make a change unsafe — it makes step 4's
+unreconciled `main` does not make a change unsafe — it makes step 2's
 `DUPLICATE-ID` scan prove less than the Cost section above already allows,
 against the IDs merged on the other machine rather than against none.
 PR-z83ka9 recorded the condition lapsing in this repository.
@@ -77,7 +79,7 @@ PR-z83ka9 recorded the condition lapsing in this repository.
 **Reconciling here means the IDs, not the ancestry.** A change integrates as a
 signed squash (non-negotiable 2), so commits merged on another machine never
 become ancestors of local `main`: `main` ends up holding their content, which
-is what step 4's scan reads, while `git merge-base main origin/<branch>` still
+is what step 2's scan reads, while `git merge-base main origin/<branch>` still
 names the commit the two machines last shared. That fixes the scan and leaves
 the remote relationship diverged, so the maintainer's next push is a deliberate
 decision rather than a fast-forward. Nothing here makes that decision, and no

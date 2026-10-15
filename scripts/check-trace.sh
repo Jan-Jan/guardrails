@@ -70,7 +70,7 @@
 #                              MALFORMED-ID (check-ids.sh).
 #   NON-RECIPROCAL-SUPERSESSION ID — `supersedes: Y` with no `superseded-by:`
 #                              naming it back on Y, or the reverse. The pair
-#                              merge-change step 6a prescribes, and ONLY the
+#                              merge-change step 4 prescribes, and ONLY the
 #                              pair: this is not a sweep for stale references
 #                              to a superseded ID, and existence is
 #                              DANGLING-REF's. Each predecessor in a list is
@@ -1835,7 +1835,7 @@ if [ -n "$GR_UNIT" ]; then
 fi
 
 # --- NON-RECIPROCAL-SUPERSESSION: the pair merge-change already prescribes --
-# merge-change step 6a prescribes `supersedes:` on the replacement and
+# merge-change step 4 prescribes `supersedes:` on the replacement and
 # `superseded-by:` on the replaced item, and no script read either word: a
 # half-applied supersession was found by a human reading every site that named
 # the old ID, or not at all. On the change that first used the form downstream,

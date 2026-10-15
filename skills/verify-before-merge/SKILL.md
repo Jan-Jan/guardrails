@@ -1,6 +1,6 @@
 ---
 name: verify-before-merge
-description: Evidence-based completion gate - run every verification and paste real output before claiming work is done or starting a merge. Use before any "done", "fixed", "passing" claim and always before merge-change.
+description: Evidence-based completion gate - run every verification and paste real output before claiming work is done or merging it. Use before any "done", "fixed", "passing" claim and at merge-change step 6a, after the review and the record.
 ---
 
 # Verify Before Merge
@@ -9,10 +9,10 @@ description: Evidence-based completion gate - run every verification and paste r
 
 ## Preconditions
 
-- You are about to claim "done", "fixed" or "passing", or to start
-  `merge-change`. The evidence rule at the top of the steps applies to every
-  such claim, by any agent: a dispatcher, a task subagent, or a gate
-  subagent.
+- You are about to claim "done", "fixed" or "passing", or `merge-change`
+  step 6a has reached its gate. The evidence rule at the top of the steps
+  applies to every such claim, by any agent: a dispatcher, a task subagent,
+  or a gate subagent.
 - For the gate itself ("Dispatch the gate" onward): you are the dispatcher of
   a change, in its change worktree, and every plan task branch is merged onto
   the change branch (`develop-change`).
@@ -102,7 +102,7 @@ for it.
    whether a diff was reviewed.
 
 Do not add `check-review.sh` to this list. The verification record it reads is
-written at `merge-change` step 6b and checked at 6c.
+written at `merge-change` step 5 and checked at 6c.
 
 ### Exit 0 is not a pass
 
@@ -135,14 +135,14 @@ to investigate, not a pass to assume.
    A green summary is not a green gate until both are answered.
 2. Quote the gate summary in your completion report and cite the log path.
    Do not re-run the commands to see the output; the summary is the report.
-3. Copy the `red -> green:` and `inherited:` lines into the verification
-   record `merge-change` step 6b writes.
+3. The `red -> green:` and `inherited:` lines reach the verification record
+   from the plan: `merge-change` step 5 copies them, before its step 6a gate.
 4. Anything `merge-change` step 7's trailers need from the gate must be in
    the gate summary: each command's totals and, where configured, the
    coverage figure. If a figure is missing, ask the subagent for it rather
    than running the command again.
 
-Only a fully green gate authorizes `merge-change`.
+Only a fully green gate lets `merge-change` go on past step 6a.
 
 ## Red flags
 

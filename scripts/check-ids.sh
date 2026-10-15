@@ -26,7 +26,7 @@
 # branches cannot mint the same one by construction; the vanishing case where
 # random draws collide is caught by DUPLICATE-ID above, because merge-change
 # merges the base branch into the worktree (step 1) before running this script
-# (step 4). There is likewise no mint ceiling and so no UNANCHORED-DEF: a
+# (step 2). There is likewise no mint ceiling and so no UNANCHORED-DEF: a
 # definition form in prose reserves nothing.
 #
 # Scoped runs engage only when .guardrails/units.yaml exists and GR_CONFIG

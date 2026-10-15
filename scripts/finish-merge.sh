@@ -35,7 +35,7 @@
 #      work with it at exit 0 — leaving a `prunable` registration and an orphan
 #      branch behind.
 #   5. HEAD's message has exactly one `Gate-tree:` trailer, and its value is
-#      HEAD's own tree. merge-change step 7 writes there the tree its step 2
+#      HEAD's own tree. merge-change step 7 writes there the tree its step 6a
 #      gate measured, so a signed squash of any other tree was never gated.
 #      Proved third, after guard 2: guards 1, 2 and 5 read the squash
 #      commit, guards 4 and 3 read the worktrees, and an ungated squash is
@@ -299,7 +299,7 @@ git diff --quiet HEAD "$branch" || gr_refuse \
   then redo the squash and run this script again on its own."
 
 # Guard 5 — HEAD certifies its own tree. merge-change step 7 writes the tree
-# its step 2 gate measured into the squash message as a `Gate-tree:` trailer,
+# its step 6a gate measured into the squash message as a `Gate-tree:` trailer,
 # so a squash of any other tree is one no gate measured. The trailers are read
 # with git's own parser, which reads trailers only in the message's last
 # paragraph, so this counts them exactly where git does. It needs git 2.22; an
@@ -321,7 +321,7 @@ case "$gate_trailers" in
     (*"$gr_nl"*) gr_refuse \
 "HEAD's message has more than one Gate-tree: trailer, so it names no one tree
   a gate measured. Nothing was removed and $branch was NOT deleted. Leave one,
-  the tree the step 2 gate measured, as merge-change's
+  the tree the step 6a gate measured, as merge-change's
   references/cleanup-rejections.md states, then run this script again on its own." ;;
 esac
 gate_tree=$(git log -1 --no-show-signature --format='%(trailers:key=Gate-tree,valueonly,unfold)' HEAD) || gr_die \

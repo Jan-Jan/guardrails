@@ -32,7 +32,7 @@ Step 1 compares against the last reviewed commit, not the last base merge,
 because the obligation must survive a rerun. A shared merge followed by a
 failed gate and a fix reruns step 1, and that run merges nothing: a list taken
 against the last base merge is empty there, and the merge would be signed
-unreviewed. The empty `review dispatched` commit 6a makes marks the reviewed
+unreviewed. The empty `review dispatched` commit step 4 makes marks the reviewed
 commit on the change branch itself. Every rerun finds it again, it changes no
 tree, so no gate summary goes stale, and the squash drops it. The base side
 starts at the base the reviewed commit contained, so a later reviewer moves
@@ -75,7 +75,7 @@ swallowed merges against a stale remote-tracking ref and reports success.
 
 A base merged from a local ref is named with its commit in step 7's `Base:`
 trailer, so that a later reader knows
-what the duplicate scan at step 4 was compared against.
+what the duplicate scan at step 2 was compared against.
 
 A project may still put the remote out of scope, as this toolkit's own
 repository does, because its fetch blocks on a hardware key only the user can
@@ -90,9 +90,9 @@ task sections with a one-line pointer naming its line count and the task's
 `**Files touched:**` value, and the squash commit holds the merged code.
 
 Pruning runs at step 1, after the base merge, because it changes the tree on
-nearly every merge. Run after the step 2 gate, it would fail step 3's hash
+nearly every merge. Run after the step 6a gate, it would fail step 6b's hash
 comparison and dispatch a second full suite run. Run at step 1, the change is
-in the tree the step 2 gate measures. The maintainer ruled this on
+in the tree the step 6a gate measures. The maintainer ruled this on
 2026-10-08, and `ADR-bh4xgr` records it.
 
 The commit is conditional: on a rerun the plans are already pruned, nothing
@@ -108,6 +108,18 @@ block is left whole, because pruning would move the cited line. Records cite
 plans as evidence, and so do other plans. Listing it in the record shows the
 reviewer which plan still carries its code.
 
+## Step 1: a staged squash stops the round
+
+The base moves only when the user signs. While another change's squash is
+staged in the primary checkout's index, the base is about to move, and a gate
+started now measures a tree that step 7 will reject once the signing lands:
+the squash no longer matches the branch, and the sequence reruns from step 1
+for a second gate run. Step 1 reads the primary checkout's index before it
+merges anything and stops there. The cost is that the agent waits on the user
+instead of gating; the gate it skips would have been spent for nothing. Once
+the user signs or clears the squash, the rerun merges the new base in and the
+one gate run that follows measures the tree that will be squashed.
+
 ## Step 1: two ledger files with one name
 
 A change names its ledger file when it creates it (`ADR-cy7ahd`), so two
@@ -118,58 +130,58 @@ it. No gate checks a reference to a dated name, so the author finds this
 change's citations with `git grep`. The rename it replaces suffixed `-2`
 against the local disk only.
 
-## Step 2: recording the tree
+## Step 2: skipped when no reviewer is dispatched
 
-A gate summary with no tree beside it cannot be re-identified one round
-later, and step 3 compares against this hash. Step 7 writes the same hash as
-the `Gate-tree:` trailer: the tree the gate measured, not one computed again
-at step 7.
+The pre-flight before review exists to catch a broken trace before a reviewer
+spends a round on it. A round that dispatches no reviewer, such as the rerun
+after the last review round or after a base move found at step 7, has no
+round to save, and 6c runs the same checks with the review check added, a
+few minutes later. Running step 2 there repeats them and finds nothing 6c
+would not.
 
-## Step 3: the tree hash decides re-verification
+A base-move round reruns only what the moved base can change: the merge
+(step 1), a fresh review (steps 2 to 4) only where a `shared:` line shows the
+base edited a file this change edits, whose rerun writes the record at step 5;
+otherwise the record (step 5) only where the merge left a new plan whole; then
+the gate and everything after it, 6a to 7. A review that step 4 ran always
+leads, through its rerun, to step 5 before the gate, so the record names the
+shared files and that review round.
 
-The suite runs in the background for minutes, and anything that changes the
-worktree meanwhile leaves a summary describing a tree that is no longer there;
-a fresh summary is what shows nothing broke. Where the tree is unchanged, a
-second run would reproduce an answer already in hand. Steps 4 and 5 only read,
-and every fix reruns from step 1, so the check is needed once per round. The
-hash makes it a mechanical test rather than a judgment about what the round
-touched.
-
-## Step 5: a draft name another change left behind
+## Step 3: a draft name another change left behind
 
 A `DRAFT-FILE` report names no change. A draft name a change merged before
-ledger files were named at creation fails step 4 for every later change. A
-`DRAFT-FILE` on a path this change did not add, ruled on at step 5, is that
+ledger files were named at creation fails step 2 for every later change. A
+`DRAFT-FILE` on a path this change did not add, ruled on at step 3, is that
 case.
 
 Whether the name opens `DRAFT-<this branch>-` is not a discriminator, because
 the draft convention, before `ADR-cy7ahd` retired it, did not require a draft
 to embed its branch, so a legacy draft name need not carry one.
 
-## Step 5: `MALFORMED-ID`
+## Step 3: `MALFORMED-ID`
 
 Widening the definition pattern to accept the token makes the item visible to
 every gate, and admits everywhere an ID that was not minted and whose form the
 pattern exists to reject.
 
-## Step 6a: independence, and findings copied verbatim
+## Step 4: independence, and findings copied verbatim
 
 The review is DO-178C independence: the verifier is not the author. A finding
 the author rewords is the author's, no longer the reviewer's, so the record
 copies each one verbatim.
 
-## Step 6a: the reviewer runs the suite
+## Step 4: the reviewer runs the suite
 
 Independence covers the evidence as well as the code. The reviewer reports
 the counts it saw, not the counts it was handed.
 
-## Step 6a: the review worktree is nested
+## Step 4: the review worktree is nested
 
 The reviewer is a dispatched subagent, pinned to the change worktree's subtree
 like any other, and it cannot detect the pin before it violates it. A reviewer
 whose worktree is unusable reports on a suite it could not run.
 
-## Step 6a: the tag and the last review round
+## Step 4: the tag and the last review round
 
 The tag exists for the convergence rule, which needs to know whether a round
 found a defect in the software or in the account of it.
@@ -197,24 +209,30 @@ that point. `PR-kc2pzm` records two candidates that answer it per gate
 instead, by running the cheap gates (P8) or by scoping the reviewer's run to
 the round's delta (P9); neither is adopted.
 
-## Step 6a: where the review worktree is removed
+A round whose findings, if any, are all `low` is the last, and a round that
+found nothing is one of them. Its rerun dispatches no reviewer, so steps 2 to
+4 are skipped, and the record and then the gate follow on the tree that is
+signed.
+
+## Step 4: where the review worktree is removed
 
 The dispatcher removes each task worktree when its dispatch ends
 (`worktree-discipline`). For the review worktree, the dispatcher is `merge-change`.
 
 The review worktree's path and branch are fixed. A round that returns
 any finding at all goes back to step 1, whatever the findings were tagged,
-and never reaches a later step. The round that does reach 6b dispatches no
-reviewer, unless step 1 printed a `shared:` line. A removal placed downstream would therefore
-leave every intermediate round's worktree behind, until the next dispatch
-fails on the existing branch.
+and never reaches a later step. A round that found nothing, or only `low`
+findings, is the last review round: it too reruns from step 1, with steps 2 to
+4 skipped. Only a round that dispatched no reviewer reaches step 5. A removal
+placed downstream would therefore leave every intermediate round's worktree
+behind, until the next dispatch fails on the existing branch.
 
-## Step 6a: a round with no review worktree
+## Step 4: a round with no review worktree
 
 Removing a review worktree that was never created fails. In a sequence
 that halts on any failure, that is a stop with no defect behind it.
 
-## Step 6a: a review commits nothing
+## Step 4: a review commits nothing
 
 Three commands retire a task worktree, and only one of them merges. `merge`
 is the dispatcher's step after a green task report: it merges the task branch
@@ -227,27 +245,18 @@ change. The review worktree is therefore retired with `remove`, which rejects a
 review branch with commits, so a commit made by a reviewer is read and recorded
 as a finding instead.
 
-## Step 6a: a review worktree with scratch in it
+## Step 4: a review worktree with scratch in it
 
 The removal rejects untracked files. It never reports an ignored file,
 because git does not see one, and that is the property guard 4 exists for.
 Forcing the removal would delete the scratch the rejection reported.
 
-## Step 6a: the record is written before the last rerun
-
-A record committed after the step 2 gate changes the tree, so step 7's
-comparison finds a mismatch and the sequence reruns from step 1 for one more
-gate run. Written once the last review's fixes are merged and before that
-rerun, the record is in the tree the gate measures, and the rerun's 6b leaves
-it as it is. Where 6b is first reached with no record, as for a class A
-change with no review, the first step 7 costs that one rerun.
-
-## Step 6b: the record is committed in the worktree
+## Step 5: the record is committed in the worktree
 
 The record is committed on the change branch, so the squash commit contains the evidence
 on the base branch, and its `Verified:` line cites the record.
 
-## Step 6b: the record names no tree
+## Step 5: the record names no tree
 
 A record that names the commit, the tree, the base commit or the gate totals
 of its change is part of the tree it names. Every base update, and every
@@ -259,7 +268,7 @@ what the commit cannot prove, and nothing in it is measured from the tree. It
 does not change when the sequence reruns, and the tree the gate measured is
 the tree squashed. `ADR-f6ytg7` records the decision.
 
-## Step 6b: the delta, never the total
+## Step 5: the delta, never the total
 
 An open count, a roll-call or an oldest age describes the whole ledger at one
 instant, and the next merge makes it false. A record is read months later,
@@ -269,22 +278,61 @@ who needs the current totals counts them from the ledger on the day they need
 them. There is no gate against count-shaped prose: a shape check loses to
 respellings.
 
-## Step 6b: the red → green attestations
+## Step 5: the red → green attestations
 
-Nothing re-verifies these rows. Step 6a cannot observe a test failing once it
-passes. The independent check comes from the other side: 6a asks whether each
+Nothing re-verifies these rows. Step 4 cannot observe a test failing once it
+passes. The independent check comes from the other side: step 4 asks whether each
 test would fail if the behavior broke.
 
-## Step 6b: the `reproduced:` field
+## Step 5: the `reproduced:` field
 
 The field exists so that a change with no reproduction states so, and the
 missing evidence is visible in the record. An honest "not reproduced" passes:
 the gate never judges the value.
 
-## Step 6b: the units in a multi-unit record
+## Step 5: the units in a multi-unit record
 
 A multi-unit record names the units touched and the impact set, so that it
 states the units whose gates the verdict covers.
+
+## Step 6a: recording the tree
+
+A gate summary with no tree beside it cannot be re-identified one round
+later, and step 6b compares against this hash. Step 7 writes the same hash as
+the `Gate-tree:` trailer: the tree the gate measured, not one computed again
+at step 7.
+
+## Step 6a: the gate runs after the record
+
+The gate runs once the record is committed, so the tree it measures is the
+tree step 7 squashes and the user signs. A record committed after the gate
+changed the tree: step 7's comparison failed and the sequence reran from step
+1 for a second gate run, unless the record was written before that rerun. With
+the record first, one gate runs per round, and step 7's comparison fails only
+when something changed after the gate. Before the review, the only suite run
+is the reviewer's own, on the tree an earlier gate would have measured. The
+user ruled this on 2026-10-14.
+
+Two costs are accepted. A gate failure surfaces after the review, and its fix
+is code no reviewer has read, so it dispatches a reviewer unless it touches
+only the record or the plan. A documentation-only diff has no gate summary to
+hand its reviewer, so the reviewer skips the suite, the record says so, and
+the gate at 6a covers the tree.
+
+The record now follows the review, so no reviewer reads the record of its own
+round. A reviewer in a later round reads the record the earlier rounds wrote
+and raises what is wrong in it; the last round's record has no reviewer, and
+the pre-flight at 6c is its check.
+
+## Step 6b: the tree hash decides re-verification
+
+The suite runs in the background for minutes, and anything that changes the
+worktree meanwhile leaves a summary describing a tree that is no longer there;
+a fresh summary is what shows nothing broke. Where the tree is unchanged, a
+second run would reproduce an answer already in hand. No step between 6a and
+6b edits the tree, and every fix reruns from step 1, so the check is needed
+once per round. The hash makes it a mechanical test rather than a judgment
+about what the round touched.
 
 ## Step 6c: a finding is never deleted
 
@@ -380,16 +428,16 @@ was pending.
 
 ## Step 7: `Resolves:` and `Opens:`
 
-These lines repeat the step 6b delta in the commit that is the change on the
+These lines repeat the step 5 delta in the commit that is the change on the
 base branch. No script parses these two lines, so each costs one line, and
 anyone can check them against the diff without a ledger to compare them to.
 
 ## Step 7: the trailers certify the gate
 
-`Gate-tree:` is the hash step 2 recorded, not `git write-tree` at step 7: a
+`Gate-tree:` is the hash step 6a recorded, not `git write-tree` at step 7: a
 tree computed at step 7 describes what is staged, which is what the check
 questions. The comparison before the hand-over catches a branch that changed
-after the gate, such as a record committed at 6b, before the key touch; the
+after the gate, such as a fix committed while the gate ran, before the key touch; the
 cleanup would refuse the same squash after it.
 
 `Base:` names the commit of the base ref that step 1 merged. At step 7 that is
@@ -401,7 +449,7 @@ git reads trailers only in a message's last paragraph. A blank line before
 `Co-Authored-By:`, or a wrapped trailer line that does not open with
 whitespace, leaves `Gate-tree:` in the body, and the cleanup is refused.
 
-The `Gate:` lines are copied from the step 2 summary. No script checks them:
+The `Gate:` lines are copied from the step 6a summary. No script checks them:
 checking a total means running the gate again. What is checked is the tree
 they describe. Coverage gets a `Gate:` line because it is a measured figure
 and the record no longer holds one. The pre-flight has no trailer: the

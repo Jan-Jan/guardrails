@@ -51,7 +51,7 @@ make_squashed_change() {
     git -c commit.gpgsign=false commit -qm work
     cd "$REPO"
     git merge --squash my-change >/dev/null
-    # The trailer merge-change step 7 writes: the tree the step 2 gate
+    # The trailer merge-change step 7 writes: the tree the step 6a gate
     # measured, which for a correct squash is the tree the index now holds.
     _gate_tree=$(git write-tree)
     if [ "${1:-signed}" = unsigned ]; then
@@ -916,12 +916,12 @@ lock_change_branch_ref() {
         /^ *```$/ { if (message) exit; message = 1; next }
         message { sub(/^   /, ""); print }
     ')
-    printf '%s\n' "$template" | grep -q '^Gate-tree: <step 2 tree>$' \
+    printf '%s\n' "$template" | grep -q '^Gate-tree: <step 6a tree>$' \
         || { echo "no Gate-tree line in the template: $template"; false; }
     setup_ssh_signing
     make_squashed_change
     head_tree=$(git rev-parse 'HEAD^{tree}')
-    { printf '%s\n' "$template" | sed -e "s/<step 2 tree>/$head_tree/" -e 's/<[^>]*>/x/g'
+    { printf '%s\n' "$template" | sed -e "s/<step 6a tree>/$head_tree/" -e 's/<[^>]*>/x/g'
       printf 'Co-Authored-By: A <a@example.com>\n'
     } | resign_with_message
     run sh .guardrails/scripts/finish-merge.sh my-change

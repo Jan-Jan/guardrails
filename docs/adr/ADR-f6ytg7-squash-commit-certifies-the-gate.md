@@ -1,4 +1,4 @@
-**ADR-f6ytg7**: The signed squash commit certifies its own gate: its `Gate-tree:`, `Gate:` and `Base:` trailers name the tree the `merge-change` step 2 gate measured, the gate's totals and the base merged, `finish-merge.sh` refuses the cleanup unless `Gate-tree:` is the commit's own tree, and the verification record names no commit or tree the gate measured, no base commit and no gate figure.
+**ADR-f6ytg7**: The signed squash commit certifies its own gate: its `Gate-tree:`, `Gate:` and `Base:` trailers name the tree the `merge-change` step 6a gate measured, the gate's totals and the base merged, `finish-merge.sh` refuses the cleanup unless `Gate-tree:` is the commit's own tree, and the verification record names no commit or tree the gate measured, no base commit and no gate figure.
 
 Date: 2026-10-14
 Status: accepted
@@ -29,8 +29,8 @@ D1–D6 of `docs/plans/2026-10-14-gate-proof-in-trailers.md`:
   because git reads trailers nowhere else:
   - `Base: <base ref> at <its commit>`, the ref step 1 merged and its commit
     at that merge;
-  - `Gate-tree: <tree>`, the hash step 2 recorded on a clean worktree and
-    step 3 confirmed. It is never computed with `git write-tree` at step 7: a
+  - `Gate-tree: <tree>`, the hash step 6a recorded on a clean worktree and
+    step 6b confirmed. It is never computed with `git write-tree` at step 7: a
     tree computed there describes what is staged, which is the thing the
     check questions;
   - `Gate: <command> <passed>/<total>`, one per `verify_commands` entry, one
@@ -40,7 +40,7 @@ D1–D6 of `docs/plans/2026-10-14-gate-proof-in-trailers.md`:
     them fails, so a squash exists only after they passed; the pre-flight's
     tree checks, `check-ids.sh` and `check-trace.sh`, can be rerun on the tree
     `Gate-tree:` names.
-- Step 7 compares `git write-tree` with the step 2 tree after the message is
+- Step 7 compares `git write-tree` with the step 6a tree after the message is
   written and before the hand-over. A mismatch means the branch changed after
   the gate: reset the merge and rerun from step 1. It costs no key touch.
 - `finish-merge.sh` guard 5 refuses the cleanup, removing nothing, unless
@@ -57,16 +57,22 @@ D1–D6 of `docs/plans/2026-10-14-gate-proof-in-trailers.md`:
   trailer: `Base: local main at <commit>, per AGENTS.md non-negotiable 4`.
   This amends the Decision sentence of ADR-y8jmes, in place.
 
-Ruled by the maintainer on 2026-10-14.
+Ruled by the maintainer on 2026-10-14. (Amended 2026-10-14: step
+labels in this file are those of D5 of
+`docs/plans/2026-10-14-base-move-round.md`, which renumbered the sequence.
+Its D4 moved the gate after the record, which changed the second
+consequence below.)
 
 ## Consequences
 
 - The record is a fixed point of the sequence: with nothing in it measured
   from the tree, a gate rerun does not change it, so the tree the gate
   measured is the tree squashed.
-- A record first written after the last gate costs one more gate run, which
-  step 7's comparison catches. Writing it before the rerun that follows the
-  last review pays that run once.
+- The record is written at step 5, before the step 6a gate, in every round,
+  so it never costs a gate run of its own. As this decision was first ruled,
+  the gate preceded the record, and a record first written after the last
+  gate cost one more gate run, which step 7's comparison caught; D4 of
+  `docs/plans/2026-10-14-base-move-round.md` removed that cost.
 - An adopter's `finish-merge.sh` refuses a squash written by an older copy of
   the `merge-change` skill until the installed skills are refreshed with the
   scripts.

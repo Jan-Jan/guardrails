@@ -94,7 +94,7 @@ in their setup notes.
   — the mechanical merge checks, stopping at the first failure; `--local-base`
   checks the local base branch only, not `origin/<base>`, for a project that
   puts the remote out of scope. Run from the change worktree (merge-change
-  steps 4 and 6c)
+  steps 2 and 6c)
 - `.guardrails/scripts/task-worktree.sh start TAG | merge TAG | remove TAG | discard TAG`
   — create a nested task worktree, copying in every ignored entry of the change
   worktree except `.worktrees/`, `.claude/` and a name that contains a newline

@@ -22,7 +22,8 @@ setup() { make_fixture_repo; }
 }
 
 @test "check-review: the record need not be committed" {
-    # It is written at merge-change step 6b and committed with the rest of the
+    # verifies: D9 (docs/plans/2026-08-23-review-artefact.md)
+    # It is written at merge-change step 5 and committed with the rest of the
     # change. A gate that only saw committed files would force an extra commit
     # between writing the record and checking it.
     make_change_worktree my-change
