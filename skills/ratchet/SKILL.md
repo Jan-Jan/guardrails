@@ -18,8 +18,12 @@ description: Bootstrap or retrofit a project for IEC 62304 / ISO 14971 developme
 
 ### Step 0: Locate the guardrails source
 
-`<guardrails>`, the repository two levels above this SKILL.md, must contain
-`templates/` and `scripts/`.
+The checkout is the directory `.guardrails-source` names beside this
+SKILL.md (`install.sh --copy`), else the repository two levels above it, and
+has `templates/` and `scripts/`. Before reading it, run
+`git clone -q <checkout> <guardrails>` to `<tmp>/guardrails`, `<tmp>` being
+a temporary directory outside the project. Every copy and the suite read the
+clone, removed when the ratchet is done (`references/rationale.md`).
 
 ### Step 1: Detect mode
 
@@ -72,7 +76,7 @@ above all) are the worklist for the disclaimers question.
 1. `git init` if not a repo (any default branch name works); make an initial
    commit if there is none (a worktree needs a base).
 2. Create a worktree for the scaffold (`worktree-discipline`).
-3. Copy in, from the guardrails repo:
+3. Copy in, from `<guardrails>`:
    - single unit: `templates/config.yaml` → `.guardrails/config.yaml`
    - multi-unit: `templates/units.yaml` → `.guardrails/units.yaml`, filled in
      from the interview, and `templates/config.yaml` →
@@ -137,8 +141,8 @@ Work in a worktree, as a change of its own.
 1. Follow the order of work in `references/upgrade-notes.md`; its first
    three items come before step 2.
 2. Before copying, run `tailor-guidelines` in upgrade mode for each
-   guidelines file. Then copy `scripts/*.sh` → `.guardrails/scripts/`,
-   keeping executable bits, and
+   guidelines file. Then copy, from `<guardrails>`, `scripts/*.sh` →
+   `.guardrails/scripts/`, keeping executable bits, and
    `templates/*_GUIDELINES.md` → `.guardrails/templates/`. Delete
    `.guardrails/scripts/finalize-ids.sh` and `finalize-docs.sh` if present.
 3. **Update the files that document the grammar with the scripts.**
@@ -189,7 +193,7 @@ Never overwrite. Sequence:
 
 ### Step 4: Safety-class interview (IEC 62304 4.3)
 
-Ask one question at a time; recommend an answer for each:
+Ask one question at a time, recommending an answer:
 
 1. Can a failure of this software contribute to a hazardous situation at all?
    If no → **Class A**.
@@ -210,8 +214,7 @@ record each class in that unit's config.
 Copy `references/setup-checklist.md`, fill in the qualification basis, print
 AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
 
-**The signing items gate the ratchet.** It is not complete, its own scaffold
-change included, until `.guardrails/scripts/check-signing.sh --setup` exits 0:
+**The signing items gate the ratchet.** It is not complete until `.guardrails/scripts/check-signing.sh --setup` exits 0:
 satisfy them before step 2.7 / step 3.5. For a retrofit,
 state early that **an existing project must configure commit signing before
 it finishes adopting guardrails**. If a committer's public key is missing,
@@ -222,17 +225,17 @@ stop and name it.
 with the suite result. Re-record all three on every script update. Never
 modify the scripts in the target project.
 
-**The suite runs in the guardrails repo, never in the target project, and
-bats is never installed.** Run `<guardrails>/tests/run-tests.sh` exactly once;
-it vendors bats-core into its own gitignored `tests/.bats-core/` when no
-system bats exists. Never add bats to the target project. If the run cannot
-complete, record
-`suite not run at install time: <reason>` and move on.
+**The suite runs in the clone, never in the target project, and
+bats is never installed.** Never add bats to the target project. Record
+one qualifying run per update, or `suite not run at install time: <reason>`.
 
-Capture the exit status from the run itself, never through a pipe:
-`tests/run-tests.sh | tee ratchet.log` leaves `$?` set to tee's status, so the
-recorded pass/fail is the wrong command's. Run
-`tests/run-tests.sh > ratchet.log 2>&1; status=$?` and read `$status` first.
+Capture the exit status from the run itself, never through a pipe, or the
+recorded pass/fail is the wrong command's: run
+`<guardrails>/tests/run-tests.sh > <tmp>/ratchet.log 2>&1; rc=$?` and read
+`$rc` first. Keep the log, outside the clone; it must contain
+`run-tests: testing commit <guardrails_commit>`; any other line beginning
+`run-tests:` means it describes no commit: run again
+(`references/rationale.md`).
 
 ## Red flags
 
@@ -240,7 +243,7 @@ recorded pass/fail is the wrong command's. Run
 |---|---|
 | "I'll just overwrite their AGENTS.md" | Retrofit never overwrites. Managed block only. |
 | "Enable strict checks everywhere now" | That blocks all work on legacy code. Tighten one tooth. |
-| "Signing can be a later tooth" | The first merge enforces it; the cleanup is rejected without a proved signature. |
+| "Signing can be a later tooth" | The first merge enforces it: no proved signature, no cleanup. |
 | "Skip the worktree for the scaffold" | Worktree and signed squash merge, as for any change. |
 | "safety_class can stay TBD" | Nothing else scales correctly until it is set. |
 | "The scripts are copied, so the upgrade is done" | The READMEs, the template and the managed block are refreshed too. |
@@ -261,7 +264,7 @@ recorded pass/fail is the wrong command's. Run
   a project that already has them, before copying the new scripts in.
 - `references/multi-unit.md` — read when step 1b found more than one unit,
   before step 2.3 or step 3.3 installs any file.
-- `references/setup-checklist.md` — read when you reach step 5; it is the
-  checklist to print and save.
-- `references/rationale.md` — read when a rule here seems wrong for your case,
-  or before proposing to change one.
+- `references/setup-checklist.md` — read when you reach step 5: the checklist
+  to print and save.
+- `references/rationale.md` — read when a rule here seems wrong, or
+  before proposing to change one.

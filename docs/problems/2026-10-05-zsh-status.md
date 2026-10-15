@@ -7,7 +7,8 @@ of its own. This change records the item and does not fix the skill.
 **PR-ww36qr**: `ratchet` step 5 tells the agent to run `tests/run-tests.sh > ratchet.log 2>&1; status=$?`, and in zsh the assignment to the read-only special parameter `status` fails, so the suite's exit status is never recorded.
 affects: skills/ratchet/SKILL.md, step 5 (Human setup checklist), the tool-qualification paragraph.
 opened: 2026-10-05
-status: open
+status: resolved
+Resolved: zsh reserves `status` as read-only; step 5 now captures the suite's exit status with `rc=$?`, and `references/rationale.md` says why. Reproduced by "ratchet: the suite's exit status is captured in rc, never in zsh's read-only status" in `tests/skills.bats`.
 `skills/ratchet/SKILL.md` line 233 reads
 `tests/run-tests.sh > ratchet.log 2>&1; status=$?` and directs the agent to
 "read `$status` first". In zsh, `status` is a read-only special parameter that

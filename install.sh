@@ -5,14 +5,16 @@
 #
 # Installs the guardrails skills into the agent's skills directory
 # (default: ~/.claude/skills, override with CLAUDE_SKILLS_DIR).
-# Symlinks by default so `git pull` updates them; --copy for a static copy.
+# Symlinks by default so `git pull` updates them; --copy for a static copy,
+# each with a .guardrails-source file naming this checkout.
 # Rejects anything that is not a symlink it would replace.
 set -eu
 
 mode=link
 [ "${1:-}" = "--copy" ] && mode=copy
 
-src=$(cd "$(dirname "$0")/skills" && pwd)
+root=$(cd "$(dirname "$0")" && pwd)
+src="$root/skills"
 dest="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 mkdir -p "$dest"
 
@@ -27,6 +29,9 @@ for skill in "$src"/*/; do
     fi
     if [ "$mode" = copy ]; then
         cp -R "${skill%/}" "$target"
+        # A copy has no checkout above it, so it records where it came from;
+        # `ratchet` step 0 reads it (PR-783b29).
+        printf '%s\n' "$root" > "$target/.guardrails-source"
         echo "COPY  $name -> $target"
     else
         ln -s "${skill%/}" "$target"

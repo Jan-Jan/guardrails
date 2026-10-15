@@ -695,3 +695,28 @@ the project writes with its own tooling; there is no config key for it.
 Until the upgrade copies the scripts and templates,
 `guidelines-file.sh ARCHITECTURE` exits 2 and the conformance reviews stop
 there. No gate reads the file, so nothing goes red.
+
+## The guardrails checkout is cloned, and the suite names its commit
+
+* `ratchet` step 0 runs `git clone -q <checkout> <guardrails>`, and the
+  copies of scripts and templates and the qualification suite read the clone,
+  so one run reads one commit. Uncommitted edits in the checkout are not in
+  it. The clone is `<tmp>/guardrails`, in a temporary directory outside the
+  project, and is removed when the ratchet is done.
+* Step 5 runs `<guardrails>/tests/run-tests.sh > <tmp>/ratchet.log 2>&1`:
+  the log goes beside the clone, never inside it, because the runner
+  fingerprints every file git does not ignore and a log inside the clone
+  makes every run describe no commit. The log is kept as the evidence for the
+  recorded result. One qualifying run is recorded per update.
+* `tests/run-tests.sh` prints `run-tests: testing commit <sha>` on standard
+  error when the working tree it tests is that commit's, and fails a run
+  whose working tree changed while bats ran, even if every test passed.
+  Record that commit as `guardrails_commit`; any other line beginning `run-tests:` means the result
+  describes no commit, so run the suite again.
+* `install.sh --copy` writes `.guardrails-source`, the checkout's path, into
+  each copied skill, and step 0 reads it. A copy installed before this has
+  none: delete the guardrails skill directories it copied and rerun
+  `install.sh --copy`, since a rerun skips a skill directory that exists.
+* Step 5 captures the suite's exit status in `rc`, not `status`, which zsh
+  makes read-only.
+* No gate changes: no check script reads any of this.

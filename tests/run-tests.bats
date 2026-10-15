@@ -17,7 +17,8 @@ link_tool() {
 }
 
 # The run's PATH is the stub directory plus a tools directory that links only
-# the commands run-tests.sh needs. A system directory such as /usr/bin would
+# the commands run-tests.sh needs, sh among them, which runs
+# tests/fingerprint-tree.sh. A system directory such as /usr/bin would
 # also hold the host's own bats and parallel (Debian's parallel package
 # installs /usr/bin/parallel), and either would change what the runner does.
 # getconf and sysctl are linked only by a test that wants the host's answer.
@@ -25,6 +26,7 @@ make_tools_dir() {
     tools_dir="$BATS_TEST_TMPDIR/tools"
     mkdir -p "$tools_dir"
     link_tool dirname
+    link_tool sh
 }
 
 runner="$BATS_TEST_DIRNAME/run-tests.sh"
@@ -52,23 +54,114 @@ make_gnu_parallel_stub() {
 
 # run_runner ARGUMENT...: runs run-tests.sh with ARGUMENTs and the stub and
 # tools directories as the whole PATH. RUN_TESTS_JOBS is unset unless the
-# caller sets runner_jobs, which becomes its value; a caller who sets
-# runner_stderr_file gets the runner's standard error there, kept out of
-# $output. Every test runs the runner through this, so neither the host's
-# parallel nor the caller's RUN_TESTS_JOBS reaches the run.
+# caller sets runner_jobs, which becomes its value. The runner's standard
+# error goes to runner_stderr_file, $BATS_TEST_TMPDIR/runner-stderr unless the
+# caller names another, and never into $output: the runner always writes a
+# run-tests: line there, and $output must be the stub bats's arguments alone.
+# Every test runs the runner through this, so neither the host's parallel nor
+# the caller's RUN_TESTS_JOBS reaches the run.
 run_runner() {
     local settings=(-u RUN_TESTS_JOBS)
     if [ -n "${runner_jobs+set}" ]; then
         settings+=("RUN_TESTS_JOBS=$runner_jobs")
     fi
     settings+=("PATH=$stub_dir:$tools_dir")
-    if [ -n "${runner_stderr_file:-}" ]; then
-        run sh -c 'stderr_file=$1; shift; "$@" 2>"$stderr_file"' \
-            run-tests "$runner_stderr_file" \
-            env "${settings[@]}" "$shell_path" "$runner" "$@"
-    else
-        run env "${settings[@]}" "$shell_path" "$runner" "$@"
+    runner_stderr_file=${runner_stderr_file:-$BATS_TEST_TMPDIR/runner-stderr}
+    run sh -c 'stderr_file=$1; shift; "$@" 2>"$stderr_file"' \
+        run-tests "$runner_stderr_file" \
+        env "${settings[@]}" "$shell_path" "$runner" "$@"
+}
+
+# copy_runner DIRECTORY: copies the runner and tests/fingerprint-tree.sh, which
+# it calls, into DIRECTORY.
+copy_runner() {
+    cp "$BATS_TEST_DIRNAME/run-tests.sh" "$1/run-tests.sh"
+    cp "$BATS_TEST_DIRNAME/fingerprint-tree.sh" "$1/fingerprint-tree.sh"
+}
+
+# init_checkout: a git repository at $BATS_TEST_TMPDIR/checkout, with no
+# commit yet, holding a copy of the runner and its fingerprint helper in
+# tests/ and an empty tests/a.bats for the runner to pass on. The runner
+# fingerprints the tree it lives in, so a test of that must run a copy in a
+# repository it controls, not the guardrails checkout this suite runs in. git
+# and the commands the fingerprint helper runs are linked into the tools
+# directory, and runner is the copy.
+init_checkout() {
+    checkout="$BATS_TEST_TMPDIR/checkout"
+    mkdir -p "$checkout/tests"
+    copy_runner "$checkout/tests"
+    : > "$checkout/tests/a.bats"
+    git -C "$checkout" init -q
+    git -C "$checkout" config user.name test
+    git -C "$checkout" config user.email test@example.com
+    git -C "$checkout" config commit.gpgsign false
+    link_tool git
+    link_tool mktemp
+    link_tool rm
+    link_tool cat
+    runner="$checkout/tests/run-tests.sh"
+}
+
+# make_checkout: init_checkout, plus a README, all committed.
+make_checkout() {
+    init_checkout
+    echo readme > "$checkout/README"
+    commit_all fixture
+}
+
+# commit_all MESSAGE: commits everything in the checkout, its commit in
+# checkout_commit.
+commit_all() {
+    git -C "$checkout" add -A
+    git -C "$checkout" commit -q -m "$1"
+    checkout_commit=$(git -C "$checkout" rev-parse HEAD)
+}
+
+# make_failing_git_stub PATTERN [MARKER]: a git on the stub PATH that runs the
+# host's git, except that a call with an argument matching the case pattern
+# PATTERN fails with "fatal: stub <argument> refused" on standard error;
+# given MARKER, it fails only once the file MARKER exists.
+make_failing_git_stub() {
+    {
+        printf '#!/bin/sh\nreal_git=%s\npattern=%s\nmarker=%s\n' \
+            "'$(command -v git)'" "'$1'" "'${2:-}'"
+        cat <<'EOF'
+for argument in "$@"; do
+    case $argument in
+        ($pattern)
+            if [ -z "$marker" ] || [ -e "$marker" ]; then
+                echo "fatal: stub $argument refused" >&2
+                exit 128
+            fi
+            ;;
+    esac
+done
+exec "$real_git" "$@"
+EOF
+    } > "$stub_dir/git"
+    chmod +x "$stub_dir/git"
+}
+
+# assert_stderr_has TEXT: the runner's standard error contains TEXT.
+assert_stderr_has() {
+    grep -q -F -e "$1" "$runner_stderr_file" || { cat "$runner_stderr_file"; false; }
+}
+
+# assert_stderr_lacks TEXT: the runner's standard error does not contain TEXT.
+assert_stderr_lacks() {
+    if grep -q -F -e "$1" "$runner_stderr_file"; then
+        cat "$runner_stderr_file"
+        false
     fi
+}
+
+# assert_commit_tested_unknown LINE: the runner ran the suite, said the
+# commit it tests is unknown with the line LINE, and named no commit.
+assert_commit_tested_unknown() {
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    grep -qxF -e "$1" "$runner_stderr_file" || { cat "$runner_stderr_file"; false; }
+    assert_stderr_lacks "run-tests: testing commit"
+    assert_stderr_lacks "run-tests: the working tree differs"
 }
 
 # jobs_flag_count: how many lines of $output are a --jobs or -j flag.
@@ -305,6 +398,161 @@ assert_rejected() {
     [ "$output" = "$(printf -- '--jobs\n3\n%s' "$named_file")" ] || { echo "$output"; false; }
 }
 
+@test "run-tests: a clean checkout names the commit it tests" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: testing commit $checkout_commit"
+}
+
+@test "run-tests: a modified checkout says the run tests no commit, and still runs" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    echo modified >> "$checkout/README"
+    run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: the working tree differs from commit $checkout_commit; this run tests no commit"
+    printf '%s\n' "$output" | grep -qxF "$checkout/tests/a.bats" || { echo "$output"; false; }
+}
+
+@test "run-tests: a tree changed during the run fails the run, though every test passed" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    make_stub bats "echo changed >> '$checkout/README'; exit 0"
+    run_runner
+    [ "$status" -eq 1 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: the working tree changed during the run; this result describes no commit"
+}
+
+@test "run-tests: a commit made during the run fails the run" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    make_stub bats "git -C '$checkout' commit -q --allow-empty -m during; exit 0"
+    run_runner
+    [ "$status" -eq 1 ] || { echo "status $status: $output"; false; }
+    [ "$(git -C "$checkout" rev-parse HEAD)" != "$checkout_commit" ] ||
+        { echo "the stub bats made no commit"; false; }
+    assert_stderr_has "run-tests: the working tree changed during the run; this result describes no commit"
+}
+
+@test "run-tests: a failing suite keeps its own status when the tree also changed" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    make_stub bats "echo changed >> '$checkout/README'; exit 3"
+    run_runner
+    [ "$status" -eq 3 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: the working tree changed during the run; this result describes no commit"
+}
+
+@test "run-tests: outside a git checkout the commit tested is unknown" {
+    # verifies: PR-y8ff5p
+    plain_dir="$BATS_TEST_TMPDIR/plain"
+    mkdir -p "$plain_dir/tests"
+    copy_runner "$plain_dir/tests"
+    link_tool git
+    runner="$plain_dir/tests/run-tests.sh"
+    run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: no git repository found; the commit tested is unknown"
+}
+
+@test "run-tests: a checkout whose HEAD names no commit says so, and the commit tested is unknown" {
+    # verifies: PR-y8ff5p
+    init_checkout
+    run_runner
+    assert_commit_tested_unknown "run-tests: HEAD names no commit; the commit tested is unknown"
+}
+
+@test "run-tests: a git that fails reading HEAD's tree is reported, and the commit tested is unknown" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    make_failing_git_stub '*^{tree}'
+    run_runner
+    assert_commit_tested_unknown "run-tests: the commit tested is unknown"
+    assert_stderr_has "run-tests: git rev-parse $checkout_commit^{tree} failed: fatal: stub $checkout_commit^{tree} refused"
+}
+
+@test "run-tests: an untracked file makes the working tree differ from the commit" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    echo new > "$checkout/untracked"
+    run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: the working tree differs from commit $checkout_commit; this run tests no commit"
+}
+
+@test "run-tests: a tracked file that .gitignore matches leaves a clean checkout testing its commit" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    echo x.log > "$checkout/.gitignore"
+    echo log > "$checkout/x.log"
+    git -C "$checkout" add .gitignore
+    git -C "$checkout" add -f x.log
+    git -C "$checkout" commit -q -m "force-added ignored file"
+    checkout_commit=$(git -C "$checkout" rev-parse HEAD)
+    run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: testing commit $checkout_commit"
+}
+
+@test "run-tests: an ignored untracked file leaves a clean checkout testing its commit" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    echo tests/.bats-core/ > "$checkout/.gitignore"
+    commit_all "ignore bats-core"
+    mkdir -p "$checkout/tests/.bats-core"
+    echo copied > "$checkout/tests/.bats-core/x"
+    run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: testing commit $checkout_commit"
+}
+
+@test "run-tests: a runner nested in another repository's tree finds no checkout of its own" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    mkdir -p "$checkout/nested/tests"
+    copy_runner "$checkout/nested/tests"
+    commit_all nested
+    runner="$checkout/nested/tests/run-tests.sh"
+    run_runner
+    assert_commit_tested_unknown "run-tests: no git repository found; the commit tested is unknown"
+}
+
+@test "run-tests: without git on PATH the commit tested is unknown" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    rm "$tools_dir/git"
+    run_runner
+    assert_commit_tested_unknown "run-tests: no git repository found; the commit tested is unknown"
+}
+
+@test "run-tests: a git that fails before the run leaves the suite's own status, and the commit tested is unknown" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    make_failing_git_stub add
+    make_stub bats 'exit 3'
+    run_runner
+    [ "$status" -eq 3 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: git add -A failed: fatal: stub add refused"
+    grep -qxF "run-tests: the commit tested is unknown" "$runner_stderr_file" ||
+        { cat "$runner_stderr_file"; false; }
+    assert_stderr_lacks "no git repository found"
+    assert_stderr_lacks "run-tests: testing commit"
+}
+
+@test "run-tests: a git that fails after the run is reported, and fails a passing run" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    marker="$BATS_TEST_TMPDIR/bats-ran"
+    make_failing_git_stub add "$marker"
+    make_stub bats ": > '$marker'; exit 0"
+    run_runner
+    [ "$status" -eq 1 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: testing commit $checkout_commit"
+    assert_stderr_has "run-tests: git add -A failed: fatal: stub add refused"
+}
+
 @test "outside_bats: the command runs without bats's libexec directory on PATH" {
     # verifies: PR-2nxadp
     case ":$PATH:" in
@@ -316,4 +564,47 @@ assert_rejected() {
     case ":$output:" in
         (*":$BATS_LIBEXEC:"*) echo "outside_bats kept $BATS_LIBEXEC: $output"; false ;;
     esac
+}
+
+# index_state: the checkout's index as a tree object, then its status.
+index_state() {
+    git -C "$checkout" write-tree
+    git -C "$checkout" status --porcelain
+}
+
+@test "run-tests: the checkout's own index is left as it was, staged and unstaged changes alike" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    echo other > "$checkout/other"
+    commit_all other
+    echo staged >> "$checkout/README"
+    git -C "$checkout" add README
+    echo unstaged >> "$checkout/other"
+    echo new > "$checkout/untracked"
+    before=$(index_state)
+    run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    after=$(index_state)
+    [ "$after" = "$before" ] || { printf 'before:\n%s\nafter:\n%s\n' "$before" "$after"; false; }
+}
+
+@test "run-tests: a mktemp that fails is reported in its own words, and the commit tested is unknown" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    make_stub mktemp 'echo "mktemp: stub refused" >&2; exit 1'
+    run_runner
+    assert_commit_tested_unknown "run-tests: the commit tested is unknown"
+    assert_stderr_has "mktemp: stub refused"
+}
+
+@test "run-tests: the fingerprint helper leaves nothing in TMPDIR" {
+    # verifies: PR-y8ff5p
+    make_checkout
+    runner_tmpdir="$BATS_TEST_TMPDIR/runner-tmp"
+    mkdir -p "$runner_tmpdir"
+    TMPDIR="$runner_tmpdir" run_runner
+    [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
+    assert_stderr_has "run-tests: testing commit $checkout_commit"
+    left=$(ls -A "$runner_tmpdir")
+    [ -z "$left" ] || { echo "left in TMPDIR: $left"; false; }
 }

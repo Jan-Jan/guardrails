@@ -1,8 +1,14 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
-# Run the guardrails test suite. Uses system bats if present, otherwise
-# vendors bats-core into tests/.bats-core (gitignored).
+# Run the guardrails test suite as a measurement of one commit, which it
+# names.
+# It uses system bats if present, otherwise it vendors bats-core into
+# tests/.bats-core (gitignored). Before bats runs, it names the commit under
+# test on standard error, with a note when the working tree differs from
+# that commit. A run whose working tree changed while bats ran fails: it
+# compares the fingerprints tests/fingerprint-tree.sh prints before bats
+# with the one it prints after.
 set -eu
 
 dir=$(cd "$(dirname "$0")" && pwd)
@@ -108,7 +114,49 @@ if [ "$job_count" -gt 1 ]; then
     set -- --jobs "$job_count" "$@"
 fi
 
-if [ "$files_named" = yes ]; then
-    exec "$BATS" "$@"
+if [ "$files_named" = no ]; then
+    set -- "$@" "$dir"/*.bats
 fi
-exec "$BATS" "$@" "$dir"/*.bats
+
+# The commit this run tests (PR-y8ff5p). The tests read the files of the
+# working tree they live in, so a commit or an edit made there during a run
+# gives a result that describes no commit. Messages go to standard error and
+# leave the TAP stream as bats wrote it.
+root=$(cd "$dir/.." && pwd -P)
+# A fingerprint the helper cannot take leaves the commit tested unknown
+# before the run, and the line says why: exit 2 is no git repository or no
+# git, exit 3 a HEAD that names no commit, and any other failure a git the
+# helper reported itself. After the run, a fingerprint it cannot take reads
+# as a changed working tree, which fails the run.
+fingerprint_taken=no
+fingerprint_status=0
+fingerprint_before=$(sh "$dir/fingerprint-tree.sh" "$root") || fingerprint_status=$?
+case $fingerprint_status in
+    (0)
+        fingerprint_taken=yes
+        head=${fingerprint_before%% *}
+        if ! commit_tree=$(git -C "$root" rev-parse "$head^{tree}" 2>&1); then
+            echo "run-tests: git rev-parse $head^{tree} failed: $commit_tree" >&2
+            echo "run-tests: the commit tested is unknown" >&2
+        elif [ "${fingerprint_before#* }" = "$commit_tree" ]; then
+            echo "run-tests: testing commit $head" >&2
+        else
+            echo "run-tests: the working tree differs from commit $head; this run tests no commit" >&2
+        fi
+        ;;
+    (2) echo "run-tests: no git repository found; the commit tested is unknown" >&2 ;;
+    (3) echo "run-tests: HEAD names no commit; the commit tested is unknown" >&2 ;;
+    (*) echo "run-tests: the commit tested is unknown" >&2 ;;
+esac
+
+suite_status=0
+"$BATS" "$@" || suite_status=$?
+
+if [ "$fingerprint_taken" = yes ] &&
+    [ "$(sh "$dir/fingerprint-tree.sh" "$root")" != "$fingerprint_before" ]; then
+    echo "run-tests: the working tree changed during the run; this result describes no commit" >&2
+    if [ "$suite_status" -eq 0 ]; then
+        suite_status=1
+    fi
+fi
+exit "$suite_status"

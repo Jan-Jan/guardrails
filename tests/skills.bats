@@ -5,6 +5,14 @@
 # The scratch repositories of the tests that run a skill's snippets.
 load helpers
 
+# ratchet_step N — prints the text of skills/ratchet/SKILL.md's `### Step N:`
+# section on one line, runs of spaces squeezed, so a phrase the prose wraps
+# still matches.
+ratchet_step() {
+    local skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    section_of "$(grep -m 1 "^### Step $1:" "$skill")" "$skill" | tr '\n' ' ' | tr -s ' '
+}
+
 @test "ratchet: tool qualification states how and where the suite runs" {
     # verifies: PR-ac96zf
     # The step-5 checklist item asks the installer to record the suite result
@@ -139,6 +147,147 @@ load helpers
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'guardrails_commit' "$skill"
     grep -q 'guardrails_commit' "$BATS_TEST_DIRNAME/../templates/config.yaml"
+}
+
+@test "ratchet: step 0 clones the checkout before reading it, and finds it through .guardrails-source" {
+    # verifies: PR-y8ff5p, PR-783b29
+    # A suite that reads the checkout's live tree mixes two commits when one
+    # is made there mid-run, and a copied skill has no checkout two levels
+    # above it. Step 0 reads the path install.sh --copy records, then clones.
+    step0=$(ratchet_step 0)
+    printf '%s\n' "$step0" | grep -qF '.guardrails-source' \
+        || { echo "step 0 does not read .guardrails-source"; false; }
+    printf '%s\n' "$step0" | grep -qF 'git clone -q <checkout> <guardrails>' \
+        || { echo "step 0 does not clone the checkout"; false; }
+}
+
+@test "ratchet: step 0 clones into a temporary directory outside the project, removed afterwards" {
+    # verifies: PR-y8ff5p
+    # Step 5 runs the suite in the clone, never in the target
+    # project. A clone made inside the project's tree would put the suite
+    # there, and one left behind is a stray copy of guardrails in it.
+    step0=$(ratchet_step 0)
+    printf '%s\n' "$step0" | grep -qF 'a temporary directory outside the project' \
+        || { echo "step 0 does not say where the clone goes"; false; }
+    printf '%s\n' "$step0" | grep -qF 'removed when the ratchet is done' \
+        || { echo "step 0 does not say the clone is removed"; false; }
+}
+
+@test "ratchet: the qualification log must name the recorded commit" {
+    # verifies: PR-y8ff5p
+    # Only the runner's "testing commit" line says the result describes one
+    # commit; the skill must have the agent look for it.
+    root="$BATS_TEST_DIRNAME/.."
+    grep -qF 'run-tests: testing commit' "$root/skills/ratchet/SKILL.md" \
+        || { echo "the skill does not name the testing-commit line"; false; }
+}
+
+@test "ratchet: a qualification log line describes no commit only when it begins run-tests:" {
+    # verifies: PR-y8ff5p
+    # The log also holds the suite's TAP lines, and test names contain
+    # "run-tests:" (ok N run-tests: outside a git checkout ...). Read as "any
+    # other run-tests: line", every passing log fails the check.
+    root="$BATS_TEST_DIRNAME/.."
+    step5=$(ratchet_step 5)
+    printf '%s\n' "$step5" | grep -qF 'any other line beginning `run-tests:`' \
+        || { echo "step 5 does not anchor the line at its start"; false; }
+    notes=$(awk '/^## The guardrails checkout is cloned/ { inside = 1; next } /^## / { inside = 0 } inside' \
+        "$root/skills/ratchet/references/upgrade-notes.md" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$notes" | grep -qF 'any other line beginning `run-tests:`' \
+        || { echo "the upgrade note does not anchor the line at its start"; false; }
+}
+
+@test "ratchet: the rationale lists every line the runner says about what it tested" {
+    # verifies: PR-y8ff5p
+    # tests/run-tests.sh and tests/fingerprint-tree.sh say these run-tests:
+    # lines on standard error (tests/run-tests.bats tests each at its command
+    # line); a list missing one is not the runner's, and a reader of the log
+    # cannot place it.
+    root="$BATS_TEST_DIRNAME/.."
+    rationale=$(tr '\n' ' ' < "$root/skills/ratchet/references/rationale.md" | tr -s ' ')
+    for line in \
+        '`run-tests: testing commit <sha>`' \
+        '`run-tests: the working tree differs from commit <sha>; this run tests no commit`' \
+        '`run-tests: no git repository found; the commit tested is unknown`' \
+        '`run-tests: HEAD names no commit; the commit tested is unknown`' \
+        '`run-tests: the commit tested is unknown`' \
+        '`run-tests: the working tree changed during the run; this result describes no commit`' \
+        '`run-tests: git <args> failed: <message>`' \
+        '`rev-parse <sha>^{tree}`'; do
+        printf '%s\n' "$rationale" | grep -qF "$line" \
+            || { echo "rationale.md does not list $line"; false; }
+    done
+}
+
+@test "ratchet: the guardrails source is named the checkout or the clone, never the guardrails repo" {
+    # verifies: PR-y8ff5p
+    # Step 0 names the source the checkout and the copy every step reads
+    # <guardrails>, the clone. "The guardrails repo" covers both, and a
+    # reader can run the suite or copy templates from the checkout.
+    root="$BATS_TEST_DIRNAME/.."
+    if grep -n 'guardrails repo' "$root/skills/ratchet/SKILL.md"; then
+        echo "SKILL.md names the guardrails repo"; false
+    fi
+    rationale=$(tr '\n' ' ' < "$root/skills/ratchet/references/rationale.md" | tr -s ' ')
+    if printf '%s\n' "$rationale" | grep -oE 'suite (runs )?in the guardrails repository'; then
+        echo "rationale.md says the suite runs in the guardrails repository"; false
+    fi
+    # The upgrade copies from <guardrails> as step 2.3 does; a bare
+    # scripts/*.sh reads as the project's own scripts/.
+    skill=$(tr '\n' ' ' < "$root/skills/ratchet/SKILL.md" | tr -s ' ')
+    printf '%s\n' "$skill" | grep -qF 'Then copy, from `<guardrails>`, `scripts/*.sh` → `.guardrails/scripts/`, keeping executable bits, and `templates/*_GUIDELINES.md` → `.guardrails/templates/`.' ||
+        { echo "the upgrade's copy step does not name <guardrails> as its source"; false; }
+}
+
+@test "ratchet: the suite's exit status is captured in rc, never in zsh's read-only status" {
+    # verifies: PR-ww36qr
+    # zsh's status is read-only: status=$? fails, and the suite's real exit
+    # status is lost.
+    root="$BATS_TEST_DIRNAME/.."
+    skill="$root/skills/ratchet/SKILL.md"
+    grep -qF 'rc=$?' "$skill" || { echo "the skill does not capture rc"; false; }
+    if grep -qF 'status=$?' "$skill"; then echo "the skill still assigns status"; false; fi
+    grep -qF 'read-only variable: status' "$root/skills/ratchet/references/rationale.md" \
+        || { echo "rationale.md does not say why"; false; }
+}
+
+@test "ratchet: step 5 writes the qualification log outside the clone" {
+    # verifies: PR-y8ff5p
+    # The runner fingerprints every file git does not ignore. A log written
+    # inside <guardrails> (a bare ratchet.log run from the clone) dirties the
+    # tree before the run and changes it during the run, so every run fails
+    # with "this run tests no commit", and the log goes with the clone.
+    root="$BATS_TEST_DIRNAME/.."
+    step5=$(ratchet_step 5)
+    target=$(printf '%s\n' "$step5" | sed -n 's/.*run-tests\.sh > \([^ `]*\) 2>&1.*/\1/p')
+    [ -n "$target" ] || { echo "step 5 has no run-tests.sh > <log> 2>&1 command"; false; }
+    [ "$target" != 'ratchet.log' ] || { echo "step 5 writes the log into the current directory"; false; }
+    case $target in
+        ('<guardrails>'*) echo "step 5 writes the log inside the clone: $target"; false ;;
+        ('/'*|'<'*) ;;
+        (*) echo "step 5's log path is relative to the current directory: $target"; false ;;
+    esac
+    printf '%s\n' "$step5" | grep -qF 'Keep the log' \
+        || { echo "step 5 does not say the log is kept"; false; }
+    grep -qF 'fingerprints every file git does not ignore' "$root/skills/ratchet/references/rationale.md" \
+        || { echo "rationale.md does not say why the log goes outside the clone"; false; }
+}
+
+@test "ratchet: step 5 does not both run the suite exactly once and run it again" {
+    # verifies: PR-y8ff5p
+    # "Run it exactly once" and "run it again" on a run that names no commit
+    # contradict each other; one qualifying run per update is the rule.
+    step5=$(ratchet_step 5)
+    if printf '%s\n' "$step5" | grep -qF 'exactly once'; then echo "step 5 still says exactly once"; false; fi
+    printf '%s\n' "$step5" | grep -qF 'one qualifying run per update' \
+        || { echo "step 5 does not state one qualifying run per update"; false; }
+}
+
+@test "ratchet: the upgrade notes say the checkout is cloned and the suite names its commit" {
+    # verifies: PR-y8ff5p
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    grep -qx '## The guardrails checkout is cloned, and the suite names its commit' "$notes" \
+        || { echo "no upgrade-notes section"; false; }
 }
 
 @test "worktree-discipline: the task worktree is nested inside the change worktree" {
