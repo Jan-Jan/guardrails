@@ -803,3 +803,16 @@ without changing their rule, each dropping text that the clause or another
 clause states elsewhere: Seams 2, Doubles 4, Owned services 1, Property
 tests 1 and Mutants 1. `tailor-guidelines` upgrade mode shows each as a
 clause diff; a project may decline them and keep its own wording.
+
+## The reviewer runs only the tests it judges
+
+`merge-change` step 4's reviewer no longer runs the whole suite. The reviewer
+runs only the tests it judges: each test whose `verifies:` names an ID the
+change claims, and each test file the diff adds or edits, through the
+runner's file or name selection. Where the runner cannot select, it runs the
+whole suite. The step 6a gate is the one full run in a review round, and its
+counts stay independent of the author. A regression outside the reviewer's
+selection now surfaces at 6a, after the review; its fix dispatches a
+reviewer unless it touches only the record or the plan. A
+documentation-only diff's reviewer still runs no tests, and the record says
+so. No gate changes: no check script reads any of this.

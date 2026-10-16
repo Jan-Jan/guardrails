@@ -2941,6 +2941,70 @@ adr_file_is_named_by_its_item() {
     ' "$skill" || { echo "the last-round sentence does not cover a round with no finding"; false; }
 }
 
+@test "merge-change: the reviewer runs only the tests it judges" {
+    # verifies: D1 (docs/plans/2026-10-15-reviewer-scoped-suite.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    step_4=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
+    printf '%s' "$step_4" | grep -qF '**The reviewer runs only the tests it judges**' ||
+        { echo "step 4 does not scope the reviewer's run"; false; }
+    printf '%s' "$step_4" | grep -qF 'each `verifies:` test of a claimed ID' ||
+        { echo "step 4 does not select each verifies: test of a claimed ID"; false; }
+    printf '%s' "$step_4" | grep -qF 'each test file the diff adds or edits' ||
+        { echo "step 4 does not select the test files the diff adds or edits"; false; }
+    printf '%s' "$step_4" | grep -qF 'the whole suite where the runner cannot select' ||
+        { echo "step 4 does not run the whole suite where the runner cannot select"; false; }
+    if printf '%s' "$step_4" | grep -qF 'runs the suite itself'; then
+        echo "step 4 still runs the whole suite"; false
+    fi
+}
+
+@test "merge-change: the step 6a gate is the round's only full run" {
+    # verifies: D2 (docs/plans/2026-10-15-reviewer-scoped-suite.md)
+    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    step_4=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
+    printf '%s' "$step_4" | grep -qF "6a's gate runs the whole suite" ||
+        { echo "step 4 does not name 6a's gate as the full run"; false; }
+    printf '%s' "$step_4" | grep -qF "A documentation-only diff's reviewer runs no tests" ||
+        { echo "step 4 lost the documentation-only case"; false; }
+    # Only the cannot-select fallback and 6a's gate run the whole suite.
+    whole=$(printf '%s\n' "$step_4" | grep -oF 'whole suite' | wc -l | tr -d ' ')
+    [ "$whole" -eq 2 ] ||
+        { echo "step 4 names $whole whole-suite runs, not the fallback and 6a's gate"; false; }
+}
+
+@test "merge-change: the rationale states what scoping the reviewer costs" {
+    # verifies: D3 (docs/plans/2026-10-15-reviewer-scoped-suite.md)
+    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    section=$(section_of '## Step 4: the reviewer runs the tests it judges' "$rationale" | tr '\n' ' ' | tr -s ' ')
+    [ -n "$section" ] || { echo "no rationale section for the scoped run"; false; }
+    printf '%s' "$section" | grep -qF 'The step 6a gate keeps that independence.' ||
+        { echo "the rationale does not state that the 6a gate keeps the counts independent"; false; }
+    printf '%s' "$section" | grep -qF 'a regression outside that selection surfaces at 6a' ||
+        { echo "the rationale does not state where a regression outside the selection surfaces"; false; }
+    printf '%s' "$section" | grep -qF 'its fix dispatches a reviewer unless it touches only the record or the plan' ||
+        { echo "the rationale does not state that the regression's fix dispatches a reviewer"; false; }
+    printf '%s' "$section" | grep -qF 'A diff whose claimed IDs have `verifies:` tests is not documentation-only, and its reviewer runs them.' ||
+        { echo "the rationale does not settle a skill-text diff that claims tested IDs"; false; }
+    printf '%s' "$section" | grep -qF 'A documentation-only diff is one whose selection is empty.' ||
+        { echo "the rationale does not define a documentation-only diff by its selection"; false; }
+    gate=$(section_of '## Step 6a: the gate runs after the record' "$rationale" | tr '\n' ' ' | tr -s ' ')
+    printf '%s' "$gate" | grep -qF 'the reviewer runs no tests because its selection is empty' ||
+        { echo "step 6a's rationale does not give the selection as the reason"; false; }
+    if printf '%s' "$gate" | grep -qF 'no gate summary to hand its reviewer'; then
+        echo "step 6a's rationale still gives the old reason"; false
+    fi
+    if grep -qx '## Step 4: the reviewer runs the suite' "$rationale"; then
+        echo "the old rationale heading is still there"; false
+    fi
+    grep -q '^## The reviewer runs only the tests it judges$' "$notes" ||
+        { echo "no upgrade note for the scoped run"; false; }
+    entry=$(awk '/^## The reviewer runs only the tests it judges$/ { inside = 1; next }
+        /^## / { inside = 0 } inside' "$notes" | tr '\n' ' ' | tr -s ' ')
+    printf '%s' "$entry" | grep -qF 'The step 6a gate is the one full run in a review round' ||
+        { echo "the upgrade note does not say the step 6a gate is the one full run"; false; }
+}
+
 @test "merge-change: the review checklist's last round covers a round with no finding" {
     # verifies: D3 (docs/plans/2026-10-14-base-move-round.md)
     # The checklist the reviewer is handed states the same rule as the skill.
@@ -3019,8 +3083,8 @@ adr_file_is_named_by_its_item() {
     [ -n "$step_4" ]
     printf '%s\n' "$step_4" | grep -qF "A 6a gate failure's fix dispatches a reviewer unless it touches only the record or plan." \
         || { echo "step 4 does not say a gate failure's fix dispatches a reviewer"; false; }
-    printf '%s\n' "$step_4" | grep -qF "A documentation-only diff's reviewer skips the suite; the record states it, and 6a's gate covers it." \
-        || { echo "step 4 does not say a documentation-only diff's reviewer skips the suite"; false; }
+    printf '%s\n' "$step_4" | grep -qF "A documentation-only diff's reviewer runs no tests; the record states it." \
+        || { echo "step 4 does not say a documentation-only diff's reviewer runs no tests"; false; }
 }
 
 @test "merge-change: the review checklist checks a pruned plan against the diff" {

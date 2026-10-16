@@ -24,9 +24,8 @@ Halt on any failure. Dispatch your fix into the nested
 task worktree `.worktrees/<change-branch>-<tag>`, named in the prompt and
 created with `sh .guardrails/scripts/task-worktree.sh start <tag>`.
 When its report is green, run
-`sh .guardrails/scripts/task-worktree.sh merge <tag>` in the change worktree
-to merge the task branch, remove the worktree and delete the task branch. Then
-rerun from step 1.
+`sh .guardrails/scripts/task-worktree.sh merge <tag>` to merge the task
+branch, remove the worktree and delete the task branch. Then rerun from step 1.
 
 The tag must be unique per dispatch.
 
@@ -111,9 +110,11 @@ The tag must be unique per dispatch.
 
    **Hand the reviewer `references/review-checklist.md`**, every round.
 
-   **The reviewer runs the suite itself** in its worktree and reports the
-   counts. A documentation-only diff's reviewer skips the suite; the record
-   states it, and 6a's gate covers it.
+   **The reviewer runs only the tests it judges** and reports their counts:
+   each `verifies:` test of a claimed ID and each test file the diff adds or
+   edits, or the whole suite where the runner cannot select. 6a's gate runs
+   the whole suite. A documentation-only diff's reviewer runs no tests; the
+   record states it.
 
    **Every finding opens with its tag** — `code`, `requirement` or `record`:
    `code` when the implementation is wrong; `requirement` when an item, a
@@ -124,13 +125,12 @@ The tag must be unique per dispatch.
 
    **Every finding still sends the sequence back to step 1, whatever its tag.**
    The tag decides only whether **another reviewer is dispatched**.
-   Dispositioning a `record` finding in place, without a rerun, is
-   deliberately not taken.
+   Dispositioning a `record` finding in place is deliberately not taken.
 
    **A round whose `code` and `requirement` findings, if any,
    are all `low` is the last review round.** Fix each low finding whose fix is
    mechanical, record each other one as an open problem item, and rerun from
-   step 1 — but no further reviewer is dispatched, so steps 2 to 4 are skipped.
+   step 1 — but no further reviewer is dispatched.
    A later round's reviewer reads the record earlier rounds wrote, and raises
    what is wrong.
 
@@ -163,14 +163,13 @@ The tag must be unique per dispatch.
    reviews (`## Guideline reviews`), the reviewer's verdict and every finding
    with its disposition.
 
-   Four fields are required, each a plain annotation
-   at column one: `branch:`, `reviewer:`, `verdict:` and `reproduced:`. 6c
-   rejects a record unless it contains all four fields with values
-   (`INCOMPLETE-RECORD`).
+   6c rejects a record unless it contains all four fields with values
+   (`INCOMPLETE-RECORD`): `branch:`, `reviewer:`, `verdict:` and
+   `reproduced:`, each a plain annotation at column one.
 
 6a. **Dispatch the verification suite** as `verify-before-merge` describes, and
    read the verdict from the pass and fail counts of the **gate summary** it
-   returns. Do not run it in your own context.
+   returns.
 
    **Record the tree the summary describes**, beside the summary:
 

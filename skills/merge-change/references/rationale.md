@@ -170,10 +170,30 @@ The review is DO-178C independence: the verifier is not the author. A finding
 the author rewords is the author's, no longer the reviewer's, so the record
 copies each one verbatim.
 
-## Step 4: the reviewer runs the suite
+## Step 4: the reviewer runs the tests it judges
 
-Independence covers the evidence as well as the code. The reviewer reports
-the counts it saw, not the counts it was handed.
+Independence covers the evidence as well as the code: the counts the merge
+rests on are counts no author handed over. The step 6a gate keeps that
+independence. It is a fresh subagent that did not write the code, and it runs
+the whole suite on the tree that is signed.
+
+The reviewer still runs the tests it judges, those whose `verifies:` names an
+ID the change claims and the test files the diff adds or edits: it sees a test
+it calls meaningful pass with its own eyes. It reports the counts it saw for
+that selection, not the counts it was handed.
+
+A diff whose claimed IDs have `verifies:` tests is not documentation-only, and
+its reviewer runs them. A documentation-only diff is one whose selection is
+empty.
+
+The cost: a regression outside that selection surfaces at 6a, after the
+review, and its fix dispatches a reviewer unless it touches only the record or
+the plan.
+
+The reviewer's full run was measured before it was cut: about 350 full-suite
+runs over about 44 merges between 2026-09-08 and 2026-10-14, nearly half of
+them reviewers', each 15 to 75 minutes. Most re-measured a tree that had
+already passed. The user ruled this on 2026-10-15.
 
 ## Step 4: the review worktree is nested
 
@@ -309,15 +329,15 @@ tree step 7 squashes and the user signs. A record committed after the gate
 changed the tree: step 7's comparison failed and the sequence reran from step
 1 for a second gate run, unless the record was written before that rerun. With
 the record first, one gate runs per round, and step 7's comparison fails only
-when something changed after the gate. Before the review, the only suite run
-is the reviewer's own, on the tree an earlier gate would have measured. The
+when something changed after the gate. Before the review, the only test run
+is the reviewer's selection, on the tree an earlier gate would have measured. The
 user ruled this on 2026-10-14.
 
 Two costs are accepted. A gate failure surfaces after the review, and its fix
 is code no reviewer has read, so it dispatches a reviewer unless it touches
-only the record or the plan. A documentation-only diff has no gate summary to
-hand its reviewer, so the reviewer skips the suite, the record says so, and
-the gate at 6a covers the tree.
+only the record or the plan. For a documentation-only diff the reviewer runs no
+tests because its selection is empty, the record says so, and the gate at 6a
+covers the tree.
 
 The record now follows the review, so no reviewer reads the record of its own
 round. A reviewer in a later round reads the record the earlier rounds wrote
