@@ -85,11 +85,9 @@ in their setup notes.
   verdict, what was reproduced, and a disposition per finding. Run from the
   change worktree (merge-change step 6c); on the base branch it exits 2, never 0
 - `.guardrails/scripts/check-signing.sh [--strict] [RANGE]` — signature verification
-- `.guardrails/scripts/prune-plans.sh [--dry-run] [--all] [--base REF]` —
-  replace each code block in a plan's task sections with a one-line pointer
-  naming its line count and the task's Files touched value (merge-change
-  step 1); `--all` takes every plan, not only this change's;
-  `--base` names the ref this change's plans are diffed against
+- `.guardrails/scripts/drop-plans.sh --base REF` — remove the plans this
+  change added and restore the base's version of each it edited, in one
+  commit (merge-change step 5)
 - `.guardrails/scripts/merge-preflight.sh [--before-review] [--local-base] BRANCH`
   — the mechanical merge checks, stopping at the first failure; `--local-base`
   checks the local base branch only, not `origin/<base>`, for a project that

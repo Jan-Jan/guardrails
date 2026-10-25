@@ -45,8 +45,8 @@ subagent owns:
 - suite totals;
 - coverage figures, where `coverage_command` is configured, judged against the
   class target, with any shortfall reported as a shortfall (check 5);
-- the **Implements map** (check 4): for every ID the plan states the change
-  **Implements**, the `verifies:` test that contains it, and, listed
+- the **Implements map** (check 4): for every ID the verification record's
+  `Implements:` line names, the `verifies:` test that contains it, and, listed
   explicitly, every Implements ID for which no such test was found;
 - robustness coverage (check 6): for each Implements ID, whether a normal-case
   test and an abnormal-input test are both present;
@@ -69,9 +69,9 @@ for it.
    duplicate and no malformed ID. A `DRAFT-FILE` is answered by the rename its
    fix line gives, never passed.
 4. The change's own claims, split between the two parties who can answer:
-   - **the subagent's half:** every ID the plan states it **Implements** has a
-     `verifies:` test present in the change worktree, and the gate summary
-     names which test verifies which ID;
+   - **the subagent's half:** every ID the verification record's
+     `Implements:` line names has a `verifies:` test present in the change
+     worktree, and the gate summary names which test verifies which ID;
    - **your half:** each of those tests was watched failing for the right
      reason before it passed. Read that from the `red -> green:` lines of the
      dispatch reports (`develop-change`). The gate subagent watched nothing
@@ -96,8 +96,9 @@ for it.
    rule.
 7. `git status`: no uncommitted work, no stray files.
 8. **Each conformance review ran** and the dispatcher fixed or
-   dispositioned every finding (`develop-change`). Answer it from the plan,
-   where the findings and their dispositions are written, as you answer
+   dispositioned every finding (`develop-change`). Answer it from the
+   verification record's `## Guideline reviews`, where the findings and
+   their dispositions are written, as you answer
    check 4's other half from the dispatch reports; the tree cannot show
    whether a diff was reviewed.
 
@@ -137,6 +138,8 @@ to investigate, not a pass to assume.
    Do not re-run the commands to see the output; the summary is the report.
 3. The `red -> green:` and `inherited:` lines reach the verification record
    from the plan: `merge-change` step 5 copies them, before its step 6a gate.
+   A fix dispatched after step 5 (a 6a or 6c failure's fix, a base-move
+   round's review) writes its lines into the verification record directly.
 4. Anything `merge-change` step 7's trailers need from the gate must be in
    the gate summary: each command's totals and, where configured, the
    coverage figure. If a figure is missing, ask the subagent for it rather

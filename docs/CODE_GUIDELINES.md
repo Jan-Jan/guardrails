@@ -86,7 +86,7 @@ A project that changes a clause rewrites its reason and examples with it.
 3. **No silent fallback.** A missing file, setting or value is an error
    unless a requirement names the default. Why: a silent default hides a
    misconfiguration until it does damage. Example: a config key with no
-   stated default exits 2 naming the key; `prune_plans` falls back to `on`
+   stated default exits 2 naming the key; `review_cite` is `off` when absent
    because the config schema states that default.
 
 4. **An edit or substitution that matches nothing is an error.** A replace,

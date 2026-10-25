@@ -4,7 +4,7 @@
 # merge-preflight.sh [--before-review] [--local-base] <change-branch>
 #
 # The mechanical checks of merge-change steps 2 and 6c, in one command, run
-# from the change worktree. Seven checks, in this order, stopping at the first
+# from the change worktree. Eight checks, in this order, stopping at the first
 # failure:
 #
 #   CLEAN-TREE       `git status --porcelain` is empty.
@@ -15,6 +15,13 @@
 #                    prints `preflight: BASE-MERGED ok (local base only)`. This
 #                    script never fetches; merging the base in is merge-change
 #                    step 1.
+#   PLANS            the change adds no file under docs/plans and edits none the
+#                    base has, a change of type (a plan replaced by a symlink)
+#                    included; it may delete one. Read against the local base
+#                    branch, refs/heads/<base>, which the step 7 squash lands
+#                    on, never origin/<base>. merge-change step 5 drops the
+#                    plans (drop-plans.sh) before the step 6a gate. Skipped
+#                    under --before-review: the step 4 review reads the plan.
 #   IDS              check-ids.sh.
 #   TRACE            check-trace.sh.
 #   UNITS            only when .guardrails/units.yaml exists, and then in place
@@ -192,6 +199,25 @@ else
     gr_pass BASE-MERGED
 fi
 
+# 3. PLANS — a plan the change added, edited or changed the type of would
+# reach the base branch. Read against the local base branch, the one the step 7
+# squash lands on: against origin/<base>, a plan only local main has would be
+# dropped from it, and a plan only origin has would pass and reach it.
+gr_plans_ref=refs/heads/$base
+if [ "$before_review" -eq 1 ]; then
+    gr_skip PLANS "--before-review"
+else
+    # stdout is the plan list, and a warning git writes to stderr on a diff
+    # that succeeds is not a plan path. Only a failed diff is run again, to
+    # report its stderr.
+    gr_output=$(git diff --name-only --no-renames --diff-filter=AMT "$gr_plans_ref" HEAD -- docs/plans 2>/dev/null) \
+        || gr_fail PLANS 2 "$(git diff --name-only --no-renames --diff-filter=AMT "$gr_plans_ref" HEAD -- docs/plans 2>&1 >/dev/null)" \
+"run git diff --name-only $gr_plans_ref HEAD -- docs/plans in this worktree and resolve its error."
+    [ -z "$gr_output" ] || gr_fail PLANS 1 "$gr_output" \
+"run sh .guardrails/scripts/drop-plans.sh --base $gr_plans_ref as merge-change step 5 states, then dispatch the step 6a gate again."
+    gr_pass PLANS
+fi
+
 gr_ids_remedy="fix each check-ids.sh finding above; its script header documents every rule."
 gr_trace_remedy="fix each check-trace.sh finding above; its script header documents every rule."
 
@@ -199,7 +225,7 @@ if gr_units_present; then
     gr_skip IDS "run per unit under UNITS"
     gr_skip TRACE "run per unit under UNITS"
 
-    # 5. UNITS — the repository-level gates, then both gates per unit of the
+    # 6. UNITS — the repository-level gates, then both gates per unit of the
     # impact set.
     gr_run_tool UNITS "fix each check-units.sh finding above; its script header documents every rule." \
         sh "$gr_script_dir/check-units.sh"
@@ -227,7 +253,7 @@ $gr_output" "in unit $gr_unit, $gr_trace_remedy"
     done
     gr_pass UNITS
 else
-    # 3. IDS and 4. TRACE
+    # 4. IDS and 5. TRACE
     gr_run_tool IDS "$gr_ids_remedy" sh "$gr_script_dir/check-ids.sh"
     gr_warnings
     gr_pass IDS
@@ -237,7 +263,7 @@ else
     gr_skip UNITS "no .guardrails/units.yaml"
 fi
 
-# 6. REVIEW
+# 7. REVIEW
 if [ "$before_review" -eq 1 ]; then
     gr_skip REVIEW "--before-review"
 else
@@ -247,7 +273,7 @@ else
     gr_pass REVIEW
 fi
 
-# 7. NESTED-WORKTREE
+# 8. NESTED-WORKTREE
 gr_run_tool NESTED-WORKTREE \
 "for each worktree listed above, run in this worktree task-worktree.sh remove <tag> for .worktrees/$branch-<tag>, the review worktree included. If remove rejects on commits, those commits were never gated or reviewed: record each one as a finding and run task-worktree.sh discard <tag>, or, to keep the work, return to develop-change and rerun merge-change from step 1. For a worktree task-worktree.sh did not create, record the commits its branch has, then run git worktree remove <path> (no --force) and git branch -D <branch>. Then run the pre-flight again." \
     sh "$gr_script_dir/finish-merge.sh" --check "$branch"

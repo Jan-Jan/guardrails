@@ -42,10 +42,10 @@ it.
 ## Constraints
 
 1. **A rule a script can decide is a bats test.** A structural rule that a
-   scan of the tree can check is a test in `tests/`, annotated with the plan
-   decision or problem item it enforces, not a clause in this file. A rule
-   that needs judgment stays a clause here. Why: a reviewer misses what a
-   test does not, and a test runs at every gate. Example: "the scripts are
+   scan of the tree can check is a test in `tests/`, annotated with the REQ,
+   LLR or ADR it enforces, or the problem item, not a clause in this file. A
+   rule that needs judgment stays a clause here. Why: a reviewer misses what
+   a test does not, and a test runs at every gate. Example: "the scripts are
    POSIX sh, with every `case` pattern opened by `(`" is enforced by
    `tests/portability.bats`, not left to review.
 

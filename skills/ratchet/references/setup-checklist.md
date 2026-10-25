@@ -1,8 +1,12 @@
 # The human setup checklist
 
 Read this at `ratchet` step 5: copy the checklist below, fill in the
-qualification basis, then print it and save it to
-`docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
+qualification basis, then print it. Write the change's verification record
+there and then, since greenfield and upgrade write no plan: copy
+`.guardrails/templates/verification.md` to
+`docs/verification/<date>-<branch>.md`, and put the filled checklist under
+`## Tool qualification`. `merge-change` step 5 updates that record and keeps
+what is in it, so the record is where the qualification is kept.
 
 - [ ] Commit signing key: `git config gpg.format ssh`,
       `git config user.signingkey <key>`, `git config commit.gpgsign true`

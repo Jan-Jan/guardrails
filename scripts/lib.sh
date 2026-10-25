@@ -78,7 +78,6 @@ depends_on
 segregated_from
 expectation_age_days
 expectation_open_max
-prune_plans
 review_cite'
 
 # The ID body vocabulary. An item ID is <PREFIX>-<body>, and a body is either
@@ -1155,8 +1154,13 @@ gr_check_config() {
     _keys=$(gr_check_flat "$GR_CONFIG") || exit 2
 
     _unknown=""
-    for _k in $_keys; do
-        gr_contains "$GR_KNOWN_KEYS" "$_k" || _unknown="${_unknown} $_k"
+    for _config_key in $_keys; do
+        # A withdrawn key fails with the reason and the remedy, not as an
+        # unknown key with no hint.
+        case $_config_key in
+            (prune_plans) gr_die "config key prune_plans is withdrawn: a plan does not reach the base branch (drop-plans.sh, merge-change step 5). Delete its line." ;;
+        esac
+        gr_contains "$GR_KNOWN_KEYS" "$_config_key" || _unknown="${_unknown} $_config_key"
     done
     [ -z "$_unknown" ] || gr_die "unknown config key(s):${_unknown}"
 

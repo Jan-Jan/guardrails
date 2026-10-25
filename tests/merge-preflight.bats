@@ -13,8 +13,8 @@ retired_command=finish
 
 setup() { make_fixture_repo; }
 
-# The seven checks, in the order the script runs them.
-gr_checks="CLEAN-TREE BASE-MERGED IDS TRACE UNITS REVIEW NESTED-WORKTREE"
+# The eight checks, in the order the script runs them.
+gr_checks="CLEAN-TREE BASE-MERGED PLANS IDS TRACE UNITS REVIEW NESTED-WORKTREE"
 
 # A change worktree on my-change with one commit and no verification record.
 # The commit adds what a project under guardrails has and the base fixture
@@ -71,12 +71,14 @@ failed_at() {
 # --- the passing run ------------------------------------------------------
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: ADR-k3nkv3
 @test "merge-preflight: a change that passes every check prints one line per check and exits 0" {
     make_passing_change
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     expected="preflight: CLEAN-TREE ok
 preflight: BASE-MERGED ok
+preflight: PLANS ok
 preflight: IDS ok
 preflight: TRACE ok
 preflight: UNITS skipped (no .guardrails/units.yaml)
@@ -86,10 +88,12 @@ preflight: NESTED-WORKTREE ok"
 }
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: ADR-k3nkv3
 @test "merge-preflight: --before-review passes with no verification record" {
     make_change_without_record
     run sh .guardrails/scripts/merge-preflight.sh --before-review my-change
     [ "$status" -eq 0 ] || { echo "$output"; false; }
+    has_line "preflight: PLANS skipped (--before-review)"
     has_line "preflight: REVIEW skipped (--before-review)"
     has_line "preflight: NESTED-WORKTREE ok"
 }
@@ -187,6 +191,7 @@ origin_main_ahead() {
 }
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: ADR-k3nkv3
 @test "merge-preflight: --local-base combines with --before-review, in either order" {
     make_change_without_record
     origin_main_ahead
@@ -195,6 +200,7 @@ origin_main_ahead() {
         run sh .guardrails/scripts/merge-preflight.sh $order my-change
         [ "$status" -eq 0 ] || { echo "$order: $output"; false; }
         has_line "preflight: BASE-MERGED ok (local base only)"
+        has_line "preflight: PLANS skipped (--before-review)"
         has_line "preflight: REVIEW skipped (--before-review)"
     done
 }
@@ -214,6 +220,143 @@ origin_main_ahead() {
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     has_line "preflight: BASE-MERGED ok"
+}
+
+# --- PLANS: no plan reaches the base branch -------------------------------
+
+# add_plan_on_main — commit docs/plans/2025-12-01-old.md on main, in the
+# primary checkout, before the change worktree is made.
+add_plan_on_main() {
+    mkdir -p "$REPO/docs/plans"
+    printf '# Old plan\n' > "$REPO/docs/plans/2025-12-01-old.md"
+    git -C "$REPO" add docs/plans/2025-12-01-old.md
+    git -C "$REPO" -c commit.gpgsign=false commit -qm "old plan"
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: PLANS fails on a plan the change adds, names it and the drop" {
+    make_passing_change
+    mkdir -p docs/plans
+    printf '# X plan\n' > docs/plans/2026-01-01-x.md
+    commit_all "add a plan"
+    run sh .guardrails/scripts/merge-preflight.sh my-change
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    has_line "docs/plans/2026-01-01-x.md"
+    failed_at PLANS
+    has_line "fix PLANS: run sh .guardrails/scripts/drop-plans.sh --base refs/heads/main as merge-change step 5 states, then dispatch the step 6a gate again."
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: PLANS fails on a base plan the change edits" {
+    add_plan_on_main
+    make_passing_change
+    printf 'an edit\n' >> docs/plans/2025-12-01-old.md
+    commit_all "edit the old plan"
+    run sh .guardrails/scripts/merge-preflight.sh my-change
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    has_line "docs/plans/2025-12-01-old.md"
+    failed_at PLANS
+    output_has "drop-plans.sh --base"
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: PLANS fails on a base plan the change replaces with a symlink" {
+    # git reports a type change as T, which neither A nor M covers.
+    add_plan_on_main
+    make_passing_change
+    rm docs/plans/2025-12-01-old.md
+    ln -s ../../README.md docs/plans/2025-12-01-old.md
+    commit_all "replace the old plan with a symlink"
+    run sh .guardrails/scripts/merge-preflight.sh my-change
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    has_line "docs/plans/2025-12-01-old.md"
+    failed_at PLANS
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: PLANS passes a change that deletes a base plan" {
+    add_plan_on_main
+    make_passing_change
+    git rm -q docs/plans/2025-12-01-old.md
+    commit_all "delete the old plan"
+    run sh .guardrails/scripts/merge-preflight.sh my-change
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    has_line "preflight: PLANS ok"
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: PLANS passes a change with no plan when git warns on stderr" {
+    # A warning git writes to stderr on a diff that succeeds is not a plan path.
+    make_passing_change
+    stub_directory=$(make_git_warning_on '*" diff --name-only "*" -- docs/plans "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/merge-preflight.sh my-change
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    has_line "preflight: PLANS ok"
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: --before-review skips PLANS with a plan added and goes on to IDS" {
+    make_change_without_record
+    mkdir -p docs/plans
+    printf '# X plan\n' > docs/plans/2026-01-01-x.md
+    commit_all "add a plan"
+    run sh .guardrails/scripts/merge-preflight.sh --before-review my-change
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    has_line "preflight: PLANS skipped (--before-review)"
+    has_line "preflight: IDS ok"
+    output_lacks "fix PLANS:"
+}
+
+# origin_main_adds_plan — origin/main has a commit adding a plan that main
+# lacks, and the change merges it.
+origin_main_adds_plan() {
+    mkdir -p "$REPO/docs/plans"
+    printf '# Remote plan\n' > "$REPO/docs/plans/2026-02-02-remote.md"
+    git -C "$REPO" add docs/plans/2026-02-02-remote.md
+    git -C "$REPO" -c commit.gpgsign=false commit -qm "remote plan"
+    git -C "$REPO" update-ref refs/remotes/origin/main HEAD
+    git -C "$REPO" reset -q --hard HEAD~1
+    git -c commit.gpgsign=false merge -q --no-edit refs/remotes/origin/main
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: PLANS reads the local base, not origin/<base>, when origin has a plan main lacks" {
+    # Step 7 squashes onto the local base branch, so a plan only origin/main
+    # has would reach it: PLANS fails, with or without --local-base.
+    make_passing_change
+    origin_main_adds_plan
+    for flag in "" --local-base; do
+        run sh .guardrails/scripts/merge-preflight.sh $flag my-change
+        [ "$status" -eq 1 ] || { echo "$flag $status: $output"; false; }
+        has_line "docs/plans/2026-02-02-remote.md"
+        failed_at PLANS
+        has_line "fix PLANS: run sh .guardrails/scripts/drop-plans.sh --base refs/heads/main as merge-change step 5 states, then dispatch the step 6a gate again."
+    done
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: PLANS passes a plan local main has and origin/<base> lacks" {
+    # Local main is ahead of origin/main by an unpushed plan. The squash lands
+    # on local main, which has the plan, so the change adds nothing there.
+    add_plan_on_main
+    git -C "$REPO" update-ref refs/remotes/origin/main HEAD~1
+    make_passing_change
+    run sh .guardrails/scripts/merge-preflight.sh my-change
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    has_line "preflight: PLANS ok"
+}
+
+# verifies: ADR-k3nkv3
+@test "merge-preflight: a failed git diff of the plans exits 2, is not read as no plan" {
+    make_passing_change
+    mkdir -p docs/plans
+    printf '# X plan\n' > docs/plans/2026-01-01-x.md
+    commit_all "add a plan"
+    stub_directory=$(make_git_failing_on '*" diff --name-only "*" -- docs/plans "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/merge-preflight.sh my-change
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    failed_at PLANS
+    output_lacks "preflight: PLANS ok"
 }
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
@@ -364,12 +507,14 @@ make_units_change() {
 }
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: ADR-k3nkv3
 @test "merge-preflight: in a multi-unit repository UNITS runs in place of IDS and TRACE" {
     make_units_change
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     expected="preflight: CLEAN-TREE ok
 preflight: BASE-MERGED ok
+preflight: PLANS ok
 preflight: IDS skipped (run per unit under UNITS)
 preflight: TRACE skipped (run per unit under UNITS)
 preflight: UNITS ok

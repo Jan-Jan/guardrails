@@ -65,7 +65,7 @@ scripts are copied.
 6. If `/ratchet` was ever run on macOS, run `check-review.sh --branch <name>`
    once per existing verification record ("On macOS, older versions of
    `check-review.sh` never executed" below).
-7. Fix each failure, and list each new warning in a plan in `docs/plans/`;
+7. Fix each failure, and list each new warning in the verification record;
    an upgrade is complete only then (`ratchet` Done when). A failure cannot
    be listed instead: the upgrade change merges through `merge-change`, whose
    gate needs `check-trace.sh` to pass. A warning is a finding printed without
@@ -578,29 +578,21 @@ of the three checks that a ledger file is committed. Under
 no root config to read; set `GR_CONFIG` to the unit's config, as for the
 gates.
 
-## Plans are pruned at merge: `prune_plans`
+## Plans are dropped before the gate
 
-`merge-change` step 1 runs `.guardrails/scripts/prune-plans.sh` after the base
-merge and commits what it changed. In each `docs/plans/*.md` file the change
-adds or modifies, it replaces every fenced code block inside a task section (a
-heading such as `### T1 —` or `## Task 2 —`) with one pointer line that names
-the block's line count and quotes the task's `**Files touched:**` value where
-it has one. The merged code is in the change's squash commit. Headings, prose,
-fences outside task sections and a fence with a line that opens with
-`red -> green` or `inherited:` are kept. No gate reads the plans' code, so nothing goes red.
+`prune-plans.sh` is gone, and `prune_plans` is a withdrawn config key: delete
+`.guardrails/scripts/prune-plans.sh` (copying in the new scripts leaves it
+behind), and delete the `prune_plans` line from every config and unit config. A config still
+holding it exits 2 at every gate, with
+`config key prune_plans is withdrawn: a plan does not reach the base branch (drop-plans.sh, merge-change step 5). Delete its line.`
 
-An absent `prune_plans` is `on`, and so is a project with no config file.
-`prune_plans: off` in `.guardrails/config.yaml` opts out: the script prints
-`prune_plans: off, nothing pruned` and changes nothing. Any other value exits
-2. This opt-out is not the compatibility flag ruled out above: pruning checks
-nothing, so turning it off hides no failure.
-
-The plans merged before the upgrade are pruned only when asked. In a change
-worktree, run `sh .guardrails/scripts/prune-plans.sh --all --dry-run`, then
-again without `--dry-run`, and merge the result as a change. A plan that a
-tracked Markdown file cites as `<plan>:<line>`, at or after its first pruned
-block, is left whole and named in a `left whole` line, because pruning would
-move the cited line.
+A plan now stays on its change branch. `merge-change` step 5 runs
+`.guardrails/scripts/drop-plans.sh --base REF` after the record is committed:
+it removes each plan the change added and restores the base's version of each
+plan it edited, in one commit. The pre-flight's `PLANS` check fails a change
+that adds or edits a plan, so a change merged without the drop goes red.
+Deleting a plan is allowed. The plans already on the base branch stay until
+the project deletes them.
 
 ## Dispositions cite what they changed: `review_cite`
 

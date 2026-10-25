@@ -93,7 +93,7 @@ rules, reports and exit codes in full.
 | `check-review.sh` | The verification record of the change under merge, and its findings, and, opt-in, that each disposition cites something the tree resolves. |
 | `check-signing.sh` | Commit signatures, and with `--setup` proof that the project can sign. |
 | `guidelines-file.sh` | Print the one guidelines file that governs each path: the unit's, the project's, or the installed default. |
-| `prune-plans.sh` | Replace the fenced code in this change's plan tasks with pointers, at `merge-change` step 1. |
+| `drop-plans.sh` | Remove the plans this change added and restore the base's version of each it edited, in one commit, at `merge-change` step 5. |
 | `merge-preflight.sh` | The mechanical checks of `merge-change` steps 2 and 6c, in one command. |
 | `finish-merge.sh` | The guarded cleanup half of the signed merge command the user runs. |
 | `task-worktree.sh` | Create, merge and retire a task worktree nested in the change worktree. |

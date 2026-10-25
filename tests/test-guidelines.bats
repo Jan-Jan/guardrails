@@ -281,20 +281,35 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
     done
 }
 
-@test "test guidelines: here a plan decision or problem report states a deeper interface's contract, not an LLR" {
+@test "test guidelines: here an ADR or problem report states a deeper interface's contract, not an LLR" {
     # verifies: D10 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: ADR-k3nkv3
     # This repository keeps no LLR ledger (Seams 1), so Seams 2 and 3 cannot
-    # hang a direct test on one.
-    grep -qxF '2. **A deeper interface gets a direct test only once a plan decision or a' "$repo_guidelines" \
-        || { echo "Seams 2 still hangs on an LLR"; false; }
-    grep -qxF '   problem report states its contract.** Here that item plays the role an LLR' "$repo_guidelines"
-    grep -qxF '   plays in a project with a ledger: a function in `scripts/lib.sh` gets a new' "$repo_guidelines"
-    grep -qxF '   direct test only once a decision or problem item states its contract, and' "$repo_guidelines"
-    grep -qxF '   tested at its own interface once a plan decision or problem report' "$repo_guidelines" \
-        || { echo "Seams 3 still hangs on an LLR"; false; }
+    # hang a direct test on one; and no plan reaches the base branch
+    # (ADR-k3nkv3), so neither can hang one on a plan decision.
+    grep -qxF '2. **A deeper interface gets a direct test only once an ADR or a problem' "$repo_guidelines" \
+        || { echo "Seams 2 does not hang on an ADR"; false; }
+    grep -qxF '   report states its contract.** Here that item plays the role an LLR plays' "$repo_guidelines"
+    grep -qxF '   direct test only once an ADR or problem item states its contract, and it' "$repo_guidelines"
+    grep -qxF '   tested at its own interface once an ADR or problem report states that' "$repo_guidelines" \
+        || { echo "Seams 3 does not hang on an ADR"; false; }
+    grep -qxF '   this repository keeps no REQ or LLR ledger of its own, so here that is' "$repo_guidelines" \
+        || { echo "Seams 1 does not name the ADR"; false; }
     grep -qxF '   test does not source the library to call one directly unless clause 2' "$repo_guidelines"
     llr_count=$(grep -cF -e 'once it has an LLR' -e 'with an LLR stating' "$repo_guidelines" || true)
     [ "$llr_count" -eq 0 ] || { echo "names an LLR as the permission $llr_count times"; false; }
+    # Seams 1 lets a test's existing plan-decision citation stand until the
+    # repository's requirements ledger replaces it, and bars a new one; those
+    # two lines are the only ones that may name a plan decision.
+    grep -qxF "   an ADR or a problem report. A test's existing citation of a plan decision" "$repo_guidelines" \
+        || { echo "Seams 1 does not let an existing plan-decision citation stand"; false; }
+    grep -qxF "   stands until this repository's requirements ledger replaces it, and a test" "$repo_guidelines"
+    grep -qxF '   a change writes cites no plan decision.' "$repo_guidelines" \
+        || { echo "Seams 1 does not bar a new plan-decision citation"; false; }
+    # grep -c exits 1 on a count of zero, so the count carries the verdict; an
+    # unreadable file has already failed the greps above.
+    plan_count=$(grep -cF 'plan decision' "$repo_guidelines" || true)
+    [ "$plan_count" -eq 2 ] || { echo "names a plan decision on $plan_count lines, not 2"; false; }
 }
 
 @test "test guidelines: both files define the robustness rule where they first name it" {

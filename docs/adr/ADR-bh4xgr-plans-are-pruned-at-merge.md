@@ -1,7 +1,7 @@
 **ADR-bh4xgr**: At `merge-change` step 1, after the base merge, `prune-plans.sh` replaces each fenced code block in a plan's task sections with a one-line pointer naming its line count and the task's `**Files touched:**` value, on by default.
 
 Date: 2026-10-08
-Status: accepted
+Status: superseded by ADR-k3nkv3
 
 ## Context
 

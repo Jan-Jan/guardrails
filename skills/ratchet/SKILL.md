@@ -33,7 +33,7 @@ existing AGENTS.md/docs. Anything else is a **retrofit**. A project that has
 procedure below, with no gap analysis (`references/rationale.md`).
 
 ```sh
-git rev-list --count HEAD 2>/dev/null   # missing repo or tiny history → likely greenfield
+git rev-list --count HEAD 2>/dev/null   # none or few → likely greenfield
 ls src lib app AGENTS.md docs 2>/dev/null
 ```
 
@@ -94,7 +94,7 @@ above all) are the worklist for the disclaimers question.
    - `templates/CONTEXT.md` → `docs/CONTEXT.md`
    - `templates/*_GUIDELINES.md` → `.guardrails/templates/`
    - `templates/CLAUDE.md` → `CLAUDE.md` (skip if one exists)
-   - `templates/AGENTS-block.md` → becomes the body of a new `AGENTS.md`
+   - `templates/AGENTS-block.md` → the body of a new `AGENTS.md`
 
    The requirements, risk, architecture and problems directories are
    per-change ledgers: each change adds one file,
@@ -144,23 +144,20 @@ Work in a worktree, as a change of its own.
    guidelines file. Then copy, from `<guardrails>`, `scripts/*.sh` →
    `.guardrails/scripts/`, keeping executable bits, and
    `templates/*_GUIDELINES.md` → `.guardrails/templates/`. Delete
-   `.guardrails/scripts/finalize-ids.sh` and `finalize-docs.sh` if present.
+   `.guardrails/scripts/finalize-ids.sh`, `finalize-docs.sh` and `prune-plans.sh` if present.
 3. **Update the files that document the grammar with the scripts.**
    Re-copy the four ledger READMEs and the verification template from the
-   same guardrails version, and re-replace the AGENTS.md managed block between
-   its markers. If the project edited a README, diff first and re-apply its
-   additions.
-4. Run `check-trace.sh`; fix each failure, and list each new warning in a plan
-   in `docs/plans/`. Existing ledgers report on problem
-   `status:`/`opened:`, supersession reciprocity and `DANGLING-FILE`.
+   same guardrails version, and re-replace the AGENTS.md managed block. If
+   the project edited a README, diff and re-apply its additions.
+4. Run `check-trace.sh`; fix each failure, and list each new warning in the
+   verification record once Step 5 writes it. Existing ledgers report problem `status:`/`opened:`,
+   supersession reciprocity and `DANGLING-FILE`.
    Derived assessments are now declared: a derived REQ/LLR without an
    `assesses:` line in the RMF goes red.
 5. Re-record the tool qualification (Step 5), then integrate with
    `merge-change`.
 
 ### Step 3 (retrofit): Gap analysis first, then tighten
-
-Never overwrite. Sequence:
 
 1. **Inventory** (read only): AGENTS.md/CLAUDE.md content and rules that
    conflict with guardrails ("commit to the base branch directly"); existing
@@ -170,21 +167,22 @@ Never overwrite. Sequence:
    (`git log -20 --format='%h %G? %s'`).
 2. **Write the gap analysis** to `docs/plans/<YYYY-MM-DD>-ratchet-gap-analysis.md`:
    what exists, what is missing, what conflicts, and a proposed adoption order.
-3. **First tooth** (this change only): install `.guardrails/` (config,
+   It is the change's plan, dropped before the gate: copy its adoption
+   order into the verification record once Step 5 writes it.
+3. **First tooth**: install `.guardrails/` (config,
    scripts and templates, or the manifest and per-unit configs from step
    1b), merge the managed block into AGENTS.md, add missing doc skeletons,
    and extend `.gitignore` as step 2.4 lists. Do NOT migrate existing docs in this change.
    On a multi-unit repository, read `references/multi-unit.md` first.
    - If `<!-- guardrails:begin -->` exists, replace only the block between the
      markers. Otherwise append `templates/AGENTS-block.md` whole. Report
-     conflicting existing rules to the user; do not delete them.
+     conflicting rules to the user; do not delete them.
    - Set `strict_paths` to a SMALL list of paths that are already clean or
      new. Existing untraced code is grandfathered.
-4. **Later teeth** (separate changes, listed in the gap analysis): migrate
-   legacy requirement and risk docs via `grill-requirements` /
-   `analyze-risks`; run `tailor-guidelines` for each guidelines file; extend
-   `strict_paths` area by area. Signing is not a later
-   tooth (Step 5).
+4. **Later teeth** (separate changes, listed in the retrofit's
+   verification record): migrate legacy requirement and risk docs via
+   `grill-requirements` / `analyze-risks`; run `tailor-guidelines` for each
+   guidelines file; extend `strict_paths` area by area.
    Each `doc_*` key accepts a file or a directory, so `srs.md` keeps working;
    in a multi-developer repository, recommend moving each
    monolithic `doc_*` file into a directory as its first dated file, with the
@@ -203,7 +201,7 @@ Ask one question at a time, recommending an answer:
 3. Record the rationale as an ADR (`grill-requirements`, "ADRs").
 
 If the user is unsure, walk through intended use, foreseeable misuse and
-existing hardware safeguards first. Between two classes, the higher governs
+hardware safeguards first. Between two classes, the higher governs
 until justified otherwise.
 
 In a multi-unit repository, repeat this interview per unit and
@@ -211,8 +209,10 @@ record each class in that unit's config.
 
 ### Step 5: Human setup checklist
 
-Copy `references/setup-checklist.md`, fill in the qualification basis, print
-AND save it to `docs/plans/<YYYY-MM-DD>-ratchet-setup.md`.
+Write the change's verification record now: copy
+`.guardrails/templates/verification.md` to
+`docs/verification/<date>-<branch>.md`; put the filled, printed
+`references/setup-checklist.md` under `## Tool qualification`.
 
 **The signing items gate the ratchet.** It is not complete until `.guardrails/scripts/check-signing.sh --setup` exits 0:
 satisfy them before step 2.7 / step 3.5. For a retrofit,
@@ -221,8 +221,8 @@ it finishes adopting guardrails**. If a committer's public key is missing,
 stop and name it.
 
 **Tool qualification.** Record `guardrails_version` AND `guardrails_commit`
-(`git -C <guardrails> rev-parse HEAD`) in config and the setup document,
-with the suite result. Re-record all three on every script update. Never
+(`git -C <guardrails> rev-parse HEAD`) in config and that record,
+with the suite result. Never
 modify the scripts in the target project.
 
 **The suite runs in the clone, never in the target project, and
@@ -251,9 +251,9 @@ recorded pass/fail is the wrong command's: run
 ## Done when
 
 - `safety_class` is set (per unit where there are units), with its ADR.
-- A retrofit has its gap analysis in `docs/plans/`.
+- A retrofit's verification record carries its gap analysis's adoption order.
 - An upgrade copied scripts and grammar files from one guardrails version,
-  fixed each failure, and listed each new warning in a plan.
+  fixed each failure, and listed each new warning in the verification record.
 - The setup checklist is saved, with the qualification basis.
 - `check-signing.sh --setup` exits 0.
 - The change is merged through `merge-change`, and the check scripts pass.
@@ -264,7 +264,6 @@ recorded pass/fail is the wrong command's: run
   a project that already has them, before copying the new scripts in.
 - `references/multi-unit.md` — read when step 1b found more than one unit,
   before step 2.3 or step 3.3 installs any file.
-- `references/setup-checklist.md` — read when you reach step 5: the checklist
-  to print and save.
+- `references/setup-checklist.md` — read when you reach step 5.
 - `references/rationale.md` — read when a rule here seems wrong, or
   before proposing to change one.

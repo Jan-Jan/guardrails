@@ -1,4 +1,4 @@
-**ADR-3h4dky**: A project that already has `.guardrails/scripts/` and wants newer ones is upgraded through `ratchet`'s own upgrade procedure, not through retrofit step 3; its completion check is that each failure the new scripts report is fixed and each new warning is listed in a plan.
+**ADR-3h4dky**: A project that already has `.guardrails/scripts/` and wants newer ones is upgraded through `ratchet`'s own upgrade procedure, not through retrofit step 3; its completion check is that each failure the new scripts report is fixed and each new warning is listed in its verification record.
 
 Date: 2026-10-06
 Status: accepted
@@ -19,8 +19,8 @@ completion check for it. Review round 2 of that change recorded this as
 
 The maintainer ruled on 2026-10-04 that upgrade stays its own mode, and that
 the decision is recorded with a Done when entry for it: every new violation
-fixed or listed in a plan. Review round 1 of the change that records this
-decision found that a failure listed in a plan cannot merge, because
+fixed or listed. Review round 1 of the change that records this
+decision found that a failure listed cannot merge, because
 `merge-change`'s gate needs `check-trace.sh` to pass. The listing therefore
 applies to new warnings: findings that do not fail the run and that the old
 scripts did not print. A warning the old scripts printed already, such as
@@ -37,7 +37,8 @@ The upgrade is done when:
 - the scripts, the four ledger READMEs, the verification template and the
   AGENTS.md managed block all come from one guardrails version; and
 - each failure the new scripts report is fixed in the upgrade change, and
-  each new warning is listed in a plan in `docs/plans/`.
+  each new warning is listed in the upgrade change's verification record
+  in `docs/verification/`.
 
 The retrofit inventory no longer lists the installed `.guardrails/` version:
 a project that has one is an upgrade, so a retrofit never sees one.
@@ -47,16 +48,16 @@ a project that has one is an upgrade, so a retrofit never sees one.
 The retrofit inventory and gap analysis answer one question: what in this
 codebase is not yet under guardrails, and in what order should it be brought
 under? A project that already has `.guardrails/scripts/` answered it at its
-first ratchet. Its later teeth are listed in the gap analysis that ratchet
-wrote, and each tooth is a change of its own.
+first ratchet. Its later teeth are listed in the verification record of the
+change that ratchet made, and each tooth is a change of its own.
 
 An upgrade asks a different question: what do the new scripts reject that the
 old ones passed? `check-trace.sh` answers it after the copy, one finding per
 line. `references/upgrade-notes.md` says, for each change in what the scripts
 accept, why the old shape was never safe. A second inventory of the codebase
-would not find these findings. A plan listing the new warnings that the upgrade
-change leaves does what the gap analysis does for a retrofit: it records what is
-still open, and where. A failure is not listed: the upgrade change does not pass
+would not find these findings. The verification record listing the new
+warnings that the upgrade change leaves does for an upgrade what it does for a
+retrofit's later teeth: it records what is still open, and where. A failure is not listed: the upgrade change does not pass
 its merge gate while one remains, and a gate is never loosened to let it
 through.
 

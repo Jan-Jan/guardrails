@@ -79,7 +79,9 @@ else: no diffs, no logs, no narrative.
   its implementation existed. Require one line per new test. `verify-before-merge` check 4 reads them back.
 - **Write these and any `inherited:` lines into the plan as each report
   arrives**, beside their task, and mark the task done. `merge-change` step
-  5 copies them from the plan into the verification record.
+  5 copies them from the plan into the verification record. A fix
+  dispatched after step 5 (a 6a or 6c failure's fix, a base-move round's
+  review) writes its lines into the verification record directly.
 
 ### Derailment and the other stops
 

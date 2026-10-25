@@ -11,8 +11,7 @@ description: The compliance chokepoint - integrate a change into the base branch
 
 - `develop-change` is done, its suite green.
 - Every step before step 7 runs **in the change worktree**.
-- The base branch is the primary checkout's branch. Never assume `main`.
-  Detect it once:
+- The base branch is the primary checkout's branch. Detect it once:
 
   ```sh
   BASE=$(. .guardrails/scripts/lib.sh && gr_base_branch) && [ -n "$BASE" ]
@@ -47,9 +46,7 @@ The tag must be unique per dispatch.
    reviewed=$(git rev-list -1 --grep='^review dispatched$' "$base_ref..HEAD")
    [ -z "$reviewed" ] || git diff --name-only --no-renames "$(git merge-base "$reviewed" "$base_ref")" "$base_ref" |
        grep -Fx "$(git diff --name-only --no-renames "$base_ref...HEAD")" | sed 's/^/shared: /'
-   git merge "$base_ref" &&
-   sh .guardrails/scripts/prune-plans.sh --base "$base_ref" &&
-   { git diff --quiet -- docs/plans || git -c commit.gpgsign=false commit -m "chore: prune plans" -- docs/plans; }
+   git merge "$base_ref"
    ```
 
    - A staged squash in the primary checkout is a **stop**: tell the user,
@@ -58,8 +55,7 @@ The tag must be unique per dispatch.
      the local ref and name it in step 7's `Base:` trailer.
    - A project may put the remote out of scope only if its AGENTS.md and
      the `Base:` trailer state why. Never adopt that by analogy.
-   - Run this step every round. Resolve conflicts here, never on the base
-     branch, then rerun.
+   - Resolve conflicts here, never on the base branch, then rerun.
    - An add/add conflict on a ledger file: keep the base's file,
      `git checkout --theirs -- <path>`, after
      saving this change's version under a new slug,
@@ -69,7 +65,6 @@ The tag must be unique per dispatch.
      after the last reviewed commit: step 4 then reviews the whole change
      again, even after the last review round. Otherwise the gate rerun covers
      it.
-   - List each `left whole` plan in the record (step 5).
 2. **Run the pre-flight** before the review:
 
    ```sh
@@ -129,13 +124,15 @@ The tag must be unique per dispatch.
 
    **A round whose `code` and `requirement` findings, if any,
    are all `low` is the last review round.** Fix each low finding whose fix is
-   mechanical, record each other one as an open problem item, and rerun from
-   step 1 — but no further reviewer is dispatched.
-   A later round's reviewer reads the record earlier rounds wrote, and raises
-   what is wrong.
+   mechanical, and record each other one as an open problem item;
+   no further reviewer is dispatched.
+   A later round's reviewer reads the record earlier rounds wrote. Once
+   step 5 drops the plan, read it with `git show <commit>^:<path>`, where
+   <commit> is
+   `git log -1 --format=%H --grep='^chore: drop plans$'`.
 
    A 6a gate failure's fix dispatches a reviewer unless it touches only
-   the record or plan.
+   the record.
 
    **Remove the review worktree, every round that created one**, when the
    report arrives:
@@ -156,16 +153,26 @@ The tag must be unique per dispatch.
    skip this step, B needs one reviewer, C a thorough review; for class C,
    consider two independent reviewers for critical items.
 
-5. **Verification record** — copy `.guardrails/templates/verification.md` to
-   `docs/verification/<date>-<branch>.md`, fill it in, and commit it unsigned:
+5. **Verification record** — write the record, copying
+   `.guardrails/templates/verification.md` to
+   `docs/verification/<date>-<branch>.md`, or update it where it exists: fill
+   in only what is missing (a `<…>` placeholder counts as missing), and
+   commit it unsigned: the plan's
+   `**Implements:**` value (no plan: the IDs),
    the IDs this change resolves, accepts or opens,
    `red -> green:` and any `inherited:` lines from the plan, its guideline
    reviews (`## Guideline reviews`), the reviewer's verdict and every finding
-   with its disposition.
+   with its disposition. A rerun reads the plan by step 4's lookup. Then:
+
+   ```sh
+   sh .guardrails/scripts/drop-plans.sh --base "$BASE"
+   ```
+
+   It drops or restores each plan this change added or edited, against the
+   local base branch step 7 squashes onto.
 
    6c rejects a record unless it contains all four fields with values
-   (`INCOMPLETE-RECORD`): `branch:`, `reviewer:`, `verdict:` and
-   `reproduced:`, each a plain annotation at column one.
+   (`branch:`, `reviewer:`, `verdict:`, `reproduced:`): `INCOMPLETE-RECORD`.
 
 6a. **Dispatch the verification suite** as `verify-before-merge` describes, and
    read the verdict from the pass and fail counts of the **gate summary** it
@@ -218,8 +225,7 @@ The tag must be unique per dispatch.
    - It printed other output: the base moved after step 1. Run
      `git reset --merge`, then rerun from step 1 as a base-move round:
      steps 2 to 4 only on a `shared:` line, as a review round whose rerun
-     reaches step 5; otherwise 5 only for a new `left whole` plan; then 6a
-     to 7.
+     reaches step 5; then 6a to 7.
    - It printed nothing: a squash was already staged, another change's or an
      outdated one of this change. Stop and tell the user; once they sign or
      clear it, rerun from step 1.
@@ -232,7 +238,6 @@ The tag must be unique per dispatch.
    Implements: <final REQ/RC/SDD/LLR IDs>
    Resolves: <PR IDs this change closes>
    Opens: <PR IDs this change raises>
-   Plan: docs/plans/<plan file>
    Verified: docs/verification/<record file>
    Base: <base ref> at <its commit>
    Gate-tree: <step 6a tree>
@@ -259,7 +264,7 @@ The tag must be unique per dispatch.
    git commit -S -F /tmp/merge-<branch>.msg && sh .guardrails/scripts/finish-merge.sh <branch>
    ```
 
-   **Never run `git commit -S` yourself.** Tell them signing may need a
+   Tell them signing may need a
    hardware-key touch. Success ends with three
    `finish-merge:` lines; otherwise, they paste the output.
    `finish-merge.sh` proves five things before it removes anything. Pass it
@@ -295,7 +300,7 @@ The tag must be unique per dispatch.
 ## Done when
 
 - The base branch HEAD is one squash commit for this change, whose message
-  names its plan, record and gated tree,
+  names its record and gated tree,
   verified by `finish-merge.sh`.
 - The change worktree and branch are gone, removed by `finish-merge.sh`.
 - You reported the merge and recommended compacting.

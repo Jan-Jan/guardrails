@@ -149,7 +149,7 @@ EOF
     calls_guidelines_file=0
     calls_lib=0
     calls_merge_preflight=0
-    calls_prune_plans=0
+    calls_drop_plans=0
     calls_new_id=0
     calls_task_worktree=0
 
@@ -163,7 +163,7 @@ EOF
     forms_guidelines_file=0
     forms_lib=0
     forms_merge_preflight=0
-    forms_prune_plans=0
+    forms_drop_plans=0
     forms_new_id=0
     forms_task_worktree=0
 
@@ -192,7 +192,7 @@ EOF
     # rather than pasting the shape — the reuse this pin exists to encourage.
     body_lib=3
     body_merge_preflight=0
-    body_prune_plans=0
+    body_drop_plans=0
     body_new_id=0
     body_task_worktree=0
 
@@ -212,7 +212,7 @@ EOF
     token_guidelines_file=0
     token_lib=1
     token_merge_preflight=0
-    token_prune_plans=0
+    token_drop_plans=0
     token_new_id=0
     token_task_worktree=0
 
@@ -231,7 +231,7 @@ EOF
     loose_guidelines_file=0
     loose_lib=0
     loose_merge_preflight=0
-    loose_prune_plans=0
+    loose_drop_plans=0
     loose_new_id=0
     loose_task_worktree=0
 
@@ -252,7 +252,7 @@ EOF
     # GR_AWK_ITEM_BLOCK rather than growing a sixth opinion about blocks.
     block_lib=1
     block_merge_preflight=0
-    block_prune_plans=0
+    block_drop_plans=0
     block_new_id=0
     block_task_worktree=0
 
@@ -274,7 +274,7 @@ EOF
     fm_guidelines_file=0
     fm_lib=0
     fm_merge_preflight=0
-    fm_prune_plans=0
+    fm_drop_plans=0
     fm_new_id=0
     fm_task_worktree=0
 
@@ -296,7 +296,7 @@ EOF
     civil_guidelines_file=0
     civil_lib=0
     civil_merge_preflight=0
-    civil_prune_plans=0
+    civil_drop_plans=0
     civil_new_id=0
     civil_task_worktree=0
 

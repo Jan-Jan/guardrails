@@ -106,8 +106,9 @@ Guardrails is developed under the rules it ships, without exception.
   `Done when` and, where it has reference files, `References`, in that order,
   in at most 2,000 words. Put reasons, worked examples and conditional material
   in `skills/<name>/references/<topic>.md`, and name each file in `References`
-  with the condition for reading it. Keep incident history in `docs/plans/` and
-  git. `tests/skills.bats` enforces this.
+  with the condition for reading it. Keep incident history in git.
+  `tests/skills.bats` enforces this.
 - `scripts/` is the source of truth for the check scripts; `/ratchet` copies
   them into target projects. Never fork script logic into `templates/`.
-- Put plans and design docs in `docs/plans/`, named `YYYY-MM-DD-<topic>.md`.
+- Put a change's plan in `docs/plans/`, named `YYYY-MM-DD-<topic>.md`, on its
+  change branch; `merge-change` step 5 drops it before the gate.

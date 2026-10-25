@@ -1,7 +1,8 @@
 # Verification — <slug> (<date>)
 
-One record per change, written at `merge-change` step 5 and checked at step 6c
-by `.guardrails/scripts/check-review.sh`. The squash commit references it on
+One record per change, written at `merge-change` step 5, or for a `ratchet`
+change at `ratchet` step 5 and updated at `merge-change` step 5, and checked
+at `merge-change` step 6c by `.guardrails/scripts/check-review.sh`. The squash commit references it on
 its `Verified:` line and carries the gate's figures in its own trailers; this
 file is the rest of the evidence that travels with the change.
 
@@ -9,9 +10,9 @@ branch: <the change branch this record covers>
 reviewer: <who performed the independent review at step 4>
 verdict: <what the review concluded>
 reproduced: <was the defect reproduced before the fix, and how — or why not>
+Implements: <the IDs the plan's `**Implements:**` line names>
 
 Change: <one sentence>.
-Plan: `docs/plans/<plan file>`.
 
 ## The gate
 
@@ -38,7 +39,7 @@ decision, not a figure: state it under Gaps.
 
 ## Red → green
 
-One row per ID this change **Implements**, copied from the `red -> green:`
+One row per ID on the `Implements:` line, copied from the `red -> green:`
 lines of the dispatch reports. The subagent running the loop is the only party
 that saw the test fail, and the conversation it reported in does not outlive the
 merge — so this table is where that observation becomes durable evidence.

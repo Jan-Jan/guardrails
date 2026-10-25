@@ -133,8 +133,8 @@ while [ $# -gt 0 ]; do
 done
 
 # Is citation checking on? The flag turns it on for one run and the key for
-# every run. The key is read the way prune-plans.sh reads prune_plans: cfg_get
-# cannot tell an absent key from an empty one, so the file is asked first.
+# every run. cfg_get cannot tell an absent key from an empty one, so the file
+# is asked first whether the key is there.
 cite_on=0
 if gr_units_present; then
     [ "$cite_flag" -eq 0 ] || gr_die \

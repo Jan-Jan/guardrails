@@ -50,10 +50,11 @@ The reviewer checks each item and raises a finding for each one that fails.
 - An in-force REQ whose `implements:` names only an out-of-force RC is a
   finding, and no gate reports it. Point the `implements:` at the successor
   RC, or supersede the REQ too.
-- The plans `merge-change` step 1 pruned: each pointer stands where the
-  task's code was, the prose of each task matches the diff, and a plan left
-  whole is listed in the record, where the record exists. After pruning,
-  the prose is the plan's only account of the code.
+- The plan: the prose of each task matches the diff. Once `merge-change`
+  step 5 has dropped it, read it with `git show <commit>^:<path>`, where
+  <commit> is `git log -1 --format=%H --grep='^chore: drop plans$'`.
+  A disposition never cites the plan, since step 5 drops it; it cites the
+  file the fix changed.
 
 ## The test checklist
 

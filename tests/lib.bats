@@ -220,6 +220,20 @@ gr_prefixes | tr "\n" " "'
     [ -z "$output" ]
 }
 
+@test "a withdrawn config key names its withdrawal, not an unknown key" {
+    # verifies: ADR-k3nkv3
+    # prune_plans is a withdrawn key: a plan does not reach the base branch.
+    # A config holding it must say why it fails and what to do, not fail every
+    # gate as an unknown key with no hint.
+    printf 'prune_plans: on\n' >> .guardrails/config.yaml
+    commit_all withdrawn-key
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"config key prune_plans is withdrawn: a plan does not reach the base branch (drop-plans.sh, merge-change step 5). Delete its line."* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" != *"unknown config key"* ]] || { echo "$output"; false; }
+}
+
 @test "gr_check_config rejects a declared prefix whose document is unconfigured" {
     sed -i.bak '/^doc_sad:/d' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'

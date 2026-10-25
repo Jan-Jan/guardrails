@@ -48,8 +48,8 @@ gained an Implements ID is still a re-annotation, and still fails the check.
 
 The tree records no difference between a diff a conformance review checked
 and a diff nobody reviewed, so the gate subagent cannot answer the check.
-The dispatcher answers it from the plan, where each finding and its
-disposition are written.
+The dispatcher answers it from the verification record's `## Guideline
+reviews`, where step 5 wrote each finding and its disposition.
 
 ## check-review.sh is not a check here
 

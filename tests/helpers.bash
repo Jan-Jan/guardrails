@@ -622,6 +622,33 @@ STUB
     printf '%s\n' "$stub_directory"
 }
 
+# make_git_warning_on PATTERN — a directory to put first on PATH, with a git
+# that runs the real git and, when its arguments, joined by spaces and enclosed
+# in spaces, match the case pattern PATTERN, also writes a warning line to
+# stderr and exits with the real git's status.
+make_git_warning_on() {
+    real_git=$(command -v git)
+    stub_directory="$BATS_TEST_TMPDIR/git-warning-on"
+    case "$real_git" in
+        ("$stub_directory"/*) echo "make_git_warning_on called with the stub already on PATH" >&2
+                              return 1 ;;
+    esac
+    mkdir -p "$stub_directory"
+    cat > "$stub_directory/git" <<STUB
+#!/bin/sh
+case " \$* " in
+    ($1)
+        "$real_git" "\$@"
+        stub_status=\$?
+        echo "warning: stub warning from git \$*" >&2
+        exit \$stub_status ;;
+esac
+exec "$real_git" "\$@"
+STUB
+    chmod +x "$stub_directory/git"
+    printf '%s\n' "$stub_directory"
+}
+
 # Prints one "<heading> | <N>. **<rule>**" line per top-level clause of $1.
 clause_list() {
     awk '

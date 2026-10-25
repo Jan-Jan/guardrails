@@ -82,32 +82,6 @@ repository does, because its fetch blocks on a hardware key only the user can
 touch. That trade is sound only where one person merges, because then the
 local base branch contains every ID that was merged.
 
-## Step 1: plans are pruned after the base merge
-
-A plan repeats the code its change merges, and the copy drifts from the merged
-code as review rounds fix it. Pruning replaces each code block in a plan's
-task sections with a one-line pointer naming its line count and the task's
-`**Files touched:**` value, and the squash commit holds the merged code.
-
-Pruning runs at step 1, after the base merge, because it changes the tree on
-nearly every merge. Run after the step 6a gate, it would fail step 6b's hash
-comparison and dispatch a second full suite run. Run at step 1, the change is
-in the tree the step 6a gate measures. The maintainer ruled this on
-2026-10-08, and `ADR-bh4xgr` records it.
-
-The commit is conditional: on a rerun the plans are already pruned, nothing
-changes, and an unconditional commit would halt the sequence for no defect. The prune and its commit are chained on the merge's
-success: run after a conflicted merge, the commit would conclude the merge
-with its conflict markers staged. The commit names the plans directory, so an
-unrelated edit pending in the worktree stays out of it. Diffing against the
-ref the step merged, not the local base branch, keeps a plan the remote base
-added out of this change's plans.
-
-A plan that any tracked Markdown file cites by line after its first code
-block is left whole, because pruning would move the cited line. Records cite
-plans as evidence, and so do other plans. Listing it in the record shows the
-reviewer which plan still carries its code.
-
 ## Step 1: a staged squash stops the round
 
 The base moves only when the user signs. While another change's squash is
@@ -142,8 +116,7 @@ would not.
 A base-move round reruns only what the moved base can change: the merge
 (step 1), a fresh review (steps 2 to 4) only where a `shared:` line shows the
 base edited a file this change edits, whose rerun writes the record at step 5;
-otherwise the record (step 5) only where the merge left a new plan whole; then
-the gate and everything after it, 6a to 7. A review that step 4 ran always
+then the gate and everything after it, 6a to 7. A review that step 4 ran always
 leads, through its rerun, to step 5 before the gate, so the record names the
 shared files and that review round.
 
@@ -187,8 +160,9 @@ its reviewer runs them. A documentation-only diff is one whose selection is
 empty.
 
 The cost: a regression outside that selection surfaces at 6a, after the
-review, and its fix dispatches a reviewer unless it touches only the record or
-the plan.
+review, and its fix dispatches a reviewer unless it touches only the record.
+Step 5 has dropped the plan by then, so a fix that edits it re-adds a plan and
+fails 6c's PLANS check.
 
 The reviewer's full run was measured before it was cut: about 350 full-suite
 runs over about 44 merges between 2026-09-08 and 2026-10-14, nearly half of
@@ -315,6 +289,22 @@ the gate never judges the value.
 A multi-unit record names the units touched and the impact set, so that it
 states the units whose gates the verdict covers.
 
+## Step 5: the plan is dropped before the gate
+
+A plan drifts from the code once review rounds fix the code and not the plan,
+so it never reaches the base branch (`ADR-k3nkv3`). It is dropped after the
+record is committed, so step 5 can still copy its `red -> green:` lines.
+A base plan this change edited is restored, not deleted, because a change
+cannot retire history by editing it. A later review round reads the plan from
+the drop commit, with `git show <commit>^:<path>`, where <commit> is
+`git log -1 --format=%H --grep='^chore: drop plans$'`: a rerun of step 5
+prints only `drop-plans: no plan to drop`, so its output cannot name the
+commit. A disposition never cites the plan, since step 5 drops it; it cites
+the file the fix changed. With `review_cite: on`, a citation of the plan's
+path is written and made unresolvable in the same step, and 6c reports
+`UNRESOLVABLE-DISPOSITION`.
+The pre-flight's `PLANS` check catches a rerun that brings a plan back.
+
 ## Step 6a: recording the tree
 
 A gate summary with no tree beside it cannot be re-identified one round
@@ -335,7 +325,7 @@ user ruled this on 2026-10-14.
 
 Two costs are accepted. A gate failure surfaces after the review, and its fix
 is code no reviewer has read, so it dispatches a reviewer unless it touches
-only the record or the plan. For a documentation-only diff the reviewer runs no
+only the record. For a documentation-only diff the reviewer runs no
 tests because its selection is empty, the record says so, and the gate at 6a
 covers the tree.
 

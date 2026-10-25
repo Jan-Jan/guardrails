@@ -27,12 +27,11 @@ description: Write a bite-sized, trace-aware implementation plan for a change in
    output. Save the plan to `docs/plans/YYYY-MM-DD-<topic>.md` in the change's
    worktree.
 
-   Fenced code inside a task section is replaced by a pointer at merge
-   (`prune-plans.sh`, `merge-change` step 1), and the merged code is in the
-   squash commit. So state each step's intent in prose, and put each
-   deviation's reason in the verification record. A fence with a line that
-   opens with `red -> green` is kept, and so is one with a line that opens
-   with `inherited:`.
+   The plan is committed on the change branch and dropped before the gate
+   (`drop-plans.sh`, `merge-change` step 5), so it never reaches the base
+   branch. Put a decision that must outlive the change in an ADR or a ledger
+   item. Write each `red -> green:` line in the plan; step 5 copies them into
+   the record.
 2. **Open the plan with the mandatory plan header:**
 
    ```markdown
