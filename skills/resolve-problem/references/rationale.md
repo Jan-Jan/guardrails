@@ -62,4 +62,17 @@ status safe: the ruling is the cost of the exemption.
 
 IEC 62304 6.2 treats a documented decision not to change the software as a
 resolution outcome in its own right, so `accepted` is a closed state with a
-reason, distinct from `resolved`, which requires the fix in the merging change.
+reason, distinct from a deleted item, whose deletion requires the fix in the
+merging change.
+
+## Step 4: a resolved problem report is deleted
+
+The ledger states the problems the software has now. A resolved item kept
+with `status: resolved` is history an agent may read as current, so the
+fixing change deletes it (ADR-k3nkv3). The signed squash message is the
+problem-resolution record: `Resolves:` names the deleted IDs, which
+`check-review.sh` and `finish-merge.sh` compare with the diff, and
+`Problems:` gives cause and fix. The regression test verifies the lowest-level
+item the defect broke: the LLR where one exists, else the REQ (or the RC's
+implementing REQ), since a test naming the PR would name an item that no longer
+exists.

@@ -50,6 +50,10 @@ make_squashed_change() {
     # needs the change in another place, such as one unit of a manifest.
     mkdir -p "$(dirname "${WORK_PATH:-src/work.txt}")"
     printf 'work\n' > "${WORK_PATH:-src/work.txt}"
+    # DELETE_PATH: a file the change deletes, where a test needs one.
+    if [ -n "${DELETE_PATH:-}" ]; then
+        git rm -q "$DELETE_PATH"
+    fi
     git add -A
     git -c commit.gpgsign=false commit -qm work
     cd "$REPO"
@@ -982,8 +986,9 @@ assert_guard5_refused() {
     head_tree=$(git rev-parse 'HEAD^{tree}')
     # A finding's disposition, tag and severity are filled with ones the
     # grammar takes. The fixture configures no coverage_command, so the
-    # Coverage: line goes, as the template says where none is.
-    sed -e "s/^Gate-tree: <tree>\$/Gate-tree: $head_tree/" -e '/^Coverage:/d' \
+    # Coverage: line goes, as the template says where none is; and the squash
+    # deletes no PR item, so the Resolves: line goes, as the template says.
+    sed -e "s/^Gate-tree: <tree>\$/Gate-tree: $head_tree/" -e '/^Coverage:/d' -e '/^Resolves:/d' \
         -e 's/^1\. \[<disposition>\] <tag>\[ <severity>\]/1. [no change: <reason>] code low/' \
         -e 's|<passed>/<total>|5/5|' -e 's/:<line> /:1 /' -e 's/<[^>]*>/x/g' "$template" \
         | git -c commit.gpgsign=true -c core.commentChar='#' commit -q --amend -S --cleanup=strip -F -
@@ -1103,6 +1108,47 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
         | resign_with_message
     run sh .guardrails/scripts/finish-merge.sh my-change
     assert_guard5_refused "BASE (want one Base: trailer, found a placeholder)"
+}
+
+@test "finish-merge: guard 5 refuses a squash whose Resolves: omits a deleted PR" {
+    # verifies: ADR-3hsvvq
+    # The range is the squash, HEAD^..HEAD: the problem report it deletes is
+    # owed in Resolves:, and the message make_squashed_change signs names none.
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/open.md
+    git add docs/problems/open.md
+    git -c commit.gpgsign=false commit -qm "a problem"
+    setup_ssh_signing
+    DELETE_PATH=docs/problems/open.md make_squashed_change
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    assert_guard5_refused "RESOLVES (deleted PR-abc234, not named in Resolves:)"
+}
+
+@test "finish-merge: guard 5 refuses a squash whose Items: omits a deleted REQ" {
+    # verifies: ADR-3hsvvq
+    # The squash deletes a requirement, and the message make_squashed_change
+    # signs has no Items: section.
+    printf '**REQ-abc234**: a requirement\n' > docs/requirements/srs.md
+    git add docs/requirements/srs.md
+    git -c commit.gpgsign=false commit -qm "a requirement"
+    setup_ssh_signing
+    DELETE_PATH=docs/requirements/srs.md make_squashed_change
+    run sh .guardrails/scripts/finish-merge.sh my-change
+    assert_guard5_refused "ITEMS (deleted REQ-abc234, not named under Items:)"
+}
+
+@test "finish-merge: a failing git diff of the problem ledgers exits 2 with nothing removed" {
+    # verifies: ADR-3hsvvq
+    # A fault injector at the git boundary: the one diff that reads the
+    # problem reports the squash deletes fails, every other git call is real.
+    setup_ssh_signing
+    make_squashed_change
+    stub_directory=$(make_git_failing_on '*" --unified=0 --no-renames "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/finish-merge.sh my-change
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    output_has "fatal: stub failure of git diff --no-color"
+    output_has "the items the squash deletes cannot be read"
+    output_has "Nothing was removed and"
+    assert_nothing_removed
 }
 
 # verifies: ADR-f6ytg7, ADR-3hsvvq

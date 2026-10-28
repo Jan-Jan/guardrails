@@ -58,7 +58,7 @@ scripts are copied.
 4. After copying, run `check-trace.sh` again and work from the top. Config
    errors are reported before any gate runs, so each fix reveals the next.
 5. Work through the sections below that report on the existing ledger:
-   problem reports, derived assessments, supersession, out-of-force items,
+   problem reports, derived assessments, supersession annotations,
    `DANGLING-FILE`, list-item annotations and coverage credits read by block.
    Read "`ADR` is a declared prefix" before adding
    `ADR` to `id_prefixes`.
@@ -262,11 +262,12 @@ This touches the existing ledger. `check-trace.sh` requires a column-one
 one. Work in this order, because the first finds items the other two do not:
 
 1. `INCOMPLETE-PROBLEM … (no status: line in its block)` — an item whose state
-   no gate could read. It counted as resolved and was absent from every
-   merge's known-problem list. **Read it before you label it**; it may still be
+   no gate could read. No gate counted it as open, and it was absent from
+   every merge's known-problem list. **Read it before you label it**; it may still be
    open.
 2. `MALFORMED-STATUS` — `closed`, `wontfix`, `Open`. Pick `open` or
-   `resolved`; an unrecognised status counted as resolved too.
+   `accepted`, or delete a fixed item; no gate counted an item with an
+   unrecognised status as open either.
 3. `INCOMPLETE-PROBLEM … (open, no opened:)` — the backfill. Only open items
    need it. Where the real date is not recorded, use the date in the defining
    file's name (`docs/problems/YYYY-MM-DD-slug.md`).
@@ -305,115 +306,12 @@ The `problems:` summary line gained a field:
 `problems: open N, accepted N, oldest …`. A CI step or record that greps for
 `problems: open N, oldest` needs the new spelling.
 
-## Supersession reciprocity
-
-This can go red on an existing ledger. `merge-change` step 4 prescribes the
-pair — `supersedes: <old ID>` on the replacement, `superseded-by: <new ID>` on
-the replaced item — and older scripts read neither word.
-
-* `NON-RECIPROCAL-SUPERSESSION <ID> (supersedes: …, which contains no
-  superseded-by: …)`, and the mirror form. **Add the missing half**, at column
-  one inside the named item's block. Never delete the half that is present: it
-  is the only record that the replacement happened. Both annotations are
-  lists, so one item may replace several predecessors.
-* An orphaned `supersedes:` or `superseded-by:`, at column one in no item
-  block, is `ORPHAN-ANNOTATION`.
-* `MALFORMED-SUPERSESSION <ID> (supersedes: <value> — no item ID in it)`, or
-  `(supersedes: has no value)`. `supersedes: the original dosing requirement`
-  is prose, not a reference; give it the ID.
-* `MALFORMED-SUPERSESSION <ID> (supersedes: <token> — not an item ID)` for one
-  mistyped entry in a list that also contains good ones:
-  `supersedes: REQ-m7dq3v, REQ-nope`. Prose and a parenthetical after the list
-  end it and are never reported: `supersedes: REQ-m7dq3v (was REQ-001)` is
-  clean.
-
-The check covers reciprocity only. It does not sweep the tree for other
-references to a superseded ID, because an `affects:` or `traces:` line may name
-an old ID as history. That sweep stays a review job (`merge-change` step 4).
-`DANGLING-REF` already answers existence.
-
-## Out-of-force items
-
-A REQ or LLR whose block contains a column-one `superseded-by:` naming a REQ
-or LLR whose own block names it back with `supersedes:` (the reciprocal pair),
-or a well-formed column-one `retired:`, is out of force. It owes no test:
-`MISSING-TEST` skips it. A one-sided `superseded-by:` or a malformed
-`retired:` exempts nothing, and so does a supersession whose chain never
-reaches a successor in force. The skills used to tell you to add the new ID to
-the old item's test (`verifies:` naming both); they now say the successor
-owes its own red-first test. This can go red on an existing ledger.
-
-* `OUT-OF-FORCE-VERIFIES <file>:<line> (verifies: names only out-of-force
-  items: <IDs>)`. The test verifies only behavior the software no longer
-  promises. **Delete the test, or point it at the item in force** and list it
-  as `inherited: <test name> — from <old ID>` in that change's verification
-  record. A line that names an in-force item beside an out-of-force one is
-  silent, so a ledger that followed the old dual-ID rule stays green; leave
-  those lines alone.
-* `MALFORMED-SUPERSESSION <ID> (supersedes itself)` and
-  `MALFORMED-SUPERSESSION <ID> (supersession cycle with no successor in force
-  or retired: <IDs>)`. Every edge of the chain is reciprocal, but it ends in no item in
-  force or validly retired, so the item stays in force and also reports
-  `MISSING-TEST` if untested. Point the chain at the item that states the
-  behavior now, and remove the lines that make it loop.
-* `MALFORMED-RETIREMENT <ID> (retired: <value> — needs a YYYY-MM-DD date and a
-  reason)`. Write `retired: YYYY-MM-DD — <reason>` at column one in the item's
-  block: a real date at most one day ahead, then any non-blank reason.
-* `MALFORMED-RETIREMENT <ID> (retired: and superseded-by: <IDs> — an item is
-  retired or superseded, not both)`. Keep the one that is true: the
-  supersession if a successor states what the behavior became, the retirement
-  otherwise, and delete the other line. Removing `superseded-by:` means
-  removing the successor's `supersedes:` too, or the pair reports
-  `NON-RECIPROCAL-SUPERSESSION`.
-* In the SRS and SAD files, a `retired:` at column one outside every REQ or
-  LLR block, an SDD block included, is `ORPHAN-ANNOTATION`. Move it into the
-  item it retires; an SDD is not retired this way. A `retired:` in any other
-  ledger, on an RC, HAZ or PR, retires nothing and is not reported.
-* **An out-of-force item discharges nothing.** A tested LLR that is out of
-  force no longer covers the REQs its `satisfies:` names, and an
-  `implements:` in an out-of-force REQ no longer implements its RC. A REQ
-  covered only through such an LLR now reports `MISSING-TEST`, and an RC
-  implemented only by such a REQ reports `UNIMPLEMENTED-CONTROL`. Give the
-  parent a successor in force that covers it, or test it directly. Where the
-  RC itself was replaced when its REQ was, supersede the RC as well (next
-  item). Never remove the `superseded-by:` to make the finding go away; that
-  is the deletion the pair exists to prevent.
-* **An RC is out of force by a reciprocal pair with another RC** (PR-x63ejd).
-  Before this entry no script took an RC out of force. That had no effect
-  until `dd411a1`'s D3 stopped an out-of-force REQ implementing its RC: from
-  then, an RC superseded together with its only implementing REQ reported
-  `UNIMPLEMENTED-CONTROL` with no honest remedy. Such an RC now owes no
-  implementing REQ; its successor does. A pair between an RC and a REQ takes
-  nothing out of force, and a `retired:` on an RC still retires nothing. An
-  RC supersession that loops is `MALFORMED-SUPERSESSION`, as for a REQ.
-* **An out-of-force RC mitigates nothing.** A HAZ named only by a superseded
-  RC's `mitigates:` now reports `UNMITIGATED-HAZARD`. The successor dropped
-  the hazard: name it in the successor's `mitigates:` if the successor
-  controls it, or run `analyze-risks` for it.
-* **A HAZ is out of force by a reciprocal pair with another HAZ**
-  (PR-x63ejd). Such a HAZ owes no `mitigates:`; its successor does. Before
-  this entry, a hazard reworded together with its control, the old RC naming
-  the old HAZ and the new RC the new HAZ, reported `UNMITIGATED-HAZARD` on
-  the old HAZ. A pair between a HAZ and an RC or a REQ takes nothing out of
-  force, a `retired:` on a HAZ retires nothing, and a HAZ supersession that
-  loops is `MALFORMED-SUPERSESSION`.
-* **An out-of-force exported REQ meets no `expects:`.** In a monorepo, a
-  consumer's expectation that only a retired or superseded exported REQ
-  satisfies reports `UNMET-EXPECTATION` again, and the provider's
-  `expectations against this unit` count includes it. Export a REQ in force
-  that satisfies it.
-
-A ledger that never wrote `retired:` gets neither `MALFORMED-RETIREMENT` form
-and no orphaned `retired:`. `OUT-OF-FORCE-VERIFIES` appears on the first run
-wherever a test still names only a superseded item, and the discharge
-findings wherever coverage ran only through one.
-
 ## List-item annotations
 
 Outside every item block, an annotation written as a list item is now
 `ORPHAN-ANNOTATION`, as a column-one one already was. The keywords: `status:`,
-`opened:`, `disposition:`, `traces:`, `satisfies:`, `supersedes:`,
-`superseded-by:`, and under a unit manifest `exported:` and `expects:`.
+`opened:`, `disposition:`, `traces:`, `satisfies:`, and under a unit
+manifest `exported:` and `expects:`.
 `check-review.sh` reports an orphaned `disposition:` in a verification record
 the same way.
 
@@ -434,8 +332,8 @@ the same way.
   in place.
 * **The readers stay at column one by design.** The backstop must see at
   least what every reader sees. A reader wider than that takes the first
-  matching line, so a quoted `- status: resolved` above an item's own
-  `status: open` would drop the item from the known-problem list at exit 0.
+  matching line, so a quoted `- status: accepted` above an item's own
+  `status: open` would outrank it.
 * `traces:` and `satisfies:` are still read anywhere on their line, because
   `templates/sad.md` ships the annotation on the definition line —
   `**LLR-a3k9z2**: <behavior>. satisfies: REQ-m7dq3v`.
@@ -443,7 +341,7 @@ the same way.
 **Size it with one grep before you upgrade.** The pattern is the `gr_kw_lead`
 rule written out, so what it prints is what the gate steps over:
 
-    grep -rnE '^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+(status|opened|disposition|traces|satisfies|supersedes|superseded-by|exported|expects):' docs/ templates/
+    grep -rnE '^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+(status|opened|disposition|traces|satisfies|exported|expects):' docs/ templates/
 
 `docs/` covers the verification records, where `disposition:` is the one
 keyword this backstop reads.
@@ -853,3 +751,44 @@ after signing. No record file is written.
   `.mutations/` directory is written.
 * Records already in `docs/verification/` are left as they are, for the
   lean-records rework to remove; no gate reads them.
+
+## Supersession is deletion
+
+Every item in a ledger is in force (`ADR-k3nkv3`). This goes red on a ledger
+that annotated a replaced or dropped item, or kept a fixed problem report.
+
+* `SUPERSESSION-ANNOTATION <file>:<line> (<keyword>)` for a `supersedes:`,
+  `superseded-by:` or `retired:` at column one, or after list markers, in any
+  ledger file. **Delete the item marked `superseded-by:` or `retired:`**, and
+  drop `supersedes:` from its successor.
+* `RESOLVED-PROBLEM <ID> (status: resolved — a resolved problem report is
+  deleted)`. **Delete the item.** `MALFORMED-STATUS` now reads `expected open
+  or accepted`, and `find-items.sh list --status` takes `open` or `accepted`.
+* `MALFORMED-SUPERSESSION`, `MALFORMED-RETIREMENT`,
+  `NON-RECIPROCAL-SUPERSESSION` and `OUT-OF-FORCE-VERIFIES` are gone. No item
+  is out of force: a REQ that was superseded or retired owes its test until it
+  is deleted.
+* Record each deletion in the upgrade's squash message: `old → new`, or the
+  deleted ID and its reason, under `Items:`; each deleted problem report in
+  `Resolves:` and under `Problems:`. `Resolves:` must name exactly the PR
+  items the change deletes (`RESOLVES`), `Problems:` each of them
+  (`PROBLEMS`), and `Items:` each other deleted item (`ITEMS`), or the
+  message is refused.
+* A test, `affects:` or `traces:` still naming a deleted ID is then
+  `DANGLING-REF`. Point a test at the item in force and list it as
+  `inherited: <test> — from <old ID>`, or delete it. A regression test
+  verifies the lowest-level item the defect broke: the LLR where one exists,
+  else the REQ (or the RC's implementing REQ), never the PR.
+* Seams 1 of the test guidelines default,
+  `.guardrails/templates/TEST_GUIDELINES.md`, now states that a test verifies
+  the REQ, LLR or ADR stating its behavior, a regression test the
+  lowest-level item the defect broke (the LLR where one exists, else the REQ,
+  or the RC's implementing REQ), and that a change re-points a citation of a
+  plan decision it reverses, or of a problem report the behavior no longer
+  matches, because an ID a test cites must outlive the test. To keep the
+  default within its word cap, Seams 1's first `Why:`, Seams 4, Doubles 1
+  and 5, Owned services 1, Property tests 1, Mutants 1, UI 4 and Existing
+  suites 1 were shortened without changing their rule. A
+  project whose own `docs/TEST_GUIDELINES.md` keeps the old clauses adopts the
+  new ones on upgrade, clause by clause, through `tailor-guidelines`. No gate
+  reads the clause.

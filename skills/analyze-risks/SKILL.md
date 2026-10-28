@@ -67,13 +67,13 @@ Write items in the grammar `check-trace.sh` parses:
   write the item. Never write an ID by hand.
 - Every HAZ needs at least one RC that mitigates it. Every RC needs at least
   one requirement that implements it.
-- Supersede a hazard or control that is reworded or replaced; never delete
-  it. The old item gains `superseded-by: <new ID>` and the new one contains
-  `supersedes: <old ID>`, a HAZ for a HAZ and an RC for an RC. The old RC is
-  then out of force: it owes no implementing REQ, and its `mitigates:`
-  mitigates nothing, so the successor names every hazard it still controls.
-  The old HAZ owes no `mitigates:`; the new HAZ owes one. A `retired:` on a
-  HAZ or an RC retires nothing.
+- A hazard or control reworded with the same meaning is edited in place and
+  keeps its ID. One whose meaning changed gets a new ID and the old item is
+  deleted; one no longer needed is deleted. The squash message records
+  `old → new`, or the reason, under `Items:`. Never annotate the old item:
+  `supersedes:`, `superseded-by:` and `retired:` are
+  `SUPERSESSION-ANNOTATION`. A new RC names every hazard it controls and
+  needs its own implementing REQ; a new HAZ needs its own RC.
 
 **Derived-requirements intake.** `grill-requirements` and
 `design-architecture` send you every REQ or LLR marked `satisfies: derived`:

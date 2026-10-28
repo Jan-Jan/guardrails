@@ -90,10 +90,10 @@ only its diff against the base branch answers that. `git diff "$BASE...$branch"`
 (three dots) compares the branch with the point where it left the base branch,
 so commits the base branch gained since then do not show as the branch's.
 
-The check sees a line that contains the ID. A change that resolves an item
-adds such lines: the plan's resolves line, the tests' `verifies:` lines. A
-branch whose only edit so far is a status line below the ID line does not
-show; (a) still lists that branch, so read its name. The reverse also
+The check sees a line that contains the ID. A change that resolves a problem
+report deletes its definition line, and a change that amends an item edits
+lines naming it. A branch whose only edit so far is a line below the ID line
+does not show; (a) still lists that branch, so read its name. The reverse also
 happens: a branch that cites the ID without resolving it shows as `CLAIMED`.
 The line names the branch, and you ask the user, so nothing is lost.
 

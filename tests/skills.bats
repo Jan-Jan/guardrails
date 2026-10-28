@@ -753,7 +753,7 @@ sh_fence() {
 }
 
 @test "worktree-discipline: the before-opening snippets run, and the claim check reads the diff" {
-    # verifies: D4 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # verifies: REQ-h76m4z, REQ-wn6kjg
     # The two snippets in before-opening.md are run, not only grepped (review
     # round 1, finding 4). A scratch repository has a branch that claims an
     # item, a branch that does not, and a worktree with an uncommitted file.
@@ -787,6 +787,13 @@ sh_fence() {
     printf '# PR-abc123: an item defined on the base branch\n' > ledger.md
     git add -A
     git commit -qm base
+    # A branch whose own commit removes the ID line, as a change resolving
+    # the item does: its diff shows the line only as removed. Made in the
+    # main checkout, so (a) lists no worktree for it.
+    git checkout -q -b remover
+    printf '# the item line is gone\n' > ledger.md
+    git commit -qam 'resolve PR-abc123 by deleting it'
+    git checkout -q main
     git branch claimer
     git branch clean
     git worktree add -q "$scratch/wt-claimer" claimer
@@ -840,21 +847,23 @@ sh_fence() {
     done
 
     # The base branch moves on after the branches were cut: another change
-    # that resolved the item merged. A two-dot `"$BASE..$branch"` diff shows
-    # that line as removed on every older branch and reports each as a claim;
-    # the three-dot diff starts where the branch left the base (review round
-    # 2, finding 9).
-    printf 'status: resolved\n# PR-abc123: resolved by another change\n' >> ledger.md
-    git commit -qam 'another change resolves PR-abc123'
+    # that resolved the item, deleting it, merged. A two-dot
+    # `"$BASE..$branch"` diff shows the deleted line as added on every older
+    # branch and reports each as a claim; the three-dot diff starts where the
+    # branch left the base.
+    sed -i.bak '/PR-abc123/d' ledger.md && rm ledger.md.bak
+    git commit -qam 'another change resolves PR-abc123 by deleting it'
 
-    # Exactly one line: the neighbour branch, whose diff carries the ID line
-    # only as context, is not reported.
+    # One line per claiming branch: the claimer adds a line naming the ID,
+    # the remover removes one; the neighbour branch, whose diff carries the
+    # ID line only as context, is not reported.
     # Run as pasted, with two IDs: under zsh an unsplit list matched nothing,
     # and the check printed nothing, the answer for an unclaimed item.
     for shell in $shells; do
         run "$shell" -c "BASE=main; $(cat "$scratch/claims.pasted")"
         [ "$status" -eq 0 ]
-        [ "$output" = 'CLAIMED  PR-abc123  by claimer' ] || { echo "(b) under $shell: $output"; false; }
+        [ "$output" = 'CLAIMED  PR-abc123  by claimer
+CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; }
     done
 
     # Base detection failed, and the block was pasted whole: with BASE empty,
@@ -2209,12 +2218,11 @@ gr_write_skill_fixture() {
 }
 
 @test "merge-change: text the first rewrite lost is stated again" {
-    # verifies: D6 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: ADR-3hsvvq, ADR-k3nkv3
     # Review round 1 of agent-first-skills found instructions from the old
     # skill that were neither kept nor listed as dropped history.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
-    # verifies: ADR-k3nkv3 — the record a later reviewer reads is the message.
     grep -q "A later round's reviewer reads the message earlier rounds wrote" "$skill"
     grep -q 'name it so the user can run it' "$skill"
     grep -q 'consider two independent' "$skill"
@@ -2249,7 +2257,7 @@ gr_write_skill_fixture() {
     grep -q 'the units whose gates the verdict covers' "$rationale"
     grep -q 'A deleted finding and a finding that never existed read identically' "$rationale"
     grep -q 'removing the change worktree does not touch it' "$rationale"
-    grep -q 'No script parses these two lines' "$rationale"
+    grep -q 'It names exactly the PR items the diff deletes' "$rationale"
     grep -q 'starts a blocking wait on the user' "$rationale"
     grep -q 'a chance to remove the wrong directory' "$rationale"
     grep -q 'so a pass added nothing' "$rationale"
@@ -2747,15 +2755,16 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "skills: no skill tells a superseded item's test to carry both IDs" {
-    # verifies: D7 (docs/plans/2026-10-08-out-of-force-items.md)
+    # verifies: ADR-k3nkv3
+    # A test of a deleted item is pointed at its successor, not given both IDs.
     root="$BATS_TEST_DIRNAME/.."
     run grep -rnE 'verifies: <old ID>, <new ID>|both IDs on the one test' "$root/skills"
     [ "$status" -ne 0 ] || { echo "$output"; false; }
 }
 
 @test "skills: check 4 reads per ID and names an inherited test as coverage" {
-    # verifies: D6 (docs/plans/2026-10-08-out-of-force-items.md)
-    # A test of a superseded item pointed at its successor passes check 4 only
+    # verifies: ADR-k3nkv3
+    # A test of a deleted item pointed at its successor passes check 4 only
     # when it is listed as inherited, and is coverage, never red-first
     # evidence. The rule is prose in four places that must agree: the check,
     # the dispatch report form, the record template and step 5's copy.
@@ -2775,7 +2784,7 @@ adr_file_is_named_by_its_item() {
     grep -qF 'any `inherited:` lines into the plan' "$root/skills/develop-change/SKILL.md" \
         || { echo "develop-change does not write the inherited: lines into the plan"; false; }
 
-    # verifies: ADR-k3nkv3 — the record template is the squash message's.
+    # The record template is the squash message's (ADR-k3nkv3).
     record="$root/templates/squash-message.txt"
     awk '/^Red-green:$/ { inside = 1; next } inside && /^[A-Z][a-z-]*:$/ { exit } inside' "$record" \
         | grep -qx 'inherited: <copied verbatim>' \
@@ -3818,5 +3827,75 @@ adr_file_is_named_by_its_item() {
             'at least one `Tests:`, also with no configuration or no `verify_commands` entry' \
             'the checker reports `TESTS`.' 'the checker reports `COVERAGE`.' 'counts as missing'; do
         printf '%s\n' "$section" | grep -qF -- "$wanted" || { echo "the section lacks $wanted"; false; }
+    done
+}
+
+@test "grill-requirements: a changed behavior gets a new ID and the old item is deleted" {
+    # verifies: ADR-k3nkv3
+    skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
+    section=$(awk '/^### Changing an item$/ { inside = 1; next }
+        inside && /^##/ { exit } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    for wanted in '**Same behavior, reworded:** edit the item in place and keep its ID.' \
+            '**Behavior changed:** mint a new ID with `new-id.sh`, write the new item and delete the old one.' \
+            'records `old → new` under `Items:`' \
+            '**Behavior gone:** delete the item.' \
+            '`inherited: <test> — from <old ID>`' '`DANGLING-REF`' '`SUPERSESSION-ANNOTATION`'; do
+        printf '%s\n' "$section" | grep -qF -- "$wanted" || { echo "the section lacks $wanted"; false; }
+    done
+    if grep -rnE 'superseded-by: <new ID>|supersedes: <old ID>|retired: YYYY-MM-DD' "$BATS_TEST_DIRNAME/../skills"; then
+        echo "a skill still tells an author to annotate a changed item"; false
+    fi
+}
+
+@test "resolve-problem: a resolved problem report is deleted by the fixing change" {
+    # verifies: ADR-k3nkv3
+    skill="$BATS_TEST_DIRNAME/../skills/resolve-problem/SKILL.md"
+    step4=$(awk '/^### 4\./ { inside = 1; next } inside && /^##/ { exit } inside' "$skill" \
+        | tr '\n' ' ' | tr -s ' ')
+    for wanted in 'delete the PR item from the dated ledger file that defines it' \
+            'names it in `Resolves:`' '`PR-<ID> — <cause> → <fix>` under `Problems:`' \
+            'verifies the lowest-level item the defect broke, never the PR'; do
+        printf '%s\n' "$step4" | grep -qF -- "$wanted" || { echo "step 4 lacks $wanted"; false; }
+    done
+    if grep -nF 'set `status: resolved`' "$skill"; then echo "the skill still sets status: resolved"; false; fi
+}
+
+@test "ratchet: the upgrade names the problem and supersession codes existing ledgers report" {
+    # verifies: ADR-k3nkv3
+    skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
+    flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
+    printf '%s\n' "$flat" | grep -qF 'Existing ledgers report problem `status:`/`opened:`, `RESOLVED-PROBLEM`, `SUPERSESSION-ANNOTATION` and `DANGLING-FILE`.' \
+        || { echo "the upgrade does not name what existing ledgers report"; false; }
+    if grep -nF 'reciprocity' "$skill"; then echo "the upgrade still names supersession reciprocity"; false; fi
+}
+
+@test "every file that says what a regression test verifies states the one rule" {
+    # verifies: ADR-k3nkv3
+    root="$BATS_TEST_DIRNAME/.."
+    rule="the lowest-level item the defect broke: the LLR where one exists, else the REQ (or the RC's implementing REQ)"
+    step3=$(awk '/^### 3\./ { inside = 1; next } inside && /^##/ { exit } inside' \
+        "$root/skills/resolve-problem/SKILL.md" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$step3" | grep -qF -- "$rule" || { echo "resolve-problem step 3 lacks the rule"; false; }
+    done_when=$(section_of '## Done when' "$root/skills/resolve-problem/SKILL.md" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$done_when" | grep -qF -- "$rule" || { echo "resolve-problem Done when lacks the rule"; false; }
+    for file in templates/problems.md templates/AGENTS-block.md templates/TEST_GUIDELINES.md \
+            docs/TEST_GUIDELINES.md skills/merge-change/references/review-checklist.md \
+            skills/develop-tdd/SKILL.md skills/resolve-problem/references/rationale.md \
+            docs/adr/ADR-k3nkv3-code-and-signed-history-are-the-record.md; do
+        flat=$(tr '\n' ' ' < "$root/$file" | tr -s ' ')
+        printf '%s\n' "$flat" | grep -qF -- "$rule" || { echo "$file lacks the rule"; false; }
+    done
+    if grep -rnF 'the REQ the defect broke' "$root/skills" "$root/templates" "$root/docs/TEST_GUIDELINES.md" \
+            "$root/docs/adr"; then
+        echo "a file still states the old rule"; false
+    fi
+}
+
+@test "templates: no ledger README documents supersedes:, superseded-by: or retired:" {
+    # verifies: ADR-k3nkv3
+    for readme in srs sad rmf problems; do
+        if grep -nE 'supersedes:|superseded-by:|retired:' "$BATS_TEST_DIRNAME/../templates/$readme.md"; then
+            echo "templates/$readme.md documents a supersession keyword"; false
+        fi
     done
 }

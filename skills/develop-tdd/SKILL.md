@@ -65,7 +65,8 @@ the same violation.
   (its LLRs), not only end-to-end.
 
 **Bugs.** A bug is a missing test. Reproduce it as a failing test annotated
-with the REQ it violates, then fix it. If the bug reveals a hazard the RMF
+with the lowest-level item the defect broke: the LLR where one exists, else
+the REQ (or the RC's implementing REQ). Then fix it. If the bug reveals a hazard the RMF
 missed, run `analyze-risks` before closing.
 
 ### Test guidelines
@@ -108,8 +109,8 @@ surprises: <anything unexpected, or "none">
 
 - Write one `red -> green:` line per new test. It is the only record that
   the test failed before its implementation existed.
-- An `inherited:` line names a pre-existing test of a superseded item that
-  the task pointed at its successor. It is coverage, not red-first evidence:
+- An `inherited:` line names a pre-existing test of a deleted item that the
+  task pointed at its successor. It is coverage, not red-first evidence:
   the successor still needs its own `red -> green:` test. Never re-annotate
   any other test that was green before the task.
 - `worktree:` is the path the prompt stated. Work anywhere else is a task

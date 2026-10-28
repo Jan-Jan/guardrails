@@ -68,7 +68,7 @@ setup() {
 }
 
 @test "develop-tdd: the dispatch report's shape, and an inherited test is coverage" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md); D6 (docs/plans/2026-10-08-out-of-force-items.md)
+    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md); ADR-k3nkv3
     report=$(section_of '### The dispatch report' "$skill")
     [ -n "$report" ] || { echo "no dispatch report section"; false; }
     for line in 'task: <ID>' 'worktree: <path to the task worktree>' 'files touched: <paths>' \

@@ -105,6 +105,15 @@ description: Run and interpret the guardrails traceability checker - orphaned re
    `checked:` is in a document some gate opened. An item of any other declared
    prefix is counted without being examined.
 
+8. **Delete an item that is no longer in force; never annotate it.** Every
+   item in a ledger is in force. `SUPERSESSION-ANNOTATION` names a
+   `supersedes:`, `superseded-by:` or `retired:` line: delete the item it
+   marks and drop `supersedes:` from the successor. `RESOLVED-PROBLEM` names
+   a `status: resolved`: delete the problem report. The squash message records
+   each deletion (`Items:`, or `Resolves:` and `Problems:`). A test or
+   reference still naming a deleted ID is `DANGLING-REF`: point it at the item
+   in force, or delete it.
+
 ## Red flags
 
 | Thought | Reality |

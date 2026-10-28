@@ -260,8 +260,20 @@ nothing in it changes the tree. `ADR-f6ytg7` records that decision.
 ## Step 5: `Resolves:` and `Opens:`
 
 These trailers state the step 5 delta in the commit that is the change on the
-base branch. No script parses these two lines, so each costs one line, and
-anyone can check them against the diff without a ledger to compare them to.
+base branch. A fixed problem report is deleted, so `Resolves:` is the only
+place its ID survives. It names exactly the PR items the diff deletes: the
+message check compares the two before the hand-over and after signing, and
+reports `RESOLVES` for an ID in one and not the other (ADR-3hsvvq). `Opens:`
+is unchecked: an opened problem report stays in the ledger and the tree shows
+it; only a deletion loses its record.
+
+The same holds for every other deleted item, whose `Items:` line is the only
+record left of it, and for a deleted problem report's cause and fix under
+`Problems:`. So the check also reads those two sections: each REQ, LLR, SDD,
+HAZ or RC definition the diff removes from the `doc_srs`, `doc_sad` and
+`doc_rmf` ledgers must appear as a word under `Items:` (`ITEMS`), and each
+deleted PR under `Problems:` (`PROBLEMS`). It checks that the ID is there,
+not what the line says; the reason and the cause stay the reviewer's.
 
 ## Step 5: the delta, never the total
 

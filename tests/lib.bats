@@ -1332,12 +1332,14 @@ item_block_probe() {
 # Each test below changes one thing in write_message's (helpers.bash) passing
 # message, written to msg.txt.
 
-# check_message [TESTS [COVERAGE]] — check msg.txt against HEAD's tree,
-# wanting TESTS Tests: trailers (default 1, the fixture's one verify_commands
-# entry) and COVERAGE Coverage: trailers (default 0, no coverage_command).
+# check_message [TESTS [COVERAGE [DELETED]]] — check msg.txt against HEAD's
+# tree, wanting TESTS Tests: trailers (default 1, the fixture's one
+# verify_commands entry), COVERAGE Coverage: trailers (default 0, no
+# coverage_command) and the IDs in DELETED (default none) as the deleted
+# ones.
 check_message() {
-    run sh -c '. .guardrails/scripts/lib.sh && gr_message_check msg.txt "$1" "$2" "$3"' _ \
-        "$(git rev-parse 'HEAD^{tree}')" "${1-1}" "${2-0}"
+    run sh -c '. .guardrails/scripts/lib.sh && gr_message_check msg.txt "$1" "$2" "$3" "$4"' _ \
+        "$(git rev-parse 'HEAD^{tree}')" "${1-1}" "${2-0}" "${3-}"
 }
 
 @test "gr_message_check passes a complete message with no Findings section" {
@@ -1569,7 +1571,7 @@ MALFORMED-FINDING 1. code high — undisposed" ] || { echo "$header -> $output";
 @test "gr_message_check reports a Gate-tree that is not the tree as GATE-TREE" {
     # verifies: ADR-3hsvvq
     write_message '' msg.txt
-    run sh -c '. .guardrails/scripts/lib.sh && gr_message_check msg.txt 0123456789abcdef0123456789abcdef01234567 1 0'
+    run sh -c '. .guardrails/scripts/lib.sh && gr_message_check msg.txt 0123456789abcdef0123456789abcdef01234567 1 0 ""'
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
     [[ "$output" == "GATE-TREE"* ]] || { echo "$output"; false; }
     [ "${#lines[@]}" -eq 1 ] || { echo "$output"; false; }
@@ -1862,4 +1864,73 @@ BASE (want one Base: trailer, found a placeholder)" ] || { echo "$output"; false
     check_message
     [ "$status" -eq 0 ] || { echo "$output"; cat msg.txt; false; }
     [ -z "$output" ] || { echo "$output"; false; }
+}
+
+# --- Resolves: names exactly the problem reports the change deletes ----------
+# gr_message_check's fifth argument holds the IDs the change deletes
+# (gr_deleted_items, ADR-3hsvvq), tested here under the same Seams clause as
+# gr_message_check above. Which definitions count as deleted, the Items: and
+# Problems: sections, and that each caller hands over its own range, are
+# tested at the scripts.
+
+@test "gr_message_check: a deleted PR missing from Resolves: is RESOLVES" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    printf 'Resolves: PR-bcd345\n' >> msg.txt
+    add_message_section msg.txt 'Problems:' '- PR-abc234, PR-bcd345, PR-cde456'
+    check_message 1 0 'PR-abc234 PR-bcd345 PR-cde456'
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "RESOLVES (deleted PR-abc234, not named in Resolves:)
+RESOLVES (deleted PR-cde456, not named in Resolves:)" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check: a Resolves: naming an undeleted PR is RESOLVES" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    printf 'Resolves: PR-cde456 PR-abc234\n' >> msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "RESOLVES (Resolves: names PR-abc234, which this change does not delete)
+RESOLVES (Resolves: names PR-cde456, which this change does not delete)" ] \
+        || { echo "$output"; false; }
+}
+
+@test "gr_message_check: Resolves: over two trailers, comma-separated, matches" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    printf '%s\n' 'Resolves: PR-abc234, PR-bcd345' 'Resolves: PR-cde456' >> msg.txt
+    add_message_section msg.txt 'Problems:' '- PR-abc234, PR-bcd345, PR-cde456'
+    check_message 1 0 'PR-abc234 PR-bcd345 PR-cde456'
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check: Resolves: IDs separated by semicolons match" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    printf '%s\n' 'Resolves: PR-abc234; PR-bcd345;PR-cde456' >> msg.txt
+    add_message_section msg.txt 'Problems:' '- PR-abc234, PR-bcd345, PR-cde456'
+    check_message 1 0 'PR-abc234 PR-bcd345 PR-cde456'
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check: no deletion and no Resolves: passes" {
+    # verifies: ADR-3hsvvq
+    # The fifth argument given and empty, as both callers pass it for a change
+    # that deletes no problem report.
+    write_message '' msg.txt
+    check_message 1 0 ''
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check: a call without its fifth argument returns 2" {
+    # verifies: ADR-3hsvvq
+    # DELETED is required: a caller that drops it would check no deletion.
+    write_message '' msg.txt
+    run sh -c '. .guardrails/scripts/lib.sh && gr_message_check msg.txt "$1" 1 0' _ \
+        "$(git rev-parse 'HEAD^{tree}')"
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"gr_message_check"*"5 arguments"* ]] || { echo "$output"; false; }
 }

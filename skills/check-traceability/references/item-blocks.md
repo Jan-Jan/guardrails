@@ -27,8 +27,8 @@ closed by `.` or `)`), each followed by whitespace, indented or not. So a
 list-item annotation outside every block is reported.
 
 No column-one reader steps over a list marker. The fields read at column one
-(`status:`, `opened:`, `disposition:`, `retired:`, `supersedes:`,
-`superseded-by:`, `expects:`, `exported:`) are never taken from a list item,
+(`status:`, `opened:`, `disposition:`, `expects:`, `exported:`) are never
+taken from a list item,
 which is why a bulleted one inside a block is reported as a missing field
 (`INCOMPLETE-PROBLEM`). The ID-list keywords `satisfies:`,
 `traces:`, `implements:` and `mitigates:` are read anywhere on a line inside
@@ -47,8 +47,9 @@ The backstop must see at least what every reader sees. Do not widen a reader
 to accept a form the backstop accepts. Every scalar reader takes the FIRST
 occurrence in the block, so a reader that accepts the bullet form lets a quoted
 annotation outrank the real one. A problem item that quotes
-`- status: resolved` above its own `status: open` would drop out of the
-known-problem list at exit 0, a pass reported over a problem still open.
+`- status: accepted` above its own `status: open` would read as accepted, and
+its age would stop counting against the limits while the problem is still
+open.
 
 A backstop wider than the readers can only over-report. A reader wider than
 intended answers with confidence and is wrong.
@@ -63,7 +64,7 @@ SAD written to it.
 `implements:` and `mitigates:` are read anywhere on their line for the same
 reason: `templates/srs.md` ships `(implements: RC-…)` and `templates/rmf.md`
 ships `mitigates: HAZ-…` on the definition line. Like `status:`,
-`satisfies:`, `traces:` and `retired:`, they credit only from a line inside
+`satisfies:` and `traces:`, they credit only from a line inside
 the owner's block: a REQ block in `doc_srs` for `implements:`, an RC block in
 `doc_rmf` for `mitigates:`. A line outside every block credits nothing,
 wherever the keyword sits on it. The
@@ -88,3 +89,9 @@ unreported outside one:
 `PR-h3wujj` is open for these. Until it is resolved, write every annotation
 with no list marker, quote marker or indentation: at column one, or on the
 item's definition line in the inline form the templates ship.
+
+## Supersession keywords
+
+`supersedes:`, `superseded-by:` and `retired:` are read by no gate as a
+field. Each, at column one or after list markers, in or out of an item block,
+is `SUPERSESSION-ANNOTATION`: delete the item it marks (ADR-k3nkv3).

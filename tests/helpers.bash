@@ -303,6 +303,25 @@ write_message() {
     } > "$_message_target"
 }
 
+# add_message_section FILE LINE... — insert LINEs, then a blank line, into the
+# message in FILE just before its column-one `Red-green:`, as a body section
+# such as `Items:` or `Problems:` with its lines. Fails, leaving FILE as it
+# was, when FILE has no column-one `Red-green:` or an awk fails.
+add_message_section() {
+    _section_file=$1
+    shift
+    grep -qx 'Red-green:' "$_section_file" || {
+        echo "add_message_section: no column-one Red-green: in $_section_file" >&2
+        return 1
+    }
+    (
+        awk '$0 == "Red-green:" { exit } { print }' "$_section_file" || exit
+        printf '%s\n' "$@" ''
+        awk '$0 == "Red-green:" { found = 1 } found { print }' "$_section_file"
+    ) > "$_section_file.new" || { rm -f "$_section_file.new"; return 1; }
+    mv "$_section_file.new" "$_section_file"
+}
+
 # YYYY-MM-DD for N days before today. GNU date and BSD date disagree on the
 # flag, and the tests must run on whichever the developer has; the scripts
 # under test do their own date arithmetic in awk precisely to avoid needing

@@ -10,8 +10,15 @@ A project that changes a clause rewrites its reason and examples with it.
 1. **A test calls only an interface that a REQ or LLR describes.** A private
    helper is covered through the interface above it. Without LLRs, the seam is
    the REQ level: the public interface. Why: a test pinned to a function
-   breaks on a refactor that moves it and keeps every behavior; a test at a
-   requirement's interface breaks only when a stated behavior changes.
+   breaks on a refactor that keeps every behavior; one at a requirement's
+   interface breaks only when a stated behavior changes.
+
+   A test verifies the REQ, LLR or ADR stating its behavior; a regression
+   test, the lowest-level item the defect broke: the LLR where one exists,
+   else the REQ (or the RC's implementing REQ). A change re-points a citation
+   of a plan decision it reverses, or a problem report the behavior no longer
+   matches. Why: an ID a test cites must outlive it: a resolved problem
+   report is deleted, a plan never reaches the base branch.
 
 2. **A deeper interface gets a direct test only once it has an LLR**, and it
    earns one only where at least one of these holds:
@@ -45,12 +52,12 @@ A project that changes a clause rewrites its reason and examples with it.
    A journey is a REQ of its own only when it states an outcome none of its
    steps states: state carried across steps, recovery partway through, an
    ordering constraint. Why: a journey REQ that restates its steps verifies
-   each step twice and doubles the edit when the journey changes.
+   each step twice and doubles the edit when it changes.
 
 ## Doubles
 
 1. **No mock of code the project owns, and no assertion on how owned code was
-   called.** These are the doubles that hold an implementation in place.
+   called.** These doubles hold an implementation in place.
 
 2. **Fakes at the codebase boundary only.** A service, library or resource
    outside the codebase sits behind one adapter the project owns. Code calls
@@ -75,16 +82,16 @@ A project that changes a clause rewrites its reason and examples with it.
    requirement does not state.
 
 5. **A fault injector needs no contract test.** A double that makes a
-   dependency fail on demand is allowed at any boundary. The line between it
-   and a fake is what the double imitates:
+   dependency fail on demand is allowed at any boundary. What it imitates
+   tells it from a fake:
 
    - **A fake**, with a contract test: a double that imitates service-specific
-     content the code interprets, such as an HTTP 409 with an error body, a
-     database constraint error, or a tool error message the code parses.
+     content the code interprets, such as an HTTP 409 with an error body or
+     a database constraint error.
    - **A fault injector**, with none: a transport- or OS-level failure, such as
      a connection refused or reset, a timeout, a full disk, or an exit status
-     with no output the code reads. Nothing in it belongs to one service, so
-     there is nothing to drift from.
+     with no output the code reads. Nothing in it is service-specific, so
+     nothing can drift.
 
    A rule of no doubles at all was rejected: it makes the dependency-failure
    and resource-exhaustion tests of the robustness rule impossible.
@@ -96,8 +103,8 @@ A project that changes a clause rewrites its reason and examples with it.
 
 1. **A service the project owns runs for real on the normal path**, and
    its failures may be injected or faked. A backend, database or sync service
-   that the codebase contains, or that the application configuration declares
-   part of the system, is one. Why: faking it on the normal path verifies the
+   the codebase contains, or the configuration declares part of the system,
+   is one. Why: faking it on the normal path verifies the
    main behavior against something the project never ships. A failure case
    may come from:
 
@@ -129,7 +136,7 @@ A project that changes a clause rewrites its reason and examples with it.
      function;
    - monotonicity or bounds.
 
-   Where no invariant is useful, write none: a property that restates the
+   Where no invariant is useful, write none: a property restating the
    implementation proves nothing.
    Why: a generator reaches inputs no one thought to write.
 
@@ -144,8 +151,8 @@ A project that changes a clause rewrites its reason and examples with it.
 
 1. **A surviving mutant means a missing test at the
    seam, or dead code: never a test below the seam.** Line coverage shows
-   that a line ran, not that a test would notice it changing; a mutant no
-   test kills is a route the tests do not check. For a survivor:
+   a line ran, not that a test would notice it changing. For a
+   survivor:
 
    - a test is missing **at the seam**: add it there;
    - the mutated code is dead: delete it.
@@ -184,9 +191,8 @@ Keep this section only where the project has a user interface.
 
 4. **Enumerate the states.**
    List the states each screen can be in and test each: loading, empty, error,
-   partial, stale, offline, permission denied. A core written as a state
-   machine makes the list explicit. Why: a screen most often fails outside its
-   loaded state.
+   partial, stale, offline, permission denied. Why: a screen most often fails
+   outside its loaded state.
 
 5. **What only a real browser shows.**
    Keep a small suite in a real browser for what a simulated DOM cannot do: the
@@ -222,9 +228,8 @@ Keep this section only where the project has a user interface.
    floor binds every test. Of the edited tests, one pinned below the seam
    moves to the seam, and a mock of owned code is replaced. No change
    rewrites a suite wholesale for compliance. Why: deleting a test without a
-   replacement at the seam loses coverage. If correcting a comment or a
-   citation pulled the test around it into scope, every moved rule would
-   force a test rewrite wherever it is cited, and citations would be left
-   wrong instead. Example: a change that edits the assertions of a test that
-   mocks owned code replaces the mock; one that repoints a stale citation in
-   the comment above it leaves the mock as it is.
+   replacement at the seam loses coverage. Were a citation fix to pull a
+   test in, every moved rule would force rewrites, and citations
+   would be left wrong instead. Example: a change that edits a test mocking
+   owned code replaces the mock; one that only repoints its citation leaves
+   it.

@@ -33,11 +33,12 @@ The reviewer checks each item and raises a finding for each one that fails.
 - Item form: `**<ID>**: The software shall <single, testable behavior>`.
 - `satisfies:` / `implements:` references resolve; derived items are marked.
 - Terms match `docs/CONTEXT.md`.
-- Anything reworded or replaced is superseded, and anything dropped is
-  retired, never deleted: the old item keeps its place and gains
-  `superseded-by: <new ID>` (the new item contains `supersedes: <old ID>`), or
-  `retired: YYYY-MM-DD — <reason>`. A requirement that disappeared is a
-  finding.
+- A rewording with the same behavior keeps its ID. A changed behavior has a
+  new ID from `new-id.sh`, the old item is deleted, and the message lists
+  `old → new` under `Items:`; a dropped behavior is deleted and its reason
+  given there. No item carries `supersedes:`, `superseded-by:` or `retired:`.
+  A changed behavior kept under its old ID is a finding; the message check
+  reports a deletion `Items:` does not name (`ITEMS`).
 - The successor has its own test with a `red -> green:` attestation. The new
   ID was not added to the old item's green test; a test pointed from the old
   item to the successor is listed as `inherited: <test name> — from <old ID>`
@@ -45,13 +46,15 @@ The reviewer checks each item and raises a finding for each one that fails.
   an edited test under the test checklist, and the reviewer confirms it
   verifies the successor's behavior, since it carries no red-first evidence
   and no gate reads `inherited:`.
-- Every other site that names the superseded ID. The trace gate enforces the
-  supersession pair (`NON-RECIPROCAL-SUPERSESSION`, `MALFORMED-SUPERSESSION`)
-  and only the pair. An `affects:`, `traces:` or table row may name an old ID
-  as history, so that sweep stays a review job.
-- An in-force REQ whose `implements:` names only an out-of-force RC is a
-  finding, and no gate reports it. Point the `implements:` at the successor
-  RC, or supersede the REQ too.
+- Every item that depended on a deleted one is changed with it: an RC whose
+  only implementing REQ was deleted, a HAZ whose only RC was. The gate
+  reports these as `UNIMPLEMENTED-CONTROL` and `UNMITIGATED-HAZARD`; the
+  review checks the successor states what the old item covered.
+- A deleted problem report's entry under `Problems:` states its cause and
+  fix, and its regression test verifies the lowest-level item the defect
+  broke: the LLR where one exists, else the REQ (or the RC's implementing
+  REQ), never the PR. The message check reports one `Resolves:` or `Problems:` does not name
+  (`RESOLVES`, `PROBLEMS`).
 - The plan: the prose of each task matches the diff. Once `merge-change`
   step 5 has dropped it, read it with `git show <commit>^:<path>`, where
   <commit> is `git log -1 --format=%H --grep='^chore: drop plans$'`.

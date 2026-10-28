@@ -38,7 +38,10 @@
 #      check-review.sh runs before the hand-over: the review fields, every
 #      finding disposed, one Base:, one green Tests: trailer per
 #      verify_commands entry, one Coverage: per coverage_command, well-formed
-#      Mutation: trailers, no template placeholder left, and exactly one `Gate-tree:` trailer whose value is HEAD's
+#      Mutation: trailers, no template placeholder left, Resolves: naming
+#      exactly the PR items the squash deletes (RESOLVES), Problems: naming
+#      each of them (PROBLEMS) and Items: each other item it deletes
+#      (ITEMS), and exactly one `Gate-tree:` trailer whose value is HEAD's
 #      own tree. merge-change step 6b writes there the tree its step 6a gate
 #      measured, so a signed squash of any other tree was never gated.
 #      Proved third, after guard 2: guards 1, 2 and 5 read the squash
@@ -339,12 +342,18 @@ tests_want=$(gr_message_want verify_commands "$impact_units") || gr_die \
 coverage_want=$(gr_message_want coverage_command "$impact_units") || gr_die \
 "the configuration cannot be read, so the Coverage: trailers HEAD's message
   owes are unknown. Nothing was removed and $branch was NOT deleted."
+# The items the squash deletes, PR items among them: its Resolves: and
+# Problems: name each deleted PR, its Items: each other deleted item.
+deleted=$(gr_deleted_items 'HEAD^..HEAD') || gr_die \
+"the items the squash deletes cannot be read from the ledgers' diff over
+  HEAD^..HEAD; the error is above. Nothing was removed and $branch was NOT
+  deleted."
 git log -1 --no-show-signature --format=%B HEAD > "$signed_message" || {
     rm -f "$signed_message"
     gr_die "git log failed, so HEAD's message cannot be read. Nothing was
   removed and $branch was NOT deleted."
 }
-check_report=$(gr_message_check "$signed_message" "$head_tree" "$tests_want" "$coverage_want")
+check_report=$(gr_message_check "$signed_message" "$head_tree" "$tests_want" "$coverage_want" "$deleted")
 check_status=$?
 rm -f "$signed_message"
 case "$check_status" in

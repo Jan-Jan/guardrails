@@ -33,10 +33,10 @@ The check asks whether each Implements ID has red-first evidence, not whether
 every test that names it does. One `verifies:` test with a `red -> green:`
 line per ID answers it.
 
-A supersession is the one case where a pre-existing green test may gain a new
-ID. The test verified the superseded item, which is now out of force, and
-`OUT-OF-FORCE-VERIFIES` fails a test that names only out-of-force items. The
-author either deletes it or points it at the successor. Pointed at the
+A changed behavior is the one case where a pre-existing green test may gain a
+new ID. The test verified the old item, which the change deleted, and
+`DANGLING-REF` fails a test that names a deleted ID. The author either deletes
+it or points it at the successor. Pointed at the
 successor, it is still coverage worth keeping, but it was never watched
 failing against the new behavior. So it is listed as
 `inherited: <test name> — from <old ID>` in the dispatch report and the

@@ -3,7 +3,9 @@
 This directory is a per-change ledger: each change contributes one dated
 file, `YYYY-MM-DD-<slug>.md`, dated the day the change creates it and never
 renamed, so `ls` reads in order of creation. **Edit existing items in the file
-that defines them** — definitions never move.
+that defines them** — definitions never move. A reworded item keeps its ID; a
+changed behavior gets a new ID and the old item is deleted; a dropped item is
+deleted. The squash message records each under `Items:`.
 
 <!--
 Item grammar (enforced by .guardrails/scripts/check-trace.sh):

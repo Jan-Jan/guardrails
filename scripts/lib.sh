@@ -981,6 +981,9 @@ gr_message_present() {
 #   FIELD NAME              a body field of GR_MESSAGE_FIELDS with a value
 #                           that holds no template placeholder; every FIELD
 #                           comes before every other fact
+#   ITEMS WORD              a word of the Items: section, then
+#   PROBLEMS WORD           a word of the Problems: section; a word is a run
+#                           of letters, digits, `-` and `_`
 #   FINDING N TAG           the first line of finding N, the first line with
 #                           that number, and the word after its disposition
 #   DISPOSITION TEXT        the text inside that finding's leading `[...]`,
@@ -1006,6 +1009,8 @@ gr_message_present() {
 #   GATE-TREE VALUE         a Gate-tree: trailer
 #   TESTS VALUE             a Tests: trailer
 #   COVERAGE VALUE          a Coverage: trailer
+#   RESOLVES VALUE          a Resolves: trailer holding no template
+#                           placeholder
 #   MUTATION VALUE          a Mutation: trailer in the template's form, then
 #   MUTATION-PATH PATH      the path it names, without its `:N`, and
 #   MUTATION-TEST NAME      the test it names
@@ -1017,7 +1022,12 @@ gr_message_present() {
 # reads them after signing: --no-divider, so a `---` line is text, not the end
 # of the message; that paragraph is then not body, so a review field
 # there does not count. The findings section runs from a column-one
-# `Findings:` after the subject to the next blank line.
+# `Findings:` after the subject to the next blank line. The Items: and
+# Problems: sections each run from their column-one header, the text after
+# its colon included, to the first blank line after their content, so blank
+# lines between the header and its list do not end them, or to the next
+# column-one section header: `Items:`, `Problems:`, `Red-green:`, `Gaps:`,
+# `Qualification:`, `Findings:` or a review field's.
 #
 # The message reaches awk on its standard input after the trailers and a
 # sentinel line, never through `awk -v`: BWK awk rejects a newline there. awk
@@ -1060,6 +1070,34 @@ gr_message_facts() {
                 }
         for (field_at = 1; field_at <= field_count; field_at++)
             if (field[field_at] in given) print "FIELD " field[field_at]
+
+        for (field_at = 1; field_at <= field_count; field_at++)
+            section_header[field[field_at]] = 1
+        section_header["Items"] = 1; section_header["Problems"] = 1
+        section_header["Red-green"] = 1; section_header["Gaps"] = 1
+        section_header["Qualification"] = 1; section_header["Findings"] = 1
+        # A blank line ends a section once it holds content: the blank lines
+        # between a header and its first content line do not.
+        section = ""
+        for (at = first + 1; at <= body_end; at++) {
+            section_text = line[at]
+            if (section_text ~ /^[ \t]*$/) {
+                if (section_content) section = ""
+                continue
+            }
+            colon_at = index(section_text, ":")
+            if (colon_at > 1 && (substr(section_text, 1, colon_at - 1) in section_header)) {
+                section = substr(section_text, 1, colon_at - 1)
+                if (section != "Items" && section != "Problems") section = ""
+                section_text = substr(section_text, colon_at + 1)
+                section_content = (section_text !~ /^[ \t]*$/)
+            } else section_content = 1
+            if (section == "") continue
+            word_count = split(section_text, section_word, /[^A-Za-z0-9_-]+/)
+            for (word_at = 1; word_at <= word_count; word_at++)
+                if (section_word[word_at] != "")
+                    print toupper(section) " " section_word[word_at]
+        }
 
         in_findings = 0; finding_open = 0
         for (at = first + 1; at <= last; at++) {
@@ -1135,6 +1173,8 @@ gr_message_facts() {
             else if (key == "Gate-tree") print "GATE-TREE " trailer_value
             else if (key == "Tests") print "TESTS " trailer_value
             else if (key == "Coverage") print "COVERAGE " trailer_value
+            else if (key == "Resolves" && !gr_placeholder(trailer_value))
+                print "RESOLVES " trailer_value
             else if (key == "Mutation") {
                 if (trailer_value !~ /^[^ :]+:[0-9]+ .+ \342\200\224 killed by ".+"$/) {
                     print "MALFORMED-MUTATION " trailer_value
@@ -1153,25 +1193,36 @@ gr_message_facts() {
     }'
 }
 
-# gr_message_check FILE TREE TESTS COVERAGE — check a squash message against
-# its grammar (ADR-3hsvvq), with gr_message_facts reading it: its Gate-tree:
-# must name TREE, and it owes exactly TESTS Tests: and COVERAGE Coverage:
-# trailers, the counts gr_message_want gives its caller. A review field or
-# trailer value holding a template placeholder is missing. Prints one finding
-# per line;
-# returns 1 on any, 0 on none. A FILE that is absent, unreadable or of `#`
+# gr_message_check FILE TREE TESTS COVERAGE DELETED — check a squash message
+# against its grammar (ADR-3hsvvq), with gr_message_facts reading it: its
+# Gate-tree: must name TREE, and it owes exactly TESTS Tests: and COVERAGE
+# Coverage: trailers, the counts gr_message_want gives its caller. DELETED
+# holds the IDs the change deletes (gr_deleted_items), empty for none. Its
+# Resolves: trailers, their IDs split on commas, semicolons and blanks, name
+# exactly the PR IDs in DELETED; its Problems: section names each of those PR IDs as a
+# word, and its Items: section each other ID in DELETED. RESOLVES is reported
+# per deleted PR no Resolves: names, then per named ID not deleted; PROBLEMS
+# per deleted PR Problems: lacks; ITEMS per other deleted ID Items: lacks;
+# each in ID order. DELETED is flattened to one line here, since BWK awk
+# rejects a newline in `awk -v`. A review field or trailer value holding a
+# template placeholder is missing. Prints one finding per line; returns 1 on
+# any, 0 on none. Every argument is required: called with other than five,
+# it exits 2. A FILE that is absent, unreadable or of `#`
 # lines only is MISSING-RECORD, 1; it returns 2 when grep or git
 # interpret-trailers fails on a FILE that passed that test.
 # check-review.sh runs it on the message file before the hand-over,
 # finish-merge.sh on the signed commit's message.
 gr_message_check() {
+    [ $# -eq 5 ] || gr_die \
+"gr_message_check takes 5 arguments, FILE TREE TESTS COVERAGE DELETED, not $#."
     if ! gr_message_present "$1"; then
         printf 'MISSING-RECORD %s\n' "$1"
         return 1
     fi
     _message_facts=$(gr_message_facts "$1") || return 2
+    _message_deleted=$(printf '%s\n' "$5" | tr '\n' ' ')
     printf '%s\n' "$_message_facts" | LC_ALL=C awk -v tree="$2" \
-        -v tests_want="$3" -v coverage_want="$4" \
+        -v tests_want="$3" -v coverage_want="$4" -v deleted="$_message_deleted" \
         -v field_names="$GR_MESSAGE_FIELDS" "$GR_AWK_PLACEHOLDER"'
     function report(finding) { print finding; reported++ }
     # Report the fields no FIELD fact gave, once, after the last FIELD.
@@ -1188,11 +1239,26 @@ gr_message_check() {
         if (undisposed != "") report("UNDISPOSED-FINDING " undisposed)
         undisposed = ""
     }
+    # Report, in ID order, each ID of listed_ids that matching_ids lacks, as
+    # prefix ID suffix.
+    function report_missing(listed_ids, matching_ids, prefix, suffix,   id, ids, count, at, back, held) {
+        count = 0
+        for (id in listed_ids) if (!(id in matching_ids)) ids[++count] = id
+        for (at = 2; at <= count; at++) {
+            held = ids[at]
+            for (back = at - 1; back >= 1 && ids[back] > held; back--)
+                ids[back + 1] = ids[back]
+            ids[back + 1] = held
+        }
+        for (at = 1; at <= count; at++) report(prefix ids[at] suffix)
+    }
     $1 == "FIELD" { given[$2] = 1; next }
     { settle_fields() }
     $1 == "DISPOSITION" { undisposed = ""; next }
     { settle_finding() }
     $1 == "FINDING" { undisposed = $2; next }
+    $1 == "ITEMS" { items_named[$2] = 1; next }
+    $1 == "PROBLEMS" { problems_named[$2] = 1; next }
     $1 == "MALFORMED-FINDING" || $1 == "MALFORMED-MUTATION" { report($0); next }
     $1 == "PLACEHOLDER" { report("INCOMPLETE-RECORD (placeholder in " $2 ":)"); next }
     $1 == "BASE" {
@@ -1225,6 +1291,12 @@ gr_message_check() {
         if (!passed_in_full) report("FAILED-TESTS " tests_value)
         next
     }
+    $1 == "RESOLVES" {
+        resolves_count = split(substr($0, 10), resolves_id, /[,; \t]+/)
+        for (resolves_at = 1; resolves_at <= resolves_count; resolves_at++)
+            if (resolves_id[resolves_at] != "") resolves_named[resolves_id[resolves_at]] = 1
+        next
+    }
     $1 == "COVERAGE" {
         coverage_value = substr($0, 10)
         if (gr_placeholder(coverage_value)) next
@@ -1247,8 +1319,107 @@ gr_message_check() {
             report("TESTS (want " tests_want + 0 " Tests: trailers, one per verify_commands entry, found " tests_count + 0 ")")
         if (coverage_count != coverage_want + 0)
             report("COVERAGE (want " coverage_want + 0 " Coverage: trailers, one per coverage_command, found " coverage_count + 0 ")")
+        deleted_count = split(deleted, deleted_id, " ")
+        for (deleted_at = 1; deleted_at <= deleted_count; deleted_at++)
+            if (index(deleted_id[deleted_at], "PR-") == 1)
+                deleted_problems[deleted_id[deleted_at]] = 1
+            else
+                deleted_non_problems[deleted_id[deleted_at]] = 1
+        report_missing(deleted_problems, resolves_named, "RESOLVES (deleted ", ", not named in Resolves:)")
+        report_missing(resolves_named, deleted_problems, "RESOLVES (Resolves: names ", ", which this change does not delete)")
+        report_missing(deleted_problems, problems_named, "PROBLEMS (deleted ", ", not named under Problems:)")
+        report_missing(deleted_non_problems, items_named, "ITEMS (deleted ", ", not named under Items:)")
         exit (reported > 0)
     }'
+}
+
+# gr_deleted_items RANGE — the items RANGE deletes, one ID per line, sorted:
+# each REQ, LLR, SDD, HAZ or RC ID whose definition line (gr_def_re) the diff
+# of RANGE removes from the item ledgers, the configured doc_srs, doc_sad and
+# doc_rmf, and each PR ID it removes from the problem ledgers, the configured
+# doc_problems; in either case, one the diff does not add back to those
+# ledgers. A ledger is the files check-trace reads (gr_doc_files): a
+# directory's top-level *.md files, not its subdirectories or other files;
+# a file, itself. A directory the checkout no longer has is read as a file
+# path, every file below it. Under a units manifest the ledgers are each unit's; with none
+# configured, or no configuration at all, there is no ledger, and nothing is
+# deleted. A definition moved to another ledger file, or reworded under its
+# ID, is not deleted; a definition outside the ledgers (a test fixture, a
+# skill example) is never read; and over a three-dot RANGE an item added and
+# deleted on the branch never appears. Returns 2 when the configuration, git,
+# grep or awk fails.
+#
+# A resolved problem report is deleted by the change that fixes it
+# (ADR-k3nkv3); that change's Resolves: and Problems: name each deleted PR,
+# and its Items: each other deleted item (ADR-3hsvvq): check-review.sh passes
+# refs/heads/<base>...HEAD, finish-merge.sh guard 5 HEAD^..HEAD, to
+# gr_message_check.
+gr_deleted_items() {
+    _deleted_non_problems=$(gr_deleted_definitions "$1" 'REQ|LLR|SDD|HAZ|RC' \
+        doc_srs doc_sad doc_rmf) || return 2
+    _deleted_problems=$(gr_deleted_definitions "$1" PR doc_problems) || return 2
+    { [ -z "$_deleted_non_problems" ] || printf '%s\n' "$_deleted_non_problems"
+      [ -z "$_deleted_problems" ] || printf '%s\n' "$_deleted_problems"; } \
+        | LC_ALL=C sort
+}
+
+# gr_deleted_definitions RANGE PREFIXES KEY... — for gr_deleted_items: the IDs
+# of PREFIXES, an ERE alternation, whose definition line the diff of RANGE
+# removes from the ledgers the config KEYs name and does not add back to
+# them, one per line, unsorted. Returns 2 when the configuration, git, grep
+# or awk fails.
+gr_deleted_definitions() {
+    _deleted_range=$1
+    _deleted_prefixes=$2
+    shift 2
+    _deleted_ledgers=""
+    for _deleted_key in "$@"; do
+        if gr_units_present; then
+            _deleted_units=$(gr_unit_list) || return 2
+            _deleted_found=$(for _deleted_unit in $_deleted_units; do
+                cfg_get "$_deleted_key" "$_deleted_unit/.guardrails/config.yaml" || exit 2
+            done) || return 2
+        elif [ -f "$GR_CONFIG" ]; then
+            _deleted_found=$(cfg_get "$_deleted_key") || return 2
+        else
+            _deleted_found=""
+        fi
+        _deleted_ledgers="$_deleted_ledgers
+$_deleted_found"
+    done
+    # The ledgers become git's pathspecs, one argument each, naming the files
+    # check-trace reads (gr_doc_files): a directory's top-level *.md files,
+    # where `*` under :(glob) does not cross a `/`, or the file itself. A
+    # ledger's own glob characters are escaped, so its name is read as spelled.
+    set --
+    while IFS= read -r _deleted_ledger; do
+        [ -n "$_deleted_ledger" ] || continue
+        if [ -d "$_deleted_ledger" ]; then
+            _deleted_glob=$(printf '%s\n' "${_deleted_ledger%/}" \
+                | sed 's/[][*?\\]/\\&/g') || return 2
+            set -- "$@" ":(glob)$_deleted_glob/*.md"
+        else
+            set -- "$@" ":(literal)$_deleted_ledger"
+        fi
+    done <<EOF
+$_deleted_ledgers
+EOF
+    [ $# -gt 0 ] || return 0
+    _deleted_diff=$(git diff --no-color --no-ext-diff \
+        --no-textconv --unified=0 --no-renames "$_deleted_range" -- "$@") \
+        || return 2
+    # grep's 1 is no definition line, which deletes nothing.
+    _deleted_lines=$(printf '%s\n' "$_deleted_diff" \
+        | grep -E "$(gr_def_re "$_deleted_prefixes" '^[-+]')")
+    [ $? -le 1 ] || return 2
+    [ -n "$_deleted_lines" ] || return 0
+    # Each line is `-**ID**:` or `+**ID**:`; the ID runs from the fourth
+    # character to the next asterisk.
+    printf '%s\n' "$_deleted_lines" | awk '
+        { id = substr($0, 4); id = substr(id, 1, index(id, "*") - 1) }
+        substr($0, 1, 1) == "+" { added[id] = 1; next }
+        { removed[id] = 1 }
+        END { for (id in removed) if (!(id in added)) print id }' || return 2
 }
 
 # gr_limit KEY — a triage limit from the config: a non-negative whole number,
@@ -1847,24 +2018,19 @@ gr_req_scan() {
     return 0
 }
 
-# gr_unit_doc_files UNIT KEY — the unit's KEY files, one per line. The same
+# gr_unit_srs UNIT — the unit's doc_srs files, one per line. The same
 # emptiness rules gr_doc_files applies, with the unit named in the error.
-gr_unit_doc_files() {
-    _uv=$(cfg_get "$2" "$1/.guardrails/config.yaml")
-    [ -n "$_uv" ] || return 0
-    if [ -d "$_uv" ]; then
-        gr_md_files "$_uv" "$2 of unit $1 is configured as directory"
-    elif [ -f "$_uv" ]; then
-        printf '%s\n' "$_uv"
+gr_unit_srs() {
+    _unit_doc_srs=$(cfg_get doc_srs "$1/.guardrails/config.yaml")
+    [ -n "$_unit_doc_srs" ] || return 0
+    if [ -d "$_unit_doc_srs" ]; then
+        gr_md_files "$_unit_doc_srs" "doc_srs of unit $1 is configured as directory"
+    elif [ -f "$_unit_doc_srs" ]; then
+        printf '%s\n' "$_unit_doc_srs"
     else
-        gr_die "unit $1: $2 is configured as '$_uv', which does not exist"
+        gr_die "unit $1: doc_srs is configured as '$_unit_doc_srs', which does not exist"
     fi
     return 0
-}
-
-# gr_unit_srs UNIT — the unit's doc_srs files (gr_unit_doc_files above).
-gr_unit_srs() {
-    gr_unit_doc_files "$1" doc_srs
 }
 
 # gr_unit_req_scan UNIT — gr_req_scan over the unit's SRS. Call in a command

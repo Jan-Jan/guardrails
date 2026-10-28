@@ -151,7 +151,7 @@ Work in a worktree, as a change of its own.
    the project edited a README, diff and re-apply its additions.
 4. Run `check-trace.sh`; fix each failure, and list each new warning in the
    squash message once Step 5 writes it. Existing ledgers report problem `status:`/`opened:`,
-   supersession reciprocity and `DANGLING-FILE`.
+   `RESOLVED-PROBLEM`, `SUPERSESSION-ANNOTATION` and `DANGLING-FILE`.
    Derived assessments are now declared: a derived REQ/LLR without an
    `assesses:` line in the RMF goes red.
 5. Re-record the tool qualification (Step 5), then integrate with

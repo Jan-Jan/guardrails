@@ -20,17 +20,22 @@ A project that changes a clause rewrites its reason and examples with it.
    test does not source the library to call one directly unless clause 2
    below allows it, and the existing direct tests in `tests/lib.bats` are
    spared (Existing suites). A test verifies the REQ, LLR or ADR that
-   states the behavior, or the problem report that does, at the same seam;
-   this repository keeps no REQ or LLR ledger of its own, so here that is
-   an ADR or a problem report. A test's existing citation of a plan decision
-   stands until this repository's requirements ledger replaces it, and a test
-   a change writes cites no plan decision.
+   states the behavior, at the same seam; this repository keeps its REQs in
+   `docs/requirements/` and no LLR ledger, so here that is a REQ or an ADR.
+   A regression test verifies the lowest-level item the defect broke: the
+   LLR where one exists, else the REQ (or the RC's implementing REQ), never
+   the problem report. A test's existing citation of a plan decision stands
+   until the requirements ledger replaces it, and a test a change writes
+   cites no plan decision. A change re-points a citation of a plan decision
+   it reverses, or of a problem report the behavior no longer matches. Why:
+   an ID a test cites must outlive the test: a resolved problem report is
+   deleted, a plan never reaches the base branch.
 
-2. **A deeper interface gets a direct test only once an ADR or a problem
-   report states its contract.** Here that item plays the role an LLR plays
-   in a project with a ledger: a function in `scripts/lib.sh` gets a new
-   direct test only once an ADR or problem item states its contract, and it
-   earns one only where at least one of these holds:
+2. **A deeper interface gets a direct test only once a REQ, LLR or ADR
+   states its contract.** This repository keeps no LLR ledger, so here a
+   function in `scripts/lib.sh` gets a new direct test only once a REQ or an
+   ADR states its contract, and it earns one only where at least one of these
+   holds:
 
    1. **Unreachable.** A case cannot be triggered through the REQ interface
       without faking code the project owns. A retry policy whose third attempt
@@ -52,9 +57,9 @@ A project that changes a clause rewrites its reason and examples with it.
    user) is observable at the REQ interface: trigger it through a boundary
    fake there. Where the error handling has a contract of its own (backoff,
    partial writes, rollback) and criterion 1 or 2 holds, the adapter is
-   tested at its own interface once an ADR or problem report states that
-   contract in place of an LLR, against the real resource where possible: a
-   temporary directory, a real git repository created in it.
+   tested at its own interface once a REQ, LLR or ADR states that contract
+   (here a REQ or an ADR, as in clause 2), against the real resource where
+   possible: a temporary directory, a real git repository created in it.
    Why: a handled error is behavior a user sees; only a contract of its own
    earns the adapter a seam.
 

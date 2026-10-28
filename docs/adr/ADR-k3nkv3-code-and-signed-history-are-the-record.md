@@ -20,9 +20,15 @@ for the current one.
 - **Not kept:** plans (committed on the change branch, deleted before the
   gate), verification records and `.mutations/` scripts, resolved problem
   reports, and superseded or retired items. A deleted item leaves no
-  annotation; a test still naming it fails as a dangling reference, so a
-  regression test verifies the REQ the defect broke, added by the fixing
-  change where none covered it.
+  annotation, so an item on the base branch is in force.
+- **What a test cites:** A test verifies a REQ, LLR or ADR, never a problem
+  report or a plan: an ID a test cites must outlive it. A test still naming a
+  deleted item fails as a dangling reference; the change deletes it, or
+  points it at the successor and lists it as
+  `inherited: <test> — from <old ID>`. A regression test verifies the
+  lowest-level item the defect broke: the LLR where one exists, else the REQ
+  (or the RC's implementing REQ), added by the fixing change where none
+  covered it.
 - **The squash message is the record.** Its body states what and why, the
   items changed, the problems resolved and each review finding with its
   disposition. Its trailers are checked before hand-over and after signing:

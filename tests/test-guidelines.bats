@@ -281,35 +281,87 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
     done
 }
 
-@test "test guidelines: here an ADR or problem report states a deeper interface's contract, not an LLR" {
-    # verifies: D10 (docs/plans/2026-10-08-test-guidelines.md)
-    # verifies: ADR-k3nkv3
+@test "test guidelines: here a REQ or an ADR states a deeper interface's contract, not an LLR or a problem report" {
+    # verifies: ADR-me39p4, ADR-k3nkv3
     # This repository keeps no LLR ledger (Seams 1), so Seams 2 and 3 cannot
-    # hang a direct test on one; and no plan reaches the base branch
-    # (ADR-k3nkv3), so neither can hang one on a plan decision.
-    grep -qxF '2. **A deeper interface gets a direct test only once an ADR or a problem' "$repo_guidelines" \
-        || { echo "Seams 2 does not hang on an ADR"; false; }
-    grep -qxF '   report states its contract.** Here that item plays the role an LLR plays' "$repo_guidelines"
-    grep -qxF '   direct test only once an ADR or problem item states its contract, and it' "$repo_guidelines"
-    grep -qxF '   tested at its own interface once an ADR or problem report states that' "$repo_guidelines" \
-        || { echo "Seams 3 does not hang on an ADR"; false; }
-    grep -qxF '   this repository keeps no REQ or LLR ledger of its own, so here that is' "$repo_guidelines" \
-        || { echo "Seams 1 does not name the ADR"; false; }
+    # hang a direct test on one; no plan reaches the base branch (ADR-k3nkv3),
+    # so neither can hang one on a plan decision; and a test verifies a REQ,
+    # LLR or ADR, never a problem report or a plan (ADR-k3nkv3).
+    grep -qxF '2. **A deeper interface gets a direct test only once a REQ, LLR or ADR' "$repo_guidelines" \
+        || { echo "Seams 2 does not hang on a REQ, LLR or ADR"; false; }
+    grep -qxF '   states its contract.** This repository keeps no LLR ledger, so here a' "$repo_guidelines"
+    grep -qxF '   function in `scripts/lib.sh` gets a new direct test only once a REQ or an' "$repo_guidelines"
+    grep -qxF '   tested at its own interface once a REQ, LLR or ADR states that contract' "$repo_guidelines" \
+        || { echo "Seams 3 does not hang on a REQ, LLR or ADR"; false; }
+    grep -qxF '   (here a REQ or an ADR, as in clause 2), against the real resource where' "$repo_guidelines"
+    grep -qxF '   `docs/requirements/` and no LLR ledger, so here that is a REQ or an ADR.' "$repo_guidelines" \
+        || { echo "Seams 1 does not name the REQ ledger and the ADR"; false; }
     grep -qxF '   test does not source the library to call one directly unless clause 2' "$repo_guidelines"
     llr_count=$(grep -cF -e 'once it has an LLR' -e 'with an LLR stating' "$repo_guidelines" || true)
     [ "$llr_count" -eq 0 ] || { echo "names an LLR as the permission $llr_count times"; false; }
     # Seams 1 lets a test's existing plan-decision citation stand until the
-    # repository's requirements ledger replaces it, and bars a new one; those
-    # two lines are the only ones that may name a plan decision.
-    grep -qxF "   an ADR or a problem report. A test's existing citation of a plan decision" "$repo_guidelines" \
+    # requirements ledger replaces it, bars a new one, and re-points one a
+    # change reverses; two of its lines name a plan decision, and no other
+    # line may.
+    grep -qxF "   the problem report. A test's existing citation of a plan decision stands" "$repo_guidelines" \
         || { echo "Seams 1 does not let an existing plan-decision citation stand"; false; }
-    grep -qxF "   stands until this repository's requirements ledger replaces it, and a test" "$repo_guidelines"
-    grep -qxF '   a change writes cites no plan decision.' "$repo_guidelines" \
+    grep -qxF '   until the requirements ledger replaces it, and a test a change writes' "$repo_guidelines" \
         || { echo "Seams 1 does not bar a new plan-decision citation"; false; }
+    grep -qxF '   cites no plan decision. A change re-points a citation of a plan decision' "$repo_guidelines" \
+        || { echo "Seams 1 does not re-point a reversed plan-decision citation"; false; }
     # grep -c exits 1 on a count of zero, so the count carries the verdict; an
     # unreadable file has already failed the greps above.
     plan_count=$(grep -cF 'plan decision' "$repo_guidelines" || true)
     [ "$plan_count" -eq 2 ] || { echo "names a plan decision on $plan_count lines, not 2"; false; }
+}
+
+@test "test guidelines: Seams 1 has a test verify a REQ, LLR or ADR, never a problem report, and re-points a reversed citation" {
+    # verifies: ADR-k3nkv3
+    for guidelines in "$template" "$repo_guidelines"; do
+        clause=$(awk '/^1\. \*\*A test calls only an interface/ { inside = 1 }
+            inside && /^2\. / { exit } inside' "$guidelines" | tr '\n' ' ' | tr -s ' ')
+        [ -n "$clause" ] || { echo "$guidelines has no Seams 1"; false; }
+        for phrase in 'A test verifies the REQ, LLR or ADR' \
+                "the lowest-level item the defect broke: the LLR where one exists, else the REQ (or the RC's implementing REQ)" \
+                'Why: an ID a test cites must outlive' \
+                'a resolved problem report is deleted, a plan never reaches the base branch' \
+                'A change re-points a citation of a plan decision it reverses, or' \
+                'problem report the behavior no longer matches.'; do
+            printf '%s\n' "$clause" | grep -qF -- "$phrase" \
+                || { echo "$guidelines Seams 1 lacks: $phrase"; false; }
+        done
+        if printf '%s\n' "$clause" | grep -qF 'or the problem report that does'; then
+            echo "$guidelines Seams 1 still lets a test verify a problem report"; false
+        fi
+    done
+}
+
+@test "guidelines: no guidelines file lets a test cite a problem report" {
+    # verifies: ADR-k3nkv3
+    # A test verifies a REQ, LLR or ADR, never a problem report or a plan
+    # (ADR-k3nkv3): no clause in a shipped or repository guidelines file may
+    # offer a problem item as what a test cites or what states a contract.
+    root="$BATS_TEST_DIRNAME/.."
+    adr=$(tr '\n' ' ' < "$root/docs/adr/ADR-k3nkv3-code-and-signed-history-are-the-record.md" | tr -s ' ')
+    printf '%s\n' "$adr" | grep -qF 'A test verifies a REQ, LLR or ADR, never a problem report or a plan: an ID a test cites must outlive it.' \
+        || { echo "ADR-k3nkv3 does not state what a test verifies"; false; }
+    seen=0
+    for guidelines in "$root"/docs/*_GUIDELINES.md "$root"/templates/*_GUIDELINES.md; do
+        seen=$((seen + 1))
+        flat=$(tr '\n' ' ' < "$guidelines" | tr -s ' ')
+        for phrase in 'or the problem item' 'ADR or a problem' 'ADR or problem' \
+                'or the problem report that does'; do
+            if printf '%s\n' "$flat" | grep -qF -- "$phrase"; then
+                echo "$guidelines lets a test cite a problem report: $phrase"; false
+            fi
+        done
+    done
+    [ "$seen" -eq 6 ] || { echo "expected 6 guidelines files, read $seen"; false; }
+    grep -qxF '   scan of the tree can check is a test in `tests/`, annotated with the REQ,' \
+        "$root/docs/ARCHITECTURE_GUIDELINES.md"
+    grep -qxF '   LLR or ADR it enforces, not a clause in this file. A rule that needs' \
+        "$root/docs/ARCHITECTURE_GUIDELINES.md" \
+        || { echo "Constraints 1 does not annotate with a REQ, LLR or ADR alone"; false; }
 }
 
 @test "test guidelines: both files define the robustness rule where they first name it" {

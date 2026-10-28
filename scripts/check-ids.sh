@@ -174,9 +174,8 @@ fi
 # definition shape would convict line by line and drive pattern-widening —
 # the exact pressure the assessment names. The narrowness is gated:
 # disclaimed-prose-is-not-malformed.
-# One gr_def_re_loose call site feeding both branches — the call-site pin in
-# tests/check-ids.bats counts them, and the pathspec pair is what cannot live
-# in a variable, not the pattern.
+# One gr_def_re_loose call site feeding both branches: the pathspec pair is
+# what cannot live in a variable, not the pattern.
 def_re_loose=$(gr_def_re_loose "$P") || exit 2
 if [ -n "$GR_UNIT" ]; then
     malformed=$(git grep -nI --untracked -E \

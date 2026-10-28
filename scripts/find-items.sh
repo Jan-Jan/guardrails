@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
-# find-items.sh list [--kind PREFIX]... [--status open|accepted|resolved]
+# find-items.sh list [--kind PREFIX]... [--status open|accepted]
 # find-items.sh show ID
 # find-items.sh refs ID
 #
@@ -14,12 +14,13 @@
 #         <unit>/docs/adr/ADR-*.md, in that order. Each line gives the ID,
 #         status, file:line of the definition, and the rest of the definition
 #         line. The status is the first column-one `status:` line in the item
-#         block, the line check-trace.sh reads, or `-` when the block has
-#         none. An ADR's `Status:` line is not a `status:` line, so an ADR's
+#         block, the line check-trace.sh reads, printed whatever its value,
+#         or `-` when the block has none. An ADR's `Status:` line is not a `status:` line, so an ADR's
 #         status is `-` and --status keeps no ADR. --kind keeps the items of
 #         one declared prefix; given more than once, it keeps the items of
-#         each prefix it names. --status keeps the items with that status, and
-#         is given at most once. An empty --kind or --status is a usage error.
+#         each prefix it names. --status keeps the items with that status,
+#         open or accepted, the two a problem report may carry (ADR-k3nkv3),
+#         and is given at most once. An empty --kind or --status is a usage error.
 #         A doc_soup file inside the doc_sad directory is read once.
 #   show  The block of every definition of ID, each after a line
 #         `==> file:line`, with a blank line between two blocks. A block ends
@@ -49,7 +50,7 @@
 # error.
 set -u
 
-find_items_usage='usage: find-items.sh list [--kind PREFIX]... [--status open|accepted|resolved] | show ID | refs ID'
+find_items_usage='usage: find-items.sh list [--kind PREFIX]... [--status open|accepted] | show ID | refs ID'
 find_items_remedy='Run find-items.sh list to see the IDs this config defines; an ID defined in another unit needs that unit config in GR_CONFIG.'
 
 . "$(dirname "$0")/lib.sh"
@@ -100,8 +101,8 @@ case $subcommand in
                     [ $# -ge 2 ] || gr_die "$find_items_usage"
                     [ -z "$want_status" ] || gr_die "--status is given more than once"
                     case $2 in
-                        (open|accepted|resolved) want_status=$2 ;;
-                        (*) gr_die "--status takes open, accepted or resolved, not: '$2'" ;;
+                        (open|accepted) want_status=$2 ;;
+                        (*) gr_die "--status takes open or accepted, not: '$2'" ;;
                     esac
                     shift
                     ;;

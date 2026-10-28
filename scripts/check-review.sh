@@ -38,6 +38,14 @@
 #       coverage_command entries, summed as TESTS sums them; a placeholder
 #       one is not counted.
 #   MALFORMED-MUTATION VALUE — a Mutation: trailer not in the template's form.
+#   RESOLVES (...) — a PR item the change deletes from the problem ledgers
+#       (gr_deleted_items over the base branch...HEAD) that no Resolves:
+#       trailer names, or a Resolves: ID the change does not delete.
+#   PROBLEMS (...) — a PR item the change deletes that the Problems: section
+#       does not name.
+#   ITEMS (...) — a REQ, LLR, SDD, HAZ or RC item the change deletes from
+#       the doc_srs, doc_sad or doc_rmf ledgers that the Items: section does
+#       not name.
 # and, with citation checking on:
 #   UNRESOLVABLE-DISPOSITION N — the disposition cites no path in the tree,
 #       test name in test_paths or defined item ID, and is not
@@ -168,9 +176,15 @@ if gr_units_present; then
 fi
 tests_want=$(gr_message_want verify_commands "$impact_units") || exit 2
 coverage_want=$(gr_message_want coverage_command "$impact_units") || exit 2
+# The items the change deletes, PR items among them, from the merge base as
+# above: its Resolves: and Problems: name each deleted PR, its Items: each
+# other deleted item (ADR-3hsvvq).
+deleted=$(gr_deleted_items "refs/heads/$base...HEAD") || gr_die \
+"the items this change deletes cannot be read from the ledgers' diff over
+  refs/heads/$base...HEAD; the error is above."
 
 fail=0
-gr_message_check "$message" "$tree" "$tests_want" "$coverage_want"
+gr_message_check "$message" "$tree" "$tests_want" "$coverage_want" "$deleted"
 case $? in
     (0) ;;
     (1) fail=1 ;;

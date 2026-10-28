@@ -5,9 +5,10 @@ setup() { make_fixture_repo; }
 # check-review.sh checks the squash message, the verification record
 # (ADR-k3nkv3), in the grammar and at the place ADR-3hsvvq states, with
 # gr_message_check. Each code that checker reports is tested in
-# tests/lib.bats; the tests here prove that this script finds the message,
-# hands it the change's tree, reports what it prints, refuses where there is
-# no change, and resolves citations.
+# tests/lib.bats, but for PROBLEMS and ITEMS, which are tested here with the
+# deletions they read; the tests here prove that this script finds the
+# message, hands it the change's tree and the items it deletes, reports what
+# it prints, refuses where there is no change, and resolves citations.
 
 # --- the message and its checker --------------------------------------------
 
@@ -190,6 +191,329 @@ setup() { make_fixture_repo; }
     printf 'Coverage: make coverage 91%%\n' >> "$(message_file)"
     run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "check-review: a branch deleting a PR item owes it in Resolves:" {
+    # verifies: ADR-3hsvvq
+    # The range is the base branch to HEAD: a problem report on main that the
+    # change deletes is owed, and naming it passes.
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/open.md
+    commit_all problem
+    make_change_worktree my-change
+    git rm -q docs/problems/open.md
+    commit_all resolve
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "RESOLVES (deleted PR-abc234, not named in Resolves:)"
+    printf 'Resolves: PR-abc234\n' >> "$(message_file)"
+    add_message_section "$(message_file)" 'Problems:' '- PR-abc234 — a cause → a fix'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-review: a deleted PR missing from Problems: is PROBLEMS" {
+    # verifies: ADR-3hsvvq
+    # Resolves: names it; the Problems: section, ending at the next section
+    # header, does not, though the Gaps: after it does.
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/open.md
+    commit_all problem
+    make_change_worktree my-change
+    git rm -q docs/problems/open.md
+    commit_all resolve
+    write_message
+    printf 'Resolves: PR-abc234\n' >> "$(message_file)"
+    add_message_section "$(message_file)" 'Problems:' '- none here' 'Gaps:' '- PR-abc234'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "PROBLEMS (deleted PR-abc234, not named under Problems:)"
+    output_lacks "RESOLVES"
+}
+
+@test "check-review: a deleted REQ, SDD or HAZ missing from Items: is ITEMS" {
+    # verifies: ADR-3hsvvq
+    # One item from each ledger: doc_srs, doc_sad, doc_rmf. Items: names
+    # the REQ; the Gaps: header ends the section, so the HAZ it names is
+    # still owed.
+    printf '**REQ-abc234**: a requirement\n' > docs/requirements/srs.md
+    printf '**SDD-bcd345**: a design item\n' > docs/architecture/sad.md
+    printf '**HAZ-cde456**: a hazard\n' > docs/risk/rmf.md
+    commit_all items
+    make_change_worktree my-change
+    git rm -q docs/requirements/srs.md docs/architecture/sad.md docs/risk/rmf.md
+    commit_all delete
+    write_message
+    add_message_section "$(message_file)" 'Items:' '- REQ-abc234 deleted — no longer wanted' \
+        'Gaps:' '- HAZ-cde456'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "ITEMS (deleted HAZ-cde456, not named under Items:)"
+    output_has "ITEMS (deleted SDD-bcd345, not named under Items:)"
+    output_lacks "REQ-abc234"
+}
+
+@test "check-review: a deleted item named under Items: is owed nothing" {
+    # verifies: ADR-3hsvvq
+    # Named as a word, inside backticks and before a comma.
+    printf '**REQ-abc234**: a requirement\n\n**LLR-bcd345**: a low-level one\n' \
+        > docs/requirements/srs.md
+    commit_all items
+    make_change_worktree my-change
+    git rm -q docs/requirements/srs.md
+    commit_all delete
+    write_message
+    add_message_section "$(message_file)" 'Items:' '- `REQ-abc234`, LLR-bcd345 deleted — no longer wanted'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "check-review: an ID on the Items: header line itself is named" {
+    # verifies: ADR-3hsvvq
+    printf '**REQ-abc234**: a requirement\n' > docs/requirements/srs.md
+    commit_all item
+    make_change_worktree my-change
+    git rm -q docs/requirements/srs.md
+    commit_all delete
+    write_message
+    add_message_section "$(message_file)" 'Items: REQ-abc234 deleted — no longer wanted'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "check-review: blank lines after an Items: or Problems: header do not end it" {
+    # verifies: ADR-3hsvvq
+    # The usual Markdown layout: a blank line after each header, before its
+    # list. The section ends at the first blank line after content, so the
+    # Gaps: paragraph after it names nothing.
+    printf '**REQ-abc234**: a requirement\n**REQ-bcd345**: another\n' > docs/requirements/srs.md
+    printf '**PR-cde456**: a problem\nstatus: open\n' > docs/problems/open.md
+    commit_all items
+    make_change_worktree my-change
+    git rm -q docs/requirements/srs.md docs/problems/open.md
+    commit_all delete
+    write_message
+    printf 'Resolves: PR-cde456\n' >> "$(message_file)"
+    add_message_section "$(message_file)" 'Items:' '' '' '- REQ-abc234 deleted — no longer wanted' \
+        '' 'REQ-bcd345 is named here, after the section' '' \
+        'Problems:' '' '- PR-cde456 — a cause → a fix'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "ITEMS (deleted REQ-bcd345, not named under Items:)"
+    output_lacks "REQ-abc234"
+    output_lacks "PROBLEMS"
+}
+
+@test "check-review: a Findings: header ends the Items: section" {
+    # verifies: ADR-3hsvvq
+    # No blank line between them: the finding that mentions the deleted REQ
+    # is a finding, still read as one, and not a word of Items:.
+    printf '**REQ-abc234**: a requirement\n' > docs/requirements/srs.md
+    commit_all item
+    make_change_worktree my-change
+    git rm -q docs/requirements/srs.md
+    commit_all delete
+    write_message
+    add_message_section "$(message_file)" 'Items:' '- none here' \
+        'Findings:' '1. [no change: out of scope] code low — REQ-abc234 is gone'
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "ITEMS (deleted REQ-abc234, not named under Items:)"
+    output_has "checked: message $(message_file), findings 1"
+}
+
+@test "check-review: a reworded item keeping its ID owes nothing under Items:" {
+    # verifies: ADR-3hsvvq
+    printf '**REQ-abc234**: a requirement\n' > docs/requirements/srs.md
+    commit_all item
+    make_change_worktree my-change
+    printf '**REQ-abc234**: a requirement, reworded\n' > docs/requirements/srs.md
+    commit_all reword
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_lacks "ITEMS"
+}
+
+@test "check-review: a PR definition deleted outside the problem ledger is owed nowhere" {
+    # verifies: ADR-3hsvvq
+    # A test fixture or a skill example may spell a problem report; deleting
+    # it resolves nothing.
+    printf '**PR-abc234**: a problem\nstatus: open\n' > tests/fixture.md
+    commit_all fixture
+    make_change_worktree my-change
+    git rm -q tests/fixture.md
+    commit_all "drop the fixture"
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_lacks "RESOLVES"
+}
+
+@test "check-review: a definition deleted from a ledger's subdirectory or non-.md file is not owed" {
+    # verifies: ADR-3hsvvq
+    # A directory ledger is its top-level *.md files, the files check-trace
+    # reads; an archive below it and a notes file beside them are not.
+    mkdir -p docs/problems/archive
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/archive/old.md
+    printf '**PR-bcd345**: a problem\nstatus: open\n' > docs/problems/notes.txt
+    printf '**PR-cde456**: a problem\nstatus: open\n' > docs/problems/open.md
+    commit_all problems
+    make_change_worktree my-change
+    git rm -q docs/problems/archive/old.md docs/problems/notes.txt docs/problems/open.md
+    commit_all resolve
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "RESOLVES (deleted PR-cde456, not named in Resolves:)"
+    output_lacks "PR-abc234"
+    output_lacks "PR-bcd345"
+}
+
+@test "check-review: with no doc_problems configured no problem report is owed" {
+    # verifies: ADR-3hsvvq
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/open.md
+    # A config that declares PR must configure its ledger; one without
+    # either has no problem ledger.
+    sed -i.bak -e '/^doc_problems:/d' -e 's/^id_prefixes: REQ HAZ RC SDD LLR PR$/id_prefixes: REQ HAZ RC SDD LLR/' \
+        .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    # Both edits applied, or the run below tests the default config.
+    if grep -q '^doc_problems:' .guardrails/config.yaml; then
+        echo "doc_problems: still configured"; cat .guardrails/config.yaml; false
+    fi
+    grep -qx 'id_prefixes: REQ HAZ RC SDD LLR' .guardrails/config.yaml \
+        || { echo "id_prefixes: not edited"; cat .guardrails/config.yaml; false; }
+    commit_all "no problem ledger"
+    make_change_worktree my-change
+    git rm -q docs/problems/open.md
+    commit_all resolve
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_lacks "RESOLVES"
+}
+
+@test "check-review: a PR definition moved to another ledger file is not deleted" {
+    # verifies: ADR-3hsvvq
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/open.md
+    commit_all problem
+    make_change_worktree my-change
+    git mv docs/problems/open.md docs/problems/moved.md
+    commit_all move
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_lacks "RESOLVES"
+}
+
+@test "check-review: a PR item added and resolved on the branch is not owed" {
+    # verifies: ADR-3hsvvq
+    # Against the merge base the branch's own item never existed; the base's
+    # item the branch deletes is still owed.
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/open.md
+    commit_all problem
+    make_change_worktree my-change
+    printf '**PR-bcd345**: another\nstatus: open\n' >> docs/problems/open.md
+    commit_all open
+    git rm -q docs/problems/open.md
+    commit_all resolve
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "RESOLVES (deleted PR-abc234, not named in Resolves:)"
+    output_lacks "PR-bcd345"
+}
+
+@test "check-review: under a unit manifest a PR deleted from a unit's ledger is owed" {
+    # verifies: ADR-3hsvvq
+    make_units_fixture
+    printf '**PR-h7c4n2**: a problem\nstatus: open\n' > platform/hal/docs/problems/open.md
+    printf '**PR-p8d5q3**: a fixture\n' > platform/hal/tests/fixture.md
+    commit_all problem
+    make_change_worktree units-change
+    git rm -q platform/hal/docs/problems/open.md platform/hal/tests/fixture.md
+    commit_all resolve
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "RESOLVES (deleted PR-h7c4n2, not named in Resolves:)"
+    output_lacks "PR-p8d5q3"
+}
+
+@test "check-review: a failing awk reading the deleted problem reports exits 2" {
+    # verifies: ADR-3hsvvq
+    # A fault injector at the awk boundary: an awk that exits 2 with no output
+    # on the one program that reads the deleted definitions, and is the real
+    # awk on every other call. Its status dropped, the run would read no
+    # deletion and pass.
+    printf '**PR-abc234**: a problem\nstatus: open\n' > docs/problems/open.md
+    commit_all problem
+    make_change_worktree my-change
+    git rm -q docs/problems/open.md
+    commit_all resolve
+    write_message
+    printf 'Resolves: PR-abc234\n' >> "$(message_file)"
+    real_awk=$(command -v awk)
+    stub_directory="$BATS_TEST_TMPDIR/deleted-awk-fails"
+    mkdir -p "$stub_directory"
+    cat > "$stub_directory/awk" <<STUB
+#!/bin/sh
+for argument in "\$@"; do
+    case "\$argument" in
+        (*'added['*) exit 2 ;;
+    esac
+done
+exec "$real_awk" "\$@"
+STUB
+    chmod +x "$stub_directory/awk"
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "the items this change deletes cannot be read"
+}
+
+@test "check-review: under a unit manifest a failing read of the unit list for the ledgers exits 2" {
+    # verifies: ADR-3hsvvq
+    # A fault injector at the awk boundary: once the Coverage: count has read
+    # coverage_command, an awk reading the manifest's units exits 2 with no
+    # output; every other call is the real awk. The manifest checks before it
+    # read the list whole, so only the ledgers' read fails. Its status
+    # dropped, the run would read no ledger, no deletion, and pass.
+    make_units_fixture
+    printf '**PR-h7c4n2**: a problem\nstatus: open\n' > platform/hal/docs/problems/open.md
+    commit_all problem
+    make_change_worktree units-change
+    git rm -q platform/hal/docs/problems/open.md
+    commit_all resolve
+    write_message
+    printf 'Resolves: PR-h7c4n2\n' >> "$(message_file)"
+    real_awk=$(command -v awk)
+    stub_directory="$BATS_TEST_TMPDIR/unit-list-fails"
+    mkdir -p "$stub_directory"
+    cat > "$stub_directory/awk" <<STUB
+#!/bin/sh
+for argument in "\$@"; do
+    case "\$argument" in
+        (k=coverage_command) : > "$stub_directory/coverage-read" ;;
+        (k=units) [ ! -f "$stub_directory/coverage-read" ] || exit 2 ;;
+    esac
+done
+exec "$real_awk" "\$@"
+STUB
+    chmod +x "$stub_directory/awk"
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "the items this change deletes cannot be read"
+    [ -f "$stub_directory/coverage-read" ] || { echo "the stub never saw coverage_command"; false; }
+}
+
+@test "check-review: a failing git diff of the problem ledgers exits 2" {
+    # verifies: ADR-3hsvvq
+    make_change_worktree my-change
+    write_message
+    stub_directory=$(make_git_failing_on '*" --unified=0 --no-renames "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "fatal: stub failure of git diff --no-color"
+    output_has "the items this change deletes cannot be read"
 }
 
 @test "check-review: a finding with no severity is reported as MALFORMED-FINDING and fails the run" {

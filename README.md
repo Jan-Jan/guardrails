@@ -107,7 +107,8 @@ one of these places:
   Reasons, worked examples and conditional material are in
   `skills/<name>/references/`.
 - **The ledger templates**, `templates/srs.md`, `rmf.md`, `sad.md` and
-  `problems.md`, state the item grammar and the ledger layout. `/ratchet`
+  `problems.md`, state the item grammar, the ledger layout and how an item
+  is changed or deleted. `/ratchet`
   installs each as its ledger directory's `README.md`.
   `templates/squash-message.txt` states the squash message, which is the
   verification record.

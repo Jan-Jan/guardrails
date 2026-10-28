@@ -2,9 +2,12 @@
 
 This directory is a per-change ledger: each change contributes one dated
 file, `YYYY-MM-DD-<slug>.md`, dated the day the change creates it and never
-renamed. **Edit existing items in the file that defines them.** This README
-contains the project-wide acceptability matrix; the dated files contain
-hazards, controls, derived assessments, and residual-risk statements.
+renamed. **Edit existing items in the file that defines them.** A reworded
+item keeps its ID; a changed hazard or control gets a new ID and the old item
+is deleted; a dropped item is deleted. The squash message records each under
+`Items:`. This README contains the project-wide acceptability matrix; the
+dated files contain hazards, controls, derived assessments, and residual-risk
+statements.
 
 <!--
 Item grammar (enforced by .guardrails/scripts/check-trace.sh):

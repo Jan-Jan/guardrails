@@ -2,9 +2,11 @@
 
 This directory is a per-change ledger: each change contributes one dated
 file, `YYYY-MM-DD-<slug>.md`, dated the day the change creates it and never
-renamed. **Edit existing items in the file that defines them.** Use this
-README's Overview section for the system-wide decomposition picture; `soup.md`
-(single file) contains the SOUP inventory.
+renamed. **Edit existing items in the file that defines them.** A reworded
+item keeps its ID; a changed behavior gets a new ID and the old item is
+deleted; a dropped item is deleted. The squash message records each under
+`Items:`. Use this README's Overview section for the system-wide decomposition
+picture; `soup.md` (single file) contains the SOUP inventory.
 
 <!--
 Item grammar (enforced by .guardrails/scripts/check-trace.sh):

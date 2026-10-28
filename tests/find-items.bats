@@ -116,11 +116,23 @@ EOF
         || { echo "$output"; false; }
 }
 
-@test "find-items: list rejects a status that is not open, accepted or resolved" {
+@test "find-items: list rejects a status that is not open or accepted" {
+    # verifies: REQ-ars54m
     run sh .guardrails/scripts/find-items.sh list --status closed
     [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"--status takes open, accepted or resolved"* ]] \
+    [[ "$output" == *"--status takes open or accepted"* ]] \
         || { echo "$output"; false; }
+}
+
+@test "find-items: list rejects --status resolved" {
+    # verifies: REQ-ars54m
+    run sh .guardrails/scripts/find-items.sh list --status resolved
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"--status takes open or accepted, not: 'resolved'"* ]] \
+        || { echo "$output"; false; }
+    run sh .guardrails/scripts/find-items.sh list --status
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"[--status open|accepted] |"* ]] || { echo "$output"; false; }
 }
 
 @test "find-items: show prints the block and ends it at the heading" {
@@ -222,12 +234,13 @@ RC-001 - docs/risk/0001-01-01-base.md:5 Software limits dose to configured maxim
 }
 
 @test "find-items: list rejects an empty --kind and an empty --status" {
+    # verifies: REQ-ars54m
     run sh .guardrails/scripts/find-items.sh list --kind ""
     [ "$status" -eq 2 ] || { echo "$output"; false; }
     [[ "$output" == *"--kind takes a prefix declared in id_prefixes"* ]] || { echo "$output"; false; }
     run sh .guardrails/scripts/find-items.sh list --status ""
     [ "$status" -eq 2 ] || { echo "$output"; false; }
-    [[ "$output" == *"--status takes open, accepted or resolved"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"--status takes open or accepted"* ]] || { echo "$output"; false; }
 }
 
 @test "find-items: list rejects --status given twice" {

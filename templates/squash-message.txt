@@ -13,10 +13,19 @@
 <what and why, a few sentences: the future pull-request body>
 
 # Items:, Problems:, Red-green:, Gaps: and Qualification: are prose for
-# people, optional and unchecked. Red-green lines are copied verbatim from the
-# dispatch reports. Qualification: is a ratchet change's only.
+# people, which the step 4 reviewer checks. Items: lists each REQ, LLR,
+# SDD, HAZ or RC item the change adds, rewords, replaces (`old → new`) or
+# deletes (with the reason); it is the only record of a deleted item. PR
+# items go under Problems:, which lists each PR item resolved, as
+# `PR-<id> — <cause> → <fix>`. The message check reads only
+# deletions: each REQ, LLR, SDD, HAZ or RC the diff deletes must appear under
+# Items:, and each PR it deletes under Problems:. Each section runs to the
+# first blank line after its list, or the next section header; a blank line
+# between the header and its list is allowed. Red-green lines are copied
+# verbatim from the dispatch reports. Qualification: is a ratchet change's
+# only.
 Items:
-- <added | reworded | old → new | removed — reason>
+- <ID added | ID reworded | old → new | ID deleted — reason>
 Problems:
 - PR-<id> — <cause> → <fix>
 Red-green:
@@ -58,6 +67,8 @@ Findings:
 # evidence, in exactly the form below. No Co-Authored-By: and nothing after
 # the trailer paragraph: git reads trailers only from the last paragraph, so a
 # line a harness appends after a blank line hides every trailer.
+# Resolves: names exactly the PR items this change deletes; Opens: is
+# unchecked. Omit either where it names none.
 Implements: <IDs>
 Resolves: <PR IDs>
 Opens: <PR IDs>

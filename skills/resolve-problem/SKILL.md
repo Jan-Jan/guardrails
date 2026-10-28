@@ -1,6 +1,6 @@
 ---
 name: resolve-problem
-description: Problem-report workflow for guardrails projects - record every bug as a PR item, reproduce it as a failing annotated test, fix under TDD, resolve in the merging change. Use when any bug, anomaly, test failure, or unexpected behavior is found.
+description: Problem-report workflow for guardrails projects - record every bug as a PR item, reproduce it as a failing annotated test, fix under TDD, delete the item in the merging change. Use when any bug, anomaly, test failure, or unexpected behavior is found.
 ---
 
 # Resolve Problem
@@ -79,23 +79,29 @@ Escalate when the investigation finds one of these:
 
 ### 3. Fix under TDD
 
-Reproduce the bug as a **failing test first**, annotated with the ID it
-violates (`verifies: …`), per `develop-tdd`. Then write the minimal fix, go
-green, and refactor. Keep the reproduction test: it is permanent regression
-evidence.
+Reproduce the bug as a **failing test first**, annotated (`verifies: …`,
+per `develop-tdd`) with the lowest-level item the defect broke: the LLR
+where one exists, else the REQ (or the RC's implementing REQ); never with the
+PR ID.
+Where no requirement covers the broken behavior, add one (`grill-requirements`)
+in this change. Then write the minimal fix, go green, and refactor. Keep the
+reproduction test: it is permanent regression evidence.
 
 ### 4. Resolve in the same change that merges the fix
 
-In the worktree that fixes it, update the PR item **in the dated ledger file
-that defines it**: set `status: resolved`, and append a one-line resolution:
-the root cause and the fix reference (the reproducing test name or file).
-Never mark a problem resolved in a change that does not contain its fix. In
-any document, name the IDs a change resolves or opens; never state the open
-count, which the next merge makes false.
+In the worktree that fixes it, delete the PR item from the dated ledger file
+that defines it. The squash message names it in `Resolves:` and gives
+`PR-<ID> — <cause> → <fix>` under `Problems:`. `Resolves:` names exactly the
+PR items the change deletes, or the message is refused (`RESOLVES`). The
+regression test verifies the lowest-level item the defect broke, never the
+PR: a test
+naming the deleted ID is `DANGLING-REF`. Never delete a problem report in a
+change that does not contain its fix. A `status: resolved` is
+`RESOLVED-PROBLEM`. In any document, name the IDs a change resolves or opens;
+never state the open count, which the next merge makes false.
 
 Then run the normal gate: `check-traceability`, then `merge-change`, whose
-step 6a gate is `verify-before-merge`; its squash message names the PR in
-its `Resolves:` trailer.
+step 6a gate is `verify-before-merge`.
 
 **When the ruling is "we are not fixing this".** A problem that was
 investigated and deliberately not fixed goes to `status: accepted`, with a
@@ -120,10 +126,10 @@ The form is indented and uses `NNNNNN` for the same reason as the form in §1.
   accepted item with no `opened:`.
 - Do not set `accepted` to clear a red `PROBLEM-BACKLOG`. Set it only when you
   can state a ruling you can defend, with its date.
-- `accepted` is not `resolved`. Use `resolved` only when the merging change
+- `accepted` is not fixed. Delete the item only when the merging change
   contains a fix. Use `accepted` when there is no fix and there is a reason.
-- If the ruling later changes, set the item back to `open` and resolve it
-  under §3.
+- If the ruling later changes, set the item back to `open` and fix it under
+  §3.
 
 ## Red flags
 
@@ -131,7 +137,9 @@ The form is indented and uses `NNNNNN` for the same reason as the form in §1.
 |---|---|
 | "Tiny bug, skip the PR item" | Tiny bugs in regulated software are still records. 30 seconds. |
 | "Fix now, log later" | A deferred record does not get written. Record first. |
-| "Close the PR, fix ships next week" | Resolved means the merging change contains the fix. |
+| "Close the PR, fix ships next week" | Delete the item only in the change that contains the fix. |
+| "Keep the item with `status: resolved` as history" | The squash message is the history. `status: resolved` is `RESOLVED-PROBLEM`. |
+| "The regression test verifies the PR" | It verifies the lowest-level item the defect broke; a test naming a deleted PR is `DANGLING-REF`. |
 | "The test would just duplicate the fix" | The failing reproduction is the evidence the fix works. |
 | "Mark it accepted, the backlog is red" | `accepted` needs a `disposition:` — a ruling you can defend, with a date. No ruling, no exemption. |
 | "State the backlog size so the reader knows where we are" | The reader's own `check-trace.sh` run knows. A number in a document measures a tree that no longer exists. Name the IDs that moved. |
@@ -140,11 +148,12 @@ The form is indented and uses `NNNNNN` for the same reason as the form in §1.
 
 - The PR item was recorded in the ledger before the investigation started,
   with `opened:` and `status:`.
-- Where the bug is fixed, a failing test reproduced it, annotated with the ID
-  it violates, and it passes after the fix.
-- The item in its dated ledger file is `status: resolved` with a one-line
-  resolution, in the change that contains the fix; or it is
-  `status: accepted` with a dated `disposition:`.
+- Where the bug is fixed, a failing test reproduced it, annotated with the
+  lowest-level item the defect broke: the LLR where one exists, else the
+  REQ (or the RC's implementing REQ); and it passes after the fix.
+- The item is deleted in the change that contains the fix, and the squash
+  message names it in `Resolves:` with cause and fix under `Problems:`; or
+  it is `status: accepted` with a dated `disposition:`.
 - `check-traceability` follows, then `merge-change`, whose step 6a gate is
   `verify-before-merge`.
 

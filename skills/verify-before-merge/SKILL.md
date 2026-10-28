@@ -82,7 +82,7 @@ for it.
    with a `red -> green:` attestation; an ID with none fails the check. Any
    other `verifies:` test of an Implements ID also needs one, unless the
    dispatch report lists it as `inherited: <test name> — from <old ID>`: a
-   test of a superseded item pointed at its successor. An inherited test is
+   test of a deleted item pointed at its successor. An inherited test is
    coverage, never red-first evidence. Fix a failure in the change worktree
    and re-dispatch. Never re-annotate a test that was green from the start,
    except as an inherited test.

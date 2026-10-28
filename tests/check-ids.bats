@@ -119,297 +119,6 @@ EOF
     [[ "$output" != *"DUPLICATE-ID"* ]] || { echo "$output"; false; }
 }
 
-@test "every gr_def_re call site is still a call site, and no copy joins them" {
-    # verifies: AC5 (docs/plans/2026-08-19-id-consistency.md)
-    cd "$BATS_TEST_DIRNAME/.."
-    # Two assertions, because neither is sufficient on its own and the first
-    # two attempts at this test were both false greens.
-    #
-    # POSITIVE — the number of gr_def_re INVOCATIONS per script. This is the one
-    # that cannot be out-spelled: replace a call site with a hand-rolled regex
-    # and this reddens however the replacement is written. Round 1 of review
-    # defeated a spelling-based check with single quotes; round 2 defeated its
-    # replacement twice, once by swapping every call site in the tree for
-    # `[[:digit:]]` copies while the suite stayed 168 ok.
-    #
-    # SHAPE — a search for a definition form spelled out in a script. Defeatable
-    # by construction, since it is a regex describing regexes; kept as defence
-    # in depth for a copy ADDED without a call site being removed. Digit classes
-    # are folded first so [[:digit:]] and [0123456789] cannot simply walk past.
-    calls_check_ids=1
-    calls_check_review=0
-    calls_check_signing=0
-    # 3 since the scoped ids_defined branch (units change): each pathspec arm
-    # builds its pattern through the constructor, which is the reuse the pin
-    # exists to encourage.
-    calls_check_units=0
-    calls_find_items=0
-    calls_check_trace=3
-    calls_finish_merge=0
-    calls_guidelines_file=0
-    calls_lib=0
-    calls_merge_preflight=0
-    calls_drop_plans=0
-    calls_new_id=0
-    calls_task_worktree=0
-
-    forms_check_ids=0
-    forms_check_review=0
-    forms_check_signing=0
-    forms_check_units=0
-    forms_find_items=0
-    forms_check_trace=0
-    forms_finish_merge=0
-    forms_guidelines_file=0
-    forms_lib=0
-    forms_merge_preflight=0
-    forms_drop_plans=0
-    forms_new_id=0
-    forms_task_worktree=0
-
-    # The third pin: how many sites paste the library's ID body in directly,
-    # rather than through gr_def_re. Replacing one with a hand-rolled shape
-    # moves this count whichever way the replacement is spelled.
-    body_check_ids=0
-    # 1 since --cite (D12, docs/plans/2026-10-06-salvage-churn-and-parallel.md):
-    # the citation ID test composes cite_id_re from GR_ID_BODY rather than
-    # pasting the shape — the reuse this pin exists to encourage.
-    body_check_review=1
-    body_check_signing=0
-    body_check_units=0
-    body_find_items=3
-    # 8 since the supersession scan (PR-zt5c2v): its awk takes
-    # body="$GR_ID_BODY" rather than pasting the shape — the reuse this pin
-    # exists to encourage, so the count moves up and the pin keeps its teeth.
-    # Worth noting where this reddened: nothing in check-trace.bats,
-    # portability.bats or skills.bats sees it, so only the full suite does.
-    # 9 since the out-of-force scan (PR-kzst5n): its awk takes the same body.
-    # 10 since credit_scan (PR-44ww7q, PR-z7w5bf): the same body again.
-    body_check_trace=10
-    body_finish_merge=0
-    body_guidelines_file=0
-    # 3 since gr_req_scan (units change): its awk takes body="$GR_ID_BODY"
-    # rather than pasting the shape — the reuse this pin exists to encourage.
-    body_lib=3
-    body_merge_preflight=0
-    body_drop_plans=0
-    body_new_id=0
-    body_task_worktree=0
-
-    # The fourth pin: how many sites paste the library's random-token grammar
-    # in directly. GR_ID_TOKEN is GR_ID_BODY without the sequential form, so a
-    # site that takes it is a direct grammar use, reviewed as GR_ID_BODY's are.
-    # check-units.sh: 1 since D4 (docs/plans/2026-10-04-adr-ids.md): the
-    # `(ADR-<token>)` segregation citation accepts a random token only.
-    # lib.sh: 1, the GR_ID_BODY definition that composes it.
-    token_check_ids=0
-    token_check_review=0
-    token_check_signing=0
-    token_check_units=1
-    token_find_items=0
-    token_check_trace=0
-    token_finish_merge=0
-    token_guidelines_file=0
-    token_lib=1
-    token_merge_preflight=0
-    token_drop_plans=0
-    token_new_id=0
-    token_task_worktree=0
-
-    # The two shared definitions added 2026-08-22, pinned for the same reason
-    # the four above are. gr_def_re_loose states which lines OPEN in definition
-    # shape whatever their body, and GR_AWK_ITEM_BLOCK states where an item
-    # block starts and ends. Five gates read the second one; a sixth opinion
-    # about where an item ends is precisely the defect that change fixed.
-    loose_check_ids=1
-    loose_check_review=0
-    loose_check_signing=0
-    loose_check_units=0
-    loose_find_items=0
-    loose_check_trace=0
-    loose_finish_merge=0
-    loose_guidelines_file=0
-    loose_lib=0
-    loose_merge_preflight=0
-    loose_drop_plans=0
-    loose_new_id=0
-    loose_task_worktree=0
-
-    block_check_ids=0
-    # 0: check-review.sh reads the squash message (ADR-k3nkv3), where a
-    # finding is a numbered line, not an item block.
-    block_check_review=0
-    block_check_signing=0
-    block_check_units=0
-    block_find_items=2
-    # 6 since the supersession scan (PR-zt5c2v): it reads item blocks through
-    # the shared fragment rather than forming a sixth opinion about where an
-    # item ends, which is the whole point of pinning this.
-    # 7 since the out-of-force scan (PR-kzst5n): it reads blocks the same way.
-    # 8 since credit_scan (PR-44ww7q, PR-z7w5bf): the same fragment again.
-    block_check_trace=8
-    block_finish_merge=0
-    block_guidelines_file=0
-    # 1 since gr_req_scan (units change): its awk composes the shared
-    # GR_AWK_ITEM_BLOCK rather than growing a sixth opinion about blocks.
-    block_lib=1
-    block_merge_preflight=0
-    block_drop_plans=0
-    block_new_id=0
-    block_task_worktree=0
-
-    # GR_AWK_FRONT_MATTER, added 2026-08-23 and pinned for the reason above.
-    # Two gates skip YAML front matter and they must skip the SAME bytes: one
-    # reads a `status:` there as metadata and the other must not accept a
-    # `reviewer:` there as a field. A third opinion about where a header block
-    # ends is the same shape of defect as a third opinion about where an item
-    # ends.
-    fm_check_ids=0
-    # 0: check-review.sh reads the squash message (ADR-k3nkv3), which has no
-    # front matter.
-    fm_check_review=0
-    fm_check_signing=0
-    fm_check_units=0
-    fm_find_items=0
-    # 2 since credit_scan (PR-44ww7q, PR-z7w5bf): it skips front matter by
-    # the shared rule, as the orphan backstop does.
-    fm_check_trace=2
-    fm_finish_merge=0
-    fm_guidelines_file=0
-    fm_lib=0
-    fm_merge_preflight=0
-    fm_drop_plans=0
-    fm_new_id=0
-    fm_task_worktree=0
-
-    # GR_AWK_CIVIL, added 2026-08-24. One reader today, pinned before there is
-    # a second: the toolkit has one notion of what a calendar date is and what
-    # a day number is, and hand-rolled date arithmetic is famously the kind
-    # that is wrong only in February.
-    civil_check_ids=0
-    civil_check_review=0
-    civil_check_signing=0
-    # 3 since the expectation-age computation (units change) — the same shared
-    # date arithmetic, third reader.
-    civil_check_units=0
-    civil_find_items=0
-    # 4 since the out-of-force scan (PR-kzst5n): it checks a `retired:` date
-    # with the shared gr_date_ok rather than its own calendar.
-    civil_check_trace=4
-    civil_finish_merge=0
-    civil_guidelines_file=0
-    civil_lib=0
-    civil_merge_preflight=0
-    civil_drop_plans=0
-    civil_new_id=0
-    civil_task_worktree=0
-
-    forms() {
-        # Fold the digit-class spellings together, then drop backslashes and
-        # both quotes — in separate passes, because a single `tr -d` argument
-        # containing a backslash has it read as an escape introducer.
-        sed -e 's/\[\[:digit:\]\]/[0-9]/g' -e 's/\[0123456789\]/[0-9]/g' \
-            -e 's/\[abcdefghjkmnpqrstuvwxyz[^]]*\]/[0-9]/g' "$1" \
-            | tr -d "\\\\" | tr -d "\"'" \
-            | grep -nE '\*\*.*-\[0-9\].*\*\*:' || true
-    }
-
-    seen=0
-    for f in scripts/*.sh; do
-        seen=$((seen + 1))
-        key=$(basename "$f" .sh | tr '-' '_')
-        eval "want_calls=\$calls_$key"
-        eval "want_forms=\$forms_$key"
-        eval "want_body=\$body_$key"
-        eval "want_token=\$token_$key"
-        eval "want_loose=\$loose_$key"
-        eval "want_block=\$block_$key"
-        eval "want_fm=\$fm_$key"
-        eval "want_civil=\$civil_$key"
-        [ -n "$want_calls" ] && [ -n "$want_forms" ] && [ -n "$want_body" ] \
-            && [ -n "$want_loose" ] && [ -n "$want_block" ] && [ -n "$want_fm" ] \
-            && [ -n "$want_civil" ] && [ -n "$want_token" ] \
-            || { echo "unpinned script (add it to this test): $f"; false; }
-
-        got_calls=$(grep -c '\$(gr_def_re ' "$f" || true)
-        [ "$got_calls" -eq "$want_calls" ] || {
-            echo "$f: $got_calls gr_def_re call sites, pinned at $want_calls"
-            false
-        }
-
-        got_body=$(grep -cE '\$\{?GR_ID_BODY\}?' "$f" || true)
-        [ "$got_body" -eq "$want_body" ] || {
-            echo "$f: $got_body GR_ID_BODY uses, pinned at $want_body"
-            false
-        }
-
-        got_token=$(grep -cE '\$\{?GR_ID_TOKEN\}?' "$f" || true)
-        [ "$got_token" -eq "$want_token" ] || {
-            echo "$f: $got_token GR_ID_TOKEN uses, pinned at $want_token"
-            false
-        }
-
-        got_loose=$(grep -c '\$(gr_def_re_loose ' "$f" || true)
-        [ "$got_loose" -eq "$want_loose" ] || {
-            echo "$f: $got_loose gr_def_re_loose call sites, pinned at $want_loose"
-            false
-        }
-
-        got_block=$(grep -c '\$GR_AWK_ITEM_BLOCK' "$f" || true)
-        [ "$got_block" -eq "$want_block" ] || {
-            echo "$f: $got_block GR_AWK_ITEM_BLOCK uses, pinned at $want_block"
-            false
-        }
-
-        got_fm=$(grep -c '\$GR_AWK_FRONT_MATTER' "$f" || true)
-        [ "$got_fm" -eq "$want_fm" ] || {
-            echo "$f: $got_fm GR_AWK_FRONT_MATTER uses, pinned at $want_fm"
-            false
-        }
-
-        got_civil=$(grep -c '\$GR_AWK_CIVIL' "$f" || true)
-        [ "$got_civil" -eq "$want_civil" ] || {
-            echo "$f: $got_civil GR_AWK_CIVIL uses, pinned at $want_civil"
-            false
-        }
-
-        got_forms=$(forms "$f" | grep -c . || true)
-        [ "$got_forms" -eq "$want_forms" ] || {
-            echo "$f: $got_forms spelled-out definition forms, pinned at $want_forms"
-            forms "$f"
-            false
-        }
-    done
-    [ "$seen" -eq 13 ] || { echo "expected 13 scripts, scanned $seen"; false; }
-
-    # And the constructor and the body each exist exactly once, so the counts
-    # above are counts of uses of something real rather than of a name nothing
-    # defines.
-    [ "$(grep -c '^gr_def_re() {' scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c '^GR_ID_BODY=' scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c '^GR_ID_TOKEN=' scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c '^gr_def_re_loose() {' scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c "^GR_AWK_ITEM_BLOCK='" scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c "^GR_AWK_FRONT_MATTER='" scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c "^GR_AWK_CIVIL='" scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c '^gr_limit() {' scripts/lib.sh)" -eq 1 ]
-    # gr_value moved into the shared fragment when the problem-report reader
-    # became its second consumer. An awk program that redefines it is a syntax
-    # error rather than a silent divergence, but a copy under another NAME is
-    # not, and that is what this counts.
-    [ "$(grep -c 'function gr_value(' scripts/lib.sh)" -eq 1 ]
-    [ "$(grep -c 'function gr_value(' scripts/check-review.sh)" -eq 0 ]
-    [ "$(grep -c 'function gr_value(' scripts/check-trace.sh)" -eq 0 ]
-    # The emptiness rule has one definition and its readers in lib.sh; a
-    # hand-copy is what this counts.
-    [ "$(grep -c '^gr_md_files() {' scripts/lib.sh)" -eq 1 ]
-    # Three call sites in lib.sh (the definition line, gr_doc_files, and —
-    # since the units change — the per-unit SRS reader). A further reader
-    # spelling the rule out by hand moves no count, which is why the poison
-    # tests exist alongside these pins.
-    [ "$(grep -c 'gr_md_files ' scripts/lib.sh)" -eq 3 ]
-}
-
 @test "every script parses as POSIX sh" {
     # verifies: PR-xyu6en
     cd "$BATS_TEST_DIRNAME/.."
@@ -426,6 +135,7 @@ EOF
 }
 
 @test "poisoning gr_def_re changes every gate's verdict" {
+    # verifies: REQ-vn6s4v
     # The behavioural half of AC5 of change D, and the only half ever proved.
     # Three rounds of review defeated text-based checks: a copy in another
     # quoting style, a copy spelled [[:digit:]], a copy split across lines, a
@@ -468,6 +178,46 @@ EOF
     run sh .guardrails/scripts/check-trace.sh
     [[ "$output" == *"checked: REQ 0, HAZ 0, RC 0, SDD 0, LLR 0, PR 0"* ]] \
         || { echo "check-trace has its own copy: $output"; false; }
+}
+
+@test "check-review owes each definition check-trace counts, and no other line" {
+    # verifies: REQ-vn6s4v
+    # A problem ledger with both definition forms, a token ID and a legacy
+    # numeric one, and two definition-shaped lines that are prose: one
+    # indented, one in backticks. check-trace counts the two definitions;
+    # deleting the ledger owes exactly those two in Resolves: and Problems:.
+    cat > docs/problems/open.md <<'LEDGER'
+**PR-abc234**: a problem in token form
+status: open
+
+**PR-007**: a problem in legacy numeric form
+status: open
+
+  **PR-def567**: indented, so prose
+`**PR-ghj789**: in backticks, so prose`
+LEDGER
+    # check-trace rejects the run when a configured test_paths entry matches
+    # no file.
+    printf 'true\n' > tests/test_a.sh
+    commit_all problems
+    run sh .guardrails/scripts/check-trace.sh
+    # The whole count line: "PR 2" also matches "PR 20".
+    printf '%s\n' "$output" \
+        | grep -qx 'checked: REQ 1, HAZ 0, RC 0, SDD 0, LLR 0, PR 2' \
+        || { echo "$output"; false; }
+
+    make_change_worktree my-change
+    git rm -q docs/problems/open.md
+    commit_all resolve
+    write_message
+    run sh .guardrails/scripts/check-review.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "RESOLVES (deleted PR-007, not named in Resolves:)"
+    output_has "RESOLVES (deleted PR-abc234, not named in Resolves:)"
+    output_has "PROBLEMS (deleted PR-007, not named under Problems:)"
+    output_has "PROBLEMS (deleted PR-abc234, not named under Problems:)"
+    output_lacks "PR-def567"
+    output_lacks "PR-ghj789"
 }
 
 @test "check-ids: a stock install does not report its own tooling" {

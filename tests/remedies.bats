@@ -15,17 +15,15 @@ setup() {
     commit_all good
 }
 
-# Two untested REQs (MISSING-TEST twice) and one reference to an ID defined
+# Two untested REQs (MISSING-TEST twice), one of which names an ID defined
 # nowhere (DANGLING-REF once).
 two_rules_fixture() {
     cat >> docs/requirements/0001-01-01-base.md <<'MD'
 
 **REQ-002**: The system shall log the dose.
 
-**REQ-003**: The system shall alarm on overdose.
+**REQ-003**: The system shall alarm on overdose, as REQ-999 does.
 MD
-    printf '**PR-001**: Crash on empty input.\naffects: REQ-999\nstatus: resolved\n' \
-        > docs/problems/0001-01-01-base.md
     commit_all two-rules
 }
 
@@ -51,7 +49,7 @@ remedies_within_limit() {
 }
 
 @test "check-trace: one fix line per rule that fired, after the violations" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-e83fky
     two_rules_fixture
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
@@ -76,7 +74,7 @@ remedies_within_limit() {
 }
 
 @test "check-trace: violation lines are unchanged" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fdk8kc, REQ-x3rb2m
     # The documented text of each line, as the script printed it before D8.
     # Anything that greps or counts violation lines depends on it.
     two_rules_fixture
@@ -232,18 +230,33 @@ MD
     printf '%s\n' "$output" | grep -q '^fix PROBLEM-BACKLOG: .*status: accepted' || { echo "$output"; false; }
 }
 
-@test "check-trace: the MALFORMED-STATUS remedy names all three values" {
-    # verifies: PR-4fwfjp
-    # d8502d1 added accepted as a third status, and the remedy then told the
-    # author to pick one of two.
+@test "check-trace: the MALFORMED-STATUS remedy names both values" {
+    # verifies: REQ-e83fky, REQ-xyxvm2
+    # The closed set is open and accepted; `resolved` is RESOLVED-PROBLEM
+    # (ADR-k3nkv3), so the remedy must not offer it.
     write_pr PR-001 wontfix
     commit_all wontfix
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     fix=$(printf '%s\n' "$output" | grep '^fix MALFORMED-STATUS: ')
-    for value in open accepted resolved; do
-        printf '%s\n' "$fix" | grep -q "$value" || { echo "$output"; false; }
+    for status_value in open accepted; do
+        printf '%s\n' "$fix" | grep -q "$status_value" || { echo "$output"; false; }
     done
+    if printf '%s\n' "$fix" | grep -q resolved; then echo "$output"; false; fi
+}
+
+@test "check-trace: the DANGLING-REF remedy offers deleting the reference or inheriting the test" {
+    # verifies: REQ-e83fky, ADR-k3nkv3
+    # A test of a deleted item is either deleted or pointed at the successor
+    # and listed as inherited: (ADR-k3nkv3).
+    two_rules_fixture
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    fix=$(printf '%s\n' "$output" | grep '^fix DANGLING-REF: ')
+    printf '%s\n' "$fix" | grep -q 'remove' || { echo "$output"; false; }
+    printf '%s\n' "$fix" | grep -q 'successor' || { echo "$output"; false; }
+    printf '%s\n' "$fix" | grep -q 'inherited: <test> — from <old ID>' || { echo "$output"; false; }
+    remedies_within_limit || { echo "$output"; false; }
 }
 
 @test "check-trace: the UNANALYZED-DERIVED remedy names assesses:" {
@@ -287,7 +300,7 @@ MD
 }
 
 @test "check-trace: an exit 2 after a collected violation still prints the violation" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-beb6gm
     # MISSING-TEST is collected before the reference scan, and the stand-in git
     # fails that scan, so check-trace.sh exits 2 through gr_die after it has
     # printed a violation line, and that line remains in the output.
@@ -318,7 +331,7 @@ EOF
 }
 
 @test "check-trace: a TMPDIR that does not exist changes neither the exit nor the fix lines" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-e83fky
     # The violation lines and the fix lines are produced without a temporary
     # file, so a missing TMPDIR is not an exit 2.
     two_rules_fixture
@@ -332,7 +345,7 @@ EOF
 }
 
 @test "check-trace: the MISSING-TEST remedy names develop-tdd, where the annotation rule lives" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-e83fky
     # The lowest-level annotation rule moved from develop-change to
     # develop-tdd, the only skill a task subagent loads; a remedy that names
     # develop-change sends the author to the orchestrator, which no longer

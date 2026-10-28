@@ -21,8 +21,11 @@ description: Create or evolve the IEC 62304 software architecture - SDD items tr
 
 **Where items go.** Write new SDD and LLR items into this change's own file,
 `docs/architecture/<YYYY-MM-DD>-<slug>.md`, dated the day you create it. Edit
-an amendment to an existing item in the dated file that defines it. Keep `soup.md` a single inventory
-file.
+an amendment to an existing item in the dated file that defines it. A
+rewording with the same behavior keeps its ID; a changed behavior gets a new
+ID and the old item is deleted, and a dropped one is deleted, each recorded
+under `Items:` in the squash message (`grill-requirements`, "Changing an
+item"). Keep `soup.md` a single inventory file.
 
 1. **Read first:** the REQs this design serves, the controls (RC) that
    constrain it, `CONTEXT.md` (use the project's language), the architecture
