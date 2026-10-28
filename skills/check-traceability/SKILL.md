@@ -75,7 +75,7 @@ description: Run and interpret the guardrails traceability checker - orphaned re
      The label starts a new block, and annotations below it belong to no item.
    - Write annotations with no list marker. Inside a block, a bulleted
      annotation such as `- status: open` is a missing field: the item is
-     `INCOMPLETE-PROBLEM`, the record `MISSING-RECORD`. Drop the marker. An
+     `INCOMPLETE-PROBLEM`. Drop the marker. An
      annotation on the definition line is valid, as in `templates/sad.md`:
      `**SDD-…**: <software item>. traces: REQ-…`.
    - `check-ids.sh` reports `**REQ-abcdef**:` as `MALFORMED-ID`.

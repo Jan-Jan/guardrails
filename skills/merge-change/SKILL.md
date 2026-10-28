@@ -52,7 +52,7 @@ The tag must be unique per dispatch.
    - A staged squash in the primary checkout is a **stop**: tell the user,
      and once they sign or clear it, rerun this step.
    - A failed fetch is a **stop**. Fetch from a session that can, or merge
-     the local ref and name it in step 7's `Base:` trailer.
+     the local ref and name it in the `Base:` trailer.
    - A project may put the remote out of scope only if its AGENTS.md and
      the `Base:` trailer state why. Never adopt that by analogy.
    - Resolve conflicts here, never on the base branch, then rerun.
@@ -109,14 +109,15 @@ The tag must be unique per dispatch.
    each `verifies:` test of a claimed ID and each test file the diff adds or
    edits, or the whole suite where the runner cannot select. 6a's gate runs
    the whole suite. A documentation-only diff's reviewer runs no tests; the
-   record states it.
+   message states it.
 
-   **Every finding opens with its tag** — `code`, `requirement` or `record`:
-   `code` when the implementation is wrong; `requirement` when an item, a
-   skill or a template misstates or omits what the tree does; `record` when
-   the record, plan or ledger misstates correct work. A `code` or
-   `requirement` tag is followed by a severity, `high`, `medium` or `low`.
-   The reviewer returns a one-line verdict. Copy findings verbatim.
+   **Every finding opens with its tag** —
+   `code`, `requirement`, `guideline` or `record`: `code` when the
+   implementation is wrong; `requirement` when an item, a skill or a template
+   misstates or omits what the tree does; `record` when the message, plan or
+   ledger misstates correct work. A `code`, `requirement` or `guideline` tag
+   is followed by a severity, `high`, `medium` or `low`.
+   The reviewer returns a one-line verdict.
 
    **Every finding still sends the sequence back to step 1, whatever its tag.**
    The tag decides only whether **another reviewer is dispatched**.
@@ -126,13 +127,14 @@ The tag must be unique per dispatch.
    are all `low` is the last review round.** Fix each low finding whose fix is
    mechanical, and record each other one as an open problem item;
    no further reviewer is dispatched.
-   A later round's reviewer reads the record earlier rounds wrote. Once
+   A later round's reviewer reads the message earlier rounds wrote, at the
+   path step 5 printed, which its prompt names. Once
    step 5 drops the plan, read it with `git show <commit>^:<path>`, where
    <commit> is
    `git log -1 --format=%H --grep='^chore: drop plans$'`.
 
-   A 6a gate failure's fix dispatches a reviewer unless it touches only
-   the record.
+   A 6a gate failure's fix dispatches a reviewer unless it changes only
+   the message.
 
    **Remove the review worktree, every round that created one**, when the
    report arrives:
@@ -147,38 +149,43 @@ The tag must be unique per dispatch.
      `remove` fails on a tag that was never started, so skip it there.
    - `remove` rejects untracked files as well as modified ones.
      Nothing gitignored is among them. Copy anything worth keeping into the
-     record, then read the scratch, delete it, and run `remove` again.
+     message, then read the scratch, delete it, and run `remove` again.
 
    Dispatch each fix into `.worktrees/<change-branch>-<tag>`. Class A may
    skip this step, B needs one reviewer, C a thorough review; for class C,
    consider two independent reviewers for critical items.
 
-5. **Verification record** — write the record, copying
-   `.guardrails/templates/verification.md` to
-   `docs/verification/<date>-<branch>.md`, or update it where it exists: fill
-   in only what is missing (a `<…>` placeholder counts as missing), and
-   commit it unsigned: the plan's
-   `**Implements:**` value (no plan: the IDs),
-   the IDs this change resolves, accepts or opens,
-   `red -> green:` and any `inherited:` lines from the plan, its guideline
-   reviews (`## Guideline reviews`), the reviewer's verdict and every finding
-   with its disposition. A rerun reads the plan by step 4's lookup. Then:
+5. **Squash message** — the change's verification record (`ADR-k3nkv3`),
+   kept outside the tree, in the worktree's git directory:
+
+   ```sh
+   msg=$(. .guardrails/scripts/lib.sh && gr_message_file) && echo "$msg"
+   ```
+
+   Copy `.guardrails/templates/squash-message.txt` to `$msg`, or update it
+   where it exists: fill in only what is missing (a `<…>` placeholder counts
+   as missing). Write subject and body; `reviewer:`, `verdict:` and
+   `reproduced:`; every finding, numbered, as
+   `<N>. [<disposition>] <tag>[ <severity>] — <text>`, the reviewer's
+   <text> verbatim, unlabelled, the guideline reviews' findings from the
+   plan among them, tagged `guideline`; the
+   `red -> green:` and `inherited:` lines from the plan; and the trailers
+   `Implements:` (the plan's `**Implements:**` value; no plan: the IDs),
+   `Resolves:` and `Opens:` (omit an empty one). A rerun reads the plan by
+   step 4's lookup. Then:
 
    ```sh
    sh .guardrails/scripts/drop-plans.sh --base "$BASE"
    ```
 
    It drops or restores each plan this change added or edited, against the
-   local base branch step 7 squashes onto.
-
-   6c rejects a record unless it contains all four fields with values
-   (`branch:`, `reviewer:`, `verdict:`, `reproduced:`): `INCOMPLETE-RECORD`.
+   local base branch step 7 squashes onto. Nothing is committed for the
+   message.
 
 6a. **Dispatch the verification suite** as `verify-before-merge` describes, and
-   read the verdict from the pass and fail counts of the **gate summary** it
-   returns.
+   read the verdict from the pass and fail counts of its **gate summary**.
 
-   **Record the tree the summary describes**, beside the summary:
+   **Record the tree the summary describes**, beside it:
 
    ```sh
    git rev-parse HEAD^{tree}   # clean worktree, at dispatch
@@ -191,7 +198,13 @@ The tag must be unique per dispatch.
    git rev-parse HEAD^{tree}   # the step 6a hash
    ```
 
-   Same hash and a clean worktree: **the step 6a summary stands**. Otherwise
+   Same hash and a clean worktree: **the step 6a summary stands**. Write the
+   round's trailers into the message, replacing an earlier round's:
+   `Base: <base ref> at <commit>`, the commit step 1 merged
+   (`git rev-parse <base ref>`); `Gate-tree:` the step 6a tree; one
+   `Tests: <verify_commands entry> <passed>/<total>` per entry, per
+   impact-set unit; one `Coverage: <coverage_command> <figure>` per
+   configured command. Otherwise
    dispatch the suite again.
 
 6c. **Run the pre-flight again, with the review check:**
@@ -200,7 +213,8 @@ The tag must be unique per dispatch.
    sh .guardrails/scripts/merge-preflight.sh <change-branch>
    ```
 
-   Read it as at step 2. Never answer a `REVIEW` failure by deleting a finding.
+   Read it as at step 2. Its `REVIEW` check reads the whole message. Never
+   answer a `REVIEW` failure by deleting a finding.
 6d. **Remove a worktree the pre-flight named.** Retire each worktree a
    `NESTED-WORKTREE` failure lists as its fix line states:
    `task-worktree.sh remove <tag>`, `discard <tag>` after recording the
@@ -218,7 +232,7 @@ The tag must be unique per dispatch.
    ```
 
    The second line exits 0 when the index holds exactly the branch's tree:
-   go on to the message. Otherwise:
+   go on. Otherwise:
 
    - The first line printed that files "would be overwritten": the primary
      checkout is dirty. Stop and tell the user.
@@ -230,45 +244,26 @@ The tag must be unique per dispatch.
      outdated one of this change. Stop and tell the user; once they sign or
      clear it, rerun from step 1.
 
-   Write the commit message to a file **outside the repository**:
-
-   ```
-   <type>: <summary>
-
-   Implements: <final REQ/RC/SDD/LLR IDs>
-   Resolves: <PR IDs this change closes>
-   Opens: <PR IDs this change raises>
-   Verified: docs/verification/<record file>
-   Base: <base ref> at <its commit>
-   Gate-tree: <step 6a tree>
-   Gate: <verify_commands entry> <passed>/<total>
-   Gate: <coverage_command> <figure>
-   ```
-
-   Omit an empty `Resolves:` or `Opens:` line. Write one `Gate:` line per
-   `verify_commands` entry, and one for `coverage_command` where configured.
-   `<its commit>` is `git rev-parse <base ref>`.
-   Keep every trailer, `Co-Authored-By:` included, in this last paragraph.
-
-   Before the hand-over, compare the index with the step 6a tree:
+   Then check the index against `Gate-tree:`:
 
    ```sh
-   [ "$(git write-tree)" = <step 6a tree> ]
+   [ "$(git write-tree)" = <the Gate-tree: value> ]
    ```
 
    A mismatch: run `git reset --merge`, then rerun from step 1.
 
-   Hand the user this one command, filled in, and **stop**:
+   Hand the user this one command, filled in with step 5's path, and
+   **stop**:
 
    ```sh
-   git commit -S -F /tmp/merge-<branch>.msg && sh .guardrails/scripts/finish-merge.sh <branch>
+   git -c core.commentChar='#' commit -S --cleanup=strip -F <message file> && sh .guardrails/scripts/finish-merge.sh <branch>
    ```
 
    Tell them signing may need a
    hardware-key touch. Success ends with three
    `finish-merge:` lines; otherwise, they paste the output.
    `finish-merge.sh` proves five things before it removes anything. Pass it
-   the branch name, never a path. If the harness created the worktree,
+   the branch name, never a path. A harness-created worktree:
    leave or remove it with the harness tool.
    With no worktree registered for the branch, the script still deletes the
    branch.
@@ -276,7 +271,7 @@ The tag must be unique per dispatch.
    If signing fails because no key is configured, **stop** and point to the
    ratchet setup checklist. There is no unsigned fallback.
 8. **Report.** On the user's word of success, write one
-   closing line from the message file: branch, IDs, record.
+   closing line from the message: branch and IDs.
    Run no git command: `finish-merge.sh` verified the signature.
    Recommend compacting before the next change; if the harness has a
    compaction step, name it so the user can run it.
@@ -300,7 +295,7 @@ The tag must be unique per dispatch.
 ## Done when
 
 - The base branch HEAD is one squash commit for this change, whose message
-  names its record and gated tree,
+  is its verification record and names its gated tree,
   verified by `finish-merge.sh`.
 - The change worktree and branch are gone, removed by `finish-merge.sh`.
 - You reported the merge and recommended compacting.

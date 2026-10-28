@@ -191,7 +191,11 @@ A project that changes a clause rewrites its reason and examples with it.
    command and to what score, is decided in this section; where it names no
    command, mutation testing is not required. This section names none.
 
-2. **A mutation a verification record cites stays runnable.** Each
+2. **A mutation a past record cites stays runnable.** New mutation
+   evidence is a `Mutation: <path>:<line> <mutant> — killed by "<test name>"`
+   trailer on the squash message, and no new `.mutations/` directory is
+   written. This rule covers the existing directories until the change that
+   deletes them. Each
    `docs/verification/*.mutations/M*.sh` quotes one line of the script it
    mutates verbatim: most as a literal `old = '''…'''` followed by
    `assert s.count(old) == 1`, the older ones as a `sed` pattern. An edit to

@@ -80,7 +80,7 @@ A `verifies:` line that names only out-of-force items is
 `OUT-OF-FORCE-VERIFIES`: it verifies behavior the software no longer
 promises. Delete the test, or point it at the item in force. A test pointed at
 a successor is inherited: list it as `inherited: <test name> — from <old ID>`
-in the dispatch report and the verification record. It is coverage, never
+in the dispatch report and the squash message. It is coverage, never
 red-first evidence; the successor still needs a test watched failing.
 
 A `verifies:` line that names an in-force item beside an out-of-force one is

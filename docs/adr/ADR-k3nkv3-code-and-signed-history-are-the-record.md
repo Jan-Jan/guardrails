@@ -43,6 +43,4 @@ for the current one.
   an audit that asks for a format.
 - A reworded or replaced requirement leaves no trace on the base branch; the
   squash message that changed it does.
-- Once plans stop reaching the base branch, this supersedes ADR-bh4xgr, and
-  it amends ADR-f6ytg7: no verification record file, and `Tests:` in place of
-  `Gate:`. Until the changes that build it land, both stay in force.
+- It supersedes ADR-bh4xgr; ADR-3hsvvq states the checked trailers.

@@ -390,3 +390,14 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
     done
     [ "$guidelines_count" -ge 2 ] || { echo "only $guidelines_count guidelines files found"; false; }
 }
+
+@test "test guidelines: here new mutation evidence is a Mutation: trailer, and the anchor rule covers the existing directories" {
+    # verifies: ADR-k3nkv3
+    mutants=$(section_of '## Mutants' "$repo_guidelines" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$mutants" | grep -qF 'New mutation evidence is a `Mutation: <path>:<line> <mutant> — killed by "<test name>"` trailer on the squash message' ||
+        { echo "Mutants does not name the trailer: $mutants"; false; }
+    printf '%s\n' "$mutants" | grep -qF 'no new `.mutations/` directory is written' ||
+        { echo "Mutants still lets a new directory be written"; false; }
+    printf '%s\n' "$mutants" | grep -qF 'until the change that deletes them' ||
+        { echo "Mutants does not bound the anchor rule"; false; }
+}

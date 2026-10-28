@@ -14,7 +14,7 @@ or step 3.3 installs any file.
 - The ledger skeletons (`docs/requirements/`, `docs/risk/`,
   `docs/architecture/` with `soup.md`, `docs/problems/`) are copied per unit,
   into `<unit>/docs/...`.
-- `docs/verification/`, `docs/plans/` and the interface glossary
+- `docs/plans/` and the interface glossary
   `docs/CONTEXT.md` are at the repository root.
 - `docs/adr/` is per unit for a decision that the unit cites by ID: a root
   ADR is outside the unit's scope, and `check-trace.sh` reports its ID as

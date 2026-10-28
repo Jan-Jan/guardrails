@@ -16,27 +16,25 @@ setup() { make_fixture_repo; }
 # The eight checks, in the order the script runs them.
 gr_checks="CLEAN-TREE BASE-MERGED PLANS IDS TRACE UNITS REVIEW NESTED-WORKTREE"
 
-# A change worktree on my-change with one commit and no verification record.
+# A change worktree on my-change with one commit and no squash message.
 # The commit adds what a project under guardrails has and the base fixture
-# lacks: a file under test_paths, which check-trace.sh requires; the
-# verification directory, which check-review.sh requires; and an ignored
-# .worktrees/, which keeps a nested task worktree out of `git status`. Leaves
-# the shell in the change worktree.
+# lacks: a file under test_paths, which check-trace.sh requires; and an
+# ignored .worktrees/, which keeps a nested task worktree out of
+# `git status`. Leaves the shell in the change worktree.
 make_change_without_record() {
     make_change_worktree my-change
     mkdir -p tests
     : > tests/.gitkeep
     printf '.worktrees/\n' > .gitignore
-    mkdir -p docs/verification
-    printf '# Verification records\n' > docs/verification/README.md
     commit_all "change work"
 }
 
-# The same, with a verification record, so every check passes.
+# The same, with a squash message for its tree, so every check passes. The
+# message is in the worktree's git directory, so a test that commits after
+# this writes it again.
 make_passing_change() {
     make_change_without_record
-    write_record mine my-change
-    commit_all "record for my-change"
+    write_message
 }
 
 # has_line TEXT — $output contains a line exactly equal to TEXT.
@@ -279,6 +277,7 @@ add_plan_on_main() {
     make_passing_change
     git rm -q docs/plans/2025-12-01-old.md
     commit_all "delete the old plan"
+    write_message
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
     has_line "preflight: PLANS ok"
@@ -413,6 +412,7 @@ origin_main_adds_plan() {
     printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
     write_pr PR-001 open "$(days_ago 5)"
     commit_all "open problem report"
+    write_message
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     has_prefix "UNRESOLVED-PR PR-001 "
@@ -433,12 +433,14 @@ origin_main_adds_plan() {
 }
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-@test "merge-preflight: REVIEW fails with no verification record" {
+@test "merge-preflight: REVIEW fails with no squash message" {
+    # verifies: ADR-k3nkv3
     make_change_without_record
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    printf '%s\n' "$output" | grep -qF "MISSING-RECORD my-change" || { echo "$output"; false; }
+    has_line "MISSING-RECORD $(message_file)"
     failed_at REVIEW
+    has_line "fix REVIEW: write or complete the squash message as merge-change steps 5 and 6b state."
 }
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
@@ -476,18 +478,25 @@ origin_main_adds_plan() {
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
 @test "merge-preflight: NESTED-WORKTREE fails on the no-worktree-registered verdict" {
-    # merge-preflight.sh requires the named branch to be the current one, so a
-    # real finish-merge.sh always finds a registration here. The verdict is
-    # produced by a stand-in that prints it and exits 0, as the real script
-    # does, to prove the pre-flight reads an exit 0 with that verdict as a
-    # failure.
+    # The real finish-merge.sh --check, on a change worktree its repository
+    # does not register: its git directory is moved out of the common one,
+    # which no longer lists it, so the branch is current here while git
+    # worktree list names no worktree for it. finish-merge.sh exits 0 on that
+    # verdict.
     make_passing_change
-    cat > .guardrails/scripts/finish-merge.sh <<'STUB'
-#!/bin/sh
-echo "finish-merge --check: no worktree is registered for $2, so nothing was inspected"
-exit 0
-STUB
-    commit_all "stand-in finish-merge.sh"
+    common=$(git rev-parse --path-format=absolute --git-common-dir)
+    admin=$(git rev-parse --absolute-git-dir)
+    moved="$BATS_TEST_TMPDIR/unregistered-admin"
+    mv "$admin" "$moved"
+    printf '%s\n' "$common" > "$moved/commondir"
+    printf 'gitdir: %s\n' "$moved" > .git
+    [ "$(git branch --show-current)" = my-change ]
+    case "$(git worktree list --porcelain)" in
+        (*"branch refs/heads/my-change"*) echo "still registered"; false ;;
+    esac
+    run sh .guardrails/scripts/finish-merge.sh --check my-change
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_has "no worktree is registered for my-change"
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     failed_at NESTED-WORKTREE
@@ -502,8 +511,8 @@ make_units_change() {
     make_units_fixture
     make_change_worktree my-change
     printf 'more\n' >> platform/hal/src/.gitkeep
-    write_record mine my-change
     commit_all "hal change"
+    write_message
 }
 
 # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
@@ -532,8 +541,8 @@ preflight: NESTED-WORKTREE ok"
     commit_all "untested pump requirement on the base branch"
     make_change_worktree my-change
     printf 'more\n' >> platform/hal/src/.gitkeep
-    write_record mine my-change
     commit_all "hal change"
+    write_message
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     printf '%s\n' "$output" | grep -qF "MISSING-TEST" || { echo "$output"; false; }
@@ -553,8 +562,8 @@ preflight: NESTED-WORKTREE ok"
     commit_all "untested hal requirement on the base branch"
     make_change_worktree my-change
     printf 'more\n' >> apps/pump/src/.gitkeep
-    write_record mine my-change
     commit_all "pump change"
+    write_message
     git -C "$REPO" -c tag.gpgsign=false tag main "$tagged_commit"
     run sh .guardrails/scripts/merge-preflight.sh --local-base my-change
     [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
@@ -596,6 +605,7 @@ opened: $(days_ago 5)
 status: open
 EOF
     commit_all "open problem report in hal"
+    write_message
     run sh .guardrails/scripts/merge-preflight.sh my-change
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     has_line "unit platform/hal: check-trace.sh"

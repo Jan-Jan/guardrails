@@ -25,10 +25,13 @@ The rest is yours, per unit:
 
 - dispatch each unit's `verify_commands` with its `GR_CONFIG` (steps 6a and 6b),
   for every unit in the impact set;
-- write one `Gate:` trailer per unit and command at step 7,
-  `Gate: <unit>: <verify_commands entry> <passed>/<total>`. The one
-  `Gate-tree:` trailer names the tree every unit's gate measured.
+- write one `Tests:` trailer per `verify_commands` entry of each unit in
+  the impact set at step 6b,
+  `Tests: <unit>: <verify_commands entry> <passed>/<total>`, and one
+  `Coverage:` per `coverage_command` of those units. A unit outside the
+  impact set owes none; any count other than the one owed is refused
+  (`TESTS`, `COVERAGE`). The one `Gate-tree:` trailer names the tree every
+  unit's gate measured.
 
-At step 5, the record also names the units touched, and the impact set,
-beside its `branch:` line. One branch, one squash, one record, however many units were
-gated.
+At step 5, the message's body also names the units touched and the impact
+set. One branch, one squash, one message, however many units were gated.

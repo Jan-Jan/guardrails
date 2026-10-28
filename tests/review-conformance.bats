@@ -17,7 +17,7 @@ setup() {
     # verifies: D4 (docs/plans/2026-10-08-test-guidelines.md)
     # The line sits indented inside a list item; it is pinned whole once the
     # indent is stripped.
-    sed 's/^ *//' "$skill" | grep -qxF '**finding-N**: guideline, <low | medium | high> — <clause cited as Heading N, quoted> — <file:line>'
+    sed 's/^ *//' "$skill" | grep -qxF '**finding-N**: guideline <low | medium | high> — <clause cited as Heading N, quoted> — <file:line>'
 }
 
 @test "review-conformance: the floor is listed in full" {

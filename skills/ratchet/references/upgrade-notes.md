@@ -52,7 +52,7 @@ scripts are copied.
    `DRAFT-` ledger file renames it after the upgrade ("Ledger files are named
    at creation" below).
 2. Before copying the new `scripts/`, run `check-trace.sh` once,
-   keep its output for item 7, and work through what it reports.
+   keep its output for item 6, and work through what it reports.
 3. Run the sizing grep in "List-item annotations" below. What it prints is the
    whole migration for that rule.
 4. After copying, run `check-trace.sh` again and work from the top. Config
@@ -62,10 +62,7 @@ scripts are copied.
    `DANGLING-FILE`, list-item annotations and coverage credits read by block.
    Read "`ADR` is a declared prefix" before adding
    `ADR` to `id_prefixes`.
-6. If `/ratchet` was ever run on macOS, run `check-review.sh --branch <name>`
-   once per existing verification record ("On macOS, older versions of
-   `check-review.sh` never executed" below).
-7. Fix each failure, and list each new warning in the verification record;
+6. Fix each failure, and list each new warning in the squash message;
    an upgrade is complete only then (`ratchet` Done when). A failure cannot
    be listed instead: the upgrade change merges through `merge-change`, whose
    gate needs `check-trace.sh` to pass. A warning is a finding printed without
@@ -247,17 +244,16 @@ omits `reviewer:`, `verdict:` or `reproduced:`, and `UNDISPOSED-FINDING` when a
   reproduced` is a passing record. The field makes an absence of evidence a
   visible omission.
 * **It is not a CI gate on the base branch.** There is no change under review
-  there, so it exits 2. Run it at `merge-change` step 6c from the worktree, or
-  in pull-request CI as `check-review.sh --branch <head>`.
+  there, so it exits 2. Run it at `merge-change` step 6c from the worktree.
 
 **On macOS, older versions of `check-review.sh` never executed.** Their record scan
 passed `awk -v` a value containing literal newlines, and the macOS awk (BWK,
 `awk version 20200816`) rejects that with `awk: newline in string ... at source
 line 1`, exit 2, before the program runs. Exit 2 reads as a setup error, so the
 gate read no record and reported nothing about one. In a project where
-`/ratchet` was run on macOS, `merge-change` step 6c has never executed. After
-upgrading, run `check-review.sh --branch <name>` once over each record the
-ledger contains. Do not assume they were fine.
+`/ratchet` was run on macOS, `merge-change` step 6c has never executed, and
+its records were never checked. Do not assume they were fine; the check now
+reads only the squash message ("The record is the squash message" below).
 
 ## Problem reports: `status:` and `opened:`
 
@@ -624,7 +620,7 @@ by the config check but never read, and `--cite` exits 2.
 
 ## Why the prose files are refreshed with the scripts
 
-The ledger READMEs, `.guardrails/templates/verification.md` and the AGENTS.md
+The ledger READMEs, `.guardrails/templates/squash-message.txt` and the AGENTS.md
 managed block teach the grammar the scripts enforce, and nothing mechanical
 reports when they drift apart. A skipped refresh produces a commit whose
 AGENTS.md and `docs/problems/README.md` contradict each other about a required
@@ -808,3 +804,52 @@ selection now surfaces at 6a, after the review; its fix dispatches a
 reviewer unless it touches only the record or the plan. A
 documentation-only diff's reviewer still runs no tests, and the record says
 so. No gate changes: no check script reads any of this.
+
+## The record is the squash message
+
+A change's verification record is now its squash commit message
+(`ADR-k3nkv3` in the guardrails repository), checked by `gr_message_check` in
+`lib.sh`: by `check-review.sh` before the hand-over and by `finish-merge.sh`
+after signing. No record file is written.
+
+* `doc_verification` is a withdrawn config key. Delete its line from every
+  config and unit config; a config still holding it exits 2 at every gate,
+  with `config key doc_verification is withdrawn: the record is the squash message (merge-change step 5). Delete its line.`
+* Delete `.guardrails/templates/verification.md`, and copy
+  `templates/squash-message.txt` to `.guardrails/templates/`. It states the
+  grammar: the body, `reviewer:`, `verdict:` and `reproduced:`, one
+  `<N>. [<disposition>] <tag>[ <severity>] — <finding>` line per finding
+  under `Findings:`, and the trailers. `merge-change` step 5 writes it to
+  the path `gr_message_file` prints, in the worktree's git directory, and
+  the hand-over commits it with `-c core.commentChar='#'` and
+  `--cleanup=strip`.
+* `check-review.sh` reads the message: `check-review.sh [--message FILE]
+  [--cite]`. `--branch` is gone, and a CI line that passes it exits 2.
+  `STALE-RECORD` and `ORPHAN-DISPOSITION` are gone. A disposition is the
+  text inside its finding's leading `[...]`; `[no change: <reason>]` cites
+  nothing, and a `record` finding may cite `message`.
+* Without exactly one non-empty `Base:`, the checker reports `BASE`. A
+  finding's tag must be `code`, `requirement` or `guideline` with `high`,
+  `medium` or `low`, or `record` with none, and its disposition
+  `fixed: <cite>, …`, `open: <cite>` or `no change: <reason>` with text
+  after the colon; for any other, the checker reports `MALFORMED-FINDING`.
+* `Tests:` replaces `Gate:`. The message holds exactly one per
+  `verify_commands` entry, over the units of the change's impact set under
+  a manifest (`check-units.sh --impact`), and at least one `Tests:`, also
+  with no configuration or no `verify_commands` entry, its last word
+  `<passed>/<total>`; for any other count, the checker reports `TESTS`.
+  Without exactly one `Coverage:` per `coverage_command`, over the same
+  units, the checker reports `COVERAGE`. A review field, trailer or disposition still holding a
+  template `<placeholder>` counts as missing; a trailer no count reads is
+  `INCOMPLETE-RECORD (placeholder in <Key>:)`.
+  `finish-merge.sh` guard 5 now runs `gr_message_check` on the signed
+  message, so it refuses the cleanup unless the `Gate-tree:` rule holds,
+  every `Tests:` passed in full, the review fields are present and every
+  finding is disposed. A squash written from an older copy of
+  `merge-change`, with `Gate:` and no `reviewer:`, is refused: refresh the
+  installed skills with the scripts.
+* A mutant used as evidence is a
+  `Mutation: <path>:<line> <mutant> — killed by "<test name>"` trailer. No
+  `.mutations/` directory is written.
+* Records already in `docs/verification/` are left as they are, for the
+  lean-records rework to remove; no gate reads them.

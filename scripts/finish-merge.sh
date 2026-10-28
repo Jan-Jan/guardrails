@@ -5,7 +5,7 @@
 #
 # The guarded tail of the signed merge command (merge-change step 7):
 #
-#   git commit -S -F <msgfile> && sh .guardrails/scripts/finish-merge.sh <branch>
+#   git -c core.commentChar='#' commit -S --cleanup=strip -F <msgfile> && sh .guardrails/scripts/finish-merge.sh <branch>
 #
 # The user runs the compound. Its first half is a plain `git commit -S` they can
 # read, because that is the step their hardware key answers for and it must not
@@ -34,12 +34,17 @@
 #      status` is clean and the removal takes the nested worktree's uncommitted
 #      work with it at exit 0 — leaving a `prunable` registration and an orphan
 #      branch behind.
-#   5. HEAD's message has exactly one `Gate-tree:` trailer, and its value is
-#      HEAD's own tree. merge-change step 7 writes there the tree its step 6a
-#      gate measured, so a signed squash of any other tree was never gated.
+#   5. HEAD's message passes gr_message_check, the squash message check
+#      check-review.sh runs before the hand-over: the review fields, every
+#      finding disposed, one Base:, one green Tests: trailer per
+#      verify_commands entry, one Coverage: per coverage_command, well-formed
+#      Mutation: trailers, no template placeholder left, and exactly one `Gate-tree:` trailer whose value is HEAD's
+#      own tree. merge-change step 6b writes there the tree its step 6a gate
+#      measured, so a signed squash of any other tree was never gated.
 #      Proved third, after guard 2: guards 1, 2 and 5 read the squash
-#      commit, guards 4 and 3 read the worktrees, and an ungated squash is
-#      refused before the worktree list is read or anything is removed.
+#      commit, guards 4 and 3 read the worktrees, and an incomplete or
+#      ungated squash is refused before the worktree list is read or
+#      anything is removed.
 #
 # A failing guard exits non-zero having removed nothing and deleted nothing. The
 # one exit 1 that follows a removal is a failed `git branch -D` after guard 3
@@ -298,49 +303,72 @@ git diff --quiet HEAD "$branch" || gr_refuse \
 
   then redo the squash and run this script again on its own."
 
-# Guard 5 — HEAD certifies its own tree. merge-change step 7 writes the tree
-# its step 6a gate measured into the squash message as a `Gate-tree:` trailer,
-# so a squash of any other tree is one no gate measured. The trailers are read
-# with git's own parser, which reads trailers only in the message's last
-# paragraph, so this counts them exactly where git does. It needs git 2.22; an
-# older git leaves the placeholder unexpanded, which equals no tree, so the
-# guard refuses. --no-show-signature: log.showSignature would print the
-# verifier's output above the trailers. unfold: a trailer continued on a line
-# that opens with whitespace is one trailer, read as one line, not as two.
+# Guard 5 — HEAD's message is a complete record that certifies HEAD's own
+# tree. The squash message is the change's verification record (ADR-k3nkv3),
+# so the signed message is checked with the same checker check-review.sh runs
+# before the hand-over: gr_message_check, with HEAD's tree as the tree its one
+# Gate-tree: trailer must name (ADR-f6ytg7), and the Tests: and Coverage:
+# trailers it owes counted from the configuration by gr_message_want, over
+# the units of the squash's impact set under a manifest (ADR-3hsvvq). A squash of any other tree is one no gate measured. The trailers are read by git's own parser from the last
+# paragraph, as git reads them. --no-show-signature: log.showSignature would
+# print the verifier's output above the message.
 #
-# The count reads each trailer with its key, so every trailer is a non-empty
-# line, an empty value included: one trailer arrives with no newline, since
-# command substitution strips the trailing one, and two or more arrive with one
-# between them. The value is read only once the count is one.
-gate_trailers=$(git log -1 --no-show-signature --format='%(trailers:key=Gate-tree,unfold)' HEAD) || gr_die \
-"git log failed, so HEAD's Gate-tree: trailer cannot be read. Nothing was
-  removed and $branch was NOT deleted."
-gr_nl='
-'
-case "$gate_trailers" in
-    (*"$gr_nl"*) gr_refuse \
-"HEAD's message has more than one Gate-tree: trailer, so it names no one tree
-  a gate measured. Nothing was removed and $branch was NOT deleted. Leave one,
-  the tree the step 6a gate measured, as merge-change's
-  references/cleanup-rejections.md states, then run this script again on its own." ;;
-esac
-gate_tree=$(git log -1 --no-show-signature --format='%(trailers:key=Gate-tree,valueonly,unfold)' HEAD) || gr_die \
-"git log failed, so HEAD's Gate-tree: trailer cannot be read. Nothing was
-  removed and $branch was NOT deleted."
+# The trailer counts are read first; the message then goes to a file in this
+# checkout's git directory, which the checker reads, and is removed before
+# any verdict. A failure to read it, or
+# a checker that cannot run (exit 2, gr_die's), exits 2; a finding exits 1.
+# Either way nothing has been removed yet.
 head_tree=$(git rev-parse 'HEAD^{tree}') || gr_die \
 "git rev-parse failed, so HEAD's tree cannot be read. Nothing was removed and
   $branch was NOT deleted."
-[ -n "$gate_tree" ] || gr_refuse \
-"HEAD's message carries no Gate-tree: trailer with a value, so nothing in the
-  commit names the tree a gate measured. Nothing was removed and $branch was
-  NOT deleted. git reads trailers only in a message's last paragraph. Fix the
-  message as merge-change's references/cleanup-rejections.md states, then run
-  this script again on its own."
-[ "$gate_tree" = "$head_tree" ] || gr_refuse \
-"HEAD's Gate-tree: trailer names $gate_tree, but HEAD's tree is $head_tree:
-  the signed commit holds a tree its gate did not measure. Nothing was removed
-  and $branch was NOT deleted. Gate this tree as merge-change's
-  references/cleanup-rejections.md states, then run this script again on its own."
+signed_message=$(git rev-parse --git-path guardrails-signed.msg) || gr_die \
+"git rev-parse failed, so HEAD's message has nowhere to be read from. Nothing
+  was removed and $branch was NOT deleted."
+# Under a unit manifest the trailers owed are those of the squash's impact
+# set, HEAD^..HEAD, the units merge-change gated.
+impact_units=""
+if gr_units_present; then
+    impact_units=$(gr_impact_units "$gr_script_dir" 'HEAD^..HEAD') || gr_die \
+"the impact set of HEAD^..HEAD cannot be computed (check-units.sh's error is
+  above), so the Tests: trailers HEAD's message owes are unknown. Nothing was
+  removed and $branch was NOT deleted."
+fi
+tests_want=$(gr_message_want verify_commands "$impact_units") || gr_die \
+"the configuration cannot be read, so the Tests: trailers HEAD's message owes
+  are unknown. Nothing was removed and $branch was NOT deleted."
+coverage_want=$(gr_message_want coverage_command "$impact_units") || gr_die \
+"the configuration cannot be read, so the Coverage: trailers HEAD's message
+  owes are unknown. Nothing was removed and $branch was NOT deleted."
+git log -1 --no-show-signature --format=%B HEAD > "$signed_message" || {
+    rm -f "$signed_message"
+    gr_die "git log failed, so HEAD's message cannot be read. Nothing was
+  removed and $branch was NOT deleted."
+}
+check_report=$(gr_message_check "$signed_message" "$head_tree" "$tests_want" "$coverage_want")
+check_status=$?
+rm -f "$signed_message"
+case "$check_status" in
+    (0) ;;
+    (1) gr_refuse \
+"HEAD's message does not pass the squash message check. Nothing was removed
+  and $branch was NOT deleted.
+
+$(printf '%s\n' "$check_report" | sed 's/^/  /')
+
+  The signed commit is already on the base branch; only the cleanup is
+  withheld. Correct the message file merge-change step 5 wrote, in the change
+  worktree (git rev-parse --git-path guardrails-squash.msg there), as
+  merge-change's references/cleanup-rejections.md states. git reads trailers
+  only in a message's last paragraph. A GATE-TREE finding that names another
+  tree means the signed commit holds a tree no gate measured: gate HEAD's tree
+  in the change worktree first. The user then amends and signs again,
+  git -c core.commentChar='#' commit --amend -S --cleanup=strip -F <that file>,
+  which keeps the tree.
+  Then run this script again on its own." ;;
+    (*) gr_die \
+"the squash message check could not run on HEAD's message.
+  Nothing was removed and $branch was NOT deleted." ;;
+esac
 
 # git's own registry, read ONCE and captured with its status taken. Both the
 # derivation below and guard 4 read it, and neither may confuse "git failed"
@@ -384,6 +412,8 @@ if [ -n "$wt" ]; then
     # PATH, the parenthesised `case` patterns, the quoted variable half, the
     # trailing `/`, the printed matches — is argued at that function.
     nested=$(gr_nested_worktrees "$wt")
+    gr_nl='
+'
 
     if [ -n "$nested" ]; then
         # ALL of them, not the first. A five-way fan-out leaves five task

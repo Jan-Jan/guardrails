@@ -45,16 +45,6 @@ ratchet_step() {
     grep -q 'apt install parallel' "$checklist" || { echo "no Debian install line"; false; }
 }
 
-@test "verification template warns that a range in a finding header opens no block" {
-    # verifies: PR-geb5db
-    # check-review.sh already reports a range-shaped header (finding-2..4) as
-    # MALFORMED-FINDING — gr_finding_shaped is deliberately broad — but the
-    # template never taught the rule, so reviewers discovered it from the
-    # failure instead of from the document that shapes the record.
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    grep -q 'A range opens no block' "$template"
-}
-
 @test "ratchet: updating the scripts also refreshes the ledger READMEs" {
     # verifies: PR-uavq3f
     # The upgrade guidance replaced the scripts and the AGENTS.md managed
@@ -76,15 +66,15 @@ ratchet_step() {
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     done_when=$(awk '/^## Done when/ { inside = 1; next } /^## / { inside = 0 } inside' "$skill")
     printf '%s\n' "$done_when" | grep -q 'An upgrade copied scripts and grammar files from one guardrails version,'
-    printf '%s\n' "$done_when" | grep -q 'fixed each failure, and listed each new warning in the verification record.'
+    printf '%s\n' "$done_when" | grep -q 'fixed each failure, and listed each new warning in the squash message.'
     # A plan is dropped before the gate, so neither the warnings nor a
     # retrofit's gap analysis can live only in one.
     printf '%s\n' "$done_when" | tr '\n' ' ' | tr -s ' ' |
-        grep -qF "A retrofit's verification record carries its gap analysis's adoption order" ||
+        grep -qF "A retrofit's squash message carries its gap analysis's adoption order" ||
         { echo "Done when does not keep the retrofit's adoption order"; false; }
 }
 
-@test "ratchet: upgrade step 4 fixes each failure and lists each new warning in the verification record" {
+@test "ratchet: upgrade step 4 fixes each failure and lists each new warning in the squash message" {
     # verifies: PR-s8dcmp
     # verifies: ADR-k3nkv3
     # Done when checks that each failure is fixed and each warning listed, so
@@ -98,14 +88,14 @@ ratchet_step() {
     printf '%s\n' "$upgrade" | grep -q '^4\. Run `check-trace.sh`; fix each failure, and list each new warning in the$'
     # Step 5 writes the record after upgrade step 4 and retrofit step 3.2, so
     # each says the list goes in once the record exists (round 4, finding-5).
-    printf '%s\n' "$upgrade" | grep -q '^   verification record once Step 5 writes it\.' ||
+    printf '%s\n' "$upgrade" | grep -q '^   squash message once Step 5 writes it\.' ||
         { echo "upgrade step 4 writes into a record Step 5 has not written"; false; }
     ! grep -q 'or list it in a plan' "$skill" \
         || { echo "SKILL.md still lets a failure be listed instead of fixed"; false; }
     ! grep -q 'each warning' "$skill" \
         || { echo "SKILL.md lists every warning, not only the new ones"; false; }
     tr '\n' ' ' < "$skill" | tr -s ' ' |
-        grep -qF 'It is the change'"'"'s plan, dropped before the gate: copy its adoption order into the verification record once Step 5 writes it.' ||
+        grep -qF 'It is the change'"'"'s plan, dropped before the gate: copy its adoption order into the squash message once Step 5 writes it, as a bulleted list: a numbered line is a malformed finding.' ||
         { echo "retrofit step 2 does not keep the adoption order"; false; }
 }
 
@@ -124,7 +114,7 @@ ratchet_step() {
     grep -q 'ADR-3h4dky' "$root/skills/ratchet/references/rationale.md"
 }
 
-@test "ratchet: ADR-3h4dky and the rationale list upgrade warnings and later teeth in the verification record" {
+@test "ratchet: ADR-3h4dky and the rationale list upgrade warnings and later teeth in the squash message" {
     # verifies: ADR-k3nkv3
     # A plan never reaches the base branch, so neither the new warnings an
     # upgrade leaves nor a retrofit's later teeth can be listed in one; the
@@ -134,12 +124,12 @@ ratchet_step() {
     rationale=$(section_of '## Upgrade is its own mode' "$root/skills/ratchet/references/rationale.md" |
         tr '\n' ' ' | tr -s ' ')
     head -n 1 "$root/docs/adr/ADR-3h4dky-upgrade-is-its-own-mode.md" |
-        grep -qF 'each new warning is listed in its verification record.' ||
+        grep -qF 'each new warning is listed in its squash message.' ||
         { echo "the decision line still lists warnings in a plan"; false; }
-    printf '%s\n' "$adr" | grep -qF "each new warning is listed in the upgrade change's verification record" ||
+    printf '%s\n' "$adr" | grep -qF "each new warning is listed in the upgrade change's squash message" ||
         { echo "the Done when list still names a plan"; false; }
     for text in "$adr" "$rationale"; do
-        printf '%s\n' "$text" | grep -qF 'later teeth are listed in the verification record' ||
+        printf '%s\n' "$text" | grep -qF 'later teeth are listed in the squash message' ||
             { echo "later teeth still in the gap analysis: $text"; false; }
         if printf '%s\n' "$text" | grep -qiE 'listed in a plan|plan listing|plan that lists|amended'; then
             echo "still names a plan for the listing, or an amendment: $text"; false
@@ -155,12 +145,14 @@ ratchet_step() {
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     order=$(awk '/^## Order of work/ { inside = 1; next } /^## / { inside = 0 } inside' "$notes")
-    printf '%s\n' "$order" | grep -q 'ever run on macOS, run `check-review.sh --branch <name>`'
-    printf '%s\n' "$order" | grep -q '^7\. Fix each failure, and list each new warning in the verification record;'
+    if printf '%s\n' "$order" | grep -qF -e '--branch' -e 'verification record'; then
+        echo "the order of work still reruns check-review over records"; false
+    fi
+    printf '%s\n' "$order" | grep -q '^6\. Fix each failure, and list each new warning in the squash message;'
     printf '%s\n' "$order" | grep -q 'A warning is a finding printed without'
     printf '%s\n' "$order" | grep -q 'A new warning is one the run in item 2'
     printf '%s\n' "$order" | grep -q 'failing the run: `UNRESOLVED-PR`, `ACCEPTED-PR`, and an `UNMET-EXPECTATION`'
-    printf '%s\n' "$order" | grep -q 'keep its output for item 7'
+    printf '%s\n' "$order" | grep -q 'keep its output for item 6'
     printf '%s\n' "$order" | grep -q 'an older one is already recorded in its ledger'
     ! grep -q 'If `/ratchet` was ever run on macOS' "$skill" \
         || { echo "SKILL.md still carries the macOS step"; false; }
@@ -408,7 +400,7 @@ ratchet_step() {
     # tag, so the dispatch is the only occurrence of the path.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Squash message\*\*' "$skill" | head -n 1 | cut -d: -f1)
     path_at=$(grep -n '\.worktrees/<change-branch>-review' "$skill" | head -n 1 | cut -d: -f1)
     # Re-aimed 2026-10-01 under D4: the review worktree is retired with
     # `remove review`, which merges nothing.
@@ -436,7 +428,7 @@ ratchet_step() {
     # finish-merge.sh.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Squash message\*\*' "$skill" | head -n 1 | cut -d: -f1)
     # Re-aimed 2026-10-01 under D4: the review worktree is retired with
     # `remove review`, which merges nothing.
     remove_at=$(grep -n 'task-worktree\.sh remove review' \
@@ -483,7 +475,7 @@ ratchet_step() {
     [ "$count" -eq 2 ]
     one_at=$(grep -n '^1\. \*\*Merge the latest base branch' "$skill" | head -n 1 | cut -d: -f1)
     review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Squash message\*\*' "$skill" | head -n 1 | cut -d: -f1)
     header_at=$(grep -n '\.worktrees/<change-branch>-<tag>' "$skill" | head -n 1 | cut -d: -f1)
     finding_at=$(grep -n '\.worktrees/<change-branch>-<tag>' "$skill" | tail -n 1 | cut -d: -f1)
     [ -n "$one_at" ]
@@ -563,7 +555,7 @@ ratchet_step() {
     # 4's matches it.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | head -n 1 | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Squash message\*\*' "$skill" | head -n 1 | cut -d: -f1)
     [ -n "$review_at" ]
     [ -n "$record_at" ]
     sed -n "${review_at},${record_at}p" "$skill" | grep -q 'every round that created one'
@@ -932,21 +924,33 @@ sh_fence() {
 @test "merge-change: step 8 maps guard 4's rejection to a remedy" {
     # verifies: PR-n57ayn
     # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
-    # verifies: D5 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-k3nkv3
     # Step 7 counts the guards finish-merge.sh proves and step 8's table is the
     # one place that maps a rejection to a remedy. Guard 4 was added without
     # either being updated, leaving the rejection an operator is now most likely
     # to meet unexplained in both. The row quotes what the script prints.
+    # Guard 5 checks the signed message (ADR-k3nkv3): its rows quote the
+    # refusal, every finding code, and the amend that keeps the tree.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    rejections="$(dirname "$skill")/references/cleanup-rejections.md"
     grep -q 'proves five things' "$skill"
-    grep -q 'a registered worktree lies inside' \
-        "$(dirname "$skill")/references/cleanup-rejections.md"
-    grep -q 'carries no Gate-tree: trailer with a value' \
-        "$(dirname "$skill")/references/cleanup-rejections.md"
-    grep -q 'more than one Gate-tree: trailer' \
-        "$(dirname "$skill")/references/cleanup-rejections.md"
-    grep -q "Gate-tree: trailer names <tree>, but HEAD's tree is <tree>" \
-        "$(dirname "$skill")/references/cleanup-rejections.md"
+    grep -q 'a registered worktree lies inside' "$rejections"
+    grep -qF "HEAD's message does not pass the squash message check" "$rejections" \
+        || { echo "no row quotes guard 5's refusal"; false; }
+    for code in MISSING-RECORD INCOMPLETE-RECORD UNDISPOSED-FINDING \
+            MALFORMED-FINDING FAILED-TESTS MALFORMED-MUTATION \
+            'BASE (want one Base: trailer, found' \
+            'TESTS (want <n> Tests: trailers, one per verify_commands entry, found' \
+            'COVERAGE (want <n> Coverage: trailers, one per coverage_command, found' \
+            'GATE-TREE (want one Gate-tree: <tree>, found'; do
+        grep -qF "$code" "$rejections" || { echo "no row names $code"; false; }
+    done
+    grep -qF "git -c core.commentChar='#' commit --amend -S --cleanup=strip -F <message file>" "$rejections" \
+        || { echo "the amend does not strip the template's guidance"; false; }
+    grep -qF "the squash message check could not run on HEAD's message" "$rejections" \
+        || { echo "no exit-2 row for the checker"; false; }
+    run grep -qF -e '%(trailers' -e '/tmp/merge-' "$rejections"
+    [ "$status" -ne 0 ] || { echo "a row still names the old message form"; false; }
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
     # passes on whatever it found. (As the final command its status does become
@@ -965,9 +969,8 @@ sh_fence() {
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     step8=$(awk '/^8\. \*\*/ { inside = 1 } /^## / { inside = 0 } inside' "$skill")
     [ -n "$step8" ]
-    printf '%s\n' "$step8" | grep -q 'closing line from the message file'
+    printf '%s\n' "$step8" | grep -q 'closing line from the message: branch and IDs'
     printf '%s\n' "$step8" | grep -q 'Run no git command: `finish-merge.sh` verified the signature'
-    printf '%s\n' "$step8" | grep -q 'branch, IDs, record'
     # Re-aimed 2026-10-07 (parallel-changes review round 4): what the message
     # states was removed moved to cleanup-rejections.md, which step 8 names.
     grep -q 'the worktree alone when only the branch deletion' \
@@ -1180,11 +1183,14 @@ sh_fence() {
     grep -q 'check-units.sh` with no flag' "$skill"
 }
 
-@test "merge-record-names-units: the verification record contains the impact set" {
+@test "merge-record-names-units: the squash message contains the impact set" {
     # verifies: D6 — one record per change; the record names the units.
+    # verifies: ADR-k3nkv3 — the record is the squash message, and each
+    # unit's totals are a Tests: trailer.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
-    grep -q 'units touched, and the impact set' "$skill"
-    grep -q 'the record also names the units touched' "$skill"
+    grep -q "the message's body also names the units touched and the impact" "$skill"
+    grep -q 'One branch, one squash, one message' "$skill"
+    grep -qF 'Tests: <unit>: <verify_commands entry> <passed>/<total>' "$skill"
 }
 
 @test "grill-dependency-assessment-interview: the provider's artefacts are consulted by name" {
@@ -1425,13 +1431,6 @@ sh_fence() {
         || { echo "the checklist does not ask for the ARCHITECTURE reviews"; false; }
 }
 
-@test "verification template: guideline reviews name the ARCHITECTURE kind" {
-    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    tr '\n' ' ' < "$template" | tr -s ' ' | grep -qF 'guidelines-file.sh ARCHITECTURE' \
-        || { echo "the template does not name the ARCHITECTURE kind"; false; }
-}
-
 @test "README: tailor-guidelines names the architecture guidelines file" {
     # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
     grep -qF 'ARCHITECTURE_GUIDELINES.md' "$BATS_TEST_DIRNAME/../README.md" \
@@ -1576,69 +1575,66 @@ sh_fence() {
     fi
 }
 
-@test "merge-change: the record states the ledger delta, not the open count" {
+@test "merge-change: the message states the ledger delta, not the open count" {
     # verifies: PR-hkc376
-    # The record states what this change resolves, accepts or opens, not
-    # "open PR warnings": an open count is a census of the whole ledger at one
-    # instant, in a per-change artifact read long afterwards, and a pinned
+    # verifies: ADR-k3nkv3
+    # The squash message states what this change resolves or opens, not
+    # "open PR warnings": an open count is a census of the whole ledger at
+    # one instant, in a per-change artifact read long afterwards, and a pinned
     # number goes stale with the next merge.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -q 'resolves, accepts or opens' "$skill"
+    step_of "$skill" 5 | tr '\n' ' ' | tr -s ' ' | grep -qF '`Resolves:` and `Opens:` (omit an empty one)' \
+        || { echo "step 5 does not write the delta trailers"; false; }
     ! grep -rq 'open PR warnings' "$(dirname "$skill")" \
         || { echo "merge-change still says: open PR warnings"; false; }
 }
 
-@test "merge-change: the commit template states the Resolves and Opens trailers" {
+@test "merge-change: the message template states the Resolves and Opens trailers" {
     # verifies: PR-hkc376
-    # Deltas are checkable against the diff forever; no script parses
-    # these two lines, so they cost nothing; only `Gate-tree:` is read (finish-merge.sh guard 5).
-    skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    grep -qF 'Resolves: <PR IDs this change closes>' "$skill"
-    grep -qF 'Opens: <PR IDs this change raises>' "$skill"
+    # verifies: ADR-k3nkv3
+    # Deltas are checkable against the diff forever. The trailers are in the
+    # template step 5 copies, not in a block the skill restates.
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
+    grep -qx 'Resolves: <PR IDs>' "$template"
+    grep -qx 'Opens: <PR IDs>' "$template"
+    run grep -qF 'Resolves: <PR IDs this change closes>' "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
+    [ "$status" -ne 0 ] || { echo "the skill still restates the message template"; false; }
 }
 
-@test "verification template: a repository figure does not belong in the record" {
-    # verifies: PR-hkc376
-    # Measuring the open count fresh does not make it a fact about this change.
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    grep -q 'describes the repository rather than this change' "$template"
+@test "verify-before-merge: a mutant used as evidence becomes a Mutation: trailer" {
+    # verifies: ADR-3hsvvq
+    skill_text=$(tr '\n' ' ' < "$BATS_TEST_DIRNAME/../skills/verify-before-merge/SKILL.md" | tr -s ' ')
+    printf '%s\n' "$skill_text" | grep -qF 'A mutant the change uses as evidence becomes a `Mutation: <path>:<line> <mutant> — killed by "<test name>"` trailer in the message.' \
+        || { echo "no shipped skill says when a Mutation: trailer is written"; false; }
 }
 
-@test "verify-before-merge: the gate summary holds what step 7's trailers need" {
+@test "verify-before-merge: the gate summary holds what step 6b's trailers need" {
     # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-k3nkv3
     root="$BATS_TEST_DIRNAME/.."
     skill_text=$(tr '\n' ' ' < "$root/skills/verify-before-merge/SKILL.md" | tr -s ' ')
-    printf '%s\n' "$skill_text" | grep -qF 'Anything `merge-change` step 7'"'"'s trailers need from the gate' \
+    printf '%s\n' "$skill_text" | grep -qF 'Anything `merge-change` step 6b'"'"'s trailers need from the gate' \
         || { echo "verify-before-merge still feeds the gate figures to the record"; false; }
     rationale_text=$(tr '\n' ' ' < "$root/skills/verify-before-merge/references/rationale.md" | tr -s ' ')
-    printf '%s\n' "$rationale_text" | grep -qF 'the squash commit'"'"'s `Gate:` trailers' \
+    printf '%s\n' "$rationale_text" | grep -qF 'the squash commit'"'"'s `Tests:` and `Coverage:` trailers' \
         || { echo "the rationale does not name the trailers as the durable evidence"; false; }
     printf '%s\n' "$rationale_text" | grep -qF 'the evidence moves from the chat log to the log file and the squash commit'"'"'s trailers' \
         || { echo "the rationale still sends the gate evidence to the verification record"; false; }
     block_text=$(tr '\n' ' ' < "$root/templates/AGENTS-block.md" | tr -s ' ')
-    printf '%s\n' "$block_text" | grep -qF 'a `Gate-tree:` trailer naming the tree the gate measured' \
-        || { echo "the AGENTS block does not require the trailer"; false; }
+    printf '%s\n' "$block_text" | grep -qF 'carry its verification record in its message, with a `Gate-tree:` trailer naming the tree the gate measured' \
+        || { echo "the AGENTS block does not require the message and trailer"; false; }
+    printf '%s\n' "$block_text" | grep -qF 'check-review.sh [--message FILE] [--cite]`' \
+        || { echo "the AGENTS block does not give check-review's usage"; false; }
     readme_text=$(tr '\n' ' ' < "$root/README.md" | tr -s ' ')
-    printf '%s\n' "$readme_text" | grep -qF 'whose `Gate-tree:` trailer names the tree its gate measured' \
-        || { echo "the README does not state the trailer"; false; }
-}
-
-@test "verification template: a record does not count itself, and narrates once" {
-    # verifies: D9 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
-    # A count of a record's own rounds or findings, written in that record,
-    # is falsified by the next commit that adds a finding block, the commit
-    # that writes the count included (G1 of the churn proposal). Prose
-    # rewritten each round restates earlier rounds and draws findings of its
-    # own (P12 of the parallel-session proposals).
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    text=$(tr '\n' ' ' < "$template" | tr -s ' ')
-    printf '%s\n' "$text" | grep -qF 'The `### Round <N>` headings and the `**finding-` blocks are the count'
-    printf '%s\n' "$text" | grep -qF 'State no number of rounds, findings or dispositions in prose'
-    printf '%s\n' "$text" | grep -qF 'Write this section and the Gaps once, after the final round'
-    printf '%s\n' "$text" | grep -qF 'with no round-by-round account'
-    round_line=$(grep -n '^### Round 1$' "$template" | cut -d: -f1)
-    finding_line=$(grep -n '^\*\*finding-1\*\*:' "$template" | cut -d: -f1)
-    [ -n "$round_line" ] && [ -n "$finding_line" ] && [ "$round_line" -lt "$finding_line" ]
+    printf '%s\n' "$readme_text" | grep -qF 'whose message is its verification record and whose `Gate-tree:` trailer names the tree its gate measured' \
+        || { echo "the README does not state the message and trailer"; false; }
+    printf '%s\n' "$readme_text" | grep -qF '`templates/squash-message.txt` states the squash message' \
+        || { echo "the README does not name the message template"; false; }
+    for text in "$block_text" "$readme_text"; do
+        if printf '%s\n' "$text" | grep -qF -e 'verification.md' -e '--branch'; then
+            echo "still names the record file or --branch: $text"; false
+        fi
+    done
 }
 
 @test "PR-kc2pzm carries P8 and P9 as candidates, with P9's defect" {
@@ -1669,26 +1665,26 @@ sh_fence() {
     grep -q 'Name the IDs that moved' "$skill"
 }
 
-@test "verification template: the gate's figures and their tree are in the squash commit, not the record" {
+@test "squash message template: the gate's figures and their tree are trailers, written at step 6b" {
     # verifies: PR-dkm5tq, PR-k4y59t
-    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-k3nkv3
     # Gate evidence is keyed to a tree or it is keyed to nothing (PR-dkm5tq).
-    # A record cannot name the tree it is part of, so the template sends the
-    # gate's tree and figures to the squash commit's trailers and states that
-    # the record names no commit or tree the gate measured, no base commit and
-    # no gate figure (PR-k4y59t). It may cite a fix commit in a disposition.
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    text=$(tr '\n' ' ' < "$template" | tr -s ' ')
-    for wanted in '`Gate-tree:` names the tree the step 6a gate measured' \
-            'a `Gate:` line gives each command'"'"'s totals' \
-            'this record names no commit or tree the gate measured, no base commit and no gate figure' \
-            'it does not change when the sequence reruns'; do
-        printf '%s\n' "$text" | grep -qF -- "$wanted" \
-            || { echo "the template lacks: $wanted"; false; }
+    # The message is outside the tree, so it can name the tree the gate
+    # measured; step 6b writes the trailers once the summary is confirmed for
+    # that tree, so a rerun replaces them rather than staling them (PR-k4y59t).
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
+    for wanted in 'Gate-tree: <tree>' 'Tests: <command> <passed>/<total>' \
+            'Coverage: <command> <figure>' 'Base: <base ref> at <commit>'; do
+        grep -qxF -- "$wanted" "$template" || { echo "the template lacks: $wanted"; false; }
     done
-    run grep -n -e 'Measured on' -e 'Branched from' -e 'HEAD^{tree}' -e '<tree hash>' \
-        -e '<commit>' -e '| Gate | Result |' "$template"
-    [ "$status" -eq 1 ] || { echo "the template still names a tree or a gate figure: $output"; false; }
+    step6b=$(step_of "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md" 6b | tr '\n' ' ' | tr -s ' ')
+    for wanted in 'replacing an earlier round'"'"'s' '`Gate-tree:` the step 6a tree' \
+            '`Tests: <verify_commands entry> <passed>/<total>` per entry, per impact-set unit' \
+            '`Coverage: <coverage_command> <figure>` per configured command' \
+            '`Base: <base ref> at <commit>`, the commit step 1 merged'; do
+        printf '%s\n' "$step6b" | grep -qF -- "$wanted" \
+            || { echo "step 6b lacks: $wanted"; false; }
+    done
 }
 
 @test "ledger files: the skills and templates name a ledger file at creation, and nothing renames it" {
@@ -1796,7 +1792,7 @@ sh_fence() {
     # adds no script and no new malformed case.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'Every finding opens with its tag' "$skill"
-    grep -qF '`code`, `requirement` or `record`' "$skill"
+    grep -qF '`code`, `requirement`, `guideline` or `record`' "$skill"
     grep -qF '`high`, `medium` or `low`' "$skill"
 }
 
@@ -1846,32 +1842,20 @@ sh_fence() {
     [ "$recorded" -lt "$compared" ]
 }
 
-@test "verification template opens every finding with its tag" {
+@test "squash message template opens every finding with its tag" {
     # verifies: PR-3s74u3
+    # verifies: ADR-k3nkv3
     # The review step requires `code`, `requirement` or `record` as the first
-    # word of a finding's value, and the template a reviewer copies is the one
-    # place the shape is demonstrated rather than described, so its findings
-    # carry the tag.
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    grep -q '^\*\*finding-1\*\*: <code | requirement>, <high | medium | low> —' "$template"
-    # A `record` finding states no severity, and the template shows that shape
-    # rather than a severity on every tag.
-    grep -q '^\*\*finding-2\*\*: record — ' "$template"
-    ! grep -q '^\*\*finding-[0-9]*\*\*: [^—]*record[^—]*, <high' "$template" \
-        || { echo "the template gives a record finding a severity"; false; }
-    # and the field grammar states what the tag is for
-
-    # The boundary itself, and not only the tag. Three formulations of this rule
-    # were rejected by three review rounds, and each time the skill was repaired
-    # and the template left stating the version just disproved — a reviewer
-    # copies the template, so the wrong rule is the one that reaches the field.
-    # The template states what the tag is FOR — the convergence rule — and must
-    # not restate a boundary rule. Five review rounds rejected five formulations
-    # of one, and the change that added the tag ships none; a template that
-    # reintroduces one reaches every adopter's record.
-    grep -q 'convergence rule' "$template"
-    ! grep -q 'outside the verification record' "$template" \
-        || { echo "the template restates a boundary: outside the verification record"; false; }
+    # word of a finding, and the template step 5 copies is the one place the
+    # shape is demonstrated rather than described, so its finding carries the
+    # tag, after the disposition.
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
+    grep -qxF '1. [<disposition>] <tag>[ <severity>] — <text>' "$template"
+    # A `record` finding states no severity.
+    grep -qF 'and record (none)' "$template"
+    # The template must not restate a boundary rule: what a citation may
+    # name is check-review.sh's, and a rule the template restates reaches
+    # every adopter.
     ! grep -q 'a file some gate reads' "$template" \
         || { echo "the template restates a boundary: a file some gate reads"; false; }
     ! grep -q 'a file some test reads' "$template" \
@@ -2230,13 +2214,12 @@ gr_write_skill_fixture() {
     # skill that were neither kept nor listed as dropped history.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
-    grep -q "A later round's reviewer reads the record earlier rounds wrote" "$skill"
+    # verifies: ADR-k3nkv3 — the record a later reviewer reads is the message.
+    grep -q "A later round's reviewer reads the message earlier rounds wrote" "$skill"
     grep -q 'name it so the user can run it' "$skill"
     grep -q 'consider two independent' "$skill"
     # Review round 9: the advice applies to class C only.
     grep -q 'C a thorough review; for class C,' "$skill"
-    grep -q 'contains all four fields with values' "$skill"
-    grep -q 'INCOMPLETE-RECORD' "$skill"
     grep -q 'With no worktree registered for the branch' "$skill"
     grep -q 'leave or remove it with the harness tool' "$skill"
     # The review checklist holds the documentation checks, and its
@@ -2245,7 +2228,6 @@ gr_write_skill_fixture() {
         "$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     # Re-aimed 2026-10-07 (parallel-changes review round 4): two reasons moved
     # to the rationale to make room for instructions.
-    grep -q 'not by its filename' "$rationale"
     # Review round 4, finding 18: a cut dropped where an exit 2 can come from.
     grep -q 'usage or environment error from the pre-flight or a tool it runs' "$skill"
     grep -q 'their shell has none of your variables' "$rationale"
@@ -2261,7 +2243,7 @@ gr_write_skill_fixture() {
     grep -q 'the dispatcher is `merge-change`' "$rationale"
     grep -q 'a stop with no defect behind it' "$rationale"
     grep -q 'the property guard 4 exists for' "$rationale"
-    grep -q 'the squash commit contains the evidence' "$rationale"
+    grep -q 'never in the tree the gate measures' "$rationale"
     grep -q 'needs the current totals' "$rationale"
     grep -q 'a change with no reproduction states so' "$rationale"
     grep -q 'the units whose gates the verdict covers' "$rationale"
@@ -2285,7 +2267,7 @@ gr_write_skill_fixture() {
     # Nothing may bar a second change from opening, since AGENTS.md allows
     # parallel changes (D1). The rationale must state why that is safe: step 1
     # merges the base every round, IDs are random tokens, and each change's
-    # record is found by its branch: field.
+    # record is its own worktree's squash message (ADR-k3nkv3).
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     # Prose wraps, so a phrase is matched on the file with its lines joined.
@@ -2309,7 +2291,7 @@ gr_write_skill_fixture() {
     printf '%s\n' "$rationale_text" | grep -q 'reaches every other change before its gate'
     printf '%s\n' "$rationale_text" | grep -q 'two worktrees do not contend for an ID'
     printf '%s\n' "$rationale_text" | grep -q '`DUPLICATE-ID` catches the improbable collision'
-    printf '%s\n' "$rationale_text" | grep -q 'the gate finds it by its `branch:` field'
+    printf '%s\n' "$rationale_text" | grep -qF "squash message in its own worktree's git directory, so no two changes share one"
 }
 
 @test "merge-change: a base merge that shares a file with the change gets a fresh review" {
@@ -2327,7 +2309,6 @@ gr_write_skill_fixture() {
     # step 1's fence and step 4's marker against one fixture, scenario by scenario.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
     step1=$(step_of "$skill" 1)
     [ -n "$step1" ]
     step1_text=$(printf '%s\n' "$step1" | tr '\n' ' ' | tr -s ' ')
@@ -2337,7 +2318,7 @@ gr_write_skill_fixture() {
     printf '%s\n' "$rationale_text" | grep -q 'any shared file sends the whole change to a fresh reviewer'
     printf '%s\n' "$rationale_text" | grep -q 'A conflict is not the test'
     printf '%s\n' "$rationale_text" | grep -q 'because the obligation must survive a rerun'
-    tr '\n' ' ' < "$template" | tr -s ' ' | grep -q 'name the shared files and that review round'
+    printf '%s\n' "$rationale_text" | grep -q 'the message names the shared files and that review round'
 
     fence=$(printf '%s\n' "$step1" | sh_fence)
     printf '%s\n' "$fence" | grep -q 'git merge "\$base_ref"'
@@ -2448,7 +2429,7 @@ gr_write_skill_fixture() {
     compare_at=$(printf '%s\n' "$step7" | grep -n '^ *git diff --cached --quiet <branch>$' | cut -d: -f1)
     [ "$compare_at" -eq $((squash_at + 1)) ]
     step7_text=$(printf '%s\n' "$step7" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$step7_text" | grep -qF "The second line exits 0 when the index holds exactly the branch's tree: go on to the message."
+    printf '%s\n' "$step7_text" | grep -qF "The second line exits 0 when the index holds exactly the branch's tree: go on."
     # Which case a failed comparison is follows from the first line's
     # output, not its exit status: a conflicted squash of this change also
     # exits 1 (review round 3, finding 13). A squash that ran is cleared and
@@ -2559,25 +2540,23 @@ gr_write_skill_fixture() {
     [ -z "$(git status --porcelain)" ]
 }
 
-@test "merge-change: the squash step writes the gate's trailers and compares the staged tree with the gated tree before the hand-over" {
+@test "merge-change: the squash step compares the staged tree with the gated tree and hands over the message file" {
     # verifies: D1, D2, D4 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-k3nkv3
+    # Step 7 writes no message: step 5 wrote it and step 6b added the gate's
+    # trailers. It squashes, compares the staged tree with the Gate-tree:
+    # value, and hands over a commit that strips the template's guidance.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     multi="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     step7=$(step_of "$skill" 7)
     [ -n "$step7" ]
-    for wanted in 'Base: <base ref> at <its commit>' 'Gate-tree: <step 6a tree>' \
-            'Gate: <verify_commands entry> <passed>/<total>' \
-            'Gate: <coverage_command> <figure>'; do
-        printf '%s\n' "$step7" | grep -qxF "   $wanted" \
-            || { echo "the message template lacks: $wanted"; false; }
-    done
     step7_text=$(printf '%s\n' "$step7" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$step7_text" | grep -qF 'and one for `coverage_command` where configured' \
-        || { echo "step 7 gives coverage no Gate: line"; false; }
-    printf '%s\n' "$step7_text" | grep -qF 'Keep every trailer, `Co-Authored-By:` included, in this last paragraph' \
-        || { echo "step 7 does not keep the trailers in the last paragraph"; false; }
-    printf '%s\n' "$step7_text" | grep -qF '`<its commit>` is `git rev-parse <base ref>`' \
-        || { echo "step 7 does not say where the Base: commit comes from"; false; }
+    printf '%s\n' "$step7" | grep -qxF "   git -c core.commentChar='#' commit -S --cleanup=strip -F <message file> && sh .guardrails/scripts/finish-merge.sh <branch>" \
+        || { echo "step 7 does not hand over the message file"; false; }
+    printf '%s\n' "$step7_text" | grep -qF "filled in with step 5's path" \
+        || { echo "step 7 does not name where the message file is"; false; }
+    run grep -qF -e 'Co-Authored-By' -e '/tmp/merge-' -e 'Verified:' -e 'Gate: <' "$skill"
+    [ "$status" -ne 0 ] || { echo "the skill still writes the old message: $output"; false; }
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     rationale_text=$(tr '\n' ' ' < "$rationale" | tr -s ' ')
     for wanted in '`Base:` names the commit of the base ref that step 1 merged' \
@@ -2588,23 +2567,23 @@ gr_write_skill_fixture() {
     if printf '%s\n' "$rationale_text" | grep -qF 'checks read only the tree `Gate-tree:` names'; then
         echo "rationale.md still says the pre-flight reads only the named tree"; false
     fi
-    tr '\n' ' ' < "$multi" | tr -s ' ' | grep -qF 'Gate: <unit>: <verify_commands entry> <passed>/<total>' \
-        || { echo "multi-unit.md does not name the per-unit Gate: line"; false; }
+    tr '\n' ' ' < "$multi" | tr -s ' ' | grep -qF 'Tests: <unit>: <verify_commands entry> <passed>/<total>' \
+        || { echo "multi-unit.md does not name the per-unit Tests: line"; false; }
 
-    # The comparison is the second sh fence of step 7, after the message and
+    # The comparison is the second sh fence of step 7, after the squash and
     # before the hand-over command.
     fence=$(printf '%s\n' "$step7" | awk '
         /^ *```sh$/ { sh_fences++; fenced = 1; next }
         fenced && /^ *```$/ { fenced = 0; next }
         fenced && sh_fences == 2 { sub(/^ +/, ""); print }
     ')
-    [ "$fence" = '[ "$(git write-tree)" = <step 6a tree> ]' ] \
+    [ "$fence" = '[ "$(git write-tree)" = <the Gate-tree: value> ]' ] \
         || { echo "the second fence of step 7 is: $fence"; false; }
-    message_at=$(printf '%s\n' "$step7" | grep -n 'Gate-tree: <step 6a tree>' | cut -d: -f1)
+    squash_at=$(printf '%s\n' "$step7" | grep -n 'git merge --squash' | cut -d: -f1)
     compare_at=$(printf '%s\n' "$step7" | grep -n 'git write-tree' | cut -d: -f1)
-    handover_at=$(printf '%s\n' "$step7" | grep -n 'git commit -S -F' | cut -d: -f1)
-    [ "$message_at" -lt "$compare_at" ] \
-        || { echo "the comparison at $compare_at precedes the message at $message_at"; false; }
+    handover_at=$(printf '%s\n' "$step7" | grep -n "git -c core.commentChar='#' commit -S --cleanup=strip -F" | cut -d: -f1)
+    [ "$squash_at" -lt "$compare_at" ] \
+        || { echo "the comparison at $compare_at precedes the squash at $squash_at"; false; }
     [ "$compare_at" -lt "$handover_at" ] \
         || { echo "the hand-over at $handover_at precedes the comparison at $compare_at"; false; }
     printf '%s\n' "$step7_text" | grep -qF 'A mismatch: run `git reset --merge`, then rerun from step 1.' \
@@ -2619,13 +2598,13 @@ gr_write_skill_fixture() {
     gate_tree=$(git rev-parse 'HEAD^{tree}')
     git checkout -q main
     git merge -q --squash feature
-    compare=$(printf '%s\n' "$fence" | sed "s/<step 6a tree>/$gate_tree/")
+    compare=$(printf '%s\n' "$fence" | sed "s/<the Gate-tree: value>/$gate_tree/")
     run sh -c "$compare"
     [ "$status" -eq 0 ] || { echo "the gated squash failed the comparison"; false; }
     git reset -q --merge
     git checkout -q feature
-    printf 'branch: feature\n' > record.md
-    commit_all 'the record, after the gate'
+    printf 'late\n' > late.txt
+    commit_all 'a commit after the gate'
     git checkout -q main
     git merge -q --squash feature
     run sh -c "$compare"
@@ -2633,9 +2612,10 @@ gr_write_skill_fixture() {
     git reset -q --merge
 }
 
-@test "merge-change: the record is written before the gate and holds no gate figure" {
+@test "merge-change: the message is written before the gate, and step 5 writes no gate figure" {
     # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
     # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: ADR-k3nkv3
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     # The record is step 5, before the 6a gate in every round, so no sentence
@@ -2646,9 +2626,9 @@ gr_write_skill_fixture() {
     step_5=$(step_of "$skill" 5)
     [ -n "$step_5" ]
     if printf '%s\n' "$step_5" | grep -q -e 'totals' -e 'tree they describe' -e "check's result"; then
-        echo "step 5 still puts gate figures in the record"; false
+        echo "step 5 still puts gate figures in the message"; false
     fi
-    grep -q '^## Step 5: the record names no tree$' "$rationale"
+    grep -q '^## Step 5: the message is outside the tree$' "$rationale"
     grep -q '^## Step 7: the trailers certify the gate$' "$rationale"
     rationale_text=$(tr '\n' ' ' < "$rationale" | tr -s ' ')
     printf '%s\n' "$rationale_text" | grep -qF 'not one computed again at step 7' \
@@ -2795,13 +2775,14 @@ adr_file_is_named_by_its_item() {
     grep -qF 'any `inherited:` lines into the plan' "$root/skills/develop-change/SKILL.md" \
         || { echo "develop-change does not write the inherited: lines into the plan"; false; }
 
-    record="$root/templates/verification.md"
-    grep -qF 'list it below the table as `inherited: <test name> — from <old ID>`' "$record" \
-        || { echo "the verification template does not say where inherited: goes"; false; }
-    grep -qF 'It is coverage, never a row in the table' "$record" \
-        || { echo "the verification template puts an inherited test in the table"; false; }
+    # verifies: ADR-k3nkv3 — the record template is the squash message's.
+    record="$root/templates/squash-message.txt"
+    awk '/^Red-green:$/ { inside = 1; next } inside && /^[A-Z][a-z-]*:$/ { exit } inside' "$record" \
+        | grep -qx 'inherited: <copied verbatim>' \
+        || { echo "the message template does not say where inherited: goes"; false; }
 
-    grep -qF 'any `inherited:` lines from the plan' "$root/skills/merge-change/SKILL.md" \
+    step_of "$root/skills/merge-change/SKILL.md" 5 | tr '\n' ' ' | tr -s ' ' \
+        | grep -qF 'the `red -> green:` and `inherited:` lines from the plan' \
         || { echo "merge-change step 5 does not copy the inherited: lines"; false; }
 }
 
@@ -2833,32 +2814,48 @@ adr_file_is_named_by_its_item() {
     [ -z "$(git status --porcelain)" ] || { git status --short; false; }
 }
 
-@test "merge-change: step 5 drops the plans after the record" {
+@test "merge-change: step 5 drops the plans after the message, and commits no record" {
     # verifies: ADR-k3nkv3
-    # The plan is dropped after the record copies its red -> green lines and
+    # The plan is dropped after the message copies its red -> green lines and
     # before the step 6a gate measures the tree, against the local base branch
     # the step 7 squash lands on, never origin/<base>. Runs step 5's fence in
     # a change worktree that added a plan.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     step5=$(step_of "$skill" 5)
-    commit_at=$(printf '%s\n' "$step5" | grep -n 'commit it unsigned' | head -n 1 | cut -d: -f1)
+    commit_at=$(printf '%s\n' "$step5" | grep -n 'Copy `.guardrails/templates/squash-message.txt` to `$msg`' | head -n 1 | cut -d: -f1)
     drop_at=$(printf '%s\n' "$step5" | grep -n '^ *sh \.guardrails/scripts/drop-plans\.sh --base "\$BASE"$' | cut -d: -f1)
-    [ -n "$commit_at" ] || { echo "step 5 does not commit the record"; false; }
+    [ -n "$commit_at" ] || { echo "step 5 does not write the message from the template"; false; }
+    printf '%s\n' "$step5" | tr '\n' ' ' | tr -s ' ' | grep -qF 'Nothing is committed for the message.' ||
+        { echo "step 5 does not say the message is not committed"; false; }
+    if printf '%s\n' "$step5" | grep -q -e 'commit it' -e 'docs/verification'; then
+        echo "step 5 still commits a record file"; false
+    fi
     [ -n "$drop_at" ] || { echo "step 5 does not run drop-plans.sh --base \"\$BASE\""; false; }
     printf '%s\n' "$step5" | tr '\n' ' ' | tr -s ' ' | grep -qF 'the local base branch step 7 squashes onto' ||
         { echo "step 5 does not say why it drops against the local base"; false; }
-    [ "$drop_at" -gt "$commit_at" ] || { echo "the drop comes before the record's commit"; false; }
+    [ "$drop_at" -gt "$commit_at" ] || { echo "the drop comes before the message"; false; }
     grep -qx '## Step 5: the plan is dropped before the gate' "$rationale" ||
         { echo "no rationale section for the drop"; false; }
     if grep -q '^## Step 1: plans are pruned' "$rationale"; then echo "the rationale still prunes"; false; fi
 
-    fence=$(printf '%s\n' "$step5" | sh_fence)
+    nth_fence() { printf '%s\n' "$step5" | awk -v want="$1" '
+        /^ *```sh$/ { n++; fenced = 1; next }
+        fenced && /^ *```$/ { fenced = 0; next }
+        fenced && n == want { sub(/^   /, ""); print }'; }
     make_fixture_repo
     make_change_worktree feature
+    # The first fence prints the message file: absolute, in this worktree's
+    # git directory, so outside the tree.
+    run sh -c "$(nth_fence 1)"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = "$(cd "$(git rev-parse --git-dir)" && pwd -P)/guardrails-squash.msg" ] ||
+        [ "$output" = "$(git rev-parse --absolute-git-dir)/guardrails-squash.msg" ] ||
+        { echo "not the worktree's message file: $output"; false; }
     mkdir -p docs/plans
     printf '# Plan\n' > docs/plans/2026-01-01-x.md
     commit_all 'the plan'
+    fence=$(nth_fence 2)
     run sh -c "BASE=main; $fence"
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [ ! -e docs/plans/2026-01-01-x.md ] || { echo "the plan is still there"; false; }
@@ -2897,10 +2894,11 @@ adr_file_is_named_by_its_item() {
     [ "$(git show "$commit^:docs/plans/2026-01-01-x.md")" = '# Plan' ]
 }
 
-@test "verify-before-merge: the gate reads the verification record, not the dropped plan" {
+@test "verify-before-merge: the gate reads the squash message, not the dropped plan" {
     # verifies: ADR-k3nkv3
     # Step 5 drops the plan before the 6a gate, so check 4's Implements IDs
-    # and check 8's findings are read from the record step 5 wrote.
+    # and red -> green lines, and check 8's findings, are read from the
+    # message step 5 wrote.
     root="$BATS_TEST_DIRNAME/.."
     skill=$(tr '\n' ' ' < "$root/skills/verify-before-merge/SKILL.md" | tr -s ' ')
     rationale=$(tr '\n' ' ' < "$root/skills/verify-before-merge/references/rationale.md" | tr -s ' ')
@@ -2909,31 +2907,32 @@ adr_file_is_named_by_its_item() {
             echo "the gate still reads the plan"; false
         fi
     done
-    printf '%s\n' "$skill" | grep -qF "for every ID the verification record's \`Implements:\` line names" ||
-        { echo "the Implements map does not read the record's Implements: line"; false; }
-    printf '%s\n' "$skill" | grep -qF "every ID the verification record's \`Implements:\` line names has a" ||
-        { echo "check 4 does not read the record's Implements: line"; false; }
+    printf '%s\n' "$skill" | grep -qF "for every ID the squash message's \`Implements:\` trailer names" ||
+        { echo "the Implements map does not read the message's Implements: trailer"; false; }
+    printf '%s\n' "$skill" | grep -qF "every ID the squash message's \`Implements:\` trailer names has a" ||
+        { echo "check 4 does not read the message's Implements: trailer"; false; }
+    printf '%s\n' "$skill" | grep -qF "message's \`Red-green:\` section" ||
+        { echo "check 4 does not read the message's red -> green lines"; false; }
     for text in "$skill" "$rationale"; do
-        printf '%s\n' "$text" | grep -qF "from the verification record's \`## Guideline reviews\`" ||
-            { echo "check 8 does not read the record's guideline reviews"; false; }
+        printf '%s\n' "$text" | grep -qF "from the squash message's \`guideline\` findings" ||
+            { echo "check 8 does not read the message's guideline findings"; false; }
     done
 }
 
-@test "merge-change: step 5 fills the record's Implements line from the plan's Implements value" {
+@test "merge-change: step 5 fills the message's Implements trailer from the plan's Implements value" {
     # verifies: ADR-k3nkv3
-    # Check 4 reads its Implements IDs from the record, because the plan is
-    # dropped before the gate. The red -> green table is built from the same
-    # dispatch lines check 4 cross-matches, so the IDs come from the plan.
+    # Check 4 reads its Implements IDs from the message, because the plan is
+    # dropped before the gate. The red -> green lines are the same dispatch
+    # lines check 4 cross-matches, so the IDs come from the plan.
     root="$BATS_TEST_DIRNAME/.."
-    grep -qx 'Implements: <the IDs the plan'"'"'s `\*\*Implements:\*\*` line names>' \
-        "$root/templates/verification.md" ||
-        { echo "the verification template has no Implements: line"; false; }
+    grep -qx 'Implements: <IDs>' "$root/templates/squash-message.txt" ||
+        { echo "the message template has no Implements: trailer"; false; }
     step5=$(step_of "$root/skills/merge-change/SKILL.md" 5 | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$step5" | grep -qF "commit it unsigned: the plan's \`**Implements:**\` value (no plan: the IDs), the IDs" ||
+    printf '%s\n' "$step5" | grep -qF "\`Implements:\` (the plan's \`**Implements:**\` value; no plan: the IDs)" ||
         { echo "step 5 does not copy the plan's Implements value, or state it where there is no plan"; false; }
 }
 
-@test "merge-change: a rerun of step 5 updates the record and reads the dropped plan by step 4's lookup" {
+@test "merge-change: a rerun of step 5 updates the message and reads the dropped plan by step 4's lookup" {
     # verifies: ADR-k3nkv3
     # After a 6a fix's review round or a base-move round with a shared: line,
     # step 5 runs again with the plan already dropped: it updates the record
@@ -2942,34 +2941,35 @@ adr_file_is_named_by_its_item() {
     step5=$(step_of "$root/skills/merge-change/SKILL.md" 5 | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$step5" | grep -qF 'or update it where it exists' ||
         { echo "step 5 does not update an existing record"; false; }
-    printf '%s\n' "$step5" | grep -qF "with its disposition. A rerun reads the plan by step 4's lookup. Then:" ||
+    printf '%s\n' "$step5" | grep -qF "A rerun reads the plan by step 4's lookup. Then:" ||
         { echo "step 5 does not say how a rerun reads the dropped plan"; false; }
     step4=$(step_of "$root/skills/merge-change/SKILL.md" 4 | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$step4" | grep -qF "git log -1 --format=%H --grep='^chore: drop plans\$'" ||
         { echo "step 4 names no drop-commit lookup"; false; }
 }
 
-@test "merge-change: step 5 names the four fields 6c requires, and a template placeholder is missing" {
+@test "merge-change: step 5 names the three fields 6c requires, and a template placeholder is missing" {
     # verifies: ADR-k3nkv3
-    # The template has five column-one fields, so "all four" must name its
-    # four; a ratchet change's record is written early, its review fields
+    # The message has three required fields, `branch:` gone with the record
+    # file; a ratchet change's message is written early, its review fields
     # still holding the template's placeholders, which check-review.sh does
     # not reject (round 4, finding-3 and finding-4).
     root="$BATS_TEST_DIRNAME/.."
     step5=$(step_of "$root/skills/merge-change/SKILL.md" 5 | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$step5" | grep -qF 'contains all four fields with values (`branch:`, `reviewer:`, `verdict:`, `reproduced:`)' ||
-        { echo "step 5 does not name the four fields"; false; }
+    printf '%s\n' "$step5" | grep -qF '`reviewer:`, `verdict:` and `reproduced:`' ||
+        { echo "step 5 does not name the three fields"; false; }
+    if printf '%s\n' "$step5" | grep -qF '`branch:`'; then echo "step 5 still names branch:"; false; fi
     printf '%s\n' "$step5" | grep -qF 'fill in only what is missing (a `<…>` placeholder counts as missing)' ||
         { echo "step 5 does not count a placeholder as missing"; false; }
 }
 
-@test "verification template: a ratchet change's record is written at ratchet step 5" {
+@test "squash message template: a ratchet change's message is written early, at ratchet step 5" {
     # verifies: ADR-k3nkv3
-    # Ratchet step 5 writes the record early; merge-change step 5 updates it
-    # (round 4, finding-7).
-    opening=$(sed -n '3,4p' "$BATS_TEST_DIRNAME/../templates/verification.md" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$opening" | grep -qF 'written at `merge-change` step 5, or for a `ratchet` change at `ratchet` step 5 and updated at `merge-change` step 5,' ||
-        { echo "the template says only merge-change step 5 writes the record: $opening"; false; }
+    # Ratchet step 5 writes the message early; merge-change step 5 updates it.
+    header=$(awk '!/^#/ { exit } { sub(/^# */, ""); print }' "$BATS_TEST_DIRNAME/../templates/squash-message.txt" |
+        tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$header" | grep -qF '`ratchet` step 5 writes it early for a ratchet change, and merge-change step 5 updates it' ||
+        { echo "the template says only merge-change step 5 writes the message: $header"; false; }
 }
 
 @test "merge-change: a disposition never cites the plan, which step 5 drops" {
@@ -2990,18 +2990,18 @@ adr_file_is_named_by_its_item() {
 @test "merge-change: a 6a fix that touches the plan dispatches a reviewer" {
     # verifies: ADR-k3nkv3
     # Step 5 has dropped the plan by 6a, so a fix that edits it re-adds a plan
-    # and fails 6c's PLANS check: it is not a record-only fix.
+    # and fails 6c's PLANS check: it is not a message-only fix (ADR-k3nkv3).
     root="$BATS_TEST_DIRNAME/.."
     step4=$(step_of "$root/skills/merge-change/SKILL.md" 4 | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$step4" | grep -qF "A 6a gate failure's fix dispatches a reviewer unless it touches only the record." ||
+    printf '%s\n' "$step4" | grep -qF "A 6a gate failure's fix dispatches a reviewer unless it changes only the message." ||
         { echo "step 4 still exempts a fix that touches the plan"; false; }
     section=$(section_of '## Step 4: the reviewer runs the tests it judges' \
         "$root/skills/merge-change/references/rationale.md" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$section" | grep -qF 'its fix dispatches a reviewer unless it touches only the record.' ||
+    printf '%s\n' "$section" | grep -qF 'its fix dispatches a reviewer unless it changes only the message.' ||
         { echo "the rationale still exempts a fix that touches the plan"; false; }
-    section=$(section_of '## Step 6a: the gate runs after the record' \
+    section=$(section_of '## Step 6a: the gate runs after the message' \
         "$root/skills/merge-change/references/rationale.md" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$section" | grep -qF 'so it dispatches a reviewer unless it touches only the record.' ||
+    printf '%s\n' "$section" | grep -qF 'so it dispatches a reviewer unless it changes only the message.' ||
         { echo "the 6a rationale still exempts a fix that touches the plan"; false; }
 }
 
@@ -3013,17 +3013,23 @@ adr_file_is_named_by_its_item() {
         { echo "step 1 does not rerun after a conflict"; false; }
 }
 
-@test "skills: a fix dispatched after step 5 writes its red -> green lines into the record" {
+@test "skills: a fix dispatched after step 5 reports its red -> green lines, which the dispatcher writes into the message" {
     # verifies: ADR-k3nkv3
-    # Once step 5 drops the plan there is no plan to write them into.
+    # verifies: ADR-3hsvvq
+    # Once step 5 drops the plan there is no plan to write them into, and a
+    # task worktree's message file is its own, discarded with it.
     root="$BATS_TEST_DIRNAME/.."
     for file in skills/develop-change/SKILL.md skills/verify-before-merge/SKILL.md; do
-        tr '\n' ' ' < "$root/$file" | tr -s ' ' | grep -qF 'A fix dispatched after step 5 (a 6a or 6c failure' ||
+        text=$(tr '\n' ' ' < "$root/$file" | tr -s ' ')
+        printf '%s\n' "$text" | grep -qF 'A fix dispatched after step 5 (a 6a or 6c failure' ||
             { echo "$file does not route a post-step-5 fix's lines"; false; }
-        tr '\n' ' ' < "$root/$file" | tr -s ' ' | grep -qF "a base-move round's review) writes its" ||
-            { echo "$file does not name the base-move round"; false; }
-        tr '\n' ' ' < "$root/$file" | tr -s ' ' | grep -qF 'into the verification record directly' ||
-            { echo "$file does not send them to the record"; false; }
+        printf '%s\n' "$text" | grep -qF "a base-move round's review) returns its lines in its report;" ||
+            { echo "$file does not have the fix report its lines"; false; }
+        printf '%s\n' "$text" | grep -qF "into the change worktree's message" ||
+            { echo "$file does not send them to the change worktree's message"; false; }
+        if printf '%s\n' "$text" | grep -qF 'into the message directly'; then
+            echo "$file still has the fix write the message itself"; false
+        fi
     done
 }
 
@@ -3032,7 +3038,7 @@ adr_file_is_named_by_its_item() {
     # The gap analysis is dropped before the gate, so the later teeth are
     # listed in the record; the guidance cut to fit the word limit is back.
     skill=$(tr '\n' ' ' < "$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md" | tr -s ' ')
-    printf '%s\n' "$skill" | grep -qF "(separate changes, listed in the retrofit's verification record)" ||
+    printf '%s\n' "$skill" | grep -qF "(separate changes, listed in the retrofit's squash message)" ||
         { echo "later teeth not listed in the record"; false; }
     printf '%s\n' "$skill" | grep -qF '(any default branch name works)' ||
         { echo "the branch name note is gone"; false; }
@@ -3042,22 +3048,16 @@ adr_file_is_named_by_its_item() {
 
 @test "merge-change: the squash message names no plan" {
     # verifies: ADR-k3nkv3
-    # The plan never reaches the base branch, so neither the squash message
-    # nor the record points at it.
+    # The plan never reaches the base branch, so the squash message, which is
+    # the record, does not point at it.
     root="$BATS_TEST_DIRNAME/.."
     skill="$root/skills/merge-change/SKILL.md"
-    message=$(step_of "$skill" 7 | awk '
-        /^ *```sh$/ { insh = 1; next }
-        insh && /^ *```$/ { insh = 0; next }
-        insh { next }
-        /^ *```$/ { if (inmsg) exit; inmsg = 1; next }
-        inmsg')
-    printf '%s\n' "$message" | grep -qF 'Verified: docs/verification/<record file>' ||
-        { echo "no message block found: $message"; false; }
-    if printf '%s\n' "$message" | grep -q '^ *Plan:'; then echo "the message names a plan"; false; fi
-    if grep -q '^Plan:' "$root/templates/verification.md"; then echo "the record names a plan"; false; fi
+    template="$root/templates/squash-message.txt"
+    [ -s "$template" ] || { echo "no message template"; false; }
+    if grep -qi '^Plan:' "$template"; then echo "the message names a plan"; false; fi
+    if grep -qF 'docs/plans' "$template"; then echo "the message names a plan's path"; false; fi
     done_when=$(awk '/^## Done when/ { inside = 1; next } /^## / { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$done_when" | grep -qF 'whose message names its record and gated tree' ||
+    printf '%s\n' "$done_when" | grep -qF 'whose message is its verification record and names its gated tree' ||
         { echo "Done when does not name the record and gated tree"; false; }
     if printf '%s\n' "$done_when" | grep -qF 'names its plan'; then echo "Done when names the plan"; false; fi
 }
@@ -3125,7 +3125,7 @@ adr_file_is_named_by_its_item() {
 @test "merge-change: a round that dispatches no reviewer skips the pre-flight before the review" {
     # verifies: D2 (docs/plans/2026-10-14-base-move-round.md)
     # verifies: ADR-k3nkv3
-    # A base-move round reruns the record only after a review; the rationale
+    # A base-move round reruns the message only after a review; the rationale
     # names no rerun for a plan.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
@@ -3138,8 +3138,8 @@ adr_file_is_named_by_its_item() {
     grep -qx '## Step 2: skipped when no reviewer is dispatched' "$rationale" ||
         { echo "no rationale section for skipping step 2"; false; }
     tr '\n' ' ' < "$rationale" | tr -s ' ' |
-        grep -qF 'a fresh review (steps 2 to 4) only where a `shared:` line shows the base edited a file this change edits, whose rerun writes the record at step 5;' ||
-        { echo "the rationale's base-move round skips the record after a review"; false; }
+        grep -qF 'a fresh review (steps 2 to 4) only where a `shared:` line shows the base edited a file this change edits, whose rerun writes the message at step 5;' ||
+        { echo "the rationale's base-move round skips the message after a review"; false; }
     if tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -qF 'left a new plan whole'; then
         echo "the rationale's base-move round still reruns the record for a plan left whole"; false
     fi
@@ -3200,7 +3200,7 @@ adr_file_is_named_by_its_item() {
         { echo "the rationale does not settle a skill-text diff that claims tested IDs"; false; }
     printf '%s' "$section" | grep -qF 'A documentation-only diff is one whose selection is empty.' ||
         { echo "the rationale does not define a documentation-only diff by its selection"; false; }
-    gate=$(section_of '## Step 6a: the gate runs after the record' "$rationale" | tr '\n' ' ' | tr -s ' ')
+    gate=$(section_of '## Step 6a: the gate runs after the message' "$rationale" | tr '\n' ' ' | tr -s ' ')
     printf '%s' "$gate" | grep -qF 'the reviewer runs no tests because its selection is empty' ||
         { echo "step 6a's rationale does not give the selection as the reason"; false; }
     if printf '%s' "$gate" | grep -qF 'no gate summary to hand its reviewer'; then
@@ -3226,15 +3226,15 @@ adr_file_is_named_by_its_item() {
         || { echo "the checklist's last-round sentence does not cover a round with no finding"; false; }
 }
 
-@test "merge-change: the review checklist asks for the record only where it exists" {
+@test "merge-change: the review checklist asks for the message only where it exists" {
     # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
     # verifies: ADR-k3nkv3
-    # The record follows the review, so a first-round reviewer has none. The
+    # The message follows the review, so a first-round reviewer has none. The
     # checklist asks for no plan.
     checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     checklist_text=$(tr '\n' ' ' < "$checklist" | tr -s ' ')
-    printf '%s\n' "$checklist_text" | grep -qF 'from <old ID>` in the record, where the record exists.' \
-        || { echo "the checklist asks every reviewer for inherited: lines in the record"; false; }
+    printf '%s\n' "$checklist_text" | grep -qF 'from <old ID>` in the message, where the message exists.' \
+        || { echo "the checklist asks every reviewer for inherited: lines in the message"; false; }
     if printf '%s\n' "$checklist_text" | grep -qF 'left whole'; then
         echo "the checklist still asks for left whole plans"; false
     fi
@@ -3265,10 +3265,12 @@ adr_file_is_named_by_its_item() {
         || { echo "the precondition does not name develop-change"; false; }
 }
 
-@test "merge-change: the gate runs after the record, on the tree that is signed" {
+@test "merge-change: the gate runs after the message, on the tree that is signed" {
     # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
-    # The record is committed before the gate, so one gate per round measures
-    # the tree step 7 squashes. The step labels follow D5.
+    # verifies: ADR-k3nkv3
+    # The message is written before the gate, so one gate per round measures
+    # the tree step 7 squashes, and 6b names that tree in the message. The
+    # step labels follow D5.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     labels=$(grep -E '^[0-9]+[a-d]?\. \*\*' "$skill" | sed 's/\. .*//' | tr '\n' ' ')
     [ "$labels" = '1 2 3 4 5 6a 6b 6c 6d 7 8 ' ] || { echo "step labels: $labels"; false; }
@@ -3280,13 +3282,13 @@ adr_file_is_named_by_its_item() {
         || { echo "6b is not the tree check: $step_6b"; false; }
     printf '%s\n' "$step_6b" | grep -qF 'git rev-parse HEAD^{tree}' \
         || { echo "6b does not compare the tree: $step_6b"; false; }
-    record_at=$(grep -n '^5\. \*\*Verification record\*\*' "$skill" | cut -d: -f1)
+    record_at=$(grep -n '^5\. \*\*Squash message\*\*' "$skill" | cut -d: -f1)
     gate_at=$(grep -n '^6a\. \*\*' "$skill" | cut -d: -f1)
     if [ -z "$record_at" ] || [ -z "$gate_at" ] || [ "$record_at" -ge "$gate_at" ]; then
-        echo "the record ('$record_at') does not precede the gate ('$gate_at')"; false
+        echo "the message ('$record_at') does not precede the gate ('$gate_at')"; false
     fi
-    step_of "$skill" 7 | grep -qxF '   Gate-tree: <step 6a tree>' \
-        || { echo "step 7's message template does not name the step 6a tree"; false; }
+    printf '%s\n' "$step_6b" | tr '\n' ' ' | tr -s ' ' | grep -qF '`Gate-tree:` the step 6a tree' \
+        || { echo "step 6b does not write the step 6a tree into the message"; false; }
 }
 
 @test "merge-change: a late gate's costs are stated: a reviewer for its fix, and no suite for a docs-only review" {
@@ -3296,7 +3298,7 @@ adr_file_is_named_by_its_item() {
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     step_4=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
     [ -n "$step_4" ]
-    printf '%s\n' "$step_4" | grep -qF "A documentation-only diff's reviewer runs no tests; the record states it." \
+    printf '%s\n' "$step_4" | grep -qF "A documentation-only diff's reviewer runs no tests; the message states it." \
         || { echo "step 4 does not say a documentation-only diff's reviewer runs no tests"; false; }
 }
 
@@ -3356,45 +3358,41 @@ adr_file_is_named_by_its_item() {
         { echo "no default"; false; }
 }
 
-@test "verification template: a disposition cites a path, a test name or an item ID, or says no change" {
-    # verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    grep -qF 'no change — <reason>' "$template" ||
-        { echo "no escape wording"; false; }
-    grep -qF 'UNRESOLVABLE-DISPOSITION' "$template" ||
-        { echo "no failure name"; false; }
-    # The --cite paragraph of the field grammar names the three kinds of
-    # citation and every declaration form check-review.sh accepts.
-    paragraph=$(awk '/^- With `--cite`/ { inside = 1 }
-                     inside && /^- / && !/^- With `--cite`/ { exit }
-                     inside' "$template" | tr '\n' ' ' | tr -s ' ')
-    for named in 'a regular file' '`test_paths`' 'an item ID that `find-items.sh show` finds' \
-        '`@test "<name>"`' '`it(`' '`test(`' '`describe(`' '`def test…`' \
-        '`func Test…`' '`func (<receiver>) Test…`' 'Rust `fn`, any function name'; do
-        printf '%s\n' "$paragraph" | grep -qF -- "$named" ||
-            { echo "the --cite paragraph does not name: $named"; false; }
+@test "squash message template: a disposition cites a path, a test name or an item ID, or says no change" {
+    # verifies: ADR-3hsvvq
+    # The template shows the three disposition forms; what a citation may
+    # name is check-review.sh's, stated in its header.
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
+    for form in '[fixed: <cite>, …]' '[open: <cite>]' '[no change: <reason>]'; do
+        grep -qF -- "$form" "$template" || { echo "the template lacks the form $form"; false; }
+    done
+    header=$(sed -n '1,/^set -u/p' "$BATS_TEST_DIRNAME/../scripts/check-review.sh" | tr '\n' ' ' | tr -s ' ')
+    for named in 'UNRESOLVABLE-DISPOSITION' '`no change: <reason>`' 'test_paths' 'find-items.sh show'; do
+        printf '%s\n' "$header" | grep -qF -- "$named" ||
+            { echo "check-review.sh's header does not name: $named"; false; }
     done
 }
 
-@test "verification template and upgrade notes: a guideline finding cites as a code finding does" {
+@test "squash message template: nothing follows the trailer paragraph, Co-Authored-By included" {
+    # verifies: ADR-3hsvvq
+    # git reads trailers only from the last paragraph: a line appended after a
+    # blank line becomes that paragraph and hides every trailer above it.
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
+    guidance=$(sed -n 's/^# *//p' "$template" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$guidance" | grep -qF 'No Co-Authored-By: and nothing after the trailer paragraph' ||
+        { echo "the template does not forbid lines after the trailers"; false; }
+}
+
+@test "squash message template and upgrade notes: a guideline finding cites as a code finding does" {
     # verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
-    # check-review.sh --cite checks a guideline finding's disposition too, so
-    # the template steers it to a citation or the escape, and both texts name
-    # `guideline` among the findings the record itself does not answer.
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
+    # verifies: ADR-k3nkv3
+    # check-review.sh --cite checks a guideline finding's disposition too: the
+    # template gives guideline findings the same line and dispositions as code
+    # findings, and the upgrade note names `guideline` among them.
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
-    guideline_placeholder=$(awk '/^\*\*finding-<N>\*\*: guideline/ { inside = 1 }
-                                 inside && /^$/ { exit }
-                                 inside' "$template" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$guideline_placeholder" | grep -qF '`no change — <why the clause does not apply here>`' ||
-        { echo "the guideline placeholder lacks the escape: $guideline_placeholder"; false; }
-    printf '%s\n' "$guideline_placeholder" | grep -qF 'a test name or an ID' ||
-        { echo "the guideline placeholder names no citation: $guideline_placeholder"; false; }
-    paragraph=$(awk '/^- With `--cite`/ { inside = 1 }
-                     inside && /^- / && !/^- With `--cite`/ { exit }
-                     inside' "$template" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$paragraph" | grep -qF '`code`, `requirement` or `guideline` finding' ||
-        { echo "the --cite paragraph does not name guideline findings"; false; }
+    tr '\n' ' ' < "$template" | tr -s ' ' | grep -qF 'Tags: code, requirement, guideline (each with a severity' ||
+        { echo "the template does not give guideline findings a tag and severity"; false; }
     section=$(awk '/^## Dispositions cite what they changed: `review_cite`$/ { inside = 1; next }
                    inside && /^## / { exit }
                    inside' "$notes" | tr '\n' ' ' | tr -s ' ')
@@ -3443,10 +3441,16 @@ adr_file_is_named_by_its_item() {
     adr_file_is_named_by_its_item "$adr_file"
     grep -qx 'Status: accepted' "$adr_file"
     adr_text=$(tr '\n' ' ' < "$adr_file" | tr -s ' ')
-    for wanted in '`Gate-tree:`' '`Gate:`' '`Base:`' 'finish-merge.sh' \
+    for wanted in '`Gate-tree:`' '`Tests:`' '`Coverage:`' '`Base:`' 'finish-merge.sh' \
+            "guard 5 refuses the cleanup, removing nothing, unless the signed message passes the $adr_prefix-3hsvvq check" \
             'git write-tree' 'PR-k4y59t' "$adr_prefix-y8jmes"; do
         printf '%s\n' "$adr_text" | grep -qF -- "$wanted" \
             || { echo "the ADR lacks $wanted"; false; }
+    done
+    for unwanted in '`Gate:`' 'verification record' 'templates/verification.md' 'Amended'; do
+        if printf '%s\n' "$adr_text" | grep -qF -- "$unwanted"; then
+            echo "the ADR still says $unwanted"; false
+        fi
     done
     printf '%s\n' "$adr_text" | grep -qF 'tree checks, `check-ids.sh` and `check-trace.sh`, can be rerun on the tree `Gate-tree:` names' \
         || { echo "the ADR does not limit the rerun to the tree checks"; false; }
@@ -3509,17 +3513,25 @@ adr_file_is_named_by_its_item() {
     agents="$BATS_TEST_DIRNAME/../AGENTS.md"
     text=$(tr '\n' ' ' < "$agents" | tr -s ' ')
     printf '%s\n' "$text" | grep -qF \
-        'verifies the signature, and that the `Gate-tree:` trailer names the commit'"'"'s own tree, before it removes anything' \
-        || { echo "non-negotiable 2 does not name the Gate-tree check"; false; }
+        'verifies the signature, and that the signed message passes the squash message check, its `Gate-tree:` trailer naming the commit'"'"'s own tree, before it removes anything' \
+        || { echo "non-negotiable 2 does not name the message check"; false; }
+    # verifies: ADR-k3nkv3
+    # The record is the message: non-negotiable 4's directed merge is named
+    # there, and the Base: trailer is written at merge-change step 6b.
+    printf '%s\n' "$text" | grep -qF 'as the subject of a change whose squash message names whose decision it was' \
+        || { echo "non-negotiable 4 still names a verification record"; false; }
+    printf '%s\n' "$text" | grep -qF 'State it in the squash commit'"'"'s `Base:` trailer (`merge-change` step 6b)' \
+        || { echo "non-negotiable 4 names the wrong step for Base:"; false; }
 }
 
-@test "worktree-discipline: the record holds the reviews, and the squash's trailers hold what was run" {
+@test "worktree-discipline: the squash message holds the reviews, and its trailers hold what was run" {
     # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-k3nkv3
     skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
     text=$(tr '\n' ' ' < "$skill" | tr -s ' ')
-    printf '%s\n' "$text" | grep -qF 'reviews, dispositions, red -> green, gaps' \
-        || { echo "the record's contents are not stated"; false; }
-    printf '%s\n' "$text" | grep -qF "the squash's trailers hold what was run and what it reported" \
+    printf '%s\n' "$text" | grep -qF '**the squash message** (`merge-change`) — reviews, dispositions, red -> green, gaps' \
+        || { echo "the message's contents are not stated"; false; }
+    printf '%s\n' "$text" | grep -qF "its trailers hold what was run and what it reported" \
         || { echo "the trailers are not named"; false; }
     run grep -n 'what was run and *$' "$skill"
     [ "$status" -eq 1 ] || { echo "the old description remains: $output"; false; }
@@ -3568,12 +3580,13 @@ adr_file_is_named_by_its_item() {
     if printf '%s\n' "$headings" | grep -qxF '### The guideline reviews'; then echo "the old heading remains"; false; fi
     section=$(section_of '### The conformance reviews' "$skill")
     printf '%s\n' "$section" | grep -qF '`review-conformance`'
-    printf '%s\n' "$section" | grep -qF '`## Guideline reviews`'
+    printf '%s\n' "$section" | grep -qF 'into the squash message as `guideline` findings'
     printf '%s\n' "$section" | grep -qF '`merge-change`, not at its step 4'
 }
 
-@test "develop-change: guideline review findings go into the plan as they arrive, and merge-change's record copies them" {
+@test "develop-change: guideline review findings go into the plan as they arrive, and merge-change's message copies them" {
     # verifies: D1, D9 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: ADR-k3nkv3
     # The reviews run before merge-change, so their findings wait in the plan
     # as the red -> green lines do; step 4 reads them there, and step 5 copies them
     # into the record it writes after step 4.
@@ -3583,10 +3596,10 @@ adr_file_is_named_by_its_item() {
         echo "still says step 6b fills in the guideline reviews"; false
     fi
     printf '%s\n' "$section" | grep -qF 'Write each finding and its disposition into the plan as it arrives, as the `red -> green:` lines are'
-    printf '%s\n' "$section" | grep -qF '`merge-change` step 5 copies them into the record'"'"'s `## Guideline reviews`'
+    printf '%s\n' "$section" | grep -qF '`merge-change` step 5 copies them into the squash message as `guideline` findings'
     merge="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     record_step=$(step_of "$merge" 5 | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$record_step" | grep -qF 'any `inherited:` lines from the plan, its guideline reviews (`## Guideline reviews`)'
+    printf '%s\n' "$record_step" | grep -qF "the guideline reviews' findings from the plan among them, tagged \`guideline\`"
 }
 
 @test "develop-change: the dispatch prompt names the guidelines file for each of the task's paths" {
@@ -3634,39 +3647,25 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$section" | grep -qF 'the plan lists a conformance review for each file `guidelines-file.sh TEST` prints for the diff'
     printf '%s\n' "$section" | grep -qF 'and for each file `guidelines-file.sh CODE` prints for it'
     printf '%s\n' "$section" | grep -qF 'every finding with a disposition'
-    printf '%s\n' "$section" | grep -qF 'and so does the record'"'"'s `## Guideline reviews` where the record exists'
+    # verifies: ADR-k3nkv3 — the record is the squash message.
+    printf '%s\n' "$section" | grep -qF 'and the message holds them as `guideline` findings where the message exists'
     for removed in 'three kinds' 'markup snapshot' 'runs for real on the normal path'; do
         if grep -qF "$removed" "$checklist"; then echo "checklist still states: $removed"; false; fi
     done
 }
 
-@test "verification template: guideline reviews have their own section" {
+@test "squash message template: guideline review findings are tagged apart from the review's" {
     # verifies: D9 (docs/plans/2026-10-08-test-guidelines.md)
-    # Kept apart from ## Review so an auditor can tell a compliance finding
-    # from a preference finding.
-    template="$BATS_TEST_DIRNAME/../templates/verification.md"
-    review_line=$(grep -n '^## Review$' "$template" | cut -d: -f1)
-    guideline_line=$(grep -n '^## Guideline reviews$' "$template" | cut -d: -f1)
-    gaps_line=$(grep -n '^## Gaps$' "$template" | cut -d: -f1)
-    [ -n "$review_line" ]
-    [ -n "$guideline_line" ]
-    [ -n "$gaps_line" ]
-    [ "$review_line" -lt "$guideline_line" ]
-    [ "$guideline_line" -lt "$gaps_line" ]
-    section=$(awk '/^## Guideline reviews$/ { inside = 1; next } /^## / { inside = 0 } inside' "$template")
-    printf '%s\n' "$section" | grep -qx '### <guidelines file>'
-    # `<N>`, not 1: the record-counting test pins the one `### Round 1` and
-    # `**finding-1**:` of ## Review.
-    printf '%s\n' "$section" | grep -qxF '### Round <N>'
-    printf '%s\n' "$section" | grep -qF '**finding-<N>**: guideline, <low | medium | high> — '
-    printf '%s\n' "$section" | grep -q '^disposition: '
-    flat=$(printf '%s\n' "$section" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$flat" | grep -qF 'guidelines-file.sh TEST'
-    printf '%s\n' "$flat" | grep -qF 'guidelines-file.sh CODE'
-    printf '%s\n' "$flat" | grep -qF '(`develop-change`, "The conformance reviews")'
-    grep -qF '(`review-conformance`)' "$template"
-    printf '%s\n' "$flat" | grep -qF 'kept apart from `## Review` so compliance and preference findings stay distinguishable'
-    printf '%s\n' "$flat" | grep -qF 'State no number of rounds, findings or dispositions in prose, as under `## Review`'
+    # verifies: ADR-k3nkv3
+    # The `guideline` tag keeps a preference finding apart from a compliance
+    # finding in the one Findings: section, as the separate section did.
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
+    flat=$(tr '\n' ' ' < "$template" | tr -s ' ')
+    printf '%s\n' "$flat" | grep -qF 'Tags: code, requirement, guideline (each with a severity' \
+        || { echo "the template does not tag guideline findings apart"; false; }
+    printf '%s\n' "$flat" | grep -qF 'and record (none)' \
+        || { echo "the template gives a record finding a severity"; false; }
+    if grep -q '^## ' "$template"; then echo "the message template still has record sections"; false; fi
 }
 
 @test "ratchet: the upgrade notes say ledger files are named at creation, and how to rename a draft in flight" {
@@ -3714,29 +3713,110 @@ adr_file_is_named_by_its_item() {
     fi
 }
 
-@test "ratchet: step 5 writes the verification record early, with the setup checklist under Tool qualification" {
+@test "ratchet: step 5 writes the squash message early, with the setup checklist under Qualification:" {
     # verifies: ADR-k3nkv3
     # Greenfield and upgrade write no plan, so the filled checklist, the tool
     # qualification record, cannot wait in one. Ratchet step 5 writes the
-    # change's verification record there and then; merge-change step 5
-    # updates that record and keeps what is in it.
+    # change's squash message there and then; merge-change step 5 updates
+    # that message and keeps what is in it.
     root="$BATS_TEST_DIRNAME/.."
     step5=$(ratchet_step 5)
     opening=$(awk '/^- \[ \]/ { exit } { print }' \
         "$root/skills/ratchet/references/setup-checklist.md" | tr '\n' ' ' | tr -s ' ')
     for passage in "$step5" "$opening"; do
-        printf '%s\n' "$passage" | grep -qF 'copy `.guardrails/templates/verification.md` to `docs/verification/<date>-<branch>.md`' \
-            || { echo "does not write the record early: $passage"; false; }
-        printf '%s\n' "$passage" | grep -qF 'under `## Tool qualification`' \
-            || { echo "the checklist has no place in the record: $passage"; false; }
+        printf '%s\n' "$passage" | grep -qF 'copy `.guardrails/templates/squash-message.txt` to the path `gr_message_file` prints' \
+            || { echo "does not write the message early: $passage"; false; }
+        printf '%s\n' "$passage" | grep -qF 'under a `Qualification:` section in its body' \
+            || { echo "the checklist has no place in the message: $passage"; false; }
+        if printf '%s\n' "$passage" | grep -qF -e 'docs/verification' -e 'verification.md'; then
+            echo "still writes a record file: $passage"; false
+        fi
         if printf '%s\n' "$passage" | grep -qF "the change's plan"; then
             echo "still kept in the plan: $passage"; false
         fi
     done
     merge5=$(step_of "$root/skills/merge-change/SKILL.md" 5 | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$merge5" | grep -qF 'write the record, copying `.guardrails/templates/verification.md` to `docs/verification/<date>-<branch>.md`, or update it where it exists: fill in only what is missing' \
-        || { echo "merge-change step 5 does not update an existing record"; false; }
+    printf '%s\n' "$merge5" | grep -qF 'Copy `.guardrails/templates/squash-message.txt` to `$msg`, or update it where it exists: fill in only what is missing' \
+        || { echo "merge-change step 5 does not update an existing message"; false; }
     if printf '%s\n' "$merge5" | grep -qF 'Tool qualification'; then
         echo "merge-change step 5 still copies the plan's tool qualification"; false
     fi
+}
+
+@test "squash message template: names the Qualification: section ratchet writes and every trailer step 6b adds" {
+    # verifies: ADR-k3nkv3
+    template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
+    grep -qx 'Qualification:' "$template" ||
+        { echo "the template has no Qualification: section"; false; }
+    header=$(awk '!/^#/ { exit } { sub(/^# */, ""); print }' "$template" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$header" | grep -qF 'Step 6b adds Base:, Gate-tree:, Tests: and Coverage:' ||
+        { echo "the header does not name every step 6b trailer: $header"; false; }
+    merge6b=$(tr '\n' ' ' < "$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md" | tr -s ' ')
+    printf '%s\n' "$merge6b" | grep -qF 'replacing an earlier round'"'"'s: `Base: <base ref> at <commit>`' ||
+        { echo "merge-change step 6b no longer writes Base:"; false; }
+}
+
+# --- the record is the squash message (ADR-k3nkv3)
+
+@test "ratchet: greenfield installs the message template and creates no docs/verification" {
+    # verifies: ADR-k3nkv3
+    root="$BATS_TEST_DIRNAME/.."
+    # The upgrade section names the record template and key only to delete them.
+    skill=$(awk '/^### Upgrading the scripts/ { skip = 1; next } /^##/ { skip = 0 } !skip' \
+        "$root/skills/ratchet/SKILL.md" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$skill" | grep -qF 'Create `docs/adr/` and `docs/plans/`, and copy `templates/squash-message.txt` → `.guardrails/templates/squash-message.txt`.' ||
+        { echo "greenfield does not install the message template"; false; }
+    for text in "$skill" "$(cat "$root/skills/ratchet/references/rationale.md" "$root/skills/ratchet/references/multi-unit.md")"; do
+        if printf '%s\n' "$text" | grep -qF -e 'docs/verification' -e 'templates/verification.md' -e 'doc_verification'; then
+            echo "ratchet still writes or names a record file"; false
+        fi
+    done
+}
+
+@test "ratchet: the setup checklist runs check-review.sh only on the message, never with --branch" {
+    # verifies: ADR-k3nkv3
+    checklist=$(tr '\n' ' ' < "$BATS_TEST_DIRNAME/../skills/ratchet/references/setup-checklist.md" | tr -s ' ')
+    if printf '%s\n' "$checklist" | grep -qF -- '--branch'; then
+        echo "the checklist still runs check-review.sh --branch in CI"; false
+    fi
+    printf '%s\n' "$checklist" | grep -qF 'after signing, `finish-merge.sh` runs the same check on the signed message' ||
+        { echo "the checklist does not say where the message is checked"; false; }
+}
+
+@test "ratchet: the upgrade deletes the record template and the doc_verification line, and refreshes the message template" {
+    # verifies: ADR-k3nkv3
+    upgrade=$(awk '/^### Upgrading the scripts/ { inside = 1; next } /^##/ { inside = 0 } inside' \
+        "$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md" | tr '\n' ' ' | tr -s ' ')
+    printf '%s\n' "$upgrade" | grep -qF 'Delete `.guardrails/templates/verification.md` and every `doc_verification` config line.' ||
+        { echo "the upgrade keeps the record template or the key: $upgrade"; false; }
+    printf '%s\n' "$upgrade" | grep -qF 'Re-copy the four ledger READMEs and the squash message template' ||
+        { echo "the upgrade does not refresh the message template"; false; }
+}
+
+@test "ratchet: the upgrade notes say the record is the squash message" {
+    # verifies: ADR-k3nkv3
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    grep -qx '## The record is the squash message' "$notes" || { echo "no section"; false; }
+    section=$(awk '/^## The record is the squash message$/ { inside = 1; next }
+        inside && /^## / { exit } inside' "$notes" | tr '\n' ' ' | tr -s ' ')
+    for wanted in '`doc_verification`' 'Delete its line' '`.guardrails/templates/verification.md`' \
+            '`templates/squash-message.txt`' '`check-review.sh` reads the message' \
+            '`--branch` is gone' '`Tests:` replaces `Gate:`' 'gr_message_check' \
+            '`docs/verification/` are left' 'lean-records' '`Mutation: <path>:<line>'; do
+        printf '%s\n' "$section" | grep -qF -- "$wanted" || { echo "the section lacks $wanted"; false; }
+    done
+}
+
+@test "ratchet: the upgrade notes name the refusals an adopter's message meets" {
+    # verifies: ADR-3hsvvq
+    notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
+    section=$(awk '/^## The record is the squash message$/ { inside = 1; next }
+        inside && /^## / { exit } inside' "$notes" | tr '\n' ' ' | tr -s ' ')
+    for wanted in 'Without exactly one non-empty `Base:`, the checker reports `BASE`.' \
+            '`fixed: <cite>, …`, `open: <cite>` or `no change: <reason>`' \
+            'the checker reports `MALFORMED-FINDING`.' \
+            'at least one `Tests:`, also with no configuration or no `verify_commands` entry' \
+            'the checker reports `TESTS`.' 'the checker reports `COVERAGE`.' 'counts as missing'; do
+        printf '%s\n' "$section" | grep -qF -- "$wanted" || { echo "the section lacks $wanted"; false; }
+    done
 }

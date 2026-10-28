@@ -79,9 +79,10 @@ else: no diffs, no logs, no narrative.
   its implementation existed. Require one line per new test. `verify-before-merge` check 4 reads them back.
 - **Write these and any `inherited:` lines into the plan as each report
   arrives**, beside their task, and mark the task done. `merge-change` step
-  5 copies them from the plan into the verification record. A fix
+  5 copies them from the plan into the squash message. A fix
   dispatched after step 5 (a 6a or 6c failure's fix, a base-move round's
-  review) writes its lines into the verification record directly.
+  review) returns its lines in its report; you write them into the change
+  worktree's message (`ADR-3hsvvq`).
 
 ### Derailment and the other stops
 
@@ -177,7 +178,7 @@ Then run the reviews again; the first round with nothing above low is the
 last. No round count bounds the loop; it stops at the first finding that
 recurs (Derailment). Write each finding and its disposition into the plan as
 it arrives, as the `red -> green:` lines are; `merge-change` step 5 copies
-them into the record's `## Guideline reviews`. These reviews run here, before
+them into the squash message as `guideline` findings. These reviews run here, before
 `merge-change`, not at its step 4: that sequence **reruns from step 1** on any
 finding.
 

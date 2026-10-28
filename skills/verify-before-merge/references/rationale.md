@@ -40,7 +40,7 @@ author either deletes it or points it at the successor. Pointed at the
 successor, it is still coverage worth keeping, but it was never watched
 failing against the new behavior. So it is listed as
 `inherited: <test name> — from <old ID>` in the dispatch report and the
-verification record, and it never stands in for the successor's own red-first
+squash message, and it never stands in for the successor's own red-first
 test. Naming it keeps the exception visible: an unlisted green test that
 gained an Implements ID is still a re-annotation, and still fails the check.
 
@@ -48,15 +48,16 @@ gained an Implements ID is still a re-annotation, and still fails the check.
 
 The tree records no difference between a diff a conformance review checked
 and a diff nobody reviewed, so the gate subagent cannot answer the check.
-The dispatcher answers it from the verification record's `## Guideline
-reviews`, where step 5 wrote each finding and its disposition.
+The dispatcher answers it from the squash message's `guideline` findings,
+where step 5 wrote each finding and its disposition.
 
 ## check-review.sh is not a check here
 
-`merge-change` step 5 writes the verification record it reads, after the
+`merge-change` step 5 writes the squash message it reads, after the
 independent review at step 4, and 6c checks it with the other pre-flight
 checks. Adding it here would check it twice in a merge round, and would fail
-every gate run before `merge-change` for a record it is not yet time to write.
+every gate run before `merge-change` for a message it is not yet time to
+write: its `Gate-tree:` and `Tests:` trailers come from this gate.
 
 ## Exit 0 is not a pass
 
@@ -65,15 +66,15 @@ Storybook-style test runners, some integration harnesses, and anything wrapped
 in a script without `set -e` report failures and exit 0, so a zero status is
 not a gate result.
 
-## Copy the red -> green lines into the record
+## Copy the red -> green lines into the message
 
 The `red -> green:` lines are conversation, and the conversation is not
-durable. The verification record keeps the evidence for the failing-test-first
+durable. The squash message keeps the evidence for the failing-test-first
 rule after the conversation ends.
 
 ## The log is not kept
 
 The log is deleted with the change worktree. The durable evidence of the
-gate is the squash commit's `Gate:` trailers, beside the `Gate-tree:` they
-describe, which `merge-change` step 7 writes. That is why each command's
+gate is the squash commit's `Tests:` and `Coverage:` trailers, beside the
+`Gate-tree:` they describe, which `merge-change` step 6b writes. That is why each command's
 totals must be in the gate summary.

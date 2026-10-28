@@ -99,18 +99,12 @@ doc_sad: docs/architecture
 doc_soup: docs/architecture/soup.md
 doc_problems: docs/problems
 
-# Where merge-change writes one verification record per change. THE ONLY doc_*
-# key with a default — `docs/verification`, which /ratchet creates — because
-# this key arrived after projects were already configured. The default cannot
-# hide a gate: an absent directory, or one containing no *.md, is exit 2 rather
-# than an empty scan. Set it if your records live anywhere else.
-# doc_verification: docs/verification
-
 # Citation checking in .guardrails/scripts/check-review.sh (merge-change step
-# 6c; `--cite` turns it on for one run). `on`: each disposition in the change's
-# record must cite a regular file git tracks or lists as untracked and not
-# ignored, a test name declared under test_paths or a defined item ID, or read
-# `no change — <reason>`. `off` when absent; any other value is exit 2. Read
+# 6c; `--cite` turns it on for one run). `on`: each finding's disposition in
+# the squash message must cite a regular file git tracks or lists as
+# untracked and not ignored, a test name declared under test_paths or a
+# defined item ID, or read
+# `no change: <reason>`. `off` when absent; any other value is exit 2. Read
 # from this root config only, so a multi-unit repository, which has none,
 # cannot turn it on, and `--cite` is refused there.
 review_cite: off

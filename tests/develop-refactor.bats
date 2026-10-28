@@ -44,7 +44,7 @@ setup() {
 @test "develop-refactor: a finding it cannot fix is reported, with the reason" {
     # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
     flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
-    printf '%s\n' "$flat" | grep -qF 'Report a finding you cannot fix as not fixed, with the reason:'
+    printf '%s\n' "$flat" | grep -qF 'Report a finding you cannot fix as `no change`, with the reason:'
     printf '%s\n' "$flat" | grep -qF 'is a finding against the clause'
 }
 
@@ -53,7 +53,7 @@ setup() {
     report=$(section_of '### The report' "$skill")
     [ -n "$report" ] || { echo "no report section"; false; }
     for line in 'task: <tag>' 'worktree: <path to the task worktree>' 'files touched: <paths>' \
-        'fixed: <finding-N — what changed, or "not fixed — <reason>">   (one per line)' \
+        'fixed: <finding-N — what changed, or "no change: <reason>">   (one per line)' \
         'result: <N passed, N failed>'; do
         printf '%s\n' "$report" | grep -qxF -- "$line" || { echo "the shape lacks: $line"; false; }
     done

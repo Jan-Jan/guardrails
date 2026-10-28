@@ -7,8 +7,10 @@ checklist when it touches tests.
 
 ## Severities
 
-Every `code` and `requirement` finding states one severity after its tag:
-`**finding-N**: code, medium — <text>`. A `record` finding states none.
+Write each finding as `<tag>[ <severity>] — <text>`, unnumbered: a `code`
+or `requirement` finding states one severity, a `record` finding none.
+`merge-change` step 5 numbers each and adds its disposition, the rest
+verbatim: `3. [fixed: scripts/lib.sh] code medium — <text>`.
 
 - `high`: loses or silently discards work, makes a gate pass that should fail,
   or is a remedy that does damage when followed, in a state reached in normal
@@ -39,7 +41,7 @@ The reviewer checks each item and raises a finding for each one that fails.
 - The successor has its own test with a `red -> green:` attestation. The new
   ID was not added to the old item's green test; a test pointed from the old
   item to the successor is listed as `inherited: <test name> — from <old ID>`
-  in the record, where the record exists. An inherited test is reviewed as
+  in the message, where the message exists. An inherited test is reviewed as
   an edited test under the test checklist, and the reviewer confirms it
   verifies the successor's behavior, since it carries no red-first evidence
   and no gate reads `inherited:`.
@@ -78,5 +80,5 @@ the `red -> green:` lines.
   `guidelines-file.sh TEST` prints for the diff, for each file
   `guidelines-file.sh ARCHITECTURE` prints for it, and for each file
   `guidelines-file.sh CODE` prints for it, every finding with a
-  disposition, and so does the record's `## Guideline reviews` where the
-  record exists.
+  disposition, and the message holds them as `guideline` findings where
+  the message exists.

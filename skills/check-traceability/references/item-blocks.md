@@ -30,7 +30,7 @@ No column-one reader steps over a list marker. The fields read at column one
 (`status:`, `opened:`, `disposition:`, `retired:`, `supersedes:`,
 `superseded-by:`, `expects:`, `exported:`) are never taken from a list item,
 which is why a bulleted one inside a block is reported as a missing field
-(`INCOMPLETE-PROBLEM`, `MISSING-RECORD`). The ID-list keywords `satisfies:`,
+(`INCOMPLETE-PROBLEM`). The ID-list keywords `satisfies:`,
 `traces:`, `implements:` and `mitigates:` are read anywhere on a line inside
 the block, so a bulleted one there still credits (see "Keywords read anywhere
 on the line" below).
@@ -46,13 +46,9 @@ on the line" below).
 The backstop must see at least what every reader sees. Do not widen a reader
 to accept a form the backstop accepts. Every scalar reader takes the FIRST
 occurrence in the block, so a reader that accepts the bullet form lets a quoted
-annotation outrank the real one:
-
-- a problem item that quotes `- status: resolved` above its own `status: open`
-  drops out of the known-problem list at exit 0;
-- a verification record declaring `branch: other-change` that quotes
-  `- branch: my-change` becomes the record for `my-change`, a pass reported
-  over a review that did not happen.
+annotation outrank the real one. A problem item that quotes
+`- status: resolved` above its own `status: open` would drop out of the
+known-problem list at exit 0, a pass reported over a problem still open.
 
 A backstop wider than the readers can only over-report. A reader wider than
 intended answers with confidence and is wrong.

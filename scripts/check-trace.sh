@@ -1780,11 +1780,7 @@ _orphans=$(
     # disposition: would otherwise be credited to nothing while the accepted
     # item above it reads as undisposed.
     #
-    # Scoped to the problems ledger, where this scan reads it. `disposition:`
-    # is also the review artefact's word — check-review.sh reads it on a
-    # `**finding-N**:` block and has its own ORPHAN-DISPOSITION for the same
-    # hole — and those records are not $problems_files, so the two gates do
-    # not report each other's files.
+    # Scoped to the problems ledger, the one place this scan reads it.
     check_orphans 'disposition:' PR $problems_files
     check_orphans 'traces:' SDD $sad_files
     # ONE scan over the union, opening on BOTH prefixes that read `satisfies:`.

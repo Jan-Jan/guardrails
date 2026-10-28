@@ -1,12 +1,12 @@
 # The human setup checklist
 
 Read this at `ratchet` step 5: copy the checklist below, fill in the
-qualification basis, then print it. Write the change's verification record
-there and then, since greenfield and upgrade write no plan: copy
-`.guardrails/templates/verification.md` to
-`docs/verification/<date>-<branch>.md`, and put the filled checklist under
-`## Tool qualification`. `merge-change` step 5 updates that record and keeps
-what is in it, so the record is where the qualification is kept.
+qualification basis, then print it. Write the change's squash message there
+and then, since greenfield and upgrade write no plan: copy
+`.guardrails/templates/squash-message.txt` to the path `gr_message_file`
+prints, and put the filled checklist under a `Qualification:` section in its
+body. `merge-change` step 5 updates that message and keeps what is in it, so
+the signed squash message is where the qualification is kept.
 
 - [ ] Commit signing key: `git config gpg.format ssh`,
       `git config user.signingkey <key>`, `git config commit.gpgsign true`
@@ -28,9 +28,9 @@ what is in it, so the record is where the qualification is kept.
 - [ ] CI: run `verify_commands`, `check-ids.sh`, `check-trace.sh`, and
       `check-signing.sh --strict <base>..HEAD` on every merge, as a backstop
       for what `finish-merge.sh` already enforced on the merging machine.
-      **Not `check-review.sh`**: on the base branch it exits 2. It runs from
-      the change worktree at `merge-change` step 6c; in pull-request CI, name
-      the branch: `check-review.sh --branch <head-branch>`.
+      **Not `check-review.sh`**: on the base branch it exits 2. It checks the
+      squash message from the change worktree at `merge-change` step 6c, and
+      after signing, `finish-merge.sh` runs the same check on the signed message.
 - [ ] Decide the human review and approval policy for merges (who signs off),
       including who acts as the independent reviewer in `merge-change`
       step 4 when a human is preferred over a fresh agent.

@@ -21,16 +21,6 @@ edge exists those gates have nothing to read, so "not yet adopted" is visible
 in the manifest instead of being a gate switched off. Without the ordering,
 adoption on a large repository reads as all-or-nothing.
 
-## The verification template is not in `docs/verification/`
-
-Every `*.md` directly in that directory is read as a record. The template
-contains the field names at column one, because that is the shape it teaches,
-so filed among the records it is one: a document declaring a `branch:`, a
-`reviewer:` and a `**finding-1**:` that nobody wrote about any change.
-
-The `doc_verification` default is safe only because an absent directory is
-exit 2. A project that keeps records elsewhere sets the key.
-
 ## Both worktree entries are gitignored
 
 `.claude/worktrees/` covers change worktrees a harness creates. `.worktrees/`
@@ -43,10 +33,10 @@ stop a subagent creating its task worktree; the untracked directory then fails
 
 A project that already has `.guardrails/scripts/` is not re-inventoried.
 Retrofit step 3 asks what in a codebase is not yet under guardrails; the first
-ratchet answered that, and its later teeth are listed in the verification
-record. An upgrade asks what the new scripts reject that the old ones passed,
+ratchet answered that, and its later teeth are listed in the squash
+message. An upgrade asks what the new scripts reject that the old ones passed,
 and `check-trace.sh` answers that after the copy. A second inventory would not
-find those findings. The upgrade's verification record lists the new warnings
+find those findings. The upgrade's squash message lists the new warnings
 the upgrade leaves, as a retrofit's lists its later teeth. A failure is fixed, never listed: the
 upgrade merges through `merge-change`, whose gate needs `check-trace.sh` to
 pass. The decision is `ADR-3h4dky` in the guardrails repository
@@ -122,7 +112,7 @@ before the runner starts, untracked and not ignored, so the first fingerprint
 reports `the working tree differs from commit <sha>`, the log grows while bats
 runs, the second reports `the working tree changed during the run`, and the
 run exits 1 however often it is repeated. The log is the evidence for the result the
-verification record holds, so it is kept when the clone is removed.
+squash message holds, so it is kept when the clone is removed.
 
 Step 5 records one qualifying run per update: a run whose log names the
 recorded commit. A run that names no commit qualifies nothing, so it is run

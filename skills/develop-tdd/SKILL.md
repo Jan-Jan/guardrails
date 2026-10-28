@@ -17,7 +17,7 @@ description: The red-green TDD loop a subagent runs in its task worktree for one
   start in, and work only there. Commit on the task branch and leave it
   there. Do not merge it, and do not dispatch again.
 - A fix dispatch is a task like any other: each finding is fixed under the
-  loop below, citing the clause it names, or reported as not fixed with the
+  loop below, citing the clause it names, or reported as `no change` with the
   reason.
 
 ## Steps
@@ -101,7 +101,7 @@ red -> green: <test name> — watched fail for the right reason before the
 implementation existed   (one per line, one per test)
 inherited: <test name> — from <old ID>
 result: <N passed, N failed>
-fixed: <finding-N — what changed, or "not fixed — <reason>">   (a fix
+fixed: <finding-N — what changed, or "no change: <reason>">   (a fix
 dispatch only, one per finding)
 surprises: <anything unexpected, or "none">
 ```
@@ -125,13 +125,13 @@ surprises: <anything unexpected, or "none">
 | "The project file leaves this out; I'll read the default too" | One file per path. A rule the project dropped is dropped. |
 | "I'll merge my task branch when I am done" | Leave it on the task branch. The dispatcher runs `task-worktree.sh merge`. |
 | "That selection is green, the red -> green lines can go" | Each new test needs its line; the gate reads them at check 4. |
-| "This finding is wrong; I'll skip it quietly" | Report it as not fixed, with the reason. The dispatcher decides. |
+| "This finding is wrong; I'll skip it quietly" | Report it as `no change`, with the reason. The dispatcher decides. |
 
 ## Done when
 
 - Each behavior of the task has a test that was watched fail for the right
   reason, then pass; on a fix dispatch, each finding is fixed or reported
-  not fixed with its reason.
+  `no change` with its reason.
 - That selection is green and its output is clean.
 - The work is committed on the task branch, which is not merged.
 - The dispatch report is returned, with one `red -> green:` line per new

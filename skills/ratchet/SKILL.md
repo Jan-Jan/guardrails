@@ -100,10 +100,8 @@ above all) are the worklist for the disclaimers question.
    per-change ledgers: each change adds one file,
    `YYYY-MM-DD-<slug>.md`, dated the day the change creates it. Each README
    contains the item grammar.
-4. Create `docs/adr/`, `docs/plans/` and `docs/verification/`, and copy
-   `templates/verification.md` → `.guardrails/templates/verification.md`.
-   **Never put the template in `docs/verification/`**: every `*.md` there is
-   read as a record. If records are kept elsewhere, set `doc_verification`.
+4. Create `docs/adr/` and `docs/plans/`, and copy
+   `templates/squash-message.txt` → `.guardrails/templates/squash-message.txt`.
    Add any of these missing from `.gitignore`:
 
    ```
@@ -145,12 +143,14 @@ Work in a worktree, as a change of its own.
    `.guardrails/scripts/`, keeping executable bits, and
    `templates/*_GUIDELINES.md` → `.guardrails/templates/`. Delete
    `.guardrails/scripts/finalize-ids.sh`, `finalize-docs.sh` and `prune-plans.sh` if present.
+   Delete `.guardrails/templates/verification.md` and every
+   `doc_verification` config line.
 3. **Update the files that document the grammar with the scripts.**
-   Re-copy the four ledger READMEs and the verification template from the
+   Re-copy the four ledger READMEs and the squash message template from the
    same guardrails version, and re-replace the AGENTS.md managed block. If
    the project edited a README, diff and re-apply its additions.
 4. Run `check-trace.sh`; fix each failure, and list each new warning in the
-   verification record once Step 5 writes it. Existing ledgers report problem `status:`/`opened:`,
+   squash message once Step 5 writes it. Existing ledgers report problem `status:`/`opened:`,
    supersession reciprocity and `DANGLING-FILE`.
    Derived assessments are now declared: a derived REQ/LLR without an
    `assesses:` line in the RMF goes red.
@@ -162,13 +162,14 @@ Work in a worktree, as a change of its own.
 1. **Inventory** (read only): AGENTS.md/CLAUDE.md content and rules that
    conflict with guardrails ("commit to the base branch directly"); existing
    requirement, risk and architecture docs; a bug tracker or problem log;
-   verification evidence worth archiving under `docs/verification/`; test
+   existing verification evidence; test
    layout and command; CI config; signing of recent commits
    (`git log -20 --format='%h %G? %s'`).
 2. **Write the gap analysis** to `docs/plans/<YYYY-MM-DD>-ratchet-gap-analysis.md`:
    what exists, what is missing, what conflicts, and a proposed adoption order.
    It is the change's plan, dropped before the gate: copy its adoption
-   order into the verification record once Step 5 writes it.
+   order into the squash message once Step 5 writes it, as a bulleted
+   list: a numbered line is a malformed finding.
 3. **First tooth**: install `.guardrails/` (config,
    scripts and templates, or the manifest and per-unit configs from step
    1b), merge the managed block into AGENTS.md, add missing doc skeletons,
@@ -180,7 +181,7 @@ Work in a worktree, as a change of its own.
    - Set `strict_paths` to a SMALL list of paths that are already clean or
      new. Existing untraced code is grandfathered.
 4. **Later teeth** (separate changes, listed in the retrofit's
-   verification record): migrate legacy requirement and risk docs via
+   squash message): migrate legacy requirement and risk docs via
    `grill-requirements` / `analyze-risks`; run `tailor-guidelines` for each
    guidelines file; extend `strict_paths` area by area.
    Each `doc_*` key accepts a file or a directory, so `srs.md` keeps working;
@@ -209,10 +210,10 @@ record each class in that unit's config.
 
 ### Step 5: Human setup checklist
 
-Write the change's verification record now: copy
-`.guardrails/templates/verification.md` to
-`docs/verification/<date>-<branch>.md`; put the filled, printed
-`references/setup-checklist.md` under `## Tool qualification`.
+Write the change's squash message now: copy
+`.guardrails/templates/squash-message.txt` to the path `gr_message_file`
+prints; put the filled, printed `references/setup-checklist.md` under a
+`Qualification:` section in its body.
 
 **The signing items gate the ratchet.** It is not complete until `.guardrails/scripts/check-signing.sh --setup` exits 0:
 satisfy them before step 2.7 / step 3.5. For a retrofit,
@@ -221,7 +222,7 @@ it finishes adopting guardrails**. If a committer's public key is missing,
 stop and name it.
 
 **Tool qualification.** Record `guardrails_version` AND `guardrails_commit`
-(`git -C <guardrails> rev-parse HEAD`) in config and that record,
+(`git -C <guardrails> rev-parse HEAD`) in config and that message,
 with the suite result. Never
 modify the scripts in the target project.
 
@@ -251,9 +252,10 @@ recorded pass/fail is the wrong command's: run
 ## Done when
 
 - `safety_class` is set (per unit where there are units), with its ADR.
-- A retrofit's verification record carries its gap analysis's adoption order.
+- A retrofit's squash message carries its gap analysis's adoption order,
+  bulleted.
 - An upgrade copied scripts and grammar files from one guardrails version,
-  fixed each failure, and listed each new warning in the verification record.
+  fixed each failure, and listed each new warning in the squash message.
 - The setup checklist is saved, with the qualification basis.
 - `check-signing.sh --setup` exits 0.
 - The change is merged through `merge-change`, and the check scripts pass.

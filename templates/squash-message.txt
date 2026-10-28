@@ -1,0 +1,68 @@
+# The squash commit message: the change's verification record (ADR-k3nkv3).
+# merge-change step 5 writes it to `gr_message_file` from this template;
+# `ratchet` step 5 writes it early for a ratchet change, and merge-change step 5
+# updates it. Step 6b adds Base:, Gate-tree:, Tests: and Coverage:;
+# check-review.sh checks it before the hand-over and finish-merge.sh after
+# signing. Lines opening with `#` are guidance: the hand-over commits with
+# -c core.commentChar='#' and --cleanup=strip, which removes them, and the
+# checker drops them first.
+# Replace every <placeholder>, or delete a line that does not apply: a review
+# field, disposition or trailer still holding one counts as missing.
+<type>: <subject>
+
+<what and why, a few sentences: the future pull-request body>
+
+# Items:, Problems:, Red-green:, Gaps: and Qualification: are prose for
+# people, optional and unchecked. Red-green lines are copied verbatim from the
+# dispatch reports. Qualification: is a ratchet change's only.
+Items:
+- <added | reworded | old → new | removed — reason>
+Problems:
+- PR-<id> — <cause> → <fix>
+Red-green:
+red -> green: <copied verbatim from the dispatch reports>
+inherited: <copied verbatim>
+Gaps:
+- <what this change did not establish>
+Qualification:
+<ratchet only: the filled setup checklist, ratchet step 5>
+
+# Required, at column one, in the body: indented, or in the trailer
+# paragraph, they do not count. An empty value is an omission.
+reviewer: <who reviewed at step 4>
+verdict: <what the review concluded; a review that raised nothing says so>
+reproduced: <was the defect reproduced, how, or why not>
+
+# One line per finding, `<N>. [<disposition>] <tag>[ <severity>] — <text>`,
+# continued on lines opening with whitespace and not then `<N>. `; the
+# section ends at the next blank line. Number the findings here; after the
+# disposition, copy the reviewer's finding verbatim minus its label
+# (`**finding-N**:`).
+# Tags: code, requirement, guideline (each with a severity: high, medium
+# or low) and record (none). Dispositions: [fixed: <cite>, …],
+# [open: <cite>], usually a PR item ID, [no change: <reason>], each with
+# text after its colon; any other form is malformed. A record finding may
+# cite `message`. No Findings: section means the review raised nothing,
+# and no other body line may open with `<N>. `.
+Findings:
+1. [<disposition>] <tag>[ <severity>] — <text>
+   <continuation lines indented>
+
+# Trailers, the last paragraph, read with git interpret-trailers. Exactly one
+# Base:, not empty. Exactly one Gate-tree:, the squash's own tree. Exactly
+# one Tests: per verify_commands entry and one Coverage: per
+# coverage_command, over the units of the change's impact set under a units
+# manifest (check-units.sh --impact); none where none is configured, but at
+# least one Tests:, with or without a configuration, each ending
+# <passed>/<total>, passed equal to total. Mutation: only where a mutant is
+# evidence, in exactly the form below. No Co-Authored-By: and nothing after
+# the trailer paragraph: git reads trailers only from the last paragraph, so a
+# line a harness appends after a blank line hides every trailer.
+Implements: <IDs>
+Resolves: <PR IDs>
+Opens: <PR IDs>
+Base: <base ref> at <commit>
+Gate-tree: <tree>
+Tests: <command> <passed>/<total>
+Coverage: <command> <figure>
+Mutation: <path>:<line> <the mutant> — killed by "<test name>"

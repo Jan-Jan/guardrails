@@ -66,8 +66,8 @@ Three rules define the whole system:
    gets one change worktree on one change branch, and the base branch moves
    only by merge.
 2. **Integration is a signed squash merge.** The base branch receives one
-   signed, verified commit per change, whose `Gate-tree:` trailer names the
-   tree its gate measured; the user signs it, and `finish-merge.sh` cleans up
+   signed, verified commit per change, whose message is its verification
+   record and whose `Gate-tree:` trailer names the tree its gate measured; the user signs it, and `finish-merge.sh` cleans up
    only after its guards pass.
 3. **Traceability is mechanical.** Grep-able IDs link requirements, risks,
    design and tests, and scripts gate every merge.
@@ -90,7 +90,7 @@ rules, reports and exit codes in full.
 | `check-ids.sh` | Draft IDs, draft-named files, duplicate and malformed IDs. |
 | `check-trace.sh` | The traceability and problem-report gates, with the `checked:`, `problems:` and `sources:` summary. |
 | `check-units.sh` | The multi-unit repository: manifest validation, unit claims, the class floor, the impact set. |
-| `check-review.sh` | The verification record of the change under merge, and its findings, and, opt-in, that each disposition cites something the tree resolves. |
+| `check-review.sh` | The squash message of the change under merge, which is its verification record, and its findings, and, opt-in, that each disposition cites something the tree resolves. |
 | `check-signing.sh` | Commit signatures, and with `--setup` proof that the project can sign. |
 | `guidelines-file.sh` | Print the one guidelines file that governs each path: the unit's, the project's, or the installed default. |
 | `drop-plans.sh` | Remove the plans this change added and restore the base's version of each it edited, in one commit, at `merge-change` step 5. |
@@ -109,7 +109,8 @@ one of these places:
 - **The ledger templates**, `templates/srs.md`, `rmf.md`, `sad.md` and
   `problems.md`, state the item grammar and the ledger layout. `/ratchet`
   installs each as its ledger directory's `README.md`.
-  `templates/verification.md` states the verification record's fields.
+  `templates/squash-message.txt` states the squash message, which is the
+  verification record.
 - **The script headers** state what each check reports, and why.
 - **`skills/check-traceability/references/config.md`** states the config
   rules.

@@ -1,5 +1,8 @@
 #!/bin/sh
 # describes: check-review: a finding-shaped line that opens no block is passed over
+# retired: check-review.sh was rewritten around the squash message; finding-
+# shaped headers are gone; gr_message_check in lib.sh reports MALFORMED-
+# FINDING, covered in tests/lib.bats.
 python3 - <<'PY'
 s = open('scripts/check-review.sh').read()
 i = s.index('!gr_block_opens(line) && gr_finding_shaped(line) {')

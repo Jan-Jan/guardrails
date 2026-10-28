@@ -114,35 +114,30 @@ contract_tool_dir() {
     # straight into `awk -v kws=`. On macOS that is exit 2 before the program
     # runs, so the gate never read a record: merge-change step 6c could not
     # run on that platform at all. Not a false pass, but invisible on gawk,
-    # where the identical call succeeds.
+    # where the identical call succeeds. The message, which has many lines,
+    # must reach awk some other way.
     make_change_worktree my-change
-    write_record mine my-change
+    write_message '1. [fixed: scripts/x.sh] code low — first
+   continued'
     bin=$(make_strict_awk)
-    PATH="$bin:$PATH" run sh .guardrails/scripts/check-review.sh
+    PATH="$bin:$PATH" run sh .guardrails/scripts/check-review.sh --cite
     [[ "$output" != *"newline in string"* ]] || { echo "$output"; false; }
-    [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    [[ "$output" == *"UNRESOLVABLE-DISPOSITION 1 "* ]] || { echo "$output"; false; }
 }
 
 @test "check-review: still names every missing field under a strict awk" {
     # verifies: PR-v3j4s2
     # The regression above would also be satisfied by a scan that was run and
-    # read nothing. The flattened list must still split into all four
-    # keywords, so a record missing exactly one still draws exactly one
-    # INCOMPLETE-RECORD naming that field — and the branch: keyword must remain
-    # through the flattening too, or the record would not be selected at all.
+    # read nothing. A message missing exactly one field still draws exactly
+    # one INCOMPLETE-RECORD naming that field.
     make_change_worktree my-change
-    mkdir -p docs/verification
-    cat > docs/verification/2026-01-01-mine.md <<'EOF'
-# Verification — mine
-
-branch: my-change
-reviewer: an independent subagent
-reproduced: yes, against the shipped scripts, before any change
-EOF
+    write_message
+    sed -i.bak '/^verdict:/d' "$(message_file)" && rm -f "$(message_file).bak"
     bin=$(make_strict_awk)
     PATH="$bin:$PATH" run sh .guardrails/scripts/check-review.sh
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
-    [[ "$output" == *"INCOMPLETE-RECORD docs/verification/2026-01-01-mine.md (no verdict:)"* ]] \
+    [[ "$output" == *"INCOMPLETE-RECORD (no verdict:)"* ]] \
         || { echo "$output"; false; }
     [ "$(printf '%s\n' "$output" | grep -c INCOMPLETE-RECORD)" -eq 1 ] \
         || { echo "$output"; false; }
@@ -198,11 +193,11 @@ EOF
     write_pr PR-002 open "$(days_ago 2)"
     commit_all traced
     make_change_worktree my-change
-    write_record mine my-change
     printf '\n**REQ-a3k9z2**: The system shall log the dose. (implements: RC-001)\n' \
         > docs/requirements/2026-01-02-dose-logging.md
     printf '# verifies: REQ-a3k9z2\ntrue\n' > tests/test_b.sh
     commit_all draft
+    write_message
 
     # Each script with the arguments that make it do its job on this tree:
     # check-ids reads a ledger file named at creation.

@@ -1,5 +1,9 @@
 #!/bin/sh
 # describes: finish-merge: guard 5 counts the Gate-tree trailers with log.showSignature in force
+# retired: guard 5's Gate-tree reading was removed from finish-merge.sh: the
+# signed message must pass gr_message_check (ADR-f6ytg7), which reads the
+# Gate-tree rule from the grammar ADR-3hsvvq states. The rule is covered by
+# the finish-merge.bats guard-5 tests and lib.bats.
 python3 - <<'PY'
 target = 'scripts/finish-merge.sh'
 old = '''gate_trailers=$(git log -1 --no-show-signature --format='%(trailers:key=Gate-tree,unfold)' HEAD) || gr_die \\'''

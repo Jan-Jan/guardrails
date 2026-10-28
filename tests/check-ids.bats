@@ -236,7 +236,9 @@ EOF
     loose_task_worktree=0
 
     block_check_ids=0
-    block_check_review=1
+    # 0: check-review.sh reads the squash message (ADR-k3nkv3), where a
+    # finding is a numbered line, not an item block.
+    block_check_review=0
     block_check_signing=0
     block_check_units=0
     block_find_items=2
@@ -263,7 +265,9 @@ EOF
     # ends is the same shape of defect as a third opinion about where an item
     # ends.
     fm_check_ids=0
-    fm_check_review=1
+    # 0: check-review.sh reads the squash message (ADR-k3nkv3), which has no
+    # front matter.
+    fm_check_review=0
     fm_check_signing=0
     fm_check_units=0
     fm_find_items=0
@@ -396,16 +400,14 @@ EOF
     [ "$(grep -c 'function gr_value(' scripts/lib.sh)" -eq 1 ]
     [ "$(grep -c 'function gr_value(' scripts/check-review.sh)" -eq 0 ]
     [ "$(grep -c 'function gr_value(' scripts/check-trace.sh)" -eq 0 ]
-    [ "$(grep -c '^gr_verification_dir() {' scripts/lib.sh)" -eq 1 ]
-    # The emptiness rule has one definition and two readers (gr_doc_files and
-    # check-review.sh); a hand-copy in either is what this counts.
+    # The emptiness rule has one definition and its readers in lib.sh; a
+    # hand-copy is what this counts.
     [ "$(grep -c '^gr_md_files() {' scripts/lib.sh)" -eq 1 ]
     # Three call sites in lib.sh (the definition line, gr_doc_files, and —
-    # since the units change — the per-unit SRS reader) and one in
-    # check-review.sh. A further reader spelling the rule out by hand moves
-    # neither count, which is why the poison tests exist alongside these pins.
+    # since the units change — the per-unit SRS reader). A further reader
+    # spelling the rule out by hand moves no count, which is why the poison
+    # tests exist alongside these pins.
     [ "$(grep -c 'gr_md_files ' scripts/lib.sh)" -eq 3 ]
-    [ "$(grep -c 'gr_md_files ' scripts/check-review.sh)" -eq 1 ]
 }
 
 @test "every script parses as POSIX sh" {

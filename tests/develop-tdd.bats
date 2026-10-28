@@ -22,7 +22,7 @@ setup() {
     # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md)
     preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$preconditions" | grep -qF 'or with the findings of a `TEST` conformance review to fix'
-    printf '%s\n' "$preconditions" | grep -qF 'each finding is fixed under the loop below, citing the clause it names, or reported as not fixed with the reason'
+    printf '%s\n' "$preconditions" | grep -qF 'each finding is fixed under the loop below, citing the clause it names, or reported as `no change` with the reason'
     grep -qF '| "This finding is wrong; I'"'"'ll skip it quietly" |' "$skill"
 }
 
@@ -73,7 +73,7 @@ setup() {
     [ -n "$report" ] || { echo "no dispatch report section"; false; }
     for line in 'task: <ID>' 'worktree: <path to the task worktree>' 'files touched: <paths>' \
         'inherited: <test name> — from <old ID>' 'result: <N passed, N failed>' \
-        'fixed: <finding-N — what changed, or "not fixed — <reason>">   (a fix' \
+        'fixed: <finding-N — what changed, or "no change: <reason>">   (a fix' \
         'surprises: <anything unexpected, or "none">'; do
         printf '%s\n' "$report" | grep -qxF -- "$line" || { echo "the shape lacks: $line"; false; }
     done

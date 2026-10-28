@@ -67,7 +67,6 @@ doc_rmf
 doc_sad
 doc_soup
 doc_problems
-doc_verification
 strict_paths
 test_paths
 verify_commands
@@ -304,28 +303,20 @@ function gr_kw_lead(line,   s) {
 # that hole and opens nothing, because reporting a line no reader would have
 # taken is noise at worst, never a false green.
 #
-# Reading that invariant as an equality, and widening THIS function to match
-# the backstop, was tried on 2026-09-15 and rejected in review on two
-# demonstrated regressions. Both turn on the same property: the readers are
-# FIRST-OCCURRENCE-WINS, so widening what counts as an occurrence lets a
-# QUOTED form outrank the real one.
-#
-#   * check-trace.sh, the problem-report reader. A block quoting
-#     `- status: resolved` in its prose, above its own column-one
-#     `status: open`, handed the reader the quotation: the open item left the
-#     roll-call at exit 0 — verbatim the false green that reader was anchored
-#     to remove. Same for `opened:` and `disposition:`.
-#   * check-review.sh, the record selector. A record declaring
-#     `branch: other-change` that quoted `- branch: my-change` above it became
-#     the record FOR my-change: a pass reported over a review that never
-#     happened.
+# The invariant is not an equality, and THIS function is not widened to match
+# the backstop. The readers are FIRST-OCCURRENCE-WINS, so widening what counts
+# as an occurrence would let a QUOTED form outrank the real one: in the
+# problem-report reader of check-trace.sh, a block quoting
+# `- status: resolved` in its prose, above its own column-one `status: open`,
+# would hand the reader the quotation, and the open item would leave the
+# roll-call at exit 0. Same for `opened:` and `disposition:`.
 #
 # So the readers stay narrow and the backstop alone is wide. A bulleted
 # annotation is never READ, and is REPORTED where it belongs to no item.
 # Inside a block it is simply not the annotation the item made, and the gate
-# fails loudly for the field it now lacks — INCOMPLETE-PROBLEM, or
-# MISSING-RECORD. Loud is the correct answer to an annotation written in a form
-# no reader accepts; silent promotion of a quotation is not.
+# fails loudly for the field it now lacks: INCOMPLETE-PROBLEM. Loud is the
+# correct answer to an annotation written in a form no reader accepts; silent
+# promotion of a quotation is not.
 #
 # Unanchored is worse again — it fires on any sentence containing the word —
 # and column one is also what keeps the indented grammar comments in the ledger
@@ -335,9 +326,8 @@ function gr_kw_here(line, kw) {
 }
 # Could KW be READ from this line by anything? Column one, or column one after
 # one or more list markers, bulleted or ordered. THE BACKSTOP form, and
-# deliberately wider than gr_kw_here per the invariant above. Two callers, both
-# backstops: check_orphans in check-trace.sh, and the ORPHAN-DISPOSITION path
-# in check-review.sh. No reader may call it.
+# deliberately wider than gr_kw_here per the invariant above. One caller, a
+# backstop: check_orphans in check-trace.sh. No reader may call it.
 #
 # What the width buys, PR-h3wujj: gr_id_run finds its keyword ANYWHERE on the
 # line, so `- satisfies: REQ-001` was credited to an item inside a block while
@@ -868,10 +858,8 @@ gr_doc_files() {
 # gr_doc_files gives: a gate reading nothing is indistinguishable from a gate
 # finding nothing wrong. LABEL names the caller in that error.
 #
-# Extracted so that gr_doc_files and gr_verification_dir cannot drift. They
-# could not share gr_doc_files itself — that one is keyed on a config key and
-# yields nothing for an unset one, which is exactly the shape the verification
-# directory must not have — so the EMPTINESS RULE is what is shared instead.
+# Shared by gr_doc_files and the callers that list a directory of their own,
+# so the EMPTINESS RULE cannot drift between them.
 #
 # One level only: a *.md in a subdirectory is not listed. That is the limit
 # gr_doc_files has always had, stated here where both readers can see it.
@@ -887,37 +875,380 @@ gr_md_files() {
     return 0
 }
 
-# gr_verification_dir — the directory containing verification records.
-#
-# The ONE doc_* key with a default, and the exception needs its reason stated.
-# ratchet creates docs/verification/ on every project it sets up, and this key
-# arrived long after those projects were configured; requiring it would fail
-# every config already written, at a gate whose whole purpose is to be adopted.
-#
-# The default cannot produce a false green, and that is the only reason it is
-# allowed. A project that keeps its records somewhere else leaves
-# docs/verification/ absent, and an absent directory is fatal here — never an
-# empty file list. The distinction is the same one gr_doc_files draws, for the
-# same reason: a gate reading nothing is indistinguishable from a gate finding
-# nothing wrong.
-gr_verification_dir() {
-    _v=$(cfg_get doc_verification)
-    # PRESENT-BUT-EMPTY is not ABSENT. cfg_get cannot tell them apart, and the
-    # default below would silently adopt a key whose value the reader could not
-    # see — the one shape gr_check_config exists to reject, arriving through the
-    # one key with a fallback. Ask the file directly.
-    if [ -z "$_v" ] && grep -q '^doc_verification:' "$GR_CONFIG" 2>/dev/null; then
-        gr_die \
-"doc_verification is set to an empty value in $GR_CONFIG.
-  Give it the directory that contains the verification records, or remove the
-  key to use the default (docs/verification)."
+# gr_message_file — the absolute path of this worktree's squash message, the
+# verification record (ADR-k3nkv3). It is in the worktree's own git directory:
+# never in the tree the gate measures, never a `git status` change, kept
+# across reruns of the merge sequence, and removed with the worktree.
+gr_message_file() {
+    _gm=$(git rev-parse --git-path guardrails-squash.msg) \
+        || gr_die "git rev-parse could not name the squash message's path; git's error is above"
+    case "$_gm" in
+        (/*) ;;
+        (*) _gm="$(pwd)/$_gm" ;;
+    esac
+    printf '%s\n' "$_gm"
+}
+
+# The body fields a squash message must give a value, space-separated.
+GR_MESSAGE_FIELDS='reviewer verdict reproduced'
+
+# gr_placeholder(field_text) — does field_text still hold a template
+# placeholder: a `<`, then a lowercase letter or two uppercase ones, then no
+# `<`, `>`, `@` or `:` up to a `>`, standing as a word, with a blank, a `(`,
+# a `[`, a `-` or the text's edge before it and a blank, a `/`, `,`, `.`,
+# `;`, `:`, `)`, a `[`, a `]` or the edge after it?
+# templates/squash-message.txt's placeholders all have that shape (`<tree>`,
+# `<passed>/<total>`, `<who reviewed at step 4>`, `<IDs>`, `<PR IDs>`,
+# `PR-<id>`, `[<disposition>]`); an email address, a URL, `a<b and c>d` and
+# `<Tab>` do not. A field, trailer or disposition holding one is missing
+# (ADR-3hsvvq).
+GR_AWK_PLACEHOLDER='
+function gr_placeholder(field_text,   padded) {
+    padded = " " field_text " "
+    gsub(/\[/, " ", padded)
+    gsub(/\]/, " ", padded)
+    gsub(/-/, " ", padded)
+    return padded ~ /[ \t(]<([a-z]|[A-Z][A-Z])[^<>@:]*>[ \t\/,.;:)]/
+}
+'
+
+# gr_impact_units SCRIPT_DIR RANGE — the units of RANGE's impact set, one per
+# line: the unit column of SCRIPT_DIR/check-units.sh --impact RANGE. Where it
+# cannot be computed, a changed path no unit claims, check-units.sh's error
+# stands on stderr and this returns 2. Run under a unit manifest only.
+gr_impact_units() {
+    _impact_lines=$(sh "$1/check-units.sh" --impact "$2") || return 2
+    printf '%s\n' "$_impact_lines" | awk -F '\t' 'NF { print $1 }'
+}
+
+# gr_message_want KEY [UNITS] — how many trailers the squash message owes KEY,
+# a list key of the config: verify_commands (Tests:) or coverage_command
+# (Coverage:). One per entry, in this config, or under a unit manifest summed
+# over the configs of UNITS, the change's impact set (gr_impact_units); and at
+# least one Tests:, so a config with no verify_commands entry owes one. A
+# repository with no manifest and no config owes one Tests: and no Coverage:
+# (ADR-3hsvvq). Run from the repository root.
+gr_message_want() {
+    if gr_units_present; then
+        _want_units=${2-}
+        _want_entries=$(for _want_unit in $_want_units; do
+            cfg_list "$1" "$_want_unit/.guardrails/config.yaml" || exit 2
+        done) || return 2
+    elif [ ! -f "$GR_CONFIG" ]; then
+        _want_entries=""
+    else
+        _want_entries=$(cfg_list "$1") || return 2
     fi
-    [ -n "$_v" ] || _v=docs/verification
-    [ -d "$_v" ] || gr_die \
-"doc_verification resolves to '$_v', which is not a directory.
-  Verification records live there. Create it, or set doc_verification in
-  $GR_CONFIG to the directory that contains them."
-    printf '%s\n' "$_v"
+    if [ -z "$_want_entries" ]; then
+        _want_count=0
+    else
+        _want_count=$(printf '%s\n' "$_want_entries" | awk 'END { print NR }')
+    fi
+    if [ "$1" = verify_commands ] && [ "$_want_count" -lt 1 ]; then
+        _want_count=1
+    fi
+    printf '%s\n' "$_want_count"
+}
+
+# gr_message_strip FILE — set _message_text to FILE without its `#` lines,
+# which `--cleanup=strip` removes, and without a carriage return ending a
+# line, so a CRLF file reads as LF. grep exits 1 when every line is one, an
+# empty text; above 1 it could not read FILE, and that dies here, where a pipe
+# would drop its status.
+gr_message_strip() {
+    _message_text=$(grep -v '^#' "$1")
+    case $? in
+        (0|1) ;;
+        (*) gr_die "grep could not read $1" ;;
+    esac
+    _message_text=$(printf '%s\n' "$_message_text" | awk '{ sub(/\r$/, ""); print }')
+}
+
+# gr_message_present FILE — does FILE hold a line that is neither blank nor a
+# `#` line? A message of `#` lines only is no message. An unreadable FILE is
+# no message either, tested before grep reads it.
+gr_message_present() {
+    if [ ! -f "$1" ] || [ ! -r "$1" ]; then
+        return 1
+    fi
+    gr_message_strip "$1"
+    printf '%s\n' "$_message_text" | grep -q '[^[:space:]]'
+}
+
+# gr_message_facts FILE — read a squash message in the grammar of
+# templates/squash-message.txt (ADR-3hsvvq) and print one fact per line:
+#
+#   FIELD NAME              a body field of GR_MESSAGE_FIELDS with a value
+#                           that holds no template placeholder; every FIELD
+#                           comes before every other fact
+#   FINDING N TAG           the first line of finding N, the first line with
+#                           that number, and the word after its disposition
+#   DISPOSITION TEXT        the text inside that finding's leading `[...]`,
+#                           not blank and holding no template placeholder;
+#                           absent where the finding has none
+#   MALFORMED-FINDING LINE  a line in Findings: that is neither a finding nor
+#                           a continuation (an indented line opening with
+#                           `<N>. ` is none), or repeats a finding's number; a
+#                           line outside it opening with `<N>. `, or a
+#                           `Findings` header in another case, spacing or
+#                           with text after its colon; or
+#                           finding N's line, once, after its FINDING and
+#                           DISPOSITION, where its disposition is not
+#                           `fixed:`, `open:` or `no change:` then a non-blank
+#                           remainder, or its tag is not `code`,
+#                           `requirement` or `guideline` with a severity
+#                           `high`, `medium` or `low`, or `record` with none,
+#                           then ` — `
+#   PLACEHOLDER KEY         a trailer other than Base: and Gate-tree:, whose
+#                           own codes report one, still holding a template
+#                           placeholder, before that trailer's own fact
+#   BASE VALUE              a Base: trailer
+#   GATE-TREE VALUE         a Gate-tree: trailer
+#   TESTS VALUE             a Tests: trailer
+#   COVERAGE VALUE          a Coverage: trailer
+#   MUTATION VALUE          a Mutation: trailer in the template's form, then
+#   MUTATION-PATH PATH      the path it names, without its `:N`, and
+#   MUTATION-TEST NAME      the test it names
+#   MALFORMED-MUTATION VALUE  a Mutation: trailer not in that form
+#
+# The trailer facts come last, in trailer order. Lines opening with `#` are
+# template guidance, which `--cleanup=strip` removes, so they are dropped
+# first. Trailers are read by git's own parser from the last paragraph, as git
+# reads them after signing: --no-divider, so a `---` line is text, not the end
+# of the message; that paragraph is then not body, so a review field
+# there does not count. The findings section runs from a column-one
+# `Findings:` after the subject to the next blank line.
+#
+# The message reaches awk on its standard input after the trailers and a
+# sentinel line, never through `awk -v`: BWK awk rejects a newline there. awk
+# runs under LC_ALL=C and spells the em dash as octal bytes, so a finding's
+# dash and the Mutation: form read the same in any locale and under BWK awk.
+gr_message_facts() {
+    gr_message_strip "$1"
+    _message_trailers=$(printf '%s\n' "$_message_text" | git interpret-trailers --parse --no-divider) \
+        || gr_die "git interpret-trailers could not read $1"
+    { printf '%s\n' "$_message_trailers"
+      printf '%s\n' '@@guardrails-end-of-trailers@@'
+      printf '%s\n' "$_message_text"; } \
+        | LC_ALL=C awk -v field_names="$GR_MESSAGE_FIELDS" "$GR_AWK_PLACEHOLDER"'
+    section == 0 && $0 == "@@guardrails-end-of-trailers@@" { section = 1; next }
+    section == 0 {
+        if ($0 != "") { trailer_count++; trailer[trailer_count] = $0 }
+        next
+    }
+    { line_count++; line[line_count] = $0 }
+    END {
+        # Paragraphs: the subject is the first non-blank line, the trailer
+        # paragraph the last, when git found trailers in it.
+        first = 1
+        while (first <= line_count && line[first] ~ /^[ \t]*$/) first++
+        last = line_count
+        while (last > 0 && line[last] ~ /^[ \t]*$/) last--
+        last_paragraph = last
+        while (last_paragraph > 1 && line[last_paragraph - 1] !~ /^[ \t]*$/)
+            last_paragraph--
+        body_end = (trailer_count > 0) ? last_paragraph - 1 : last
+
+        field_count = split(field_names, field, " ")
+        for (at = first + 1; at <= body_end; at++)
+            for (field_at = 1; field_at <= field_count; field_at++)
+                if (index(line[at], field[field_at] ":") == 1) {
+                    field_value = substr(line[at], length(field[field_at]) + 2)
+                    if (gr_placeholder(field_value)) continue
+                    gsub(/[ \t]/, "", field_value)
+                    if (field_value != "") given[field[field_at]] = 1
+                }
+        for (field_at = 1; field_at <= field_count; field_at++)
+            if (field[field_at] in given) print "FIELD " field[field_at]
+
+        in_findings = 0; finding_open = 0
+        for (at = first + 1; at <= last; at++) {
+            findings_line = line[at]
+            # Outside the section, a header spelled otherwise and a line
+            # opening with `<N>. ` are findings the section does not hold.
+            if (!in_findings) {
+                if (findings_line ~ /^Findings:[ \t]*$/) { in_findings = 1; continue }
+                lowered = tolower(findings_line)
+                if (lowered ~ /^findings[ \t]*:/ || lowered ~ /^findings[ \t]*$/ \
+                        || findings_line ~ /^[0-9]+\. /)
+                    print "MALFORMED-FINDING " findings_line
+                continue
+            }
+            if (findings_line ~ /^[ \t]*$/) { in_findings = 0; finding_open = 0; continue }
+            if (findings_line ~ /^[0-9]+\. /) {
+                number = substr(findings_line, 1, index(findings_line, ".") - 1) + 0
+                if (number in numbered) { print "MALFORMED-FINDING " findings_line; continue }
+                numbered[number] = 1; finding_open = 1
+                after_number = substr(findings_line, index(findings_line, ". ") + 2)
+                close_at = index(after_number, "] ")
+                disposition = ""
+                tagged_text = after_number
+                if (substr(after_number, 1, 1) == "[" && close_at > 0) {
+                    disposition = substr(after_number, 2, close_at - 2)
+                    tagged_text = substr(after_number, close_at + 2)
+                }
+                # The tag, its severity where it takes one, then the dash.
+                tagged_word_count = split(tagged_text, tagged_word, " ")
+                tag = tagged_word[1]
+                dash_at = 0
+                if (tag == "record") dash_at = 2
+                else if ((tag == "code" || tag == "requirement" || tag == "guideline") \
+                        && (tagged_word[2] == "high" || tagged_word[2] == "medium" \
+                            || tagged_word[2] == "low")) dash_at = 3
+                print "FINDING " number " " tag
+                disposition_nonspace = disposition
+                gsub(/[ \t]/, "", disposition_nonspace)
+                if (gr_placeholder(disposition)) disposition_nonspace = ""
+                # A disposition is `fixed:`, `open:` or `no change:`, then
+                # something other than blanks.
+                disposition_formed = 1
+                if (disposition_nonspace != "") {
+                    print "DISPOSITION " disposition
+                    disposition_rest = ""
+                    if (disposition ~ /^fixed:/) disposition_rest = substr(disposition, 7)
+                    else if (disposition ~ /^open:/) disposition_rest = substr(disposition, 6)
+                    else if (disposition ~ /^no change:/) disposition_rest = substr(disposition, 11)
+                    gsub(/[ \t]/, "", disposition_rest)
+                    if (disposition_rest == "") disposition_formed = 0
+                }
+                if (!disposition_formed || dash_at == 0 || tagged_word_count < dash_at \
+                        || tagged_word[dash_at] != "\342\200\224")
+                    print "MALFORMED-FINDING " findings_line
+                continue
+            }
+            # An indented `<N>. ` line is a finding out of place, never a
+            # continuation.
+            if (findings_line ~ /^[ \t]/ && finding_open \
+                    && findings_line !~ /^[ \t]+[0-9]+\. /) continue
+            print "MALFORMED-FINDING " findings_line
+        }
+
+        marker = "\342\200\224 killed by \""
+        for (at = 1; at <= trailer_count; at++) {
+            colon_at = index(trailer[at], ": ")
+            if (colon_at == 0) continue
+            key = substr(trailer[at], 1, colon_at - 1)
+            trailer_value = substr(trailer[at], colon_at + 2)
+            if (key != "Base" && key != "Gate-tree" && gr_placeholder(trailer_value))
+                print "PLACEHOLDER " key
+            if (key == "Base") print "BASE " trailer_value
+            else if (key == "Gate-tree") print "GATE-TREE " trailer_value
+            else if (key == "Tests") print "TESTS " trailer_value
+            else if (key == "Coverage") print "COVERAGE " trailer_value
+            else if (key == "Mutation") {
+                if (trailer_value !~ /^[^ :]+:[0-9]+ .+ \342\200\224 killed by ".+"$/) {
+                    print "MALFORMED-MUTATION " trailer_value
+                    continue
+                }
+                path = substr(trailer_value, 1, index(trailer_value, " ") - 1)
+                sub(/:[0-9]+$/, "", path)
+                rest = trailer_value
+                while ((marker_at = index(rest, marker)) > 0)
+                    rest = substr(rest, marker_at + length(marker))
+                print "MUTATION " trailer_value
+                print "MUTATION-PATH " path
+                print "MUTATION-TEST " substr(rest, 1, length(rest) - 1)
+            }
+        }
+    }'
+}
+
+# gr_message_check FILE TREE TESTS COVERAGE — check a squash message against
+# its grammar (ADR-3hsvvq), with gr_message_facts reading it: its Gate-tree:
+# must name TREE, and it owes exactly TESTS Tests: and COVERAGE Coverage:
+# trailers, the counts gr_message_want gives its caller. A review field or
+# trailer value holding a template placeholder is missing. Prints one finding
+# per line;
+# returns 1 on any, 0 on none. A FILE that is absent, unreadable or of `#`
+# lines only is MISSING-RECORD, 1; it returns 2 when grep or git
+# interpret-trailers fails on a FILE that passed that test.
+# check-review.sh runs it on the message file before the hand-over,
+# finish-merge.sh on the signed commit's message.
+gr_message_check() {
+    if ! gr_message_present "$1"; then
+        printf 'MISSING-RECORD %s\n' "$1"
+        return 1
+    fi
+    _message_facts=$(gr_message_facts "$1") || return 2
+    printf '%s\n' "$_message_facts" | LC_ALL=C awk -v tree="$2" \
+        -v tests_want="$3" -v coverage_want="$4" \
+        -v field_names="$GR_MESSAGE_FIELDS" "$GR_AWK_PLACEHOLDER"'
+    function report(finding) { print finding; reported++ }
+    # Report the fields no FIELD fact gave, once, after the last FIELD.
+    function settle_fields(   field_count, field, field_at) {
+        if (fields_settled) return
+        fields_settled = 1
+        field_count = split(field_names, field, " ")
+        for (field_at = 1; field_at <= field_count; field_at++)
+            if (!(field[field_at] in given))
+                report("INCOMPLETE-RECORD (no " field[field_at] ":)")
+    }
+    # Report the finding just read if no DISPOSITION followed it.
+    function settle_finding() {
+        if (undisposed != "") report("UNDISPOSED-FINDING " undisposed)
+        undisposed = ""
+    }
+    $1 == "FIELD" { given[$2] = 1; next }
+    { settle_fields() }
+    $1 == "DISPOSITION" { undisposed = ""; next }
+    { settle_finding() }
+    $1 == "FINDING" { undisposed = $2; next }
+    $1 == "MALFORMED-FINDING" || $1 == "MALFORMED-MUTATION" { report($0); next }
+    $1 == "PLACEHOLDER" { report("INCOMPLETE-RECORD (placeholder in " $2 ":)"); next }
+    $1 == "BASE" {
+        base_count++
+        base_value = substr($0, 6)
+        if (gr_placeholder(base_value)) base_placeholder = 1
+        gsub(/[ \t]/, "", base_value)
+        if (base_value == "") base_empty = 1
+        next
+    }
+    $1 == "GATE-TREE" {
+        gate_tree = substr($0, 11)
+        gate_count++
+        if (gate_tree == tree) gate_matches = 1
+        gate_values = gate_values " " gate_tree
+        next
+    }
+    # A placeholder Tests: or Coverage: is not counted; a Tests: that is
+    # counted and not passed in full is FAILED-TESTS.
+    $1 == "TESTS" {
+        tests_value = substr($0, 7)
+        if (gr_placeholder(tests_value)) next
+        tests_count++
+        word_count = split(tests_value, word, " ")
+        passed_in_full = 0
+        if (word_count > 0 && word[word_count] ~ /^[0-9]+\/[0-9]+$/) {
+            split(word[word_count], tally, "/")
+            if (tally[1] + 0 == tally[2] + 0 && tally[2] + 0 > 0) passed_in_full = 1
+        }
+        if (!passed_in_full) report("FAILED-TESTS " tests_value)
+        next
+    }
+    $1 == "COVERAGE" {
+        coverage_value = substr($0, 10)
+        if (gr_placeholder(coverage_value)) next
+        gsub(/[ \t]/, "", coverage_value)
+        if (coverage_value != "") coverage_count++
+        next
+    }
+    END {
+        settle_fields()
+        settle_finding()
+        if (base_count != 1)
+            report("BASE (want one Base: trailer, found " base_count + 0 ")")
+        else if (base_empty)
+            report("BASE (want one Base: trailer, found empty)")
+        else if (base_placeholder)
+            report("BASE (want one Base: trailer, found a placeholder)")
+        if (gate_count != 1 || !gate_matches)
+            report("GATE-TREE (want one Gate-tree: " tree ", found" (gate_count ? gate_values : " none") ")")
+        if (tests_count != tests_want + 0)
+            report("TESTS (want " tests_want + 0 " Tests: trailers, one per verify_commands entry, found " tests_count + 0 ")")
+        if (coverage_count != coverage_want + 0)
+            report("COVERAGE (want " coverage_want + 0 " Coverage: trailers, one per coverage_command, found " coverage_count + 0 ")")
+        exit (reported > 0)
+    }'
 }
 
 # gr_limit KEY — a triage limit from the config: a non-negative whole number,
@@ -934,7 +1265,7 @@ gr_limit() {
     _lv=$(cfg_get "$1")
     if [ -z "$_lv" ]; then
         # PRESENT-BUT-EMPTY is not ABSENT; cfg_get cannot tell them apart.
-        # Same reasoning, and the same remedy, as gr_verification_dir.
+        # Ask the file directly.
         if grep -q "^$1:" "$GR_CONFIG" 2>/dev/null; then
             gr_die \
 "$1 is set to an empty value in $GR_CONFIG.
@@ -1085,15 +1416,11 @@ gr_check_forms() {
     # nothing at all, set in the form the other kind of key uses, or containing
     # an item with nothing after its `-`.
     #
-    # The rule had been arriving one key at a time — gr_verification_dir for
-    # doc_verification, gr_limit for the problem limits — while every key it
-    # had not reached was a gate that a single `#` could switch off. Asking the
-    # question generally is not enough on its own either: a first version
-    # accepted a key if EITHER reader found something, which passed
-    # `strict_paths: src` (non-empty to cfg_get, empty to cfg_list, and
-    # cfg_list is what reads it) straight through to a merge that exited 0
-    # having walked no paths. The question has to be asked in the form that
-    # key's own consumer uses.
+    # Every key is asked, so no key is a gate that a single `#` switches off,
+    # and each is asked in the form its own consumer uses. Accepting a key
+    # that EITHER reader finds would pass `strict_paths: src` (non-empty to
+    # cfg_get, empty to cfg_list, and cfg_list is what reads it) through to a
+    # merge that exits 0 having walked no paths.
     _empty=""
     _wrong=""
     _blank=""
@@ -1159,6 +1486,7 @@ gr_check_config() {
         # unknown key with no hint.
         case $_config_key in
             (prune_plans) gr_die "config key prune_plans is withdrawn: a plan does not reach the base branch (drop-plans.sh, merge-change step 5). Delete its line." ;;
+            (doc_verification) gr_die "config key doc_verification is withdrawn: the record is the squash message (merge-change step 5). Delete its line." ;;
         esac
         gr_contains "$GR_KNOWN_KEYS" "$_config_key" || _unknown="${_unknown} $_config_key"
     done
@@ -1384,10 +1712,6 @@ gr_check_units() {
         # Own scope must BE the unit (architecture item 2): two units' scans
         # are disjoint by construction, or MISPLACED-ITEM sees a sibling's
         # items and the scoped summary lies.
-        [ -z "$(cfg_get doc_verification "$_ucfg")" ] || gr_die \
-"unit $_u sets doc_verification — the verification record is repository-level
-  (one record per change, at the root docs/verification), so a unit-level key
-  would be read by nobody. Remove it."
         for _dk in doc_srs doc_rmf doc_sad doc_soup doc_problems; do
             _dv=$(cfg_get "$_dk" "$_ucfg")
             [ -n "$_dv" ] || continue

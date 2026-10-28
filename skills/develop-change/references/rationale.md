@@ -56,7 +56,7 @@ the dispatcher and the gate.
 
 ## Write the red -> green lines into the plan
 
-`merge-change` step 5 copies them into the verification record, many steps
+`merge-change` step 5 copies them into the squash message, many steps
 later, and the merge sequence reruns from step 1 on any finding. Until they
 are written down they exist only in the conversation, which is not durable
 state (`worktree-discipline` step 9). In the plan they are a file from the

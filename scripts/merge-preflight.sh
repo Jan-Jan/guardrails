@@ -31,7 +31,7 @@
 #                    "refs/heads/<base>..HEAD"` prints, dependents included
 #                    (skills/merge-change/references/multi-unit.md).
 #   REVIEW           check-review.sh. Skipped under --before-review, which is
-#                    the step 2 run: the record is written at step 5.
+#                    the step 2 run: the squash message is written at step 5.
 #   NESTED-WORKTREE  finish-merge.sh --check <change-branch>. Its verdict "no
 #                    worktree is registered for" exits 0 there and is a failure
 #                    here: this script runs in the change worktree, where one is
@@ -268,7 +268,7 @@ if [ "$before_review" -eq 1 ]; then
     gr_skip REVIEW "--before-review"
 else
     gr_run_tool REVIEW \
-"write or complete the verification record for $branch as merge-change step 5 states." \
+"write or complete the squash message as merge-change steps 5 and 6b state." \
         sh "$gr_script_dir/check-review.sh"
     gr_pass REVIEW
 fi

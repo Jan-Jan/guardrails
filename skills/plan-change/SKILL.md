@@ -31,7 +31,7 @@ description: Write a bite-sized, trace-aware implementation plan for a change in
    (`drop-plans.sh`, `merge-change` step 5), so it never reaches the base
    branch. Put a decision that must outlive the change in an ADR or a ledger
    item. Write each `red -> green:` line in the plan; step 5 copies them into
-   the record.
+   the squash message.
 2. **Open the plan with the mandatory plan header:**
 
    ```markdown

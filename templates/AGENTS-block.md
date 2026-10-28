@@ -14,8 +14,9 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 2. **Integration is a signed squash merge** performed by the `merge-change`
    skill. The base branch receives exactly one signed commit per change.
    Intermediate worktree commits may be unsigned; the squash commit must be
-   signed and carry a `Gate-tree:` trailer naming the tree the gate measured,
-   and `finish-merge.sh` verifies both before the worktree is cleaned up.
+   signed and carry its verification record in its message, with a
+   `Gate-tree:` trailer naming the tree the gate measured, and
+   `finish-merge.sh` verifies both before the worktree is cleaned up.
    There is no unsigned fallback.
 3. **Traceability is mechanical.** A new requirement/hazard/control/design/
    problem item gets its ID the moment it is written: run
@@ -80,10 +81,11 @@ in their setup notes.
 - `.guardrails/scripts/check-ids.sh` — draft IDs, draft-named files,
   duplicate and malformed IDs
 - `.guardrails/scripts/check-trace.sh` — traceability gates
-- `.guardrails/scripts/check-review.sh [--branch NAME]` — the change under merge
-  has a verification record, written by this change, naming a reviewer, a
-  verdict, what was reproduced, and a disposition per finding. Run from the
-  change worktree (merge-change step 6c); on the base branch it exits 2, never 0
+- `.guardrails/scripts/check-review.sh [--message FILE] [--cite]` — the
+  change's squash message, its verification record, names a reviewer, a
+  verdict, what was reproduced, a disposition per finding, and passing
+  `Tests:` for the tree `Gate-tree:` names. Run from the change worktree
+  (merge-change step 6c); on the base branch it exits 2, never 0
 - `.guardrails/scripts/check-signing.sh [--strict] [RANGE]` — signature verification
 - `.guardrails/scripts/drop-plans.sh --base REF` — remove the plans this
   change added and restore the base's version of each it edited, in one

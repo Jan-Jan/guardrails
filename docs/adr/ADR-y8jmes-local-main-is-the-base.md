@@ -68,7 +68,7 @@ is the maintainer's call, for the same reason pushing is: an agent fetch blocks
 on a hardware key only the maintainer can touch. Agents still never fetch and
 never push, and still never take `origin/<branch>` as the base. An agent
 carries out a reconciliation only where the maintainer directs that explicitly,
-as the subject of a change whose verification record names whose decision it
+as the subject of a change whose squash message names whose decision it
 was and which commit was merged; AGENTS.md non-negotiable 4 states the same
 permission where an agent reads the rule. An
 unreconciled `main` does not make a change unsafe — it makes step 2's

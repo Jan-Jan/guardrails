@@ -455,56 +455,6 @@ EOF
     [ "${lines[0]}" = "REQ-b4m8p3" ]
 }
 
-# --- doc_verification and gr_verification_dir -------------------------------
-# The one doc_* key with a DEFAULT. Every test below exists because the default
-# is the shape that could hide a gate: a key nobody sets, resolving to a path
-# nobody checked.
-
-@test "gr_verification_dir defaults to docs/verification" {
-    mkdir -p docs/verification
-    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
-    [ "$status" -eq 0 ]
-    [ "$output" = "docs/verification" ]
-}
-
-@test "gr_verification_dir honours a configured doc_verification" {
-    mkdir -p docs/evidence
-    printf 'doc_verification: docs/evidence\n' >> .guardrails/config.yaml
-    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
-    [ "$status" -eq 0 ]
-    [ "$output" = "docs/evidence" ]
-}
-
-@test "gr_verification_dir dies when the directory is absent" {
-    # The default resolving to nothing must be fatal, not empty. A project that
-    # keeps its records elsewhere and never set the key would otherwise get a
-    # green review gate over a directory that does not exist.
-    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"docs/verification"* ]] || { echo "$output"; false; }
-}
-
-@test "gr_verification_dir dies when a configured directory is absent" {
-    printf 'doc_verification: docs/nowhere\n' >> .guardrails/config.yaml
-    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"docs/nowhere"* ]] || { echo "$output"; false; }
-}
-
-@test "doc_verification is a known config key" {
-    mkdir -p docs/verification
-    printf '# rec\n' > docs/verification/2026-01-01-x.md
-    printf 'true\n' > tests/test_a.sh
-    printf 'doc_verification: docs/verification\n' >> .guardrails/config.yaml
-    commit_all doc-verification-key
-    run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"unknown config key"* ]] || { echo "$output"; false; }
-    # And positively: a negative assertion alone is satisfied by a script that
-    # is not there, which is the class this suite has now produced five times.
-    [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [[ "$output" == *"checked:"* ]] || { echo "$output"; false; }
-}
-
 @test "the shipped config template names only keys the reader knows" {
     # A key in the template that GR_KNOWN_KEYS does not list makes every
     # freshly ratcheted project exit 2 on its first gate run; a key in
@@ -773,22 +723,6 @@ PY
     # than being quietly excluded from the question.
     [ "$n" -eq 12 ] || { echo "expected 12 scripts, got $n"; false; }
     [ "$shell" = dash ] || skip "no dash present: this was run under $shell and cannot discriminate"
-}
-
-@test "gr_verification_dir rejects a doc_verification set to nothing" {
-    # gr_check_config's general rule shadows this branch on every production
-    # path, so it is reachable only through a direct call — and without one it
-    # was unkillable code, which is what this toolkit states it does not keep.
-    # A library function has to be safe called on its own.
-    mkdir -p docs/verification
-    printf '# rec\n' > docs/verification/2026-01-01-x.md
-    printf 'doc_verification:\n' >> .guardrails/config.yaml
-    run sh -c '. .guardrails/scripts/lib.sh && gr_verification_dir'
-    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
-    [[ "$output" == *"empty value"* ]] || { echo "$output"; false; }
-    # NOT the default. Silently falling back would adopt a key whose value the
-    # reader could not see, which is the one shape the schema check exists for.
-    [[ "$output" != *"docs/verification"*"docs/verification"* ]] || { echo "$output"; false; }
 }
 
 @test "gr_prefixes leaves pathname expansion as it found it" {
@@ -1111,15 +1045,6 @@ EOF
     [[ "$output" == *"outside the unit"* ]] || { echo "$output"; false; }
 }
 
-@test "lib: a unit config setting doc_verification is exit 2" {
-    make_manifest_repo
-    printf 'doc_verification: apps/pump/docs/verification\n' >> apps/pump/.guardrails/config.yaml
-    mkdir -p apps/pump/docs/verification
-    run sh -c '. .guardrails/scripts/lib.sh && gr_check_units'
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"repository-level"* ]] || { echo "$output"; false; }
-}
-
 # --- T3: engagement rule, scope resolver, annotation parser -----------------
 
 # verifies: no-manifest-changes-nothing (plan obligation)
@@ -1378,4 +1303,563 @@ item_block_probe() {
         '1 status: open'
     [ "$status" -eq 0 ]
     [ "$output" = "ABSENT" ]
+}
+
+# --- doc_verification is withdrawn -------------------------------------------
+
+@test "doc_verification is withdrawn: the config names the withdrawal and the remedy" {
+    # verifies: ADR-k3nkv3
+    printf 'doc_verification: docs/verification\n' >> .guardrails/config.yaml
+    commit_all withdrawn-doc-verification
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$output"; false; }
+    [[ "$output" == *"config key doc_verification is withdrawn: the record is the squash message (merge-change step 5). Delete its line."* ]] \
+        || { echo "$output"; false; }
+    [[ "$output" != *"unknown config key"* ]] || { echo "$output"; false; }
+}
+
+# --- the squash message grammar: gr_message_check ---------------------------
+# ADR-3hsvvq states the squash message grammar, and gr_message_check (reading
+# through gr_message_facts) is its one checker, run by check-review.sh before
+# the hand-over and by finish-merge.sh on the signed message. It is tested
+# here directly under TEST_GUIDELINES Seams 2: criterion 3, intrinsic, since
+# it is a parser whose contract the ADR states apart from either caller; and
+# criterion 2, combinatorial, since its cases below, multiplied by its two
+# callers, pass a dozen tests at either seam. Where the message is found, an
+# absent file, and that each caller reports what it prints are tested at the
+# scripts (tests/check-review.bats, tests/finish-merge.bats).
+
+# Each test below changes one thing in write_message's (helpers.bash) passing
+# message, written to msg.txt.
+
+# check_message [TESTS [COVERAGE]] — check msg.txt against HEAD's tree,
+# wanting TESTS Tests: trailers (default 1, the fixture's one verify_commands
+# entry) and COVERAGE Coverage: trailers (default 0, no coverage_command).
+check_message() {
+    run sh -c '. .guardrails/scripts/lib.sh && gr_message_check msg.txt "$1" "$2" "$3"' _ \
+        "$(git rev-parse 'HEAD^{tree}')" "${1-1}" "${2-0}"
+}
+
+@test "gr_message_check passes a complete message with no Findings section" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    check_message
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports a message of # lines only as MISSING-RECORD" {
+    # verifies: ADR-3hsvvq
+    printf '# guidance\n\n# more guidance\n' > msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "MISSING-RECORD msg.txt" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports each missing or empty review field" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak -e '/^reviewer:/d' -e 's/^verdict: .*/verdict:  /' msg.txt && rm -f msg.txt.bak
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "INCOMPLETE-RECORD (no reviewer:)
+INCOMPLETE-RECORD (no verdict:)" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check does not count a review field indented or in the trailer paragraph" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak -e '/^reviewer:/d' -e 's/^verdict:/  verdict:/' msg.txt && rm -f msg.txt.bak
+    printf 'reviewer: hidden among the trailers\n' >> msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [[ "$output" == *"INCOMPLETE-RECORD (no reviewer:)"* ]] || { echo "$output"; false; }
+    [[ "$output" == *"INCOMPLETE-RECORD (no verdict:)"* ]] || { echo "$output"; false; }
+}
+
+@test "gr_message_check accepts dispositioned findings with continuation lines" {
+    # verifies: ADR-3hsvvq
+    write_message '1. [fixed: scripts/lib.sh, "a test"] code low — the first finding,
+   continued on an indented line
+	and on a tab-indented one
+2. [open: PR-abcdef] requirement medium — the second
+3. [no change: the clause does not apply] guideline low — the third
+4. [fixed: message] record — the record finding' msg.txt
+    check_message
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check drops # lines before reading the findings" {
+    # verifies: ADR-3hsvvq
+    write_message '1. [fixed: scripts/lib.sh] code low — one
+# a guidance line inside the section, which git strips
+2. [no change: none needed] code low — two' msg.txt
+    check_message
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports a finding with no or an empty disposition as UNDISPOSED-FINDING" {
+    # verifies: ADR-3hsvvq
+    write_message '1. code low — no disposition at all
+2. [] code low — an empty one
+3. [  ] code low — a blank one
+4. [fixed: scripts/lib.sh] code low — this one is fine' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "UNDISPOSED-FINDING 1
+UNDISPOSED-FINDING 2
+UNDISPOSED-FINDING 3" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reads an undisposed finding's tag from its first word" {
+    # verifies: ADR-3hsvvq
+    # A well-formed tag after no disposition is no MALFORMED-FINDING, a later
+    # [...] is no disposition, and a record finding's severity is malformed.
+    write_message '1. code low — no disposition at all
+2. guideline medium — no disposition, then a later [aside] here
+3. record high — undisposed, and a record finding takes no severity' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "UNDISPOSED-FINDING 1
+UNDISPOSED-FINDING 2
+UNDISPOSED-FINDING 3
+MALFORMED-FINDING 3. record high — undisposed, and a record finding takes no severity" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports a finding whose tag or severity breaks the grammar as MALFORMED-FINDING" {
+    # verifies: ADR-3hsvvq
+    write_message '1. [fixed: scripts/lib.sh] code, low — a comma after the tag
+2. [fixed: scripts/lib.sh] code — no severity
+3. [fixed: message] record high — a record finding with a severity
+4. [fixed: scripts/lib.sh] style low — an unknown tag
+5. [fixed: scripts/lib.sh] code urgent — an unknown severity
+6. [fixed: scripts/lib.sh] code low: no dash after the severity
+7. [fixed: scripts/lib.sh] requirement high — this one is fine' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "MALFORMED-FINDING 1. [fixed: scripts/lib.sh] code, low — a comma after the tag
+MALFORMED-FINDING 2. [fixed: scripts/lib.sh] code — no severity
+MALFORMED-FINDING 3. [fixed: message] record high — a record finding with a severity
+MALFORMED-FINDING 4. [fixed: scripts/lib.sh] style low — an unknown tag
+MALFORMED-FINDING 5. [fixed: scripts/lib.sh] code urgent — an unknown severity
+MALFORMED-FINDING 6. [fixed: scripts/lib.sh] code low: no dash after the severity" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports a disposition in no documented form as MALFORMED-FINDING" {
+    # verifies: ADR-3hsvvq
+    # The disposition is `fixed: <cite>, …`, `open: <cite>` or
+    # `no change: <reason>`, each with something after its colon.
+    write_message '1. [wontfix] code low — no documented form
+2. [deferred: later] code low — an unknown prefix
+3. [fixed:] code low — nothing after the colon
+4. [open:   ] code low — only blanks after the colon
+5. [no change:] code low — no reason
+6. [fixed in scripts/lib.sh] code low — no colon after the word
+7. [Fixed: scripts/lib.sh] code low — a capital letter
+8. [wontfix] style low — two faults, one report
+9. [open: PR-abcdef] code low — this one is fine' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "MALFORMED-FINDING 1. [wontfix] code low — no documented form
+MALFORMED-FINDING 2. [deferred: later] code low — an unknown prefix
+MALFORMED-FINDING 3. [fixed:] code low — nothing after the colon
+MALFORMED-FINDING 4. [open:   ] code low — only blanks after the colon
+MALFORMED-FINDING 5. [no change:] code low — no reason
+MALFORMED-FINDING 6. [fixed in scripts/lib.sh] code low — no colon after the word
+MALFORMED-FINDING 7. [Fixed: scripts/lib.sh] code low — a capital letter
+MALFORMED-FINDING 8. [wontfix] style low — two faults, one report" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports a stray line and a repeated number as MALFORMED-FINDING" {
+    # verifies: ADR-3hsvvq
+    write_message '1. [fixed: scripts/lib.sh] code low — one
+finding-2: an old-style label
+1. [fixed: scripts/lib.sh] code low — one again' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "MALFORMED-FINDING finding-2: an old-style label
+MALFORMED-FINDING 1. [fixed: scripts/lib.sh] code low — one again" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports a continuation line before any finding as MALFORMED-FINDING" {
+    # verifies: ADR-3hsvvq
+    write_message '   an indented line that continues nothing
+1. [fixed: scripts/lib.sh] code low — one' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "MALFORMED-FINDING    an indented line that continues nothing" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports an indented numbered line in Findings as MALFORMED-FINDING" {
+    # verifies: ADR-3hsvvq
+    # An indented `<N>. ` line is a finding the reader would miss, not a
+    # continuation: undisposed, it would otherwise pass.
+    write_message '1. [fixed: scripts/lib.sh] code low — one
+ 2. code high — indented and undisposed
+	3. [fixed: scripts/lib.sh] code low — tab-indented' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "MALFORMED-FINDING  2. code high — indented and undisposed
+MALFORMED-FINDING 	3. [fixed: scripts/lib.sh] code low — tab-indented" ] || { echo "$output"; false; }
+}
+
+# body_insert FILE — write_message's passing message to msg.txt, with FILE's
+# lines and a blank line inserted in the body before `reviewer:`.
+body_insert() {
+    write_message '' msg.txt
+    awk -v insert="$1" '/^reviewer:/ { while ((getline text < insert) > 0) print text; print "" }
+        { print }' msg.txt > msg.new && mv msg.new msg.txt
+}
+
+@test "gr_message_check reports a numbered line outside the Findings section as MALFORMED-FINDING" {
+    # verifies: ADR-3hsvvq
+    # A blank line after the header ends the section before the finding.
+    printf 'Findings:\n\n1. code high — undisposed\n' > insert.txt
+    body_insert insert.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "MALFORMED-FINDING 1. code high — undisposed" ] || { echo "$output"; false; }
+    # With no header at all.
+    printf '2. [fixed: scripts/lib.sh] code low — no header\n' > insert.txt
+    body_insert insert.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "no header -> $status: $output"; false; }
+    [ "$output" = "MALFORMED-FINDING 2. [fixed: scripts/lib.sh] code low — no header" ] \
+        || { echo "no header -> $output"; false; }
+}
+
+@test "gr_message_check reports a Findings header in another spelling or with trailing text as MALFORMED-FINDING" {
+    # verifies: ADR-3hsvvq
+    for header in 'findings:' 'FINDINGS:' 'Findings :' 'Findings: (see below)' 'Findings'; do
+        printf '%s\n1. code high — undisposed\n' "$header" > insert.txt
+        body_insert insert.txt
+        check_message
+        [ "$status" -eq 1 ] || { echo "$header -> $status: $output"; false; }
+        [ "$output" = "MALFORMED-FINDING $header
+MALFORMED-FINDING 1. code high — undisposed" ] || { echo "$header -> $output"; false; }
+    done
+}
+
+@test "gr_message_check reads prose that names findings or indents a numbered list as body" {
+    # verifies: ADR-3hsvvq
+    printf 'Findings from the review are dispositioned below.\n  1. an indented list item\n- 2. a bulleted one\n' > insert.txt
+    body_insert insert.txt
+    check_message
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reads a message with CRLF line endings as one with LF" {
+    # verifies: ADR-3hsvvq
+    write_message '1. [fixed: scripts/lib.sh] code low — one' msg.txt
+    sed -i.bak "s/\$/$(printf '\r')/" msg.txt && rm -f msg.txt.bak
+    grep -q "$(printf '\r')\$" msg.txt || { cat -v msg.txt; false; }
+    check_message
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+    write_message '1. code low — undisposed' msg.txt
+    sed -i.bak "s/\$/$(printf '\r')/" msg.txt && rm -f msg.txt.bak
+    check_message
+    [ "$status" -eq 1 ] || { echo "undisposed -> $status: $output"; false; }
+    [ "$output" = "UNDISPOSED-FINDING 1" ] || { echo "undisposed -> $output"; false; }
+}
+
+@test "gr_message_check reports a Gate-tree that is not the tree as GATE-TREE" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    run sh -c '. .guardrails/scripts/lib.sh && gr_message_check msg.txt 0123456789abcdef0123456789abcdef01234567 1 0'
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [[ "$output" == "GATE-TREE"* ]] || { echo "$output"; false; }
+    [ "${#lines[@]}" -eq 1 ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports no Gate-tree, and two, as GATE-TREE" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak '/^Gate-tree:/d' msg.txt && rm -f msg.txt.bak
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [[ "$output" == "GATE-TREE"* ]] || { echo "$output"; false; }
+    write_message '' msg.txt
+    printf 'Gate-tree: %s\n' "$(git rev-parse 'HEAD^{tree}')" >> msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [[ "$output" == "GATE-TREE"* ]] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports no Base trailer, two, or an empty one as BASE" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak '/^Base:/d' msg.txt && rm -f msg.txt.bak
+    check_message
+    [ "$status" -eq 1 ] || { echo "none -> $status: $output"; false; }
+    [ "$output" = "BASE (want one Base: trailer, found 0)" ] || { echo "none -> $output"; false; }
+    write_message '' msg.txt
+    printf 'Base: local main at 3f304dd\n' >> msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "two -> $status: $output"; false; }
+    [ "$output" = "BASE (want one Base: trailer, found 2)" ] || { echo "two -> $output"; false; }
+    write_message '' msg.txt
+    sed -i.bak 's/^Base: .*/Base:   /' msg.txt && rm -f msg.txt.bak
+    check_message
+    [ "$status" -eq 1 ] || { echo "empty -> $status: $output"; false; }
+    [ "$output" = "BASE (want one Base: trailer, found empty)" ] || { echo "empty -> $output"; false; }
+}
+
+@test "gr_message_check reports no Tests trailer as TESTS, not FAILED-TESTS" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak '/^Tests:/d' msg.txt && rm -f msg.txt.bak
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "TESTS (want 1 Tests: trailers, one per verify_commands entry, found 0)" ] \
+        || { echo "$output"; false; }
+}
+
+@test "gr_message_check wants one Tests trailer per verify_commands entry" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    check_message 2
+    [ "$status" -eq 1 ] || { echo "short -> $status: $output"; false; }
+    [ "$output" = "TESTS (want 2 Tests: trailers, one per verify_commands entry, found 1)" ] \
+        || { echo "short -> $output"; false; }
+    printf 'Tests: npm test 340/340\n' >> msg.txt
+    check_message 2
+    [ "$status" -eq 0 ] || { echo "two of two -> $status: $output"; false; }
+    # A failing trailer still counts toward the number given, and is
+    # reported as FAILED-TESTS only.
+    write_message '' msg.txt
+    printf 'Tests: npm test 339/340\n' >> msg.txt
+    check_message 2
+    [ "$status" -eq 1 ] || { echo "one failing -> $status: $output"; false; }
+    [ "$output" = "FAILED-TESTS npm test 339/340" ] || { echo "one failing -> $output"; false; }
+}
+
+@test "gr_message_check wants one Coverage trailer per coverage_command" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    check_message 1 1
+    [ "$status" -eq 1 ] || { echo "none -> $status: $output"; false; }
+    [ "$output" = "COVERAGE (want 1 Coverage: trailers, one per coverage_command, found 0)" ] \
+        || { echo "none -> $output"; false; }
+    printf 'Coverage: make coverage 87%%\n' >> msg.txt
+    check_message 1 1
+    [ "$status" -eq 0 ] || { echo "one -> $status: $output"; false; }
+    check_message 1 2
+    [ "$status" -eq 1 ] || { echo "one of two -> $status: $output"; false; }
+    [ "$output" = "COVERAGE (want 2 Coverage: trailers, one per coverage_command, found 1)" ] \
+        || { echo "one of two -> $output"; false; }
+    printf 'Coverage:   \n' >> msg.txt
+    check_message 1 2
+    [ "$status" -eq 1 ] || { echo "an empty second -> $status: $output"; false; }
+    [ "$output" = "COVERAGE (want 2 Coverage: trailers, one per coverage_command, found 1)" ] \
+        || { echo "an empty second -> $output"; false; }
+}
+
+@test "gr_message_check reports more Tests or Coverage trailers than are owed" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    printf 'Tests: npm test 340/340\n' >> msg.txt
+    check_message 1
+    [ "$status" -eq 1 ] || { echo "tests -> $status: $output"; false; }
+    [ "$output" = "TESTS (want 1 Tests: trailers, one per verify_commands entry, found 2)" ] \
+        || { echo "tests -> $output"; false; }
+    write_message '' msg.txt
+    printf 'Coverage: make coverage 87%%\n' >> msg.txt
+    check_message 1 0
+    [ "$status" -eq 1 ] || { echo "coverage none owed -> $status: $output"; false; }
+    [ "$output" = "COVERAGE (want 0 Coverage: trailers, one per coverage_command, found 1)" ] \
+        || { echo "coverage none owed -> $output"; false; }
+    printf 'Coverage: make coverage 88%%\n' >> msg.txt
+    check_message 1 1
+    [ "$status" -eq 1 ] || { echo "coverage -> $status: $output"; false; }
+    [ "$output" = "COVERAGE (want 1 Coverage: trailers, one per coverage_command, found 2)" ] \
+        || { echo "coverage -> $output"; false; }
+}
+
+@test "gr_message_check reports a review field still holding a template placeholder as missing" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak -e 's/^reviewer: .*/reviewer: <who reviewed at step 4>/' \
+        -e 's/^verdict: .*/verdict: <what the review concluded; a review that raised nothing says so>/' \
+        -e 's/^reproduced: .*/reproduced: yes, <how>/' msg.txt && rm -f msg.txt.bak
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "INCOMPLETE-RECORD (no reviewer:)
+INCOMPLETE-RECORD (no verdict:)
+INCOMPLETE-RECORD (no reproduced:)" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reads angle brackets that are no placeholder as content" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak -e 's/^reviewer: .*/reviewer: Jan <jan@example.com>/' \
+        -e 's/^verdict: .*/verdict: accepted; a<b and c>d hold, see <https:\/\/example.com>/' \
+        -e 's/^reproduced: .*/reproduced: yes, the -> arrow and <Tab> key read as text/' \
+        msg.txt && rm -f msg.txt.bak
+    grep -qxF 'reviewer: Jan <jan@example.com>' msg.txt || { cat msg.txt; false; }
+    grep -qxF 'verdict: accepted; a<b and c>d hold, see <https://example.com>' msg.txt \
+        || { cat msg.txt; false; }
+    grep -qxF 'reproduced: yes, the -> arrow and <Tab> key read as text' msg.txt \
+        || { cat msg.txt; false; }
+    check_message
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "gr_message_check reports a trailer still holding a template placeholder under its own code" {
+    # verifies: ADR-3hsvvq
+    tree=$(git rev-parse 'HEAD^{tree}')
+    write_message '' msg.txt
+    sed -i.bak -e 's/^Base: .*/Base: <base ref> at <commit>/' \
+        -e 's/^Gate-tree: .*/Gate-tree: <tree>/' \
+        -e 's|^Tests: .*|Tests: <command> <passed>/<total>|' msg.txt && rm -f msg.txt.bak
+    printf 'Coverage: <command> <figure>\n' >> msg.txt
+    check_message 1 1
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "INCOMPLETE-RECORD (placeholder in Tests:)
+INCOMPLETE-RECORD (placeholder in Coverage:)
+BASE (want one Base: trailer, found a placeholder)
+GATE-TREE (want one Gate-tree: $tree, found <tree>)
+TESTS (want 1 Tests: trailers, one per verify_commands entry, found 0)
+COVERAGE (want 1 Coverage: trailers, one per coverage_command, found 0)" ] \
+        || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports any trailer still holding a template placeholder as INCOMPLETE-RECORD" {
+    # verifies: ADR-3hsvvq
+    # Trailers no count would catch: unchecked keys, a placeholder Tests:
+    # beside the one owed, a Coverage: none is owed; the template's
+    # uppercase, multi-word and `PR-<id>` placeholders among them.
+    write_message '' msg.txt
+    sed -i.bak 's/^Implements: .*/Implements: <IDs>/' msg.txt && rm -f msg.txt.bak
+    printf '%s\n' 'Resolves: <PR IDs>' 'Opens: PR-<id>' \
+        'Tests: <command> <passed>/<total>' 'Coverage: <command> <figure>' >> msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "INCOMPLETE-RECORD (placeholder in Implements:)
+INCOMPLETE-RECORD (placeholder in Resolves:)
+INCOMPLETE-RECORD (placeholder in Opens:)
+INCOMPLETE-RECORD (placeholder in Tests:)
+INCOMPLETE-RECORD (placeholder in Coverage:)" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reads a disposition still holding a template placeholder as no disposition" {
+    # verifies: ADR-3hsvvq
+    write_message '1. [open: PR-<id>] code low — one
+2. [fixed: <cite>] code low — two
+3. [open: PR-abcdef] code low — three' msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "UNDISPOSED-FINDING 1
+UNDISPOSED-FINDING 2" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reads a placeholder next to punctuation as a placeholder" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    sed -i.bak -e 's/^Base: .*/Base: local main at <commit>, per AGENTS.md non-negotiable 4/' \
+        -e 's/^reviewer: .*/reviewer: (<who reviewed at step 4>)/' \
+        -e 's/^verdict: .*/verdict: <what the review concluded>./' \
+        -e 's/^reproduced: .*/reproduced: yes, <how>; then <what>:/' msg.txt && rm -f msg.txt.bak
+    grep -qxF 'Base: local main at <commit>, per AGENTS.md non-negotiable 4' msg.txt \
+        || { cat msg.txt; false; }
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "INCOMPLETE-RECORD (no reviewer:)
+INCOMPLETE-RECORD (no verdict:)
+INCOMPLETE-RECORD (no reproduced:)
+BASE (want one Base: trailer, found a placeholder)" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reads trailers past a --- line in the body, as git reads a commit" {
+    # verifies: ADR-3hsvvq
+    # git interpret-trailers stops at a `---` line unless told --no-divider;
+    # git reads a commit's trailers from its last paragraph wherever a `---`
+    # stands. Body, `---`, fields, trailers: the trailers are read.
+    write_message '' msg.txt
+    awk '{ print } /^What and why/ { print "---" }' msg.txt > msg.new && mv msg.new msg.txt
+    grep -qx -- '---' msg.txt || { cat msg.txt; false; }
+    check_message
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reads no trailers from a paragraph a --- line runs on into prose" {
+    # verifies: ADR-3hsvvq
+    # Trailers, `---`, then a final line with no trailer: the last paragraph
+    # is not a trailer block, so there are no trailers.
+    write_message '' msg.txt
+    printf -- '---\na final note, no trailer\n' >> msg.txt
+    check_message
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "BASE (want one Base: trailer, found 0)"
+    output_has "TESTS (want 1 Tests: trailers, one per verify_commands entry, found 0)"
+}
+
+@test "gr_message_check reports a short, empty or unreadable Tests count as FAILED-TESTS" {
+    # verifies: ADR-3hsvvq
+    for count in 11/12 0/0 12 12/12x 13/12; do
+        write_message '' msg.txt
+        sed -i.bak "s|^Tests: .*|Tests: sh tests/run-tests.sh $count|" msg.txt && rm -f msg.txt.bak
+        check_message
+        [ "$status" -eq 1 ] || { echo "$count -> $status: $output"; false; }
+        [[ "$output" == "FAILED-TESTS"* ]] || { echo "$count -> $output"; false; }
+    done
+}
+
+@test "gr_message_check accepts two Tests trailers that both pass, and rejects one failing" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    printf 'Tests: npm test 340/340\n' >> msg.txt
+    check_message 2
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+    write_message '' msg.txt
+    printf 'Tests: npm test 339/340\n' >> msg.txt
+    check_message 2
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    [ "$output" = "FAILED-TESTS npm test 339/340" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check accepts a well-formed Mutation trailer" {
+    # verifies: ADR-3hsvvq
+    write_message '' msg.txt
+    printf '%s\n' 'Mutation: scripts/lib.sh:42 [ "$a" -gt 0 ] -> [ "$a" -ge 0 ] — killed by "gr_limit rejects zero"' >> msg.txt
+    check_message
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+}
+
+@test "gr_message_check reports a Mutation trailer of any other form as MALFORMED-MUTATION" {
+    # verifies: ADR-3hsvvq
+    for mutation in 'scripts/lib.sh the mutant — killed by "a test"' \
+             'scripts/lib.sh:42 the mutant' \
+             'scripts/lib.sh:42 the mutant — killed by a test' \
+             'scripts/lib.sh:4x2 the mutant — killed by "a test"'; do
+        write_message '' msg.txt
+        printf 'Mutation: %s\n' "$mutation" >> msg.txt
+        check_message
+        [ "$status" -eq 1 ] || { echo "$mutation -> $status: $output"; false; }
+        [ "$output" = "MALFORMED-MUTATION $mutation" ] || { echo "$mutation -> $output"; false; }
+    done
+}
+
+@test "gr_message_check passes a message as git commit --cleanup=strip stores it" {
+    # verifies: ADR-3hsvvq
+    # The finish-merge.sh caller passes `git log -1 --format=%B HEAD`, written
+    # to a file: --cleanup=strip has removed the # lines and git has
+    # normalized the trailers. The same message must pass there too.
+    write_message '1. [fixed: scripts/lib.sh] code low — one
+   continued' msg.txt
+    : > touched
+    git add touched
+    # The squash's own tree, as merge-change step 7 compares it.
+    sed -i.bak "s|^Gate-tree: .*|Gate-tree: $(git write-tree)|" msg.txt && rm -f msg.txt.bak
+    git commit -q --cleanup=strip -F msg.txt
+    git log -1 --format=%B HEAD > msg.txt
+    check_message
+    [ "$status" -eq 0 ] || { echo "$output"; cat msg.txt; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
 }

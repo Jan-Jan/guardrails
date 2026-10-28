@@ -124,8 +124,12 @@ EOS
     # Raising this number is legitimate whenever a behaviour genuinely goes
     # away. Raise it in the commit that retires the script, never separately.
     retired=$(grep -rlE '^# retired: ' "$root"/docs/verification/*.mutations/M*.sh | wc -l | tr -d ' ')
-    [ "$retired" -eq 24 ] || {
-        echo "the corpus declares $retired retired mutations, expected 24"
+    # The corpus declares 55 retired mutations. Among them, 21 review-artefact
+    # mutations quote a record scan check-review.sh does not have, 4 quote
+    # gr_verification_dir, which lib.sh does not define, and 6 gate-proof
+    # mutations quote a guard 5 that finish-merge.sh does not have.
+    [ "$retired" -eq 55 ] || {
+        echo "the corpus declares $retired retired mutations, expected 55"
         echo "a new retirement is deliberate — raise this number in the same commit"
         grep -rlE '^# retired: ' "$root"/docs/verification/*.mutations/M*.sh
         false

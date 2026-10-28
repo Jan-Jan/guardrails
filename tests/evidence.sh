@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
-# evidence.sh [BASE_REF] — derive the verification record's evidence block.
+# evidence.sh [BASE_REF] — derive the squash message's evidence block.
 #
 # Prints, as markdown: the suite total, how many tests are new or renamed since
 # BASE_REF, how many of those go red when run against BASE_REF's scripts, and
@@ -12,8 +12,8 @@
 # Every hand-maintained version of these figures in this project's history has
 # been wrong at least once — stale after tests were added, counted against a
 # partial run, or copied forward from a different change. Paste this output
-# into the verification record verbatim, and re-run it after the last commit
-# that touches scripts/ or tests/. Keep it in ONE document: two copies of a
+# into the squash message's body verbatim, and re-run it after the last commit
+# that touches scripts/ or tests/. Keep it in ONE place: two copies of a
 # derived figure is the failure this script exists to end.
 #
 # A RENAMED test counts as new, so "new or renamed" is accurate but the figure

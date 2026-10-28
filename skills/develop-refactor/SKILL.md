@@ -31,7 +31,7 @@ description: Fix the findings of one CODE or ARCHITECTURE conformance review in 
    cannot select, run `verify_commands`. Commit each fix unsigned
    (`git -c commit.gpgsign=false commit`). Never delete, skip or
    loosen a test to keep those tests green.
-4. **Report a finding you cannot fix as not fixed, with the reason:** a fix
+4. **Report a finding you cannot fix as `no change`, with the reason:** a fix
    that would change behavior, a finding the code does not bear out, a
    clause that contradicts the floor, which is a finding against the clause,
    or a finding that needs an SDD or LLR item changed, or a different
@@ -52,7 +52,7 @@ description: Fix the findings of one CODE or ARCHITECTURE conformance review in 
 task: <tag>
 worktree: <path to the task worktree>
 files touched: <paths>
-fixed: <finding-N — what changed, or "not fixed — <reason>">   (one per line)
+fixed: <finding-N — what changed, or "no change: <reason>">   (one per line)
 result: <N passed, N failed>
 ```
 
@@ -61,15 +61,15 @@ result: <N passed, N failed>
 | Thought | Reality |
 |---|---|
 | "While I'm here, I'll tidy the rest of the file" | Fix the findings. Anything else is the next review's to find. |
-| "This rewrite is cleaner and changes behavior only a little" | No behavior change. Report it as not fixed, with the reason. |
+| "This rewrite is cleaner and changes behavior only a little" | No behavior change. Report it as `no change`, with the reason. |
 | "The test is in the way of the fix; I'll loosen it" | Never. The tests you run stay green as they are. |
-| "This finding is wrong; I'll skip it quietly" | Report it as not fixed, with the reason. The dispatcher decides. |
-| "The finding needs a design item reworded; I'll edit it" | Report it as not fixed. A design change goes through `design-architecture`, and its alternatives are the user's. |
+| "This finding is wrong; I'll skip it quietly" | Report it as `no change`, with the reason. The dispatcher decides. |
+| "The finding needs a design item reworded; I'll edit it" | Report it as `no change`. A design change goes through `design-architecture`, and its alternatives are the user's. |
 | "I'll merge my task branch when I am done" | Leave it on the task branch. The dispatcher runs `task-worktree.sh merge`. |
 
 ## Done when
 
-- Each finding is fixed or reported not fixed with its reason.
+- Each finding is fixed or reported `no change` with its reason.
 - Each fix is committed on the task branch, which is not merged.
 - Those tests are green.
 - The report is returned.

@@ -94,7 +94,8 @@ any document, name the IDs a change resolves or opens; never state the open
 count, which the next merge makes false.
 
 Then run the normal gate: `check-traceability`, then `merge-change`, whose
-step 6a gate is `verify-before-merge`.
+step 6a gate is `verify-before-merge`; its squash message names the PR in
+its `Resolves:` trailer.
 
 **When the ruling is "we are not fixing this".** A problem that was
 investigated and deliberately not fixed goes to `status: accepted`, with a

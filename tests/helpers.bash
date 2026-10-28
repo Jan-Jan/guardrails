@@ -228,18 +228,79 @@ make_change_worktree() {
     cd "$BATS_TEST_TMPDIR/wt"
 }
 
-# A verification record satisfying every required field. Callers override one
-# field at a time to test its absence.
-write_record() {
-    mkdir -p docs/verification
-    cat > "docs/verification/2026-01-01-${1:-rec}.md" <<EOF
-# Verification — ${1:-rec}
+# message_file — the absolute path of this worktree's squash message, where
+# ADR-3hsvvq puts it: `git rev-parse --git-path guardrails-squash.msg`, made
+# absolute against the current directory.
+message_file() {
+    _mf=$(git rev-parse --git-path guardrails-squash.msg) || return
+    case "$_mf" in
+        (/*) printf '%s\n' "$_mf" ;;
+        (*) printf '%s/%s\n' "$(pwd)" "$_mf" ;;
+    esac
+}
 
-branch: ${2:-my-change}
-reviewer: an independent subagent
-verdict: accepted, no findings outstanding
-reproduced: yes, against the shipped scripts, before any change
-EOF
+# message_body [FINDINGS] — the body of a squash message that passes every
+# check on the body: the subject, a summary, a Red-green: section, the three
+# review fields and, when FINDINGS is given, a Findings: section holding it.
+# It ends in a blank line; the trailer paragraph follows.
+message_body() {
+    printf '%s\n' \
+        'feat: the change under review' \
+        '' \
+        'What and why, in a few sentences.' \
+        '' \
+        'Red-green:' \
+        'red -> green: "a test" - watched fail for the right reason' \
+        '' \
+        'reviewer: an independent subagent' \
+        'verdict: accepted, no findings outstanding' \
+        'reproduced: yes, against the shipped scripts, before any change' \
+        ''
+    if [ -n "${1-}" ]; then
+        printf 'Findings:\n%s\n\n' "$1"
+    fi
+}
+
+# message_trailers TREE [RANGE] — the trailer paragraph that passes for TREE in
+# the fixture repositories, run from a checkout's root: one Base:, one
+# Gate-tree: naming TREE, and one green Tests: per verify_commands entry owed.
+# That is one for make_fixture_repo's config; under make_units_fixture's
+# manifest, whose units each configure one, it is one per unit of RANGE's
+# impact set (check-units.sh --impact RANGE, refs/heads/main...HEAD by
+# default, the range check-review.sh reads), as the scripts owe them. An
+# impact set that is empty or cannot be computed gets the one Tests: owed at
+# least. A caller that tests a trailer filters or edits this output.
+message_trailers() {
+    printf '%s\n' \
+        'Implements: ADR-k3nkv3' \
+        'Base: local main at 3f304dd' \
+        "Gate-tree: $1"
+    _trailer_units=""
+    if [ -f .guardrails/units.yaml ]; then
+        _trailer_units=$(sh .guardrails/scripts/check-units.sh --impact \
+            "${2:-refs/heads/main...HEAD}" 2>/dev/null | awk -F '\t' 'NF { print $1 }') \
+            || _trailer_units=""
+    fi
+    if [ -n "$_trailer_units" ]; then
+        printf '%s\n' "$_trailer_units" | awk '{ print "Tests: " $0 ": make test 12/12" }'
+    else
+        printf '%s\n' 'Tests: sh tests/run-tests.sh 12/12'
+    fi
+}
+
+# write_message [FINDINGS [FILE]] — a squash message that passes every rule,
+# after a `#` guidance line as the template has, written to FILE, by default
+# message_file. Its Gate-tree: is HEAD's tree, so write it after the last
+# commit. FINDINGS, when given and not empty, is the body of a Findings:
+# section. Callers change one line at a time to test its absence.
+write_message() {
+    _message_tree=$(git rev-parse 'HEAD^{tree}') || return
+    _message_target=${2:-$(message_file)} || return
+    {
+        printf '# guidance: git strips this line\n'
+        message_body "${1-}"
+        message_trailers "$_message_tree"
+    } > "$_message_target"
 }
 
 # YYYY-MM-DD for N days before today. GNU date and BSD date disagree on the
@@ -560,12 +621,8 @@ make_units_fixture() {
     git config user.name test
     git config user.email test@example.com
     git config commit.gpgsign false
-    mkdir -p .guardrails/scripts docs/verification legacy
+    mkdir -p .guardrails/scripts docs legacy
     cp "$BATS_TEST_DIRNAME"/../scripts/*.sh .guardrails/scripts/ 2>/dev/null || true
-    # check-review reads this directory at the REPOSITORY level in a manifest
-    # repo (architecture item 9, task T9); tracked non-empty so worktrees
-    # contain it and gr_md_files has its one *.md
-    printf '# verification records\n' > docs/verification/README.md
     cat > .guardrails/units.yaml <<'EOF'
 units:
   - platform/hal

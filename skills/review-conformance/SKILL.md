@@ -31,7 +31,7 @@ description: Review a change diff for conformance to one project guidelines file
 2. **Write each finding in one shape:**
 
    ```
-   **finding-N**: guideline, <low | medium | high> — <clause cited as Heading N, quoted> — <file:line>
+   **finding-N**: guideline <low | medium | high> — <clause cited as Heading N, quoted> — <file:line>
    ```
 
    Number findings from 1 in the report. Cite the clause by its heading and

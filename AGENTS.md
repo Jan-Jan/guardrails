@@ -26,8 +26,9 @@ Guardrails is developed under the rules it ships, without exception.
    commit (`git commit -S`) and verify it before the worktree is removed. The
    agent stages the squash and hands over one command; **the user runs the
    signing**, and `finish-merge.sh` verifies the signature, and that the
-   `Gate-tree:` trailer names the commit's own tree, before it removes
-   anything (`merge-change` steps 7 and 8).
+   signed message passes the squash message check, its `Gate-tree:` trailer
+   naming the commit's own tree, before it removes anything (`merge-change` steps 7
+   and 8).
 3. **Run `tests/run-tests.sh` before any merge.** Every bats test must pass.
    Dispatch it to a subagent, which runs the gate and returns the gate summary
    (`verify-before-merge`); do not run it in your own context. Read the verdict
@@ -50,11 +51,11 @@ Guardrails is developed under the rules it ships, without exception.
    only once the content merged elsewhere is in it. An agent never fetches and
    never pushes, and reports a divergence it happens to see rather than acting
    on it. An agent merges an already-fetched `origin/<branch>` only where the
-   user directs that explicitly, as the subject of a change whose verification
-   record names whose decision it was and which commit was merged
+   user directs that explicitly, as the subject of a change whose squash
+   message names whose decision it was and which commit was merged
    (ADR-y8jmes, Scope).
 
-   State it in the squash commit's `Base:` trailer (`merge-change` step 7):
+   State it in the squash commit's `Base:` trailer (`merge-change` step 6b):
    `Base: local main at <commit>, per AGENTS.md non-negotiable 4`.
 
 ## Rules

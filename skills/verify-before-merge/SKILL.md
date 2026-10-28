@@ -1,6 +1,6 @@
 ---
 name: verify-before-merge
-description: Evidence-based completion gate - run every verification and paste real output before claiming work is done or merging it. Use before any "done", "fixed", "passing" claim and at merge-change step 6a, after the review and the record.
+description: Evidence-based completion gate - run every verification and paste real output before claiming work is done or merging it. Use before any "done", "fixed", "passing" claim and at merge-change step 6a, after the review and the squash message.
 ---
 
 # Verify Before Merge
@@ -45,8 +45,8 @@ subagent owns:
 - suite totals;
 - coverage figures, where `coverage_command` is configured, judged against the
   class target, with any shortfall reported as a shortfall (check 5);
-- the **Implements map** (check 4): for every ID the verification record's
-  `Implements:` line names, the `verifies:` test that contains it, and, listed
+- the **Implements map** (check 4): for every ID the squash message's
+  `Implements:` trailer names, the `verifies:` test that contains it, and, listed
   explicitly, every Implements ID for which no such test was found;
 - robustness coverage (check 6): for each Implements ID, whether a normal-case
   test and an abnormal-input test are both present;
@@ -69,12 +69,13 @@ for it.
    duplicate and no malformed ID. A `DRAFT-FILE` is answered by the rename its
    fix line gives, never passed.
 4. The change's own claims, split between the two parties who can answer:
-   - **the subagent's half:** every ID the verification record's
-     `Implements:` line names has a `verifies:` test present in the change
+   - **the subagent's half:** every ID the squash message's
+     `Implements:` trailer names has a `verifies:` test present in the change
      worktree, and the gate summary names which test verifies which ID;
    - **your half:** each of those tests was watched failing for the right
      reason before it passed. Read that from the `red -> green:` lines of the
-     dispatch reports (`develop-change`). The gate subagent watched nothing
+     message's `Red-green:` section, copied from the dispatch reports
+     (`develop-change`). The gate subagent watched nothing
      fail, and a green run cannot imply it.
 
    Read it per ID. Every Implements ID needs at least one `verifies:` test
@@ -89,20 +90,19 @@ for it.
    the report against the class target: **A** none required · **B**
    statement coverage · **C** statement + decision coverage (MC/DC beyond
    that is optional). A shortfall is a failure unless the user explicitly
-   accepts a documented gap; record the acceptance in the verification
-   record.
+   accepts a documented gap; record the acceptance in the squash message.
 6. **Robustness completeness** (class B/C): every Implements ID has both
    normal-case and abnormal-input tests, per `develop-tdd`'s robustness
    rule.
 7. `git status`: no uncommitted work, no stray files.
 8. **Each conformance review ran** and the dispatcher fixed or
    dispositioned every finding (`develop-change`). Answer it from the
-   verification record's `## Guideline reviews`, where the findings and
+   squash message's `guideline` findings, where the findings and
    their dispositions are written, as you answer
-   check 4's other half from the dispatch reports; the tree cannot show
+   check 4's other half from its `red -> green:` lines; the tree cannot show
    whether a diff was reviewed.
 
-Do not add `check-review.sh` to this list. The verification record it reads is
+Do not add `check-review.sh` to this list. The squash message it reads is
 written at `merge-change` step 5 and checked at 6c.
 
 ### Exit 0 is not a pass
@@ -131,19 +131,22 @@ to investigate, not a pass to assume.
 ### After the gate
 
 1. Answer your half of check 4: match the IDs in the summary's Implements map
-   against the `red -> green:` lines of your dispatch reports, and state in
+   against the message's `red -> green:` lines, and state in
    the completion report that every one is covered. Answer check 8 there too.
    A green summary is not a green gate until both are answered.
 2. Quote the gate summary in your completion report and cite the log path.
    Do not re-run the commands to see the output; the summary is the report.
-3. The `red -> green:` and `inherited:` lines reach the verification record
+3. The `red -> green:` and `inherited:` lines reach the squash message
    from the plan: `merge-change` step 5 copies them, before its step 6a gate.
    A fix dispatched after step 5 (a 6a or 6c failure's fix, a base-move
-   round's review) writes its lines into the verification record directly.
-4. Anything `merge-change` step 7's trailers need from the gate must be in
+   round's review) returns its lines in its report; the dispatcher writes
+   them into the change worktree's message (`ADR-3hsvvq`).
+4. Anything `merge-change` step 6b's trailers need from the gate must be in
    the gate summary: each command's totals and, where configured, the
    coverage figure. If a figure is missing, ask the subagent for it rather
-   than running the command again.
+   than running the command again. A mutant the change uses as evidence
+   becomes a `Mutation: <path>:<line> <mutant> — killed by "<test name>"`
+   trailer in the message.
 
 Only a fully green gate lets `merge-change` go on past step 6a.
 
