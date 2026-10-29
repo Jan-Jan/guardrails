@@ -112,7 +112,9 @@ description: Run and interpret the guardrails traceability checker - orphaned re
    a `status: resolved`: delete the problem report. The squash message records
    each deletion (`Items:`, or `Resolves:` and `Problems:`). A test or
    reference still naming a deleted ID is `DANGLING-REF`: point it at the item
-   in force, or delete it.
+   in force, or delete it. `HISTORY-CITATION` names a ledger, strict or test
+   line citing a dated plan file or docs/verification file, which leave the
+   base branch: state the reason there, or cite the ADR.
 
 ## Red flags
 

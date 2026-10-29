@@ -42,8 +42,10 @@ item"). Keep `soup.md` a single inventory file.
    `**SDD-…**: <software item and its responsibility>. traces: REQ-…[, REQ-…]`
 
    Get a new item's ID from `.guardrails/scripts/new-id.sh SDD` (or `LLR`)
-   as you write it. Every item traces to at least one requirement. Delete a
-   design item that no requirement needs.
+   as you write it. Write an SDD or LLR item terse, as `grill-requirements`
+   states under "Write requirements as they are settled". Every item traces
+   to at least one requirement. Delete a design item that no requirement
+   needs.
 3. **Propose 2 or 3 architectures** for anything non-trivial, with their
    trade-offs, and lead with your recommendation. Present them in sections and
    confirm with the user before writing the final SAD. A proposal that

@@ -42,6 +42,13 @@
 #                              passes. A bare name resolves against this unit's
 #                              ledger directories only; across units, write the
 #                              path.
+#   HISTORY-CITATION FILE:LINE — a ledger, strict_paths or test_paths line
+#                              naming a dated file under docs/plans/ or
+#                              docs/verification/: a plan file or
+#                              docs/verification file, which leaves the base
+#                              branch (ADR-k3nkv3). A bare directory or a
+#                              placeholder names no file. A file inside either
+#                              directory, at any depth, is not scanned.
 #   MISPLACED-ITEM ID        — item defined outside the document configured
 #                              for its prefix. Adding the stray file to
 #                              strict_paths does not fix it. A doc_* directory
@@ -199,6 +206,7 @@ check_trace_remedy() {
         (UNANALYZED-DERIVED) echo 'Run analyze-risks and put assesses: <ID> on its own line under the RMF derived-requirements heading; a mention elsewhere does not count.' ;;
         (DANGLING-REF) echo 'Correct the typo; for a deleted item, remove the reference, or point the test at its successor and list it as inherited: <test> — from <old ID>.' ;;
         (DANGLING-FILE) echo 'Write the name the file has now: the dated name a draft-named ledger file was renamed to. Never delete the reference to pass the gate — see the script header.' ;;
+        (HISTORY-CITATION) echo 'State the reason in the comment, or cite the ADR that records the trade-off; never cite a plan file or a docs/verification file (ADR-k3nkv3).' ;;
         (MISPLACED-ITEM) echo 'Move the definition into the document configured for its prefix: REQ doc_srs, HAZ and RC doc_rmf, SDD and LLR doc_sad, PR doc_problems.' ;;
         (ORPHAN-ANNOTATION) echo 'Move the line into the item block it describes, at column one with no list marker — see the script header.' ;;
         (SUPERSESSION-ANNOTATION) echo 'Delete the item marked superseded-by: or retired:, drop supersedes: from its successor, and record old → new or the reason under Items: in the squash message (ADR-k3nkv3).' ;;
@@ -1010,6 +1018,39 @@ if [ -n "$file_scope" ]; then
                 _why="names a draft-named ledger file found in none of this config's ledger directories — write the name the file has now; across units, write the path" ;;
         esac
         print_violations "DANGLING-FILE $_dref ($_dfile:$_dline $_why)"
+        fail=1
+    done
+fi
+
+# --- HISTORY-CITATION: a plan or docs/verification file is history git keeps
+# The squash message is the record. The base branch keeps neither a plan file
+# nor a docs/verification file (ADR-k3nkv3), so a dated one named on a line in
+# DANGLING-REF's scope cites history that is gone. Only a dated name is a
+# citation: a bare directory or a <date>-<slug> placeholder names no file.
+# Status checked, as the reference scan's is: an errored scan finds nothing,
+# which is what a tree with no citation looks like. A file inside a
+# docs/plans/ or docs/verification/ directory, at any depth, is not scanned:
+# it is the change's own plan, or history a later change deletes. A
+# sentence's closing period is not part of the name. A docs/ directory starts
+# a line, follows a /, or follows a character no path component name holds:
+# xdocs/plans/ is no docs/plans/ directory. That character is matched and
+# dropped from the reported name.
+if [ -n "$scope" ]; then
+    # shellcheck disable=SC2086
+    _hrefs=$(git grep -n --untracked -oE '(^|[^A-Za-z0-9_.-])docs/(plans|verification)/[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_.-]+' -- $scope \
+        ':(exclude,glob)**/docs/plans/**' ':(exclude,glob)**/docs/verification/**')
+    _st=$?
+    [ "$_st" -le 1 ] || gr_die "history citation scan failed (git grep exit $_st)"
+    for _hr in $_hrefs; do
+        _hfile=${_hr%%:*}
+        _hrest=${_hr#*:}
+        _href=${_hrest#*:}
+        case $_href in
+            (docs/*) ;;
+            (*) _href=${_href#?} ;;
+        esac
+        _href=${_href%.}
+        print_violations "HISTORY-CITATION $_hfile:${_hrest%%:*} ($_href)"
         fail=1
     done
 fi

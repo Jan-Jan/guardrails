@@ -100,16 +100,22 @@ A project that changes a clause rewrites its reason and examples with it.
 ## Comments
 
 1. **A comment says why, not what.** It states a reason, a constraint or a
-   rejected alternative the code cannot show. Why: the code already says
-   what it does, and a comment that repeats it drifts from it at the next
-   edit. Example: ``# NOT `cd "$(gr_root)" || exit 2` alone: ...``
+   rejected alternative the code cannot show, inline and tersely, or cites
+   an ADR by ID for a recorded trade-off. It never cites a plan file, a
+   docs/verification file or a problem report: plans and docs/verification
+   files leave the base branch, and a problem report is deleted when it is
+   resolved. check-trace reports a cited plan file or docs/verification
+   file as HISTORY-CITATION. Why: the code already says what it does, and a comment
+   that repeats it drifts from it at the next edit; a comment that points at
+   a file the base branch no longer has gives the reader no reason at all.
+   Example: ``# NOT `cd "$(gr_root)" || exit 2` alone: ...``
    records why the obvious line is wrong, which no reading of the code
    shows.
 
 2. **No change narration.** A comment describes the code as it is, never
    the change that wrote it: no "added", "now uses", "previously", "fixed"
    or ticket history. Why: narration is true only at the commit that wrote
-   it; the commit message and the change's records carry the history.
+   it; the squash message carries the history.
    Example: `# Retries twice: the device drops the first frame after
    waking`, not `# Changed retries from 1 to 2`.
 

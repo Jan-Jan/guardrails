@@ -65,6 +65,8 @@ Write items in the grammar `check-trace.sh` parses:
 - `**RC-…**: <control measure>. mitigates: HAZ-…`
 - Get each new ID from `.guardrails/scripts/new-id.sh HAZ` (or `RC`) as you
   write the item. Never write an ID by hand.
+- Write a HAZ or RC item terse, as `grill-requirements` states under
+  "Write requirements as they are settled".
 - Every HAZ needs at least one RC that mitigates it. Every RC needs at least
   one requirement that implements it.
 - A hazard or control reworded with the same meaning is edited in place and

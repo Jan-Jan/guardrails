@@ -31,6 +31,14 @@ The reviewer checks each item and raises a finding for each one that fails.
   to another file.
 - IDs are minted tokens. An amendment edits the defining file in place.
 - Item form: `**<ID>**: The software shall <single, testable behavior>`.
+- Each item the change adds or edits states one testable behavior and
+  carries no rationale, history or implementation detail. One that does
+  is a `requirement` finding, severity `low` unless the extra text
+  contradicts the behavior, and its text proposes the shorter wording.
+  No script checks an item's length, and an item the change leaves alone
+  is not a finding.
+- An ADR the change adds or edits holds its context, decision and
+  consequences only.
 - `satisfies:` / `implements:` references resolve; derived items are marked.
 - Terms match `docs/CONTEXT.md`.
 - A rewording with the same behavior keeps its ID. A changed behavior has a

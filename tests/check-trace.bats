@@ -2408,6 +2408,116 @@ SUPERSESSION_FIX='fix SUPERSESSION-ANNOTATION: Delete the item marked superseded
     output_lacks "SUPERSESSION-ANNOTATION"
 }
 
+# --- HISTORY-CITATION: a plan or docs/verification file is history git keeps
+# The squash message is the record. The base branch keeps neither a plan file
+# nor a docs/verification file (ADR-k3nkv3), so a ledger, strict_paths or
+# test_paths line naming a dated file under docs/plans/ or docs/verification/
+# cites history that is gone.
+# The dated names below are built from parts so this file names none itself.
+
+@test "check-trace: a code comment naming a plan file is HISTORY-CITATION" {
+    # verifies: REQ-2jdxu5
+    cited_date=2026-01-02
+    printf 'true\n# see docs/plans/%s-x.md\n' "$cited_date" > src/a.sh
+    commit_all plan-citation
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "HISTORY-CITATION src/a.sh:2 (docs/plans/$cited_date-x.md)"
+}
+
+@test "check-trace: a test or ledger line naming a docs/verification file is HISTORY-CITATION" {
+    # verifies: REQ-2jdxu5
+    cited_date=2026-01-03
+    printf '# verifies: LLR-001\n# per docs/verification/%s-r.md\ntrue\n' "$cited_date" > tests/test_h.sh
+    printf '\nSee docs/verification/%s-s.md.\n' "$cited_date" >> docs/requirements/0001-01-01-base.md
+    commit_all record-citations
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "HISTORY-CITATION tests/test_h.sh:2 (docs/verification/$cited_date-r.md)"
+    output_has "HISTORY-CITATION docs/requirements/0001-01-01-base.md:5 (docs/verification/$cited_date-s.md)"
+}
+
+@test "check-trace: a placeholder or bare directory name is no HISTORY-CITATION" {
+    # verifies: REQ-2jdxu5
+    # The third line is a real citation, so the scan is shown to run.
+    cited_date=2026-01-04
+    printf '# write docs/plans/<date>-<slug>.md\n# put plans in docs/plans/ and records in docs/verification/\n# see docs/plans/%s-y.md\n' "$cited_date" > src/a.sh
+    commit_all placeholders
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "HISTORY-CITATION src/a.sh:3 (docs/plans/$cited_date-y.md)"
+    [ "$(printf '%s\n' "$output" | grep -c '^HISTORY-CITATION ')" -eq 1 ] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a docs directory inside a longer path component is no HISTORY-CITATION" {
+    # verifies: REQ-2jdxu5
+    # xdocs/ is not a docs/ directory; u/docs/ is, so the scan is shown to run.
+    cited_date=2026-01-06
+    printf '# see xdocs/plans/%s-y.md\n# see u/docs/plans/%s-y.md\n' "$cited_date" "$cited_date" > src/a.sh
+    commit_all component-boundary
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "HISTORY-CITATION src/a.sh:2 (docs/plans/$cited_date-y.md)"
+    [ "$(printf '%s\n' "$output" | grep -c '^HISTORY-CITATION ')" -eq 1 ] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a HISTORY-CITATION in a strict file whose path has a space names the whole path" {
+    # verifies: REQ-2jdxu5
+    cited_date=2026-01-05
+    printf 'true\n# see docs/plans/%s-z.md\n' "$cited_date" > "src/a b.sh"
+    commit_all spaced-path
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "HISTORY-CITATION src/a b.sh:2 (docs/plans/$cited_date-z.md)"
+    [ "$(printf '%s\n' "$output" | grep -c '^HISTORY-CITATION ')" -eq 1 ] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a file inside docs/plans or docs/verification is not scanned" {
+    # verifies: REQ-rn6cxw
+    # strict_paths covers both directories, at the root and nested in u/.
+    cited_date=2026-01-01
+    sed -i.bak 's|^  - src$|  - src\
+  - docs\
+  - u|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
+    grep -qx '  - u' .guardrails/config.yaml || { cat .guardrails/config.yaml; false; }
+    mkdir -p docs/plans docs/verification u/docs/plans u/docs/verification
+    printf 'Recorded in u/docs/verification/%s-r.md.\n' "$cited_date" > "docs/plans/$cited_date-p.md"
+    printf 'Planned in docs/plans/%s-p.md.\n' "$cited_date" > "u/docs/verification/$cited_date-r.md"
+    printf 'Recorded in docs/verification/%s-r.md.\n' "$cited_date" > "u/docs/plans/$cited_date-q.md"
+    printf 'Planned in u/docs/plans/%s-q.md.\n' "$cited_date" > "docs/verification/$cited_date-r.md"
+    # A citation outside both directories, so the scan is shown to run.
+    printf '# see docs/plans/%s-p.md\n' "$cited_date" > src/a.sh
+    commit_all history-files
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "HISTORY-CITATION src/a.sh:1 (docs/plans/$cited_date-p.md)"
+    [ "$(printf '%s\n' "$output" | grep -c '^HISTORY-CITATION ')" -eq 1 ] \
+        || { echo "$output"; false; }
+}
+
+@test "check-trace: a failing history citation scan exits 2" {
+    # verifies: REQ-beb6gm
+    # The fault keys on the scan's pattern, which only this scan passes.
+    real_git=$(command -v git)
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    cat > "$BATS_TEST_TMPDIR/bin/git" <<STUB
+#!/bin/sh
+if [ "\$1" = grep ]; then
+    for git_arg in "\$@"; do
+        case "\$git_arg" in (*'(plans|verification)'*) exit 129 ;; esac
+    done
+fi
+exec $real_git "\$@"
+STUB
+    chmod 755 "$BATS_TEST_TMPDIR/bin/git"
+    PATH="$BATS_TEST_TMPDIR/bin:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    output_has "history citation scan failed (git grep exit 129)"
+}
+
 @test "check-trace: an implements: in the architecture ledger does not keep a control implemented" {
     # verifies: REQ-qw3aze
     # No REQ implements the control. An implements: in an LLR block of the

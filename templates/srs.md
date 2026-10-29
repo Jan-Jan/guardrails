@@ -15,6 +15,7 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 - REQ items are high-level requirements: system-observable behavior. The
   per-item "how" belongs to LLRs in the architecture ledger.
 - One requirement per item; write it verifiable.
+- An item is terse: no rationale, history or implementation detail.
 - `(implements: RC-...)` is required when the requirement realizes a risk
   control from the risk management file. It is read only inside the REQ's
   block: on the definition line, as above, or on a line below it before the

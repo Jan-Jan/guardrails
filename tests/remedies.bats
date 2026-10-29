@@ -287,6 +287,19 @@ MD
     remedies_within_limit || { echo "$output"; false; }
 }
 
+@test "check-trace: the HISTORY-CITATION remedy says to state the reason or cite an ADR" {
+    # verifies: REQ-e83fky, ADR-k3nkv3
+    # The dated name is built from parts so this file names no plan file itself.
+    cited_date=2026-01-02
+    printf '# see docs/plans/%s-x.md\n' "$cited_date" > src/a.sh
+    commit_all history-citation
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    printf '%s\n' "$output" | grep -qxF 'fix HISTORY-CITATION: State the reason in the comment, or cite the ADR that records the trade-off; never cite a plan file or a docs/verification file (ADR-k3nkv3).' \
+        || { echo "$output"; false; }
+    remedies_within_limit || { echo "$output"; false; }
+}
+
 @test "check-trace: a bare DANGLING-FILE name says to write the name the file has now, or the path across units" {
     # verifies: D4 (docs/plans/2026-10-13-ledger-names-at-creation.md)
     # A bare name resolves against this unit's ledger directories only, so the

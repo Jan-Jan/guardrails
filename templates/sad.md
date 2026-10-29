@@ -19,6 +19,7 @@ the high-level REQs), written under the software item they belong to:
   **LLR-NNNNNN**: <directly codeable behavior>. satisfies: REQ-NNNNNN[, REQ-...]
   **LLR-NNNNNN**: <behavior with no parent requirement>. satisfies: derived
 
+- An item is terse: no rationale, history or implementation detail.
 - Every design item must trace to at least one requirement.
 - Every LLR satisfies a REQ or is marked derived; derived LLRs must be
   assessed in the risk ledger, where an `assesses:` line names them.

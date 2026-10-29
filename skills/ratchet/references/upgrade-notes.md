@@ -792,3 +792,15 @@ that annotated a replaced or dropped item, or kept a fixed problem report.
   project whose own `docs/TEST_GUIDELINES.md` keeps the old clauses adopts the
   new ones on upgrade, clause by clause, through `tailor-guidelines`. No gate
   reads the clause.
+
+## `HISTORY-CITATION`
+
+`check-trace.sh` reports `HISTORY-CITATION <file>:<line> (<path>)` for each
+dated file under `docs/plans/` or `docs/verification/` named on a line of a
+ledger file, a `strict_paths` file or a `test_paths` file. The base branch
+keeps neither a plan file nor a docs/verification file (`ADR-k3nkv3`), so
+the first run after the upgrade reports every existing citation. A file inside either
+directory is not scanned, and a bare directory or a `<date>-<slug>`
+placeholder names no file. Rewrite each citation: drop it where the comment
+already states the reason, write the reason in one line where it does not,
+or cite the ADR that records the trade-off.

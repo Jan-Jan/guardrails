@@ -72,6 +72,9 @@ Update the requirements ledger (`doc_srs`) one item at a time. Do not batch.
   that file. An amendment that changes or drops a behavior follows
   "Changing an item" below.
 - Item form: `**<ID>**: The software shall <single, testable behavior>.`
+- An item states one testable behavior and nothing else: no rationale,
+  history, example or implementation detail. Rationale worth keeping goes in
+  an ADR, the how in an LLR (`design-architecture`).
 - Get each new item's ID from `.guardrails/scripts/new-id.sh REQ` as you write
   it (`worktree-discipline`). Never write an ID by hand.
 - A REQ item is a high-level requirement: system-observable behavior, written
@@ -158,11 +161,14 @@ Offer to record an ADR in `docs/adr/` only for a decision that is all three:
 
 Mint the ID with `.guardrails/scripts/new-id.sh ADR`. Write one decision
 per file, `docs/adr/ADR-<token>-<slug>.md`, opening with the item line
-`**ADR-<token>**: <the decision in one sentence>`, then one to three sentences
-(context, decision, why). Cite an ADR by its ID. `new-id.sh` exits 2 until
-`ADR` is in `id_prefixes`; add it there first. In an existing project, read
-"`ADR` is a declared prefix" in `ratchet`'s `references/upgrade-notes.md`
-before adding it: it states which findings the existing ADRs produce.
+`**ADR-<token>**: <the decision in one sentence>`, then its context, the
+decision and its consequences, a few sentences each. When the decision
+changes, rewrite the ADR in place; do not amend it with history. A reversed
+decision is deleted, as any item is. Cite an ADR by its ID. `new-id.sh`
+exits 2 until `ADR` is in `id_prefixes`; add it there first. In an existing
+project, read "`ADR` is a declared prefix" in `ratchet`'s
+`references/upgrade-notes.md` before adding it: it states which findings the
+existing ADRs produce.
 
 Multi-unit: a decision that a unit cites by ID is in that unit's
 `docs/adr/`, which `check-trace.sh` reads for the unit. A decision that spans

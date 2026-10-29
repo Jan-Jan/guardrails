@@ -3249,6 +3249,21 @@ adr_file_is_named_by_its_item() {
     fi
 }
 
+@test "merge-change: the review checklist makes a long changed item a finding with a shorter wording" {
+    # verifies: ADR-k3nkv3
+    # No script measures an item's length, so the step 4 reviewer judges it.
+    checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
+    docs=$(section_of '## The documentation checklist' "$checklist" | tr '\n' ' ' | tr -s ' ')
+    for phrase in \
+        'Each item the change adds or edits states one testable behavior and carries no rationale, history or implementation detail' \
+        'its text proposes the shorter wording' \
+        'No script checks an item'"'"'s length' \
+        'An ADR the change adds or edits holds its context, decision and consequences only'; do
+        printf '%s\n' "$docs" | grep -qF -- "$phrase" \
+            || { echo "the documentation checklist lacks: $phrase"; false; }
+    done
+}
+
 @test "ratchet: the upgrade notes say the base merge stops on a staged squash" {
     # verifies: D1 (docs/plans/2026-10-14-base-move-round.md)
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
@@ -3897,5 +3912,52 @@ adr_file_is_named_by_its_item() {
         if grep -nE 'supersedes:|superseded-by:|retired:' "$BATS_TEST_DIRNAME/../templates/$readme.md"; then
             echo "templates/$readme.md documents a supersession keyword"; false
         fi
+    done
+}
+
+@test "grill-requirements: an item states one behavior, with no rationale, history or implementation detail" {
+    # verifies: ADR-k3nkv3
+    skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
+    section=$(awk '/^### Write requirements as they are settled$/ { inside = 1; next }
+        inside && /^##/ { exit } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    wanted='An item states one testable behavior and nothing else: no rationale, history, example or implementation detail.'
+    printf '%s\n' "$section" | grep -qF -- "$wanted" || { echo "the section lacks $wanted"; false; }
+}
+
+@test "grill-requirements: an ADR holds its context, decision and consequences, and is rewritten, not amended" {
+    # verifies: ADR-k3nkv3
+    skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
+    section=$(awk '/^### ADRs$/ { inside = 1; next }
+        inside && /^##/ { exit } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
+    for wanted in 'then its context, the decision and its consequences, a few sentences each.' \
+            'When the decision changes, rewrite the ADR in place; do not amend it with history.' \
+            'A reversed decision is deleted, as any item is.'; do
+        printf '%s\n' "$section" | grep -qF -- "$wanted" || { echo "the section lacks $wanted"; false; }
+    done
+    if printf '%s\n' "$section" | grep -qF 'one to three sentences'; then
+        echo "the section still says one to three sentences"; false
+    fi
+}
+
+@test "item-writing skills point at the terseness rule" {
+    # verifies: ADR-k3nkv3
+    root="$BATS_TEST_DIRNAME/.."
+    for skill in design-architecture analyze-risks resolve-problem; do
+        flat=$(tr '\n' ' ' < "$root/skills/$skill/SKILL.md" | tr -s ' ')
+        printf '%s\n' "$flat" | grep -qF -- 'terse, as `grill-requirements` states under "Write requirements as they are settled"' \
+            || { echo "$skill does not point at the terseness rule"; false; }
+    done
+    flat=$(tr '\n' ' ' < "$root/skills/resolve-problem/SKILL.md" | tr -s ' ')
+    printf '%s\n' "$flat" | grep -qF -- 'A PR item states the anomaly and how it shows; its cause and fix go in the squash message.' \
+        || { echo "resolve-problem does not say what a PR item holds"; false; }
+}
+
+@test "templates: every ledger README says an item is terse" {
+    # verifies: ADR-k3nkv3
+    for readme in srs sad rmf problems; do
+        grammar=$(awk '/^<!--$/ { inside = 1; next } inside && /^-->$/ { exit } inside' \
+            "$BATS_TEST_DIRNAME/../templates/$readme.md" | tr '\n' ' ' | tr -s ' ')
+        printf '%s\n' "$grammar" | grep -qF -- 'An item is terse: no rationale, history or implementation detail.' \
+            || { echo "templates/$readme.md does not say an item is terse"; false; }
     done
 }

@@ -17,6 +17,7 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 
   **RC-NNNNNN**: <risk control measure>. mitigates: HAZ-NNNNNN
 
+- An item is terse: no rationale, history or implementation detail.
 - Every hazard must have at least one risk control that `mitigates:` it.
   `mitigates:` is read only inside the RC's block: on the definition line, as
   above, or on a line below it before the block closes. A block closes at the

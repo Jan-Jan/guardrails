@@ -169,3 +169,23 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/CODE_GUIDELINES.md"
     hits=$(hits_outside_upgrade_notes)
     [ -z "$hits" ] || { echo "$hits"; false; }
 }
+
+@test "code guidelines: a comment cites an ADR, never a plan file, a docs/verification file or a problem report" {
+    # verifies: ADR-k3nkv3
+    for guidelines_file in "$template" "$repo_guidelines"; do
+        [ -f "$guidelines_file" ] || { echo "missing: $guidelines_file"; false; }
+        flat=$(section_of '## Comments' "$guidelines_file" | tr '\n' ' ' | tr -s ' ')
+        for phrase in 'or cites an ADR by ID' \
+            'never cites a plan file, a docs/verification file or a problem report' \
+            'plans and docs/verification files leave the base branch' \
+            'a problem report is deleted when it is resolved' \
+            'HISTORY-CITATION' \
+            'the squash message carries the history'; do
+            printf '%s\n' "$flat" | grep -qF "$phrase" \
+                || { echo "$guidelines_file lacks: $phrase"; false; }
+        done
+        if printf '%s\n' "$flat" | grep -qF "the change's records carry the history"; then
+            echo "$guidelines_file still says the change's records carry the history"; false
+        fi
+    done
+}

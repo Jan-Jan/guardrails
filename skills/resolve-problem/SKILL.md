@@ -39,7 +39,10 @@ with the ID it printed:
 ```
 
 The form above is indented and uses `NNNNNN` so that it defines no item. In the
-ledger, write the item flush left, with the ID `new-id.sh` printed.
+ledger, write the item flush left, with the ID `new-id.sh` printed. Write it
+terse, as `grill-requirements` states under "Write requirements as they are
+settled". A PR item states the anomaly and how it shows; its cause and fix go
+in the squash message.
 
 - `opened:` is required on an open item. It is read at column one, and the
   first occurrence is the one read.

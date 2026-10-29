@@ -18,6 +18,7 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
   <when accepted: disposition: <the ruling and its date>>
 
 - Record the problem BEFORE investigating (resolve-problem skill).
+- An item is terse: no rationale, history or implementation detail.
 - EVERY item needs a `status:`, and every OPEN item an `opened:` date.
   `opened:` is a real calendar date in `YYYY-MM-DD`, and may
   be at most ONE day ahead of the machine running the check — that one day is
