@@ -1,9 +1,7 @@
 # Problem report — code-guidelines review gaps and a midnight flake
 
-Recorded by change `code-guidelines` (`docs/plans/2026-10-13-code-guidelines.md`),
-from its independent review, whose findings were all low, and from the
-reviewer's suite run. `affects:` names files, because guardrails keeps no
-REQ/SDD/LLR ledger of its own.
+Recorded by change `code-guidelines`, from its independent review, whose findings were all low, and from the
+reviewer's suite run. `affects:` names files.
 
 **PR-tqwky6**: A suite run that crosses midnight fails the `check-trace` age tests, because the fixture's `days_ago` date and `check-trace.sh`'s age are computed on different days.
 affects: tests/check-trace.bats, tests/helpers.bash.
@@ -31,16 +29,3 @@ delete, skip or loosen a test to keep the suite green". The test was given a
 positive assertion back in the same change; the rule that would have
 prevented it is still unwritten.
 
-**PR-r6ypg9**: `develop-change`'s derailment rule stops the change when "review returns findings on the same task twice", which the conformance reviews' rerun-until-nothing-above-low loop meets by design.
-affects: skills/develop-change/SKILL.md.
-opened: 2026-10-14
-status: resolved
-
-The conformance reviews run again until a round has nothing above low, so
-findings in two rounds are an expected outcome; code-guidelines' own CODE
-review had findings above low in rounds 1 and 2. Read literally, the
-derailment rule hands that to the user. The rule should say whether
-conformance rounds count, and what bounds a conformance loop that does not
-converge.
-
-Resolved: the derailment rule counts a conformance round only through a finding that recurs after its fix was merged (D1, `docs/plans/2026-10-14-derailment-conformance.md`); test "develop-change: a conformance finding that recurs after its fix stops the loop; a new one does not" in `tests/skills.bats`.

@@ -65,8 +65,8 @@
 # the rest of this script will not run. It removes nothing and deletes
 # nothing. Guards 1, 2 and 5 all read the squash commit, so none of them can
 # be preflighted at all; guard 3 IS the removal and cannot be proved without
-# doing it. Guard 4 is the one that is fully knowable in advance, and it is
-# also the one whose rejection used to cost a wasted key touch to discover.
+# doing it. Guard 4 is the one that is fully knowable in advance, and
+# checking it first saves a key touch on a squash it would reject.
 #
 # Exit codes: 0 cleaned up (or, with --check, guard 4 would pass — or had
 # nothing to inspect, which the verdict states in those words), 1 a guard
@@ -389,7 +389,7 @@ wt_list=$(git worktree list --porcelain) || gr_die \
 "git worktree list failed, so the worktrees cannot be inspected. Nothing was
   removed and $branch was NOT deleted."
 
-# The worktree path is DERIVED, never taken from the caller (D4). A pasted path
+# The worktree path is DERIVED, never taken from the caller. A pasted path
 # is a chance to remove the wrong directory, and the branch name is already in
 # the command merge-change prints. `$0` is used whole rather than a field, so a
 # path containing spaces remains intact; a branch name can contain neither a

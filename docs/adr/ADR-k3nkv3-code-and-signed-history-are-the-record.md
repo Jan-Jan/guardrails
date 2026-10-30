@@ -49,4 +49,5 @@ for the current one.
   an audit that asks for a format.
 - A reworded or replaced requirement leaves no trace on the base branch; the
   squash message that changed it does.
-- It supersedes ADR-bh4xgr; ADR-3hsvvq states the checked trailers.
+- No step prunes plans from the base branch: a plan never reaches it.
+- ADR-3hsvvq states the checked trailers.

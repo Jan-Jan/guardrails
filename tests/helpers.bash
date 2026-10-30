@@ -1,6 +1,6 @@
 # Shared bats helpers: throwaway fixture git repos with guardrails installed.
 
-# Every test reads no global or system git config (PR-ad4vmm). `git config
+# Every test reads no global or system git config. `git config
 # --get` falls back to them, so a setting a test unsets in its fixture was
 # answered from the developer's own: with gpg.ssh.allowedSignersFile in
 # ~/.gitconfig, check-signing.bats measured that file instead of the script.
@@ -19,15 +19,13 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYST
 # teardown, what remains at any moment is the fixtures of the tests still
 # running and of the tests that have failed.
 #
-# Whether that is close to a limit depends on the platform, and an earlier
-# version of this comment asserted one budget for every platform without
-# measuring any. Measure before reasoning from it: `df -i "$TMPDIR"`.
+# Whether that is close to a limit depends on the platform. Measure before
+# reasoning from it: `df -i "$TMPDIR"`.
 #
 # Measured on macOS, the host this suite was measured on: bats puts its run
 # directory under $TMPDIR, which is /var/folders/…/T/ on the APFS data volume,
 # and on 2026-10-01 that volume reported over six billion free inodes at 0%
-# used. Nothing this suite does approaches it. `PR-2scmvn` records a
-# misdiagnosis that followed from the earlier wording.
+# used. Nothing this suite does approaches it.
 #
 # Not measured anywhere else. Where $TMPDIR is a tmpfs the budget is finite and
 # the reasoning below applies, but no such host was tested for this comment and
@@ -84,7 +82,7 @@ EOF
 # finds the internal `bats` there instead of bin/bats. That entry point needs
 # the bats_readlinkf function bin/bats exports, and under `--jobs` GNU
 # parallel starts each file without it: the nested run fails with
-# `bats_readlinkf: command not found` (PR-2nxadp). Any test that starts a bats
+# `bats_readlinkf: command not found`. Any test that starts a bats
 # run of its own resolves bats through this.
 outside_bats() {
     local outer_path=":$PATH:"
@@ -135,23 +133,15 @@ step_of() {
 # Print the environment a temp-file fault would be identified by, on any test
 # that did not complete.
 #
-# `PR-2scmvn` was observed once, on 2026-09-01, with git reporting `unable to
-# create temporary file: Invalid argument`. It was ruled on without a
-# mechanism, because by the time anyone read the log the facts that would
-# establish one were gone. Five are printed here instead.
+# A temp-file fault, git reporting `unable to create temporary file: Invalid
+# argument`, leaves no mechanism to diagnose once the run is gone, so the five
+# facts that would establish one are printed while they still exist.
 #
-# This matters beyond a lost run. `tests/evidence.sh` derives its red figure by
-# subtracting the new tests that PASSED from the new tests submitted, so a test
-# that fails for an environmental reason is counted as a test that proves a
-# defect was fixed, and drops off the list of tests that cannot go red. All
-# five of that script's guards — scripts checked out from the base, a TAP plan
-# emitted at all, plan against submitted, results against plan, and names
-# against measured — are satisfied by a run that completes with a spurious
-# failure in it. A mutation kill table inverts the same way. An unexplained red
-# test therefore costs a figure in a merged record, not only a run.
+# This matters beyond a lost run: a test that fails for an environmental reason
+# reads, against a base revision, as a test that proves a defect was fixed.
 gr_failure_environment() {
     {
-        echo "--- failed test environment (PR-2scmvn) ---"
+        echo "--- failed test environment ---"
         echo "tmpdir: ${TMPDIR:-unset}"
         echo "testdir: ${BATS_TEST_TMPDIR:-unset}"
         echo "inodes: $(df -i "${TMPDIR:-/tmp}" 2>&1 | tail -n 1)"
@@ -361,7 +351,7 @@ days_ago() {
         || { echo "no usable date(1) for relative dates" >&2; return 1; }
 }
 
-# pin_today [YYYY-MM-DD] — fix "today" for the rest of the test (PR-pc6byk).
+# pin_today [YYYY-MM-DD] — fix "today" for the rest of the test.
 # A `date` stub first on PATH answers `date +%Y-%m-%d` with the pinned day
 # (the given one, else the real date at the first call) and passes every
 # other call to the real date(1); days_ago counts back from the same day.
@@ -414,7 +404,6 @@ make_strict_awk() {
     _bin="$BATS_TEST_TMPDIR/strict-awk"
     # Called with the stub already on PATH, `command -v awk` finds the STUB and
     # bakes its own path into the exec below — a fork bomb, not a test failure.
-    # The comment used to be the only thing preventing that.
     case "$_real" in
         ("$_bin"/*) echo "make_strict_awk called with the stub already on PATH" >&2
                    return 1 ;;
@@ -504,13 +493,11 @@ make_bsd_date() {
     # Does the real date understand GNU's `-d`? The stub has to know, because
     # ACCEPTING `-v` is not the same as being able to APPLY `-v`.
     #
-    # The first version validated the adjustment and then handed it to the real
-    # date unchanged, which works only where the real date is already BSD —
-    # that is, everywhere except the GNU box the stub exists for. There,
-    # `date -v-3d` reached a date with no `-v` at all, so a VALID adjustment
-    # was rejected: the stub reproduced BSD's rejections and none of its
-    # successes. Both tests using it failed, and the failure read as a defect
-    # in `days_ago` rather than in the instrument measuring it.
+    # Validating the adjustment and handing it to the real date unchanged works
+    # only where the real date is already BSD — everywhere except the GNU box
+    # the stub exists for. There `date -v-3d` would reach a date with no `-v`
+    # at all, so a VALID adjustment would be rejected, and the failure would
+    # read as a defect in `days_ago` rather than in the stub.
     #
     # So on a GNU box the stub TRANSLATES `-v±Nd` into `-d "N days [ago]"`; on
     # a real BSD box it passes it through, because there it is already right.

@@ -595,10 +595,10 @@ STUB
     # all — a test that proves the absence of the thing it is testing.
     #
     # And the WHOLE message, not the word "detached": both guards below state
-    # "detached", so a substring assertion cannot tell them apart. Mutation M04
-    # deleted this guard and the suite stayed green, because a detached HEAD in
-    # a single checkout also makes gr_base_branch print nothing and the SECOND
-    # guard fired instead. The test named the wrong cause and passed.
+    # "detached", so a substring assertion cannot tell them apart. With this
+    # guard deleted, a detached HEAD in a single checkout also makes
+    # gr_base_branch print nothing and the SECOND guard fires instead, so a
+    # substring assertion would name the wrong cause and pass.
     [[ "$output" == *"no change branch can be identified"* ]] \
         || { echo "wrong guard fired: $output"; false; }
 }
@@ -779,7 +779,7 @@ commit_unit_change() {
     [[ "$output" == *"unknown manifest key"* ]] || { echo "$output"; false; }
 }
 
-# verifies: C2 (docs/plans/2026-10-08-check-review-cite.md)
+# verifies: REQ-sn8962
 @test "check-review --cite: under a unit manifest exits 2 naming multi-unit repositories" {
     make_units_fixture
     make_change_worktree units-change
@@ -791,7 +791,7 @@ commit_unit_change() {
 
 # --- a git step whose failure would read as a state -------------------------
 
-# verifies: PR-tz6gsp
+# verifies: REQ-6vfb6a
 @test "check-review: a failed git worktree list exits 2, is not read as a detached primary checkout" {
     # Before gr_base_branch took the status, its failure printed nothing, and
     # the run exited 2 with "the primary checkout is detached".
@@ -807,7 +807,7 @@ commit_unit_change() {
     [ "$(git rev-parse HEAD)" = "$head_before" ] || { echo "HEAD moved"; false; }
 }
 
-# verifies: PR-tz6gsp
+# verifies: REQ-6vfb6a
 @test "check-review: a failed git branch --show-current exits 2 with git's error, not as a detached HEAD" {
     make_change_worktree my-change
     write_message
@@ -837,7 +837,7 @@ write_defined_pr() {
         >> docs/problems/README.md
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: a disposition citing an existing path passes" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -846,7 +846,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a path with a line or a line range passes" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -858,7 +858,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "range: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: a disposition citing a path not in the tree fails" {
     make_change_worktree my-change
     write_review 'fixed: scripts/missing.sh.'
@@ -867,7 +867,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1 (cites no path in the tree, test name in test_paths or defined item ID, and is not \"no change: <reason>\")"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a bats test name in backticks resolves in test_paths" {
     make_change_worktree my-change
     mkdir -p tests && printf '@test "the test name" {\n    true\n}\n' > tests/x.bats
@@ -876,7 +876,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a backtick span no test in test_paths names fails" {
     make_change_worktree my-change
     mkdir -p tests && printf '@test "another test" {\n    true\n}\n' > tests/x.bats
@@ -886,7 +886,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a def in test_paths resolves an identifier span" {
     make_change_worktree my-change
     mkdir -p tests && printf 'def test_thing():\n    assert True\n' > tests/test_x.py
@@ -895,7 +895,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a span a test file quotes but no test is named does not resolve" {
     make_change_worktree my-change
     mkdir -p tests && printf '@test "merges" {\n    run git merge "merge"\n}\n' > tests/x.bats
@@ -905,7 +905,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a bats test name resolves only as the whole @test name" {
     make_change_worktree my-change
     mkdir -p tests && printf '  @test "the test name" {\n    true\n}\n' > tests/x.bats
@@ -917,7 +917,7 @@ write_defined_pr() {
     [ "$status" -eq 1 ] || { echo "prefix: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a jest it() name resolves" {
     make_change_worktree my-change
     mkdir -p tests && printf "it('adds two numbers', () => {\n  expect(1 + 1).toBe(2);\n});\n" > tests/sum.test.js
@@ -926,7 +926,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a def that does not begin with test is not a test name" {
     make_change_worktree my-change
     mkdir -p tests && printf 'def helper():\n    return 1\n' > tests/test_x.py
@@ -936,7 +936,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a shell function in test_paths is not a test name" {
     make_change_worktree my-change
     mkdir -p tests && printf 'function helper {\n    true\n}\nother() {\n    true\n}\n' > tests/helpers.bash
@@ -948,7 +948,7 @@ write_defined_pr() {
     [ "$status" -eq 1 ] || { echo "name(): $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a Rust fn resolves an identifier span" {
     make_change_worktree my-change
     mkdir -p tests && printf '#[test]\nfn adds_two() {\n    assert_eq!(2, 1 + 1);\n}\n' > tests/sum.rs
@@ -957,7 +957,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a test name in double quotes resolves as a test name" {
     make_change_worktree my-change
     mkdir -p tests && printf '@test "the test name" {\n    true\n}\n' > tests/x.bats
@@ -966,7 +966,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a double-quoted span no test is named fails" {
     make_change_worktree my-change
     mkdir -p tests && printf '@test "another test" {\n    true\n}\n' > tests/x.bats
@@ -976,7 +976,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: a directory is not a citation" {
     make_change_worktree my-change
     write_review 'fixed: `docs/`.'
@@ -987,7 +987,7 @@ write_defined_pr() {
     [ "$status" -eq 1 ] || { echo "./: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: .git is not a citation, as a file or a directory" {
     make_change_worktree my-change
     [ -f .git ]
@@ -1017,7 +1017,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1 "
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a possessive path resolves" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1029,7 +1029,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "curly: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-498ct8
 @test "check-review --cite: a possessive ID in backticks resolves" {
     make_change_worktree my-change
     write_defined_pr
@@ -1038,7 +1038,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-498ct8
 @test "check-review --cite: a bare possessive ID resolves" {
     make_change_worktree my-change
     write_defined_pr
@@ -1050,7 +1050,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "curly: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a git rev:path names its path" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1059,7 +1059,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-498ct8
 @test "check-review --cite: a defined PR ID resolves" {
     make_change_worktree my-change
     write_defined_pr
@@ -1068,7 +1068,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-498ct8
 @test "check-review --cite: a well-formed undefined PR ID fails" {
     make_change_worktree my-change
     write_defined_pr
@@ -1086,7 +1086,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: ADR-3hsvvq
 @test "check-review --cite: no change needed. is not the escape" {
     make_change_worktree my-change
     write_review 'no change needed.'
@@ -1108,7 +1108,7 @@ write_defined_pr() {
     output_has "MALFORMED-FINDING 1. [no change:] code low — x"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md); C1 (docs/plans/2026-10-08-check-review-cite.md)
+# verifies: REQ-8adkd3
 @test "check-review: review_cite: on without the flag checks citations" {
     make_change_worktree my-change
     printf 'review_cite: on\n' >> .guardrails/config.yaml
@@ -1118,7 +1118,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: C1 (docs/plans/2026-10-08-check-review-cite.md)
+# verifies: REQ-8adkd3
 @test "check-review: review_cite: off without the flag does not check citations" {
     make_change_worktree my-change
     printf 'review_cite: off\n' >> .guardrails/config.yaml
@@ -1128,7 +1128,7 @@ write_defined_pr() {
     output_lacks "citations"
 }
 
-# verifies: C1 (docs/plans/2026-10-08-check-review-cite.md)
+# verifies: REQ-u7qgpw
 @test "check-review: review_cite with a value other than on or off exits 2" {
     make_change_worktree my-change
     printf 'review_cite: yes\n' >> .guardrails/config.yaml
@@ -1139,7 +1139,7 @@ write_defined_pr() {
     output_has "'yes'"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-xuwjw3
 @test "check-review --cite: the checked: line counts the dispositions cite-checked" {
     make_change_worktree my-change
     write_review 'no change: the reviewer misread the call site'
@@ -1148,9 +1148,9 @@ write_defined_pr() {
     [[ "$output" == *"; citations checked over 1 dispositions" ]] || { echo "$output"; false; }
 }
 
-# --- review round 1: the guards and branches no test reached ----------------
+# --- the guards and branches no test reached --------------------------------
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-ec624n
 @test "check-review --cite: an absolute path does not resolve, though the file exists" {
     make_change_worktree my-change
     abs_file="$BATS_TEST_TMPDIR/outside.txt"
@@ -1161,7 +1161,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-ec624n
 @test "check-review --cite: a path with a .. component does not resolve, though the file exists" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1174,7 +1174,7 @@ write_defined_pr() {
     [ "$status" -eq 1 ] || { echo "outside: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-ec624n
 @test "check-review --cite: a URL does not resolve, though a file at its path exists" {
     make_change_worktree my-change
     mkdir -p http: && printf 'x\n' > http:/x.sh
@@ -1184,7 +1184,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-gkrt4j
 @test "check-review --cite: find-items.sh failing on an ID candidate exits 2, never resolves or fails it" {
     make_change_worktree my-change
     rm docs/risk/README.md
@@ -1195,7 +1195,7 @@ write_defined_pr() {
     output_lacks "UNRESOLVABLE-DISPOSITION"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-gkrt4j
 @test "check-review --cite: a test_paths search that fails exits 2, never reads as no test" {
     make_change_worktree my-change
     sed -i.bak 's|^  - tests$|  - :(bogus)tests|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
@@ -1206,7 +1206,7 @@ write_defined_pr() {
     output_lacks "UNRESOLVABLE-DISPOSITION"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a Go func Test resolves an identifier span" {
     make_change_worktree my-change
     mkdir -p tests && printf 'package x\n\nfunc TestThing(t *testing.T) {\n}\n' > tests/x_test.go
@@ -1215,7 +1215,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a jest test() and describe() name resolves" {
     make_change_worktree my-change
     mkdir -p tests && printf 'describe("the sum", () => {\n  test(%s, () => {});\n});\n' "'adds two numbers'" > tests/sum.test.js
@@ -1227,7 +1227,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "describe(): $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-z7fa9d
 @test "check-review --cite: a test_paths entry is a git pathspec, as check-trace.sh reads it" {
     make_change_worktree my-change
     sed -i.bak 's|^  - tests$|  - *_test.go|' .guardrails/config.yaml && rm -f .guardrails/config.yaml.bak
@@ -1237,7 +1237,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-z7fa9d
 @test "check-review --cite: a test declared only in a gitignored file does not resolve" {
     make_change_worktree my-change
     mkdir -p tests/vendor && printf '@test "the test name" {\n    true\n}\n' > tests/vendor/x.bats
@@ -1248,7 +1248,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: a symlink to a file outside the repository does not resolve" {
     make_change_worktree my-change
     printf 'x\n' > "$BATS_TEST_TMPDIR/outside.txt"
@@ -1259,7 +1259,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: a gitignored file does not resolve" {
     make_change_worktree my-change
     mkdir -p ignored && printf 'echo\n' > ignored/x.sh
@@ -1270,7 +1270,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: an untracked file git does not ignore resolves" {
     # A file the change adds is often untracked at merge-change step 6c.
     make_change_worktree my-change
@@ -1281,7 +1281,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a backtick span naming a path with a space resolves" {
     make_change_worktree my-change
     mkdir -p "dir with space" && printf 'echo\n' > "dir with space/y.sh"
@@ -1290,7 +1290,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a path led by ./ or .// resolves to the file it names" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1302,7 +1302,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo ".//: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-r725hv
 @test "check-review --cite: a tracked file deleted from the working tree does not resolve" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1314,9 +1314,9 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1"
 }
 
-# --- review round 2: the text boundary, the record itself, citation forms ---
+# --- the text boundary, the record itself, citation forms -------------------
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a markdown link names its target path" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1325,7 +1325,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a #anchor suffix is stripped from a path" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1337,7 +1337,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "link #L3-L9: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a commented-out declaration declares no test" {
     make_change_worktree my-change
     mkdir -p tests && printf '# def test_thing():\n#     assert True\n' > tests/test_x.py
@@ -1351,7 +1351,7 @@ write_defined_pr() {
     [ "$status" -eq 1 ] || { echo "//: $output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: a Go testify suite method declares its test" {
     make_change_worktree my-change
     mkdir -p tests && printf 'package x\n\nfunc (s *SumSuite) TestThing() {\n}\n' > tests/x_test.go
@@ -1360,7 +1360,7 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a # is kept where what precedes it is no path" {
     # The anchor is stripped from a path candidate only: notes#1.txt is a
     # file name, since `notes` names nothing.
@@ -1371,9 +1371,9 @@ write_defined_pr() {
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-# --- review round 3: the guards the round-2 tests left unpinned -------------
+# --- the guards the tests above left unpinned ------------------------------
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-ec624n
 @test "check-review --cite: an absolute path does not resolve where the same path relative to the root is a file" {
     make_change_worktree my-change
     mkdir -p scripts && printf 'echo\n' > scripts/x.sh
@@ -1383,7 +1383,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1 "
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-9qp39w
 @test "check-review --cite: def test_thing_extra does not declare test_thing" {
     make_change_worktree my-change
     mkdir -p tests && printf 'def test_thing_extra():\n    assert True\n' > tests/test_x.py
@@ -1393,7 +1393,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1 "
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-8fx3r8
 @test "check-review --cite: a hex prefix shorter than 7 or longer than 40 digits is no git rev" {
     # Each prefix below is lowercase hex, so only its length keeps it from
     # being read as a <rev>: — `face` is a word that happens to be hex.
@@ -1407,7 +1407,7 @@ write_defined_pr() {
     done
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-z7fa9d
 @test "check-review --cite: a test declared outside test_paths does not resolve" {
     # test_paths is `tests`; scripts/y.bats is neither ignored nor under it.
     make_change_worktree my-change
@@ -1418,7 +1418,7 @@ write_defined_pr() {
     output_has "UNRESOLVABLE-DISPOSITION 1 "
 }
 
-# verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+# verifies: REQ-z7fa9d
 @test "check-review --cite: with no test_paths no span resolves as a test name" {
     # gr_check_config requires test_paths only where REQ or LLR is declared,
     # so the config drops both prefixes before it drops the key.

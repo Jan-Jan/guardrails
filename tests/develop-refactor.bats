@@ -1,8 +1,6 @@
 # Content lints over skills/develop-refactor/SKILL.md: the fixer of one CODE
-# or ARCHITECTURE conformance review's findings
-# (docs/plans/2026-10-13-code-guidelines.md, D1 and D4;
-# docs/plans/2026-10-14-architecture-guidelines.md, D3 and D6). The section
-# shape and word count are covered by the skill-shape tests in skills.bats.
+# or ARCHITECTURE conformance review's findings. The section shape and word
+# count are covered by the skill-shape tests in skills.bats.
 
 load helpers
 
@@ -11,7 +9,7 @@ setup() {
 }
 
 @test "develop-refactor: the skill is named, and fixes one CODE or ARCHITECTURE review's findings" {
-    # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md); D3 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-sync6b, REQ-4rdvvb
     grep -qxF 'name: develop-refactor' "$skill"
     grep -E '^description:' "$skill" | grep -qF 'Load it only when develop-change dispatched you to fix CODE or ARCHITECTURE findings.'
     preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
@@ -20,14 +18,14 @@ setup() {
 }
 
 @test "develop-refactor: it works in its nested task worktree and does not merge" {
-    # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-gqf3ys
     preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$preconditions" | grep -qF 'Create the task worktree as the prompt says'
     printf '%s\n' "$preconditions" | grep -qF 'Do not merge it, and do not dispatch again.'
 }
 
 @test "develop-refactor: it reads the one code guidelines file and fixes what the findings state" {
-    # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md); D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-d5k9zk
     flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
     printf '%s\n' "$flat" | grep -qF 'Read the one file the prompt names and no other guidelines file.'
     printf '%s\n' "$flat" | grep -qF 'Fix each finding at its line, as its clause states.'
@@ -35,21 +33,21 @@ setup() {
 }
 
 @test "develop-refactor: no behavior change, and no test loosened" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-yz3r49
     flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
     printf '%s\n' "$flat" | grep -qF 'Do not change behavior: the tests you run must stay green.'
     printf '%s\n' "$flat" | grep -qF 'Never delete, skip or loosen a test to keep those tests green.'
 }
 
 @test "develop-refactor: a finding it cannot fix is reported, with the reason" {
-    # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-k4kb2c
     flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
     printf '%s\n' "$flat" | grep -qF 'Report a finding you cannot fix as `no change`, with the reason:'
     printf '%s\n' "$flat" | grep -qF 'is a finding against the clause'
 }
 
 @test "develop-refactor: the report's shape" {
-    # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-4n7v3y
     report=$(section_of '### The report' "$skill")
     [ -n "$report" ] || { echo "no report section"; false; }
     for line in 'task: <tag>' 'worktree: <path to the task worktree>' 'files touched: <paths>' \
@@ -60,19 +58,19 @@ setup() {
 }
 
 @test "develop-refactor: a finding that needs a design change comes back not fixed" {
-    # verifies: D3 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-rp9w93
     flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
     printf '%s\n' "$flat" | grep -qF 'a finding that needs an SDD or LLR item changed, or a different structure: you do not edit design items'
     grep -qF '| "The finding needs a design item reworded; I'"'"'ll edit it" |' "$skill"
 }
 
 @test "develop-refactor: the floor names the architecture items" {
-    # verifies: D3, D6 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-s7f7bc
     states_architecture_floor "$skill"
 }
 
 @test "develop-refactor: a fix runs the tests that verify what it changes" {
-    # verifies: D3 (docs/plans/2026-10-15-test-selection-guideline.md)
+    # verifies: REQ-6axg68, REQ-zcv5fw
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     step=$(step_of "$skill" 3 | tr '\n' ' ' | tr -s ' ')
     printf '%s' "$step" | grep -qF 'tests the fix touches: those that verify what it changes' ||

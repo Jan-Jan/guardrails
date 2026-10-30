@@ -1,12 +1,10 @@
 # Problem reports — the assertion gate
 
 One item, recorded when the gate it describes was cut from the change that
-resolved `PR-tenhv4`. `affects:` names files rather than item IDs for the reason
-`docs/problems/2026-08-27-macos-awk.md` gives: guardrails keeps no REQ/SDD/LLR
-ledger of its own yet.
+guarded the suite's 301 bracket assertions. `affects:` names files.
 
 **PR-x4nb48**: Nothing rejects an unguarded `[[ ]]` or `(( ))` assertion in a
-bats test body, so the 301 guards that `PR-tenhv4` applied can be undone one
+bats test body, so the 301 guards the suite's assertions carry can be undone one
 line at a time with no gate reporting it.
 affects: tests/*.bats, which contain 301 guarded assertions no rule keeps
 guarded; tests/portability.bats, where such a gate belongs beside the
@@ -18,17 +16,16 @@ Two gates were built, measured and cut, the second over five review rounds.
 Reading the corpus is solved and that evidence is kept; deciding whether a
 guard can fail is not, and six spellings inert under bats were accepted in
 turn, each repair closing the spelling it was shown rather than the class
-behind it. The guards `PR-tenhv4` applied remain unprotected, and that is
+behind it. The 301 guards remain unprotected, and that is
 accepted rather than overlooked. The exposure is a silent regression in this
 repository's own suite, which `/ratchet` makes the tool-qualification basis for
 every adopter's check scripts, so a regression here weakens their evidence
 without reaching their code. Reopen this item only for an approach that does
-not decide inertness from the text of a line. The second attempt's record,
-`docs/verification/2026-09-29-assertion-gate.md`, names two: run each test body
+not decide inertness from the text of a line. Two are known: run each test body
 under a shell that answers directly, or enforce one literal guard spelling by
 exact string comparison.
 
-`PR-tenhv4` repaired 69 inert assertions and guarded all 301 so that position
+The change that guarded the suite repaired 69 inert assertions and guarded all 301 so that position
 would stop deciding whether an assertion can fail. It did not deliver a gate.
 One was written and cut, and the reason it was cut is this item's starting
 evidence rather than a reason to write the same thing again.
@@ -55,10 +52,7 @@ the defect this toolkit exists to remove.
 
 Four independent review rounds produced the evidence. Round 4's report is the
 fullest and lists seventeen findings against the gate, eight of them defects
-found after three earlier rounds had each found their own. Whoever takes this
-item should read it before writing anything: it is in this change's verification
-record, `docs/verification/2026-09-28-inert-assertions.md`, under the findings
-that record why the gate was cut.
+found after three earlier rounds had each found their own.
 
 Prefer a rule that cannot fail silently over a rule that is exactly right. One
 candidate, from round 4: every `[[` or `((` in a `.bats` file must
@@ -77,9 +71,7 @@ approach was tried six times and states what its failures cost.
 
 A second gate was built and cut, on 2026-09-30, after five independent review
 rounds raised forty-one findings. The first four rejected it; the fifth
-reviewed the cut and raised no code finding. It is recorded in
-`docs/verification/2026-09-29-assertion-gate.md`, and the plan it was built
-from is `docs/plans/2026-09-29-assertion-gate.md`.
+reviewed the cut and raised no code finding.
 
 **What the second attempt established, and it is the useful part: reading the
 corpus is not the hard problem.** The scan judged a whole logical line's shape
@@ -137,8 +129,8 @@ before classification, a file never read, and a continuation that never
 terminates. One was not, and it is the residual hole in that design: a path
 that credits its own bucket and then returns leaves every count correct.
 
-**What a third attempt should know.** The corpus-reading half is solved and its
-evidence is in the record. The verdict half is the open question, and five
+**What a third attempt should know.** The corpus-reading half is solved, as
+measured above. The verdict half is the open question, and five
 rounds of evidence indicate a line-based template cannot answer it. Two directions neither
 attempt tried: run each test body under a shell that reports the answer
 directly, so the question stops being textual; or drop the inertness question
@@ -147,10 +139,9 @@ accepting that every diagnostic message in the suite becomes uniform. That
 touches every line containing `|| {` — 1,070 in the tree this item is recorded
 in, and 1,087 in the gate tree the figure was first taken on.
 
-The ruling that closed this item is recorded in
-`docs/verification/2026-09-30-accept-x4nb48.md`, which also states what
-`/ratchet` does and does not ship, because the adopter consequence was
-overstated while the second attempt was under way.
+The gate would live in `tests/portability.bats`, which `/ratchet` does not
+ship, so no adopter-facing surface is owed; the adopter consequence is the
+weakened tool-qualification basis stated in the disposition.
 
-Related: `PR-7za3at` is the same class of defect in a negated command, also
-unguarded by anything today.
+Related: a negated command is the same class of defect; `tests/portability.bats`
+rejects a bare negation by a line scan.

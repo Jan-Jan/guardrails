@@ -165,7 +165,7 @@ gr_pass CLEAN-TREE
 # ref, and git merge-base --is-ancestor exits 1 for a ref that is not an
 # ancestor; any other status is a failure, and is not read as either state.
 # Each ref is passed to git by its full name, so a tag named like the base
-# branch is not read in its place (finding-91); the messages name it short.
+# branch is not read in its place; the messages name it short.
 for gr_ref in "refs/heads/$base" "refs/remotes/origin/$base"; do
     gr_ref_name=${gr_ref#refs/heads/}
     gr_ref_name=${gr_ref_name#refs/remotes/}

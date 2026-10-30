@@ -1,5 +1,5 @@
 # Text lints over the tailor-guidelines skill and the ratchet lines that
-# install and invoke it (docs/plans/2026-10-08-test-guidelines.md, T5).
+# install and invoke it.
 # Each test pins an operative clause, not the prose around it.
 
 load helpers
@@ -12,7 +12,7 @@ setup() {
 }
 
 @test "tailor-guidelines: the skill is named, and seeds a complete copy that names no source" {
-    # verifies: D6, D7 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-g63d3v
     grep -qxF 'name: tailor-guidelines' "$tailor"
     grep -qF 'Absent, seed it as a complete copy' "$tailor"
     grep -qF 'of the root file for a unit that has one, otherwise of the installed' "$tailor"
@@ -20,13 +20,13 @@ setup() {
 }
 
 @test "tailor-guidelines: a unit's file is its own, at the unit's path" {
-    # verifies: D3, D7 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-g63d3v, ADR-me39p4
     grep -qF '`<unit>/docs/<KIND>_GUIDELINES.md`' "$tailor"
     grep -qF 'replaces the root file entirely for that unit' "$tailor"
 }
 
 @test "tailor-guidelines: the interview walks one clause per message, with its reason" {
-    # verifies: D7 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-8twuzp
     grep -qF 'Walk the clauses one per message' "$tailor"
     grep -qF 'keep, change or drop' "$tailor"
     grep -qF 'ask for an example in the project' "$tailor"
@@ -34,19 +34,18 @@ setup() {
 }
 
 @test "tailor-guidelines: a change that contradicts the floor is rejected, and the floor is listed" {
-    # verifies: D7 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-5n6bcc
     grep -qF 'Reject a change that contradicts the floor' "$tailor"
     grep -qF 'every test carries `verifies:`' "$tailor"
     grep -qF 'every new test was watched red' "$tailor"
     grep -qF 'every test fails when the behavior it `verifies:` breaks' "$tailor"
     grep -qF 'class B and C: abnormal-input tests for every REQ and LLR' "$tailor"
     grep -qF "class C: tests at every touched SDD item's interface" "$tailor"
-    # verifies: D6 (docs/plans/2026-10-14-architecture-guidelines.md)
     states_architecture_floor "$tailor"
 }
 
 @test "tailor-guidelines: upgrade mode walks the template diff and never overwrites" {
-    # verifies: D7, D11 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-hw8cub
     upgrade=$(section_of '### Upgrade mode' "$tailor")
     [ -n "$upgrade" ] || { echo "no Upgrade mode section"; false; }
     printf '%s\n' "$upgrade" | grep -qF 'adopt into the project file, adapt, or decline'
@@ -55,34 +54,31 @@ setup() {
 }
 
 @test "ratchet: the scaffold installs every guidelines default and tailors TEST, CODE and ARCHITECTURE" {
-    # verifies: D6, D7 (docs/plans/2026-10-08-test-guidelines.md); D5 (docs/plans/2026-10-13-code-guidelines.md); D7 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-rc4sv8
     scaffold=$(section_of '### Step 2 (greenfield): Scaffold' "$ratchet")
     printf '%s\n' "$scaffold" | grep -qF '`templates/*_GUIDELINES.md` → `.guardrails/templates/`'
     printf '%s\n' "$scaffold" | tr '\n' ' ' | tr -s ' ' | grep -qF 'Run `tailor-guidelines` for `TEST`, `CODE` and `ARCHITECTURE`'
 }
 
 @test "ratchet: an upgrade runs tailor-guidelines' upgrade mode before the template is re-copied" {
-    # verifies: D7, D11 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-rc4sv8
     upgrade=$(section_of '### Upgrading the scripts in an existing project' "$ratchet")
     printf '%s\n' "$upgrade" | grep -qF 'run `tailor-guidelines` in upgrade mode for each'
     printf '%s\n' "$upgrade" | grep -qF '`templates/*_GUIDELINES.md` → `.guardrails/templates/`'
 }
 
 @test "ratchet: a retrofit tailors each guidelines file as a later tooth" {
-    # verifies: D7 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-rc4sv8
     # The first tooth installs the default and migrates nothing; tailoring is
-    # an interview of its own, so it is listed with the later teeth
-    # (finding-6a, review round 1).
+    # an interview of its own, so it is listed with the later teeth.
     retrofit=$(section_of '### Step 3 (retrofit): Gap analysis first, then tighten' "$ratchet")
     [ -n "$retrofit" ] || { echo "no retrofit section"; false; }
     later=$(printf '%s\n' "$retrofit" | awk '/^4\. \*\*Later teeth\*\*/ { inside = 1 } /^5\. / { inside = 0 } inside' | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$later" | grep -qF 'run `tailor-guidelines` for each guidelines file'
 }
 
-@test "ratchet: the T5 tightening kept the bats and multi-unit sentences" {
-    # verifies: D7 (docs/plans/2026-10-08-test-guidelines.md)
-    # Both were deleted to make room for the tailor-guidelines words; each is
-    # a rule, not prose (finding-6b, review round 1).
+@test "ratchet: the skill forbids bats in the target and points a multi-unit retrofit at its reference first" {
+    # verifies: REQ-5cg78a, REQ-ar6ss5
     grep -qF 'Never add bats to the target project.' "$ratchet"
     retrofit=$(section_of '### Step 3 (retrofit): Gap analysis first, then tighten' "$ratchet")
     first=$(printf '%s\n' "$retrofit" | awk '/^3\. \*\*First tooth\*\*/ { inside = 1 } /^4\. / { inside = 0 } inside' | tr '\n' ' ' | tr -s ' ')
@@ -90,7 +86,7 @@ setup() {
 }
 
 @test "upgrade notes: an upgraded project without its own file follows the installed default" {
-    # verifies: D11 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-bhk8cr
     section=$(section_of '## Test guidelines are a project file' "$notes")
     [ -n "$section" ] || { echo "no Test guidelines section"; false; }
     printf '%s\n' "$section" | tr '\n' ' ' | tr -s ' ' \
@@ -99,7 +95,7 @@ setup() {
 }
 
 @test "tailor-guidelines: the kinds are TEST, CODE and ARCHITECTURE, and CODE's and ARCHITECTURE's examples are the project's" {
-    # verifies: D5 (docs/plans/2026-10-13-code-guidelines.md); D7 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-8twuzp
     preconditions=$(section_of '## Preconditions' "$tailor" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$preconditions" | grep -qF '`TEST` (`docs/TEST_GUIDELINES.md`), `CODE` (`docs/CODE_GUIDELINES.md`) or `ARCHITECTURE` (`docs/ARCHITECTURE_GUIDELINES.md`)'
     steps=$(section_of '## Steps' "$tailor" | tr '\n' ' ' | tr -s ' ')
@@ -108,7 +104,7 @@ setup() {
 }
 
 @test "upgrade notes: code guidelines, the dropped pass and the renamed reviewer" {
-    # verifies: D2, D4, D5, D6 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-bhk8cr, REQ-84wbmx
     section=$(section_of '## Code guidelines are a project file' "$notes" | tr '\n' ' ' | tr -s ' ')
     [ -n "$section" ] || { echo "no Code guidelines section"; false; }
     printf '%s\n' "$section" | grep -qF 'The managed block no longer has a `## Code: names` section.'
@@ -128,15 +124,15 @@ setup() {
 }
 
 @test "upgrade notes: architecture guidelines are a project file" {
-    # verifies: D1, D3, D7 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-bhk8cr, REQ-5zrsp9
     section=$(section_of '## Architecture guidelines are a project file' "$notes" | tr '\n' ' ' | tr -s ' ')
     [ -n "$section" ] || { echo "no Architecture guidelines section"; false; }
     printf '%s\n' "$section" | grep -qF 'with no `docs/ARCHITECTURE_GUIDELINES.md` follows the installed default'
     printf '%s\n' "$section" | grep -qF 'guidelines-file.sh ARCHITECTURE'
     printf '%s\n' "$section" | grep -qF 'Run `tailor-guidelines` for `ARCHITECTURE`'
-    # D3: a refactor fixes what it can; a design change goes to design-architecture.
+    # A refactor fixes what it can; a design change goes to design-architecture.
     printf '%s\n' "$section" | grep -qF '`develop-refactor` fixes the findings that need no design change; the rest go to `design-architecture`.' \
-        || { echo "no D3 routing of architecture findings: $section"; false; }
+        || { echo "architecture findings are not routed to develop-refactor and design-architecture: $section"; false; }
     printf '%s\n' "$section" | grep -qF 'is an LLR with a test'
     printf '%s\n' "$section" | grep -qF '`guidelines-file.sh ARCHITECTURE` exits 2 and the conformance reviews stop there'
 }

@@ -49,7 +49,7 @@ read_fix_line() {
 }
 
 # A fix line that names a merging command fails: a merge is a decision, not a
-# remedy (plan, "Decision after review round 4").
+# remedy.
 assert_names_no_merge() {
     case "$1" in
         (*"run merge"*|*"task-worktree.sh merge"*)
@@ -68,7 +68,7 @@ lock_task_branch() {
 # --- start --------------------------------------------------------------------
 
 @test "task-worktree start: creates the nested worktree on a task branch off the change branch" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6erp29
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [ -d "$TASK_WT" ] || { echo "no worktree at $TASK_WT"; false; }
@@ -81,7 +81,7 @@ lock_task_branch() {
 }
 
 @test "task-worktree start: copies ignored entries, but not .worktrees/ or .claude/" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4675t
     mkdir -p tests/.bats-core/bin .worktrees/stray .claude/worktrees/other
     printf '#!/bin/sh\n' > tests/.bats-core/bin/bats
     printf 'stray\n' > .worktrees/stray/file
@@ -103,7 +103,7 @@ lock_task_branch() {
 }
 
 @test "task-worktree start: rejects the primary checkout" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-jv376u
     cd "$REPO"
     run sh "$TW" start t1
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
@@ -113,7 +113,7 @@ lock_task_branch() {
 }
 
 @test "task-worktree start: rejects a detached HEAD" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-jv376u
     git checkout -q --detach
     run sh "$TW" start t1
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
@@ -122,7 +122,7 @@ lock_task_branch() {
 }
 
 @test "task-worktree start: rejects an empty tag, a tag with a slash, and a tag with whitespace" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4g5bz
     for tag in "" "a/b" "a b" "a	b"; do
         run sh "$TW" start "$tag"
         [ "$status" -eq 2 ] || { echo "tag '$tag': $status: $output"; false; }
@@ -133,7 +133,7 @@ lock_task_branch() {
 }
 
 @test "task-worktree: start and remove reject a tag that begins with -" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4g5bz
     # Two arguments, so the argument count accepts the call and the tag check
     # is what rejects it.
     for subcommand in start remove; do
@@ -148,7 +148,7 @@ lock_task_branch() {
 }
 
 @test "task-worktree start: copies an ignored entry whose name begins with - or contains a quote" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4675t
     # cp reads a leading - as an option, and git ls-files without -z C-quotes a
     # name that contains a double quote.
     printf 'dash\n' > ./-n.bak
@@ -160,7 +160,7 @@ lock_task_branch() {
 }
 
 @test "task-worktree start: skips an ignored entry whose name contains a newline, and states it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4675t
     printf 'newline\n' > 'two
 lines.bak'
     run sh "$TW" start t1
@@ -171,7 +171,7 @@ lines.bak'
 }
 
 @test "task-worktree start: skips an ignored entry whose name contains the byte \\001, and states it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4675t
     # tr marks a newline inside a name with \001, so a name that already
     # contains \001 cannot be told apart from one that contains a newline.
     printf 'marker\n' > "$(printf 'one\001byte.bak')"
@@ -183,7 +183,7 @@ lines.bak'
 }
 
 @test "task-worktree start: a failed listing of ignored entries exits 2 and creates no worktree" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     # A stub git first on PATH delegates every call to the real git except
     # the ls-files -z listing of ignored entries, which prints one entry and
     # exits 128. ls-files -u, the unmerged-entry check of CHANGE-BUSY, runs on
@@ -209,7 +209,7 @@ STUB
 }
 
 @test "task-worktree start: a listing of ignored entries that fails with no output exits 2 and creates no worktree" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     # The same stub as above, but ls-files prints nothing, so the only line
     # the listing gives is the failure marker.
     real_git=$(command -v git)
@@ -232,7 +232,7 @@ STUB
 }
 
 @test "task-worktree start: an ignored entry that cannot be copied exits 1 and names the worktree" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-szr7ta
     [ "$(id -u)" -ne 0 ] || skip "root reads a file with mode 000"
     printf 'secret\n' > unreadable.bak
     chmod 000 unreadable.bak
@@ -250,7 +250,7 @@ STUB
 }
 
 @test "task-worktree start: an ignored entry named like a failure line is copied and start exits 0" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4675t
     # The failure status is not read from the progress lines, which contain
     # the entry names.
     printf 'named\n' > 'copy failed: x.bak'
@@ -265,7 +265,7 @@ STUB
 }
 
 @test "task-worktree: rejects a missing tag, an extra argument and an unknown command" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4g5bz
     run sh "$TW" start
     [ "$status" -eq 2 ] || { echo "no tag: $status: $output"; false; }
     run sh "$TW" start t1 t2
@@ -278,7 +278,7 @@ STUB
 }
 
 @test "task-worktree: outside a git repository it exits 2 at once, naming that reason only" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-y4xa6r
     outside="$BATS_TEST_TMPDIR/outside"
     mkdir -p "$outside"
     cd "$outside"
@@ -290,7 +290,7 @@ STUB
 }
 
 @test "task-worktree start: a failed git worktree add exits 1 and prints no worktree path" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-szr7ta
     # A stub git first on PATH delegates every call to the real git except
     # worktree add, which exits 128.
     real_git=$(command -v git)
@@ -318,7 +318,7 @@ STUB
 }
 
 @test "task-worktree start: rejects a change worktree that does not ignore .worktrees/" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-tac8z3
     printf '.claude/\n' > .gitignore
     commit_all "stop ignoring .worktrees"
     run sh "$TW" start t1
@@ -346,7 +346,7 @@ assert_task_exists_remedy() {
 }
 
 @test "task-worktree start: rejects a tag whose path already exists" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-efv49s
     mkdir -p "$TASK_WT"
     printf 'keep\n' > "$TASK_WT/keep.txt"
     run sh "$TW" start t1
@@ -359,7 +359,7 @@ assert_task_exists_remedy() {
 }
 
 @test "task-worktree start: rejects a tag whose branch already exists" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-efv49s
     git branch my-change-t1
     run sh "$TW" start t1
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -422,7 +422,7 @@ make_sibling() {
 # --- merge --------------------------------------------------------------------
 
 @test "task-worktree merge: merges the task branch, removes the worktree, deletes the branch" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-5f7cux
     start_with_commit
     task_tip=$(git rev-parse my-change-t1)
     run sh "$TW" merge t1
@@ -439,7 +439,7 @@ make_sibling() {
 }
 
 @test "task-worktree merge: rejects a task worktree with an uncommitted change and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-cfm7vy
     start_with_commit
     change_head=$(git rev-parse my-change)
     printf 'edited\n' > "$TASK_WT/src/task.txt"
@@ -457,7 +457,7 @@ make_sibling() {
 }
 
 @test "task-worktree merge: rejects a task worktree with an untracked file and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-cfm7vy
     start_with_commit
     change_head=$(git rev-parse my-change)
     printf 'new\n' > "$TASK_WT/src/untracked.txt"
@@ -469,7 +469,7 @@ make_sibling() {
 }
 
 @test "task-worktree merge: rejects a task worktree with a worktree registered inside it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_commit
     change_head=$(git rev-parse my-change)
     git -C "$TASK_WT" worktree add -q "$TASK_WT/.worktrees/inner" -b inner
@@ -486,7 +486,7 @@ make_sibling() {
 }
 
 @test "task-worktree merge: the TASK-NESTED fix line returns the task to its subagent and names no merge" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_commit
     change_head=$(git rev-parse my-change)
     git -C "$TASK_WT" worktree add -q .worktrees/inner -b inner
@@ -500,7 +500,7 @@ make_sibling() {
 }
 
 @test "task-worktree merge: the TASK-NESTED fix line covers a worktree task-worktree.sh did not create" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_commit
     change_head=$(git rev-parse my-change)
     # No my-change-t1-<tag> branch exists for this worktree, so remove <tag>
@@ -518,7 +518,7 @@ make_sibling() {
 }
 
 @test "task-worktree merge: a conflict leaves the merge in progress, and the remedy concludes it unsigned" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9xg4th
     start_with_commit
     printf 'change side\n' > src/task.txt
     commit_all "conflicting work on the change branch"
@@ -553,7 +553,7 @@ start_tag_with_commit() {
 }
 
 @test "task-worktree merge: a merge left in progress by an earlier task is CHANGE-BUSY, not this task's conflict, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     start_tag_with_commit t2 "t2 side" src/shared.txt
     start_tag_with_commit t3 "t3 work" src/t3.txt
     printf 'change side\n' > src/shared.txt
@@ -592,7 +592,7 @@ start_tag_with_commit() {
 }
 
 @test "task-worktree merge: a cherry-pick conflict left in the change worktree is CHANGE-BUSY, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     printf 'base\n' > src/shared.txt
     commit_all "a file both sides change"
     git branch picked
@@ -665,7 +665,7 @@ assert_rejects_rebase() {
 }
 
 @test "task-worktree merge: a rebase stopped on a conflict in the change worktree is CHANGE-BUSY, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     stop_rebase_on_conflict
     assert_rejects_rebase merge t1
     case "$fix_text" in
@@ -678,7 +678,7 @@ assert_rejects_rebase() {
 # The CHANGE-BUSY remedy under start, in $fix_text: the operation in progress
 # belongs to the dispatcher of the change worktree, which concludes or aborts
 # it, a dispatched subagent stops and reports the line without acting on it,
-# and start is run again (finding-92).
+# and start is run again.
 assert_start_remedy_is_the_dispatchers() {
     case "$fix_text" in
         (*"The operation belongs to the dispatcher of the change worktree"*) ;;
@@ -705,7 +705,7 @@ assert_remedy_names_no_subagent() {
 }
 
 @test "task-worktree start: a rebase stopped on a conflict in the change worktree is CHANGE-BUSY, and nothing is created" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     stop_rebase_on_conflict
     assert_rejects_rebase start t2
     case "$fix_text" in
@@ -715,8 +715,8 @@ assert_remedy_names_no_subagent() {
 }
 
 @test "task-worktree start: the CHANGE-BUSY remedy for a rebase leaves it to the dispatcher, and a dispatched subagent stops and reports" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-    # Before finding-92, the remedy told the agent that runs start, a dispatched
+    # verifies: REQ-uf8kwg
+    # The remedy must not tell the agent that runs start, a dispatched
     # subagent under develop-change, to abort the dispatcher's rebase.
     stop_rebase_on_conflict
     assert_rejects_rebase start t2
@@ -724,7 +724,7 @@ assert_remedy_names_no_subagent() {
 }
 
 @test "task-worktree remove: a rebase stopped on a conflict in the change worktree is CHANGE-BUSY, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     stop_rebase_on_conflict
     assert_rejects_rebase remove t1
     case "$fix_text" in
@@ -733,7 +733,7 @@ assert_remedy_names_no_subagent() {
     esac
 }
 
-# The reviewer's sequence (finding-71): merge t2 stops at TASK-CONFLICT, and
+# The sequence: merge t2 stops at TASK-CONFLICT, and
 # the merge is not concluded. Sets change_head and t2_tip.
 stop_t2_merge_on_conflict() {
     start_tag_with_commit t2 "t2 side" src/shared.txt
@@ -777,7 +777,7 @@ assert_rejects_t2_merge_in_progress() {
 }
 
 @test "task-worktree remove: the merge of this task left in progress is CHANGE-BUSY, not TASK-HAS-COMMITS, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     stop_t2_merge_on_conflict
     assert_rejects_t2_merge_in_progress remove
     # The remedy as the fix line states it: conclude the merge, then remove.
@@ -790,7 +790,7 @@ assert_rejects_t2_merge_in_progress() {
 }
 
 @test "task-worktree discard: the merge of this task left in progress is CHANGE-BUSY, and nothing is deleted" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     stop_t2_merge_on_conflict
     assert_rejects_t2_merge_in_progress discard
     output_lacks "discarding the commits"
@@ -817,7 +817,7 @@ make_side_conflict() {
 }
 
 @test "task-worktree merge: a revert conflict left in the change worktree is CHANGE-BUSY, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     printf 'base\n' > src/shared.txt
     commit_all "a file both sides change"
     printf 'reverted side\n' > src/shared.txt
@@ -844,7 +844,7 @@ make_side_conflict() {
 }
 
 @test "task-worktree remove: unmerged entries from a stash pop in the change worktree are CHANGE-BUSY, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     printf 'base\n' > src/shared.txt
     commit_all "a file both sides change"
     start_with_commit
@@ -873,7 +873,7 @@ make_side_conflict() {
 }
 
 @test "task-worktree discard: a rebase --apply stopped on a conflict in the change worktree is CHANGE-BUSY, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     make_side_conflict
     change_head=$(git rev-parse my-change)
     task_tip=$(git rev-parse my-change-t1)
@@ -897,7 +897,7 @@ make_side_conflict() {
 }
 
 @test "task-worktree start: a merge of a commit no branch names, left in progress, is CHANGE-BUSY naming its short SHA, and nothing is created" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     make_side_conflict
     change_head=$(git rev-parse my-change)
     run git -c commit.gpgsign=false merge --no-edit "$side_commit"
@@ -922,8 +922,8 @@ make_side_conflict() {
 }
 
 @test "task-worktree start: the CHANGE-BUSY remedy for a merge leaves it to the dispatcher, and a dispatched subagent stops and reports" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-    # Before finding-92, the remedy told the agent that runs start, a dispatched
+    # verifies: REQ-uf8kwg
+    # The remedy must not tell the agent that runs start, a dispatched
     # subagent under develop-change, to run git merge --abort on the
     # dispatcher's merge.
     make_side_conflict
@@ -943,7 +943,7 @@ make_side_conflict() {
 }
 
 @test "task-worktree start: the merge of the task named left in progress is CHANGE-BUSY, left to the dispatcher" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9f46d
     stop_t2_merge_on_conflict
     run sh "$TW" start t2
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -963,7 +963,7 @@ make_side_conflict() {
 }
 
 @test "task-worktree merge: a merge that fails without a conflict exits 1 and removes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-va2bdu
     printf 'base\n' > src/shared.txt
     commit_all "a file the task branch changes"
     run sh "$TW" start t1
@@ -995,7 +995,7 @@ make_side_conflict() {
 # A hook named $1 in a hooks directory the change worktree's repository uses,
 # which exits 1: git merge completes the merge in the index and working tree,
 # then the hook rejects the merge commit, and the merge is left in progress
-# with no unmerged entry (finding-79).
+# with no unmerged entry.
 reject_merge_commit_with_hook() {
     hooks_dir="$BATS_TEST_TMPDIR/hooks"
     mkdir -p "$hooks_dir"
@@ -1052,17 +1052,17 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: a merge commit a commit-msg hook rejects leaves this task's merge in progress, and the fix line states it was not committed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9xg4th
     assert_merge_left_in_progress_by_hook commit-msg
 }
 
 @test "task-worktree merge: a merge commit a pre-merge-commit hook rejects leaves this task's merge in progress, and the fix line states it was not committed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9xg4th
     assert_merge_left_in_progress_by_hook pre-merge-commit
 }
 
 @test "task-worktree merge: a task branch with no commits is removed the same way" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-5f7cux
     run sh "$TW" start t2
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -1078,7 +1078,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree: a second start with the same tag after merge succeeds" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6erp29
     start_with_commit
     run sh "$TW" merge t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
@@ -1090,7 +1090,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: a rejected worktree removal names what was and was not removed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9aep9s
     start_with_commit
     add_submodule_to_task
     run sh "$TW" merge t1
@@ -1105,7 +1105,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: a rejected worktree removal stops before the branch deletion" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9aep9s
     start_with_commit
     add_submodule_to_task
     run sh "$TW" merge t1
@@ -1118,7 +1118,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: removes without --force, so a worktree git will not remove remains" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9aep9s
     start_with_commit
     add_submodule_to_task
     run sh "$TW" merge t1
@@ -1130,7 +1130,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: a rejected branch deletion names the removed worktree" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-2pc6y6
     start_with_commit
     lock_task_branch
     run sh "$TW" merge t1
@@ -1153,7 +1153,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree remove: a rejected branch deletion prints TASK-BRANCH-NOT-DELETED with git branch -d" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-2pc6y6
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     lock_task_branch
@@ -1175,7 +1175,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree discard: a rejected branch deletion prints TASK-BRANCH-NOT-DELETED with git branch -D" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-2pc6y6
     start_with_commit
     lock_task_branch
     run sh "$TW" discard t1
@@ -1197,7 +1197,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: rejects a tag with no task branch" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-mxn25d
     change_head=$(git rev-parse my-change)
     run sh "$TW" merge t9
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -1206,7 +1206,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: rejects the primary checkout" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-jv376u
     start_with_commit
     change_head=$(git rev-parse my-change)
     cd "$REPO"
@@ -1216,7 +1216,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree merge: merges unsigned when commit.gpgsign is true and signing fails" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-5f7cux
     start_with_commit
     # Any signing attempt runs this stub, which fails, so the fixture never
     # reaches a real key.
@@ -1234,7 +1234,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree: finish and --no-merge are usage errors" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4g5bz
     start_with_commit
     change_head=$(git rev-parse my-change)
     for args in "$retired_command t1" "$retired_command --no-merge t1" "remove --no-merge t1" "merge --no-merge t1"; do
@@ -1251,7 +1251,7 @@ assert_merge_left_in_progress_by_hook() {
 # --- remove -------------------------------------------------------------------
 
 @test "task-worktree remove: a task branch with no commits is removed and the change branch does not move" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9w2fvh
     run sh "$TW" start review
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -1267,7 +1267,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree remove: rejects a task branch with a commit and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9w2fvh
     start_with_commit
     change_head=$(git rev-parse my-change)
     task_tip=$(git rev-parse my-change-t1)
@@ -1286,7 +1286,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree remove: the TASK-DIRTY fix line names remove" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-cfm7vy
     run sh "$TW" start review
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     printf 'scratch\n' > "$CHANGE_ROOT/.worktrees/my-change-review/scratch.txt"
@@ -1300,7 +1300,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree remove: removes without --force, so a worktree git will not remove remains" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9aep9s
     start_with_commit
     add_submodule_to_task
     # The task branch is merged, so remove gets past its commit check and
@@ -1315,7 +1315,7 @@ assert_merge_left_in_progress_by_hook() {
 }
 
 @test "task-worktree remove: rejects a missing tag and an extra argument" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4g5bz
     run sh "$TW" start review
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -1334,7 +1334,7 @@ assert_merge_left_in_progress_by_hook() {
 # --- a branch checked out outside the change worktree ------------------------
 
 @test "task-worktree: merge, remove and discard reject a task branch checked out outside the change worktree" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-tjrs8a
     make_sibling
     change_head=$(git rev-parse my-change)
     sibling_tip=$(git rev-parse my-change-other)
@@ -1369,7 +1369,7 @@ assert_rejects_off_branch() {
     [ "$status" -eq 1 ] || { echo "$1: $status: $output"; false; }
     output_has "fix TASK-NOT-ON-BRANCH: "
     output_has "git -C $TASK_WT checkout my-change-t1"
-    # Under merge the line names no merging command (the round 4 ruling): the
+    # Under merge the line names no merging command: the
     # task goes back to its subagent. Under remove and discard it names the
     # command that was run.
     case "$1" in
@@ -1387,17 +1387,17 @@ assert_rejects_off_branch() {
 }
 
 @test "task-worktree merge: rejects a task worktree that is not on the task branch and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch merge
 }
 
 @test "task-worktree remove: rejects a task worktree that is not on the task branch and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch remove
 }
 
 @test "task-worktree discard: rejects a task worktree that is not on the task branch and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch discard
 }
 
@@ -1438,24 +1438,24 @@ assert_rejects_off_branch_with_commit() {
 }
 
 @test "task-worktree merge: lists a commit on a detached task worktree HEAD and names record, not merge" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch_with_commit merge
 }
 
 @test "task-worktree remove: lists a commit on a detached task worktree HEAD and names record" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch_with_commit remove
 }
 
 @test "task-worktree discard: lists a commit on a detached task worktree HEAD and names record" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch_with_commit discard
 }
 
 # --- discard ------------------------------------------------------------------
 
 @test "task-worktree discard: lists the commits, removes the worktree and the branch, and the change branch does not move" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-yw8mhj
     start_with_commit
     change_head=$(git rev-parse my-change)
     task_commit=$(git log -1 --format='%h %s' my-change-t1)
@@ -1471,7 +1471,7 @@ assert_rejects_off_branch_with_commit() {
 }
 
 @test "task-worktree discard: rejects a task worktree with an uncommitted change and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-cfm7vy
     start_with_commit
     change_head=$(git rev-parse my-change)
     task_tip=$(git rev-parse my-change-t1)
@@ -1487,7 +1487,7 @@ assert_rejects_off_branch_with_commit() {
 }
 
 @test "task-worktree discard: rejects a task worktree with a worktree registered inside it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_commit
     change_head=$(git rev-parse my-change)
     git -C "$TASK_WT" worktree add -q "$TASK_WT/.worktrees/inner" -b inner
@@ -1500,7 +1500,7 @@ assert_rejects_off_branch_with_commit() {
 }
 
 @test "task-worktree discard: rejects a tag with no task branch" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-mxn25d
     change_head=$(git rev-parse my-change)
     run sh "$TW" discard t9
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -1509,7 +1509,7 @@ assert_rejects_off_branch_with_commit() {
 }
 
 @test "task-worktree discard: rejects a missing tag, an extra argument, and --no-merge" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4g5bz
     start_with_commit
     change_head=$(git rev-parse my-change)
     run sh "$TW" discard
@@ -1546,7 +1546,7 @@ STUB
 }
 
 @test "task-worktree remove: a failed git worktree list exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -1558,7 +1558,7 @@ STUB
 }
 
 @test "task-worktree remove: a failed git status in the task worktree exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -1570,7 +1570,7 @@ STUB
 }
 
 @test "task-worktree remove: a failed git rev-list exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     start_with_commit
     change_head=$(git rev-parse my-change)
     stub_directory=$(make_failing_git rev-list)
@@ -1581,7 +1581,7 @@ STUB
 }
 
 @test "task-worktree discard: a failed git log exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     start_with_commit
     change_head=$(git rev-parse my-change)
     task_tip=$(git rev-parse my-change-t1)
@@ -1624,7 +1624,7 @@ assert_remove_rejects_unreadable_busy() {
 }
 
 @test "task-worktree remove: a failed git rev-parse --git-path rebase-merge exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     stop_rebase_on_conflict
     stub_directory=$(make_git_failing_on '*" rev-parse --git-path rebase-merge "*')
     PATH="$stub_directory:$PATH" run sh "$TW" remove t1
@@ -1636,7 +1636,7 @@ assert_remove_rejects_unreadable_busy() {
 }
 
 @test "task-worktree remove: a failed git rev-parse --git-path rebase-apply exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     stop_rebase_on_conflict
     stub_directory=$(make_git_failing_on '*" rev-parse --git-path rebase-apply "*')
     PATH="$stub_directory:$PATH" run sh "$TW" remove t1
@@ -1648,30 +1648,30 @@ assert_remove_rejects_unreadable_busy() {
 }
 
 @test "task-worktree remove: a failed git rev-parse --git-path MERGE_HEAD exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_remove_rejects_unreadable_busy '*" rev-parse --git-path MERGE_HEAD "*' \
         "git rev-parse --git-path MERGE_HEAD"
 }
 
 @test "task-worktree remove: a failed git rev-parse --git-path CHERRY_PICK_HEAD exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_remove_rejects_unreadable_busy '*" rev-parse --git-path CHERRY_PICK_HEAD "*' \
         "git rev-parse --git-path CHERRY_PICK_HEAD"
 }
 
 @test "task-worktree remove: a failed git rev-parse --git-path REVERT_HEAD exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_remove_rejects_unreadable_busy '*" rev-parse --git-path REVERT_HEAD "*' \
         "git rev-parse --git-path REVERT_HEAD"
 }
 
 @test "task-worktree remove: a failed git ls-files -u before any proof exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_remove_rejects_unreadable_busy '*" ls-files -u "*' "git ls-files -u"
 }
 
 # $1 is the case pattern of the git step that fails and $2 the step the run
-# states as failed. The reviewer's sequence (finding-73): merge t2 stops at
+# states as failed. The sequence: merge t2 stops at
 # TASK-CONFLICT, then discard t2 runs with the read of the t2 branch tip
 # failing. Before the read was checked, the merge of t2 read as another merge
 # and the remedy was to abort it and run discard t2 again.
@@ -1691,21 +1691,21 @@ assert_discard_rejects_unreadable_task_tip() {
 }
 
 @test "task-worktree discard: a failed read of the task branch tip with the merge of this task in progress exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_discard_rejects_unreadable_task_tip \
         '*" rev-parse "*"--verify refs/heads/my-change-t2 "*' \
         "git rev-parse --verify refs/heads/my-change-t2"
 }
 
 @test "task-worktree discard: a failed git show-ref of the task branch with the merge of this task in progress exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_discard_rejects_unreadable_task_tip \
         '*" show-ref --verify --quiet refs/heads/my-change-t2 "*' \
         "git show-ref --verify refs/heads/my-change-t2"
 }
 
 @test "task-worktree remove: a failed git branch --show-current exits 2, states the failure, and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -1738,25 +1738,25 @@ assert_start_rejects_unreadable_merge() {
 }
 
 @test "task-worktree start: a failed git rev-parse --verify MERGE_HEAD with a merge in progress exits 2 and creates nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_start_rejects_unreadable_merge '*" rev-parse -q --verify MERGE_HEAD "*' \
         "git rev-parse --verify MERGE_HEAD"
 }
 
 @test "task-worktree start: a failed git for-each-ref --points-at with a merge in progress exits 2 and creates nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_start_rejects_unreadable_merge '*" for-each-ref --points-at="*' \
         "git for-each-ref --points-at"
 }
 
 @test "task-worktree start: a failed git rev-parse --short with a merge in progress exits 2 and creates nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     assert_start_rejects_unreadable_merge '*" rev-parse --short "*' \
         "git rev-parse --short"
 }
 
 @test "task-worktree merge: a failed git ls-files -u after a conflicting merge exits 2 and removes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     # The stub fails ls-files -u only while MERGE_HEAD exists, so the check
     # before any proof passes and the check after the merge fails.
     start_tag_with_commit t2 "t2 side" src/shared.txt
@@ -1791,7 +1791,7 @@ STUB
 # --- a git step that fails in the TASK-NOT-ON-BRANCH proof --------------------
 
 @test "task-worktree remove: a failed git rev-list on a detached task worktree exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     start_with_commit
     git -C "$TASK_WT" checkout -q --detach
     change_head=$(git rev-parse my-change)
@@ -1804,7 +1804,7 @@ STUB
 }
 
 @test "task-worktree remove: a failed git log on a detached task worktree with a commit exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     start_with_commit
     git -C "$TASK_WT" checkout -q --detach
     printf 'detached work\n' > "$TASK_WT/src/detached.txt"
@@ -1835,7 +1835,7 @@ assert_not_registered() {
 }
 
 @test "task-worktree remove: a task worktree whose directory was deleted is retired when its branch has no commits" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-92ywv3
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -1850,7 +1850,7 @@ assert_not_registered() {
 }
 
 @test "task-worktree remove: a task worktree whose directory was deleted is rejected when its branch has commits" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-92ywv3, REQ-9w2fvh
     start_with_commit
     change_head=$(git rev-parse my-change)
     task_tip=$(git rev-parse my-change-t1)
@@ -1869,7 +1869,7 @@ assert_not_registered() {
 }
 
 @test "task-worktree discard: a task worktree whose directory was deleted is retired, and its commits are listed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-92ywv3
     start_with_commit
     change_head=$(git rev-parse my-change)
     task_commit=$(git log -1 --format='%h %s' my-change-t1)
@@ -1885,7 +1885,7 @@ assert_not_registered() {
 }
 
 @test "task-worktree merge: a task worktree whose directory was deleted is rejected, returned to its subagent, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-92ywv3
     start_with_commit
     change_head=$(git rev-parse my-change)
     task_tip=$(git rev-parse my-change-t1)
@@ -1911,7 +1911,7 @@ assert_not_registered() {
 }
 
 @test "task-worktree start: a tag whose task worktree directory was deleted is TASK-EXISTS, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-efv49s
     start_with_commit
     delete_task_directory
     run sh "$TW" start t1
@@ -1967,12 +1967,12 @@ assert_rejects_off_branch_directory_deleted() {
 }
 
 @test "task-worktree merge: a detached task worktree whose directory was deleted lists its commit and names record, not merge" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch_directory_deleted merge
 }
 
 @test "task-worktree remove: a detached task worktree whose directory was deleted lists its commit, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch_directory_deleted remove
     git worktree remove "$TASK_WT"
     run sh "$TW" remove t1
@@ -1981,7 +1981,7 @@ assert_rejects_off_branch_directory_deleted() {
 }
 
 @test "task-worktree discard: a detached task worktree whose directory was deleted lists its commit, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_off_branch_directory_deleted discard
     git worktree remove "$TASK_WT"
     run sh "$TW" discard t1
@@ -2023,17 +2023,17 @@ assert_rejects_locked() {
 }
 
 @test "task-worktree merge: rejects a locked task worktree before merging and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-u74348
     assert_rejects_locked merge
 }
 
 @test "task-worktree remove: rejects a locked task worktree and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-u74348
     assert_rejects_locked remove
 }
 
 @test "task-worktree discard: rejects a locked task worktree and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-u74348
     assert_rejects_locked discard
 }
 
@@ -2076,17 +2076,17 @@ assert_rejects_other_branch() {
 }
 
 @test "task-worktree merge: rejects a task worktree on another branch, lists its commit, and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_other_branch merge
 }
 
 @test "task-worktree remove: rejects a task worktree on another branch, lists its commit, and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_other_branch remove
 }
 
 @test "task-worktree discard: rejects a task worktree on another branch, lists its commit, and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-32x33h
     assert_rejects_other_branch discard
 }
 
@@ -2132,7 +2132,7 @@ assert_rejects_nested_task() {
 }
 
 @test "task-worktree merge: rejects a worktree nested by task-worktree.sh, and its remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_nested_task with-commit
     assert_rejects_nested_task merge
     output_has "the task goes back to its subagent (develop-change)"
@@ -2143,7 +2143,7 @@ assert_rejects_nested_task() {
 }
 
 @test "task-worktree remove: rejects a worktree nested by task-worktree.sh, and its remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_nested_task without-commit
     assert_rejects_nested_task remove
     output_has "Then run remove t1 again"
@@ -2154,7 +2154,7 @@ assert_rejects_nested_task() {
 }
 
 @test "task-worktree discard: rejects a worktree nested by task-worktree.sh, and its remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_nested_task with-commit
     assert_rejects_nested_task discard
     output_has "Then run discard t1 again"
@@ -2165,7 +2165,7 @@ assert_rejects_nested_task() {
 }
 
 @test "task-worktree remove: rejects a worktree nested by hand and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -2238,7 +2238,7 @@ retire_nested_in_missing_directory() {
 }
 
 @test "task-worktree remove: a deleted task directory with a worktree registered inside it is TASK-NESTED, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_nested_and_delete_task_directory
     assert_rejects_nested_in_missing_directory remove
     output_has "Then run remove t1 again"
@@ -2250,7 +2250,7 @@ retire_nested_in_missing_directory() {
 }
 
 @test "task-worktree discard: a deleted task directory with a worktree registered inside it is TASK-NESTED, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_nested_and_delete_task_directory
     assert_rejects_nested_in_missing_directory discard
     output_has "Then run discard t1 again"
@@ -2263,7 +2263,7 @@ retire_nested_in_missing_directory() {
 }
 
 @test "task-worktree merge: a deleted task directory with a worktree registered inside it is TASK-NESTED, returned to its subagent" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_nested_and_delete_task_directory
     assert_rejects_nested_in_missing_directory merge
     output_has "the task goes back to its subagent (develop-change)"
@@ -2277,7 +2277,7 @@ retire_nested_in_missing_directory() {
 # --- the remaining cells of the state matrix ----------------------------------
 
 @test "task-worktree discard: a task branch with no commits is removed and the change branch does not move" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-yw8mhj
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -2293,7 +2293,7 @@ retire_nested_in_missing_directory() {
 }
 
 @test "task-worktree remove: rejects a task worktree with an uncommitted change, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-cfm7vy
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     change_head=$(git rev-parse my-change)
@@ -2310,7 +2310,7 @@ retire_nested_in_missing_directory() {
 }
 
 @test "task-worktree discard: rejects a task worktree with an untracked file and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-cfm7vy
     start_with_commit
     change_head=$(git rev-parse my-change)
     printf 'new\n' > "$TASK_WT/src/untracked.txt"
@@ -2323,7 +2323,7 @@ retire_nested_in_missing_directory() {
 }
 
 @test "task-worktree start: a tag whose branch is checked out outside the change worktree is TASK-EXISTS and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-efv49s
     make_sibling
     sibling_tip=$(git rev-parse my-change-other)
     run sh "$TW" start other
@@ -2378,7 +2378,7 @@ assert_missing_names_registered_leftover() {
 }
 
 @test "task-worktree: merge, remove and discard name the registered leftover of a task path with no branch" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-mxn25d
     leave_worktree_without_branch present
     assert_missing_names_registered_leftover
     [ "$(git -C "$TASK_WT" rev-parse HEAD)" = "$LEFTOVER_HEAD" ] \
@@ -2390,7 +2390,7 @@ assert_missing_names_registered_leftover() {
 }
 
 @test "task-worktree: merge, remove and discard name the registered leftover whose directory was deleted" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-mxn25d
     leave_worktree_without_branch deleted
     assert_missing_names_registered_leftover
     git worktree remove "$TASK_WT"
@@ -2399,7 +2399,7 @@ assert_missing_names_registered_leftover() {
 }
 
 @test "task-worktree: merge, remove and discard name an unregistered leftover directory with no branch" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-mxn25d
     mkdir -p "$TASK_WT"
     printf 'keep\n' > "$TASK_WT/keep.txt"
     for command in merge remove discard; do
@@ -2455,19 +2455,19 @@ assert_rejects_unregistered_task_directory() {
 }
 
 @test "task-worktree merge: a task directory that is not a registered worktree is TASK-NOT-REGISTERED, returned to its subagent, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-k9fhtf
     assert_rejects_unregistered_task_directory merge
     output_has "the task goes back to its subagent (develop-change)"
 }
 
 @test "task-worktree remove: a task directory that is not a registered worktree is TASK-NOT-REGISTERED, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-k9fhtf
     assert_rejects_unregistered_task_directory remove
     output_has "then run remove t1 again"
 }
 
 @test "task-worktree discard: a task directory that is not a registered worktree is TASK-NOT-REGISTERED, and nothing changes" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-k9fhtf
     assert_rejects_unregistered_task_directory discard
     output_has "then run discard t1 again"
     # The remedy as the fix line states it: read, record, delete by hand.
@@ -2479,7 +2479,7 @@ assert_rejects_unregistered_task_directory() {
 }
 
 @test "task-worktree start: a registered leftover with no branch is TASK-EXISTS, with its commit listed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-efv49s
     leave_worktree_without_branch present
     run sh "$TW" start t1
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -2491,7 +2491,7 @@ assert_rejects_unregistered_task_directory() {
 }
 
 @test "task-worktree start: a registered leftover with no branch and no directory is TASK-EXISTS, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-efv49s
     leave_worktree_without_branch deleted
     run sh "$TW" start t1
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -2505,7 +2505,7 @@ assert_rejects_unregistered_task_directory() {
 }
 
 @test "task-worktree remove: a failed git log of a registered leftover with no branch exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     leave_worktree_without_branch present
     change_head=$(git rev-parse my-change)
     stub_directory=$(make_failing_git log)
@@ -2566,7 +2566,7 @@ assert_nested_from_change_worktree() {
 }
 
 @test "task-worktree: a detached task worktree whose directory was deleted, with a worktree nested inside it, is TASK-NESTED for merge, remove and discard" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_nested_task with-commit
     git -C "$TASK_WT" checkout -q --detach
     delete_task_directory
@@ -2581,7 +2581,7 @@ assert_nested_from_change_worktree() {
 }
 
 @test "task-worktree: a detached task worktree with a worktree nested inside it is TASK-NESTED for merge, remove and discard, before any checkout is named" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_nested_task with-commit
     git -C "$TASK_WT" checkout -q --detach
     assert_nested_from_change_worktree "$INNER_WT" merge remove discard
@@ -2594,7 +2594,7 @@ assert_nested_from_change_worktree() {
 }
 
 @test "task-worktree: a task worktree on another branch with a worktree nested inside it is TASK-NESTED for merge, remove and discard" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_nested_task with-commit
     git -C "$TASK_WT" checkout -q -b other-branch
     assert_nested_from_change_worktree "$INNER_WT" merge remove discard
@@ -2602,7 +2602,7 @@ assert_nested_from_change_worktree() {
 }
 
 @test "task-worktree: a registered leftover with no task branch and a worktree nested inside it is TASK-NESTED for start, merge, remove and discard" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     start_with_nested_task without-commit
     git -C "$TASK_WT" checkout -q --detach
     git branch -q -D my-change-t1
@@ -2618,7 +2618,7 @@ assert_nested_from_change_worktree() {
 }
 
 @test "task-worktree: an unregistered task directory with a worktree registered inside it is TASK-NESTED for start, merge, remove and discard" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-fg6q6u
     mkdir -p "$TASK_WT/.worktrees"
     git worktree add -q "$TASK_WT/.worktrees/inner" -b inner
     assert_nested_from_change_worktree "$TASK_WT/.worktrees/inner" start merge remove discard
@@ -2667,7 +2667,7 @@ assert_not_removed_and_retired() {
 }
 
 @test "task-worktree remove: a rejected worktree removal prints TASK-NOT-REMOVED, changes nothing, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9aep9s
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     add_submodule_to_task
@@ -2678,7 +2678,7 @@ assert_not_removed_and_retired() {
 }
 
 @test "task-worktree discard: a rejected worktree removal prints TASK-NOT-REMOVED, deletes nothing, and the remedy retires it" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9aep9s
     start_with_commit
     add_submodule_to_task
     assert_not_removed_and_retired discard
@@ -2704,7 +2704,7 @@ assert_nothing_started() {
 }
 
 @test "task-worktree start: a failed git rev-parse --git-dir exits 2 and creates nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     # Before the status was taken, an empty git dir differed from the common
     # git dir, and the primary-checkout check passed.
     stub_directory=$(make_git_failing_on '*" rev-parse --git-dir "*')
@@ -2715,7 +2715,7 @@ assert_nothing_started() {
 }
 
 @test "task-worktree start: a failed git rev-parse --git-common-dir exits 2 and creates nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     stub_directory=$(make_git_failing_on '*" rev-parse --git-common-dir "*')
     PATH="$stub_directory:$PATH" run sh "$TW" start t1
     assert_git_step_unreadable \
@@ -2724,7 +2724,7 @@ assert_nothing_started() {
 }
 
 @test "task-worktree remove: a failed git show-ref of the task branch exits 2, is not read as an absent branch, and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     # Before the status was taken, the failure read as "no task branch", and
     # the TASK-MISSING remedy removed the registration of a worktree whose
     # branch has a commit.
@@ -2739,7 +2739,7 @@ assert_nothing_started() {
 }
 
 @test "task-worktree start: a failed git check-ignore exits 2, is not read as .worktrees/ not ignored, and creates nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     stub_directory=$(make_git_failing_on '*" check-ignore -q .worktrees/ "*')
     PATH="$stub_directory:$PATH" run sh "$TW" start t1
     assert_git_step_unreadable \
@@ -2749,9 +2749,9 @@ assert_nothing_started() {
 }
 
 @test "task-worktree remove: a failed git log of the commits TASK-HAS-COMMITS lists exits 2 and changes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-    # Before the status was taken, the fix line asked for each listed commit
-    # to be recorded, and none was listed.
+    # verifies: REQ-6vfb6a
+    # Without the status, the fix line would ask for each listed commit to be
+    # recorded while listing none.
     start_with_commit
     change_head=$(git rev-parse my-change)
     stub_directory=$(make_git_failing_on '*" log --oneline refs/heads/my-change..refs/heads/my-change-t1 "*')
@@ -2771,7 +2771,7 @@ start_conflicting_task() {
 }
 
 @test "task-worktree merge: a failed git rev-parse --verify MERGE_HEAD after a conflicting merge exits 2 and removes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     # Before the status was taken, the failure read as "no merge in progress",
     # and TASK-MERGE-FAILED stated that nothing was merged.
     start_conflicting_task
@@ -2783,7 +2783,7 @@ start_conflicting_task() {
 }
 
 @test "task-worktree merge: a failed git rev-parse of the task branch tip after a conflicting merge exits 2 and removes nothing" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6vfb6a
     start_conflicting_task
     stub_directory=$(make_git_failing_on '*" rev-parse --verify refs/heads/my-change-t1 "*')
     PATH="$stub_directory:$PATH" run sh "$TW" merge t1
@@ -2796,7 +2796,7 @@ start_conflicting_task() {
 
 # A tag named $1 at the change branch tip: annotated when $2 is annotated,
 # lightweight otherwise. git resolves a bare name that is both a branch and a
-# tag to the tag (finding-87).
+# tag to the tag.
 tag_change_tip() {
     if [ "$2" = annotated ]; then
         git -c tag.gpgsign=false tag -a -m "a tag named $1" "$1" refs/heads/my-change
@@ -2806,7 +2806,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree merge: a tag named as the task branch does not replace it, and the task commit is merged" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-5f7cux
     start_with_commit
     task_tip=$(git rev-parse refs/heads/my-change-t1)
     tag_change_tip my-change-t1 annotated
@@ -2825,7 +2825,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree remove: a tag named as the task branch does not hide its commits, and remove rejects with TASK-HAS-COMMITS" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9w2fvh
     start_with_commit
     change_head=$(git rev-parse refs/heads/my-change)
     task_tip=$(git rev-parse refs/heads/my-change-t1)
@@ -2840,7 +2840,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree discard: a tag named as the task branch does not hide its commits, and discard lists them" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-yw8mhj
     start_with_commit
     task_short=$(git rev-parse --short refs/heads/my-change-t1)
     tag_change_tip my-change-t1 lightweight
@@ -2853,7 +2853,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree start: a tag named as the change branch does not replace it as the start point" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6erp29
     git -c tag.gpgsign=false tag my-change refs/heads/main
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
@@ -2862,7 +2862,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree remove: a tag named as the change branch does not hide the task commits" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9w2fvh
     start_with_commit
     change_head=$(git rev-parse refs/heads/my-change)
     git -c tag.gpgsign=false tag my-change refs/heads/my-change-t1
@@ -2877,7 +2877,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree remove: a tag named as the task branch does not hide the commits on a task worktree off its branch" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9w2fvh
     run sh "$TW" start t1
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     git -C "$TASK_WT" checkout -q --detach
@@ -2896,7 +2896,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree remove: a tag named as the change branch does not hide the commits on a leftover task path" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-9w2fvh
     start_with_commit
     git -C "$TASK_WT" checkout -q --detach
     git branch -D -q my-change-t1
@@ -2910,9 +2910,9 @@ tag_change_tip() {
 # --- a tag that is not a valid ref name ---------------------------------------
 
 @test "task-worktree: every command rejects a tag that makes the task branch an invalid ref name, with exit 2 and the usage" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-r4g5bz
     # Before the check, git worktree add rejected the name and TASK-NOT-CREATED
-    # asked for start to be run again with the same tag (finding-88).
+    # asked for start to be run again with the same tag.
     for subcommand in start merge remove discard; do
         for tag in 't..x' 'x.lock' 'a~1' 'b:c' 'q?' 'a^b' 'a*' 'a[b' 'a\b' 'x.' 'a@{b'; do
             run sh "$TW" "$subcommand" "$tag"
@@ -2928,7 +2928,7 @@ tag_change_tip() {
 }
 
 @test "task-worktree start: accepts a tag that begins with a dot, which makes a valid branch name" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-6erp29
     run sh "$TW" start .t1
     [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
     branch_exists my-change-.t1 || { echo "no task branch"; false; }
@@ -2945,9 +2945,8 @@ run_without_editor() {
 }
 
 @test "task-worktree merge: the TASK-CONFLICT remedy concludes the merge with no editor, exactly as printed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-    # Before --no-edit, git commit opened an editor, and with none it exited 1
-    # (finding-89).
+    # verifies: REQ-9xg4th
+    # Without --no-edit, git commit opens an editor and, with none, exits 1.
     start_conflicting_task
     run sh "$TW" merge t1
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -2966,10 +2965,9 @@ run_without_editor() {
 }
 
 @test "task-worktree merge: the CHANGE-BUSY remedy for a rebase concludes it with no editor, exactly as printed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-    # Before core.editor=true, git rebase --continue opened an editor for the
-    # message of the commit that conflicted, and with none it exited 1
-    # (finding-90).
+    # verifies: REQ-uf8kwg
+    # Without core.editor=true, git rebase --continue opens an editor for the
+    # message of the commit that conflicted and, with none, exits 1.
     stop_rebase_on_conflict
     run sh "$TW" merge t1
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
@@ -2988,7 +2986,7 @@ run_without_editor() {
 }
 
 @test "task-worktree merge: the CHANGE-BUSY remedy for a cherry-pick concludes it with no editor, exactly as printed" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-uf8kwg
     printf 'base\n' > src/shared.txt
     commit_all "a file both sides change"
     git branch picked

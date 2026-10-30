@@ -1,12 +1,12 @@
 load helpers
 
 # The fixture reads no global or system git config: helpers.bash points
-# GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM at /dev/null for every suite file
-# (PR-ad4vmm). Without that, a setting these tests deliberately leave unset is
+# GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM at /dev/null for every suite file.
+# Without that, a setting these tests deliberately leave unset is
 # answered from the developer's own: with the fixture's gpg.format unset,
 # --setup resolved a hardware-token key and blocked the suite waiting for a
 # touch, and with gpg.ssh.allowedSignersFile unset git verified against the
-# one in ~/.gitconfig (PR-gw6wts).
+# one in ~/.gitconfig.
 setup() {
     make_fixture_repo
 }
@@ -35,7 +35,7 @@ signed_commit() {
 #
 # The stub reads the payload git writes to it before it fails. A stub that
 # exits first races git's write, and when git loses, it dies of SIGPIPE and
-# the run measures the dead-git verdict instead of `B` (PR-8zcc72). Only
+# the run measures the dead-git verdict instead of `B`. Only
 # check-novalidate and verify are handed a payload; find-principals reads
 # nothing, and a stub that read there would wait on whatever stdin it
 # inherited.
@@ -54,7 +54,7 @@ STUB
 
 # A verifier whose failure kills git itself, so `git log --format=%G?` exits
 # without printing a letter. This is the state a stub that exits without
-# reading its stdin produced intermittently under load (PR-8zcc72): when
+# reading its stdin produced intermittently under load: when
 # find-principals fails, git hands the signed payload to a second verifier
 # call on stdin, and if that call has already exited, git dies of SIGPIPE,
 # measured at exit 141. Here the kill is deterministic, and it happens on the
@@ -88,7 +88,7 @@ STUB
 }
 
 @test "check-signing: a good signature passes --strict with log.showSignature set" {
-    # verifies: PR-nyw3ww
+    # verifies: REQ-89mnna
     # log.showSignature makes git log print the verifier's output above the
     # %G? letter: without --no-show-signature, the value read back is that
     # output plus the letter, not G alone.
@@ -101,7 +101,7 @@ STUB
 }
 
 @test "check-signing: with log.showSignature set, an unsigned commit and an untrusted signature still fail --strict" {
-    # verifies: PR-nyw3ww
+    # verifies: REQ-89mnna
     # The setting must not reach the verdict in either direction: reading the
     # letter past the verifier's output may not turn a failure into a pass.
     git config log.showSignature true
@@ -148,12 +148,11 @@ STUB
 }
 
 @test "check-signing: a failed verdict contains the verifier's own reason" {
-    # verifies: PR-whkz8m
+    # verifies: REQ-3dxnhf
     # `git log --format=%G?` returns a letter and throws the verifier's output
-    # away — measured, zero bytes on stderr. Before this, the script filled the
-    # gap by GUESSING a cause: it appended the ssh trust-root remedy to every
-    # verdict alike, including the OpenPGP commits that never read that
-    # setting. The real cause was one command away the whole time.
+    # away — zero bytes on stderr. A guessed cause, such as the ssh trust-root
+    # remedy appended to every verdict alike, would be wrong for the OpenPGP
+    # commits that never read that setting; the real cause is one command away.
     setup_ssh_signing
     signed_commit a
     break_the_verifier
@@ -164,7 +163,7 @@ STUB
 }
 
 @test "check-signing: a verifier that cannot run is not called a forgery" {
-    # verifies: PR-74gcqg
+    # verifies: REQ-ftg567
     # %G? is `B` both for a signature that was checked and rejected and for a
     # verifier that was never run. Stating "bad, expired, or revoked" of the
     # second accuses the signer of something the tool did not measure.
@@ -181,18 +180,12 @@ STUB
 }
 
 @test "check-signing: a rejected signature still fails without --strict" {
-    # Deliberately contains NO `verifies:` annotation, and that is the finding
-    # rather than an oversight. It was green on its first run, before the
-    # script was touched, and could not have been otherwise: the old `B` branch
-    # already failed in both modes with no `WARN-` prefix, so both assertions
-    # passed against it. It therefore verifies nothing about PR-74gcqg — the test
-    # above does, and that one was watched failing. Annotating it anyway would
-    # put a `verifies:` line behind no red->green attestation, which is the one
-    # thing `develop-tdd` forbids in the rule that opens its Steps section,
-    # "No production code without a failing test first", and in step 2,
-    # "Verify RED". What it IS is a pin: the
-    # wording changed, the verdict must not, and the tolerant mode must not
-    # start passing a signature the verifier rejected.
+    # A pin on the verdict: without --strict, a signature the verifier
+    # rejected still fails, and fails with no `WARN-` prefix, whatever words
+    # the report uses for the cause. It carries no `verifies:` line because no
+    # requirement states that verdict: REQ-ftg567 governs the wording, which
+    # the test above verifies, and REQ-69eacq covers a verdict git could not
+    # compute, not one it computed as rejected.
     setup_ssh_signing
     signed_commit a
     break_the_verifier
@@ -202,7 +195,7 @@ STUB
 }
 
 @test "check-signing: a verdict git could not compute fails without --strict" {
-    # verifies: PR-8zcc72
+    # verifies: REQ-69eacq
     # `git log --format=%G?` that dies prints no letter at all. The script read
     # the empty answer as "signature present but did not verify" and, without
     # --strict, passed it as WARN-UNVERIFIED: a commit nobody verified,
@@ -220,7 +213,7 @@ STUB
 }
 
 @test "check-signing: a verdict git could not compute fails under --strict" {
-    # verifies: PR-8zcc72
+    # verifies: REQ-69eacq
     setup_ssh_signing
     signed_commit a
     kill_git_from_the_verifier
@@ -231,10 +224,10 @@ STUB
 }
 
 @test "check-signing: a verdict git could not compute with an unreadable trust root exits 2" {
-    # verifies: PR-8zcc72
+    # verifies: REQ-69eacq, REQ-d6vwa2
     # The header promises exit 2 in every mode for a trust root that exists
-    # but cannot be read. Before PR-8zcc72 a dead `git log` reached that guard
-    # through `*)`; the branch that now reports it must keep the promise.
+    # but cannot be read. A dead `git log` reaches that guard through its own
+    # branch, not `*)`, and that branch must keep the promise.
     [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
     setup_ssh_signing
     signed_commit a
@@ -256,7 +249,7 @@ unsigned_commit_mentioning_gpgsig() {
 }
 
 @test "check-signing: a gpgsig line in the message does not make a commit signed" {
-    # verifies: PR-qm5gfy
+    # verifies: REQ-ngmbw6
     # `^gpgsig` was matched against the whole commit object, message included,
     # so this unsigned commit read as signed: WARN-UNVERIFIED with exit 0.
     unsigned_commit_mentioning_gpgsig
@@ -267,7 +260,7 @@ unsigned_commit_mentioning_gpgsig() {
 }
 
 @test "check-signing: a test does not read the developer's global git config" {
-    # verifies: PR-gw6wts
+    # verifies: REQ-2d5tsw
     # The reported-once test below unsets the fixture's trust root and failed
     # on a machine whose ~/.gitconfig names one, because git answered with
     # that file instead. Here the developer's config is planted in a HOME of
@@ -288,12 +281,11 @@ unsigned_commit_mentioning_gpgsig() {
 }
 
 @test "check-signing: the verifier's reason is reported once, under its verdict" {
-    # verifies: PR-whkz8m
+    # verifies: REQ-3dxnhf
     # `git log --format=%G?` leaks git's OWN diagnostic to stderr for an ssh
     # signature and leaks nothing for an OpenPGP one. Unindented and printed
     # before the verdict, that copy reads as a separate failure — and it
-    # appears for only one of the two formats, which is the asymmetry this
-    # whole change removes. The reason belongs under the verdict it explains,
+    # appears for only one of the two formats. The reason belongs under the verdict it explains,
     # once, put there by this script.
     setup_ssh_signing
     signed_commit a
@@ -302,9 +294,8 @@ unsigned_commit_mentioning_gpgsig() {
     [ "$status" -eq 0 ] || { echo "expected exit 0, got $status: $output"; false; }
     [[ "$output" == *"allowedSignersFile"* ]] \
         || { echo "the reason went missing entirely: $output"; false; }
-    # "once" is half the claim in the name and the whole of PR-52rnrn's
-    # resolution, and nothing here measured it: two indented copies passed
-    # every other assertion in this test unchanged. Counted, not eyeballed.
+    # "once" is half the claim in the name, and two indented copies pass every
+    # other assertion in this test unchanged. Counted, not eyeballed.
     n=$(printf '%s\n' "$output" | grep -c 'allowedSignersFile')
     [ "$n" -eq 1 ] || { echo "the reason appeared $n times, not once: $output"; false; }
     if printf '%s\n' "$output" | grep -q '^error:'; then
@@ -314,20 +305,19 @@ unsigned_commit_mentioning_gpgsig() {
 }
 
 @test "check-signing: an untrusted signature contains the verifier's reason too" {
-    # verifies: PR-whkz8m
+    # verifies: REQ-3dxnhf
     # The third of the three places the reason is printed, and the only one no
-    # test reached. Measured, because this change exists to stop a tool
-    # asserting a cause nobody read: of the other two PR-52rnrn tests, the
-    # broken-verifier one is in `B|X|Y|R` (%G? = B) and the reported-once
-    # one in `*)` (%G? = N). Deleting verifier_reason from the U|E branch left
-    # the whole suite green.
+    # other test reaches: of the other two reason tests, the broken-verifier
+    # one is in `B|X|Y|R` (%G? = B) and the reported-once one in `*)`
+    # (%G? = N), so without this one, deleting verifier_reason from the U|E
+    # branch would leave the whole suite green.
     #
     # A signers file that is PRESENT and READABLE — so the environment guard
     # does not fire — naming a DIFFERENT key: the signature verifies
-    # cryptographically and no principal owns it. Measured 2026-09-02, that is
-    # %G? = U, and git verify-commit states "No principal matched." Without the
-    # reason, "signature present but did not verify" is a verdict with no cause
-    # attached, and the cause here is not the one the old guessed remedy named.
+    # cryptographically and no principal owns it. That is %G? = U, and git
+    # verify-commit states "No principal matched." Without the reason,
+    # "signature present but did not verify" is a verdict with no cause
+    # attached.
     setup_ssh_signing
     signed_commit a
     ssh-keygen -t ed25519 -N '' -f "$BATS_TEST_TMPDIR/other_key" -q
@@ -346,7 +336,7 @@ unsigned_commit_mentioning_gpgsig() {
 }
 
 @test "check-signing: --strict exits 2 when the trust root exists but cannot be read" {
-    # verifies: PR-mvqm4s
+    # verifies: REQ-d6vwa2
     # An unverifiable signature and an environment that cannot verify any
     # signature both read %G? = U/E, and --strict reported UNVERIFIED exit 1
     # for both — "the project is wrong" — sending the operator hunting in the
@@ -362,7 +352,7 @@ unsigned_commit_mentioning_gpgsig() {
 }
 
 @test "check-signing: --strict stays exit 1 when the trust root path is absent" {
-    # verifies: PR-mvqm4s
+    # verifies: REQ-d6vwa2
     # Configured-but-absent is the typo case — a path the project wrote
     # wrong, so exit 1 ("the project is wrong") is the correct verdict; only
     # present-but-permission-denied is the environment's fault.
@@ -470,13 +460,10 @@ setup_proved_signing() {
     # The fixture repo has no signing configuration at all. One verdict for
     # three separate gaps is two more runs than the operator needs.
     #
-    # This test used to assert MISSING gpg.format here as well. That assertion
-    # was removed because it was measured wrong, not because it was
-    # inconvenient: git documents the default for gpg.format as openpgp, so a
-    # project that never sets it HAS a format and signs perfectly well — this
-    # repository's own commits are openpgp-signed with gpg.format unset
-    # (PR-mtmr7h). The assertion is inverted rather than deleted, so the
-    # corrected behaviour is still gated here; and the two gaps that really do
+    # MISSING gpg.format must NOT be reported: git documents the default for
+    # gpg.format as openpgp, so a project that never sets it HAS a format and
+    # signs perfectly well — this repository's own commits are openpgp-signed
+    # with gpg.format unset. The two gaps that really do
     # stop this repository signing anything, the key and commit.gpgsign, are
     # still asserted, along with the exit status.
     run sh .guardrails/scripts/check-signing.sh --setup
@@ -487,7 +474,7 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup does not call git's default format missing" {
-    # verifies: PR-mtmr7h
+    # verifies: REQ-mf8nxj
     # gpg.format unset IS a configured format: git documents the default as
     # openpgp, and this repository's own commits are signed that way. Calling
     # it MISSING named a non-problem to the one operator who had none, and
@@ -502,8 +489,8 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup passes a real format into the proof, not an empty one" {
-    # verifies: PR-mtmr7h
-    # The half of the fix no test reached. `_fmt` is written into the throwaway
+    # verifies: REQ-mf8nxj
+    # `_fmt` is written into the throwaway
     # repository, and `git config gpg.format ""` is REJECTED by git rather than
     # read as unset, so the proof dies before signing anything and --setup
     # blames a project whose configuration is fine. The two tests above assert
@@ -568,7 +555,7 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup exits 2 when the trust root exists but cannot be read" {
-    # verifies: PR-mvqm4s
+    # verifies: REQ-d6vwa2
     # The same split as the --strict test above: absent stays a named
     # UNREADABLE finding at exit 1 (a typo in the path is a project error),
     # but present-and-permission-denied is the environment's fault, and exit
@@ -581,7 +568,7 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup exits 2 when the gpg keyring cannot be read" {
-    # verifies: PR-mvqm4s
+    # verifies: REQ-d6vwa2
     # The openpgp trust root is the caller's keyring, not a configured file —
     # the reported case is a process that cannot read ~/.gnupg at all. That
     # is never a project setting, so it is exit 2 wherever it is found.
@@ -598,7 +585,7 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup ignores a worktree-scoped commit.gpgsign false" {
-    # verifies: PR-2qdy9c
+    # verifies: REQ-vzja7g
     # worktree-discipline leaves worktree commits unsigned on purpose; a
     # project that writes that down as worktree-scoped config is following
     # the discipline, not missing a setting. Read from inside the worktree,
@@ -617,7 +604,7 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup still reports a real commit.gpgsign gap from a worktree" {
-    # verifies: PR-2qdy9c
+    # verifies: REQ-vzja7g
     # The scope filter must not hide a genuine gap: a shared config that
     # never set the key is MISSING wherever the check runs from.
     setup_proved_signing

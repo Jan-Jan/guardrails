@@ -7,8 +7,9 @@ proposing to change one.
 
 The interview writes `units:`, `not_a_unit:`, `safety_class:`, `depends_on:`
 and `segregated_from:`. It does not ask whether the class floor applies,
-whether a unit may see another's internals, or which units run at merge: those
-are D4, D5 and D6 of `docs/plans/2026-08-26-monorepo-support.md`. Every
+whether a unit may see another's internals, or which units run at merge: the
+toolkit fixes them (ADR-tr72dr for the class floor, ADR-ah4b5t for another
+unit's internals, ADR-dy4qcm for the units run at merge). Every
 configurable version of them is a gate that does not run while nothing in the
 output reports it.
 
@@ -90,9 +91,9 @@ A pipe sets `$?` to the status of its last command, so
 ## The guardrails checkout is cloned before anything is read from it
 
 The suite takes about twenty minutes and its tests read the files of the tree
-they live in. When a commit was made in the checkout during an adopter's run,
-the log mixed the two commits' tests, and the commit recorded as qualified was
-the one the run started on (PR-y8ff5p). The scaffold, retrofit and upgrade
+they live in. A commit made in the checkout during a run mixes the two
+commits' tests in the log, while the commit recorded as qualified is the one
+the run started on. The scaffold, retrofit and upgrade
 copies read the same tree and can mix commits the same way. A clone holds one commit and
 nothing edits it, so every copy and the suite read the same code, and
 `git -C <guardrails> rev-parse HEAD` names it. Uncommitted edits in the
@@ -152,13 +153,12 @@ is neither a system bats nor a `tests/.bats-core/`. A fresh clone has no
 to skip the download.
 
 An export (`git archive | tar -x`) also holds one commit, but it has no
-`.git`, and `tests/mutate.sh` runs `git ls-files` on the repository it lives
-in, so `tests/mutations.bats` cannot pass in one.
+`.git`, and the suite's tests run git on the tree they live in.
 
 A symlinked skill resolves to `skills/ratchet/` inside the checkout, so the
 repository two levels above it is the checkout. A copy made by
 `install.sh --copy` lives in the skills directory, and two levels above it is
-that directory's parent, such as `~/.claude` (PR-783b29). So the copy records
+that directory's parent, such as `~/.claude`. So the copy records
 the checkout's path in `.guardrails-source`, and step 0 reads it first.
 
 ## The exit status goes in `rc`
@@ -166,7 +166,7 @@ the checkout's path in `.guardrails-source`, and step 0 reads it first.
 zsh reserves `status` as a read-only mirror of `$?`: `status=$?` fails with
 `read-only variable: status`, which aborts a non-interactive zsh and, in an
 interactive one, leaves the failed assignment's 1 where the suite's status
-should be (PR-ww36qr). `rc` is special in no common shell. A pipe into `tee`
+should be. `rc` is special in no common shell. A pipe into `tee`
 is no way around it: a pipe's `$?` is the status of its last command, tee's.
 
 ## `check-review.sh` is not a CI gate on the base branch

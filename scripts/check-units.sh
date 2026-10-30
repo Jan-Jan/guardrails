@@ -3,15 +3,14 @@
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
 # check-units.sh [--impact RANGE | --exports UNIT | --list]
 #
-# The repository-level entry point of the unit machinery
-# (docs/plans/2026-09-03-units-architecture.md item 6). Default mode, exit 1
+# The repository-level entry point of the unit machinery. Default mode, exit 1
 # findings after exit-2 validation:
 #   UNCLAIMED-PATH PATH      — a tracked path claimed by no unit, not
 #                              disclaimed, not a root-level file, not under
-#                              the root .guardrails/ (D7)
+#                              the root .guardrails/ (ADR-dy4qcm)
 #   MISCLASSED-DEPENDENCY U  — provider U's class below the ceiling of its
 #                              consumers' classes, with no covering
-#                              segregation (D5)
+#                              segregation (ADR-tr72dr)
 #   INCOMPLETE-SEGREGATION   — a segregated_from: entry that names a
 #                              non-dependency, cites a control nobody defined,
 #                              cites an ADR file path that is absent, cites
@@ -23,8 +22,9 @@
 #                              **ADR-<token>**:. The accepted citations are
 #                              (RC-<id>), (ADR-<token>) and (adr: <path>).
 #   DISCLAIMED-DRAFT         — a draft token or DRAFT-named file under a
-#                              not_a_unit: path (risk assessment 3,
-#                              2026-09-03): draft work has no legitimate home
+#                              not_a_unit: path (docs/risk/
+#                              2026-09-03-units-architecture-derived.md,
+#                              section 3): draft work has no legitimate home
 #                              in a disclaimed directory, and no unit's scoped
 #                              run scans one, so the conviction lives here —
 #                              blocking every unit's merge is the point.
@@ -43,7 +43,7 @@
 # for near-misses — that is where another tool's units.yml legitimately lives.
 #
 # --impact RANGE: the units a change must run — touched units plus transitive
-#   dependents (D6+D12), one per line as "<unit>\t<touched|dependent>". A
+#   dependents, one per line as "<unit>\t<touched|dependent>". A
 #   changed path claimed by nobody is exit 2 HERE (a partial impact set would
 #   read as complete to merge-change); the finding to fix is default mode's
 #   UNCLAIMED-PATH. A change under the root .guardrails/ maps to EVERY unit.
@@ -95,11 +95,12 @@ if [ "$manifest_exact" -eq 0 ]; then
   manifest. An empty answer here would read as 'no units to run', which is a
   skipped suite wearing a green light."
 
-    # Two or more unit-shaped configs with no manifest: D2's rejected-glob
-    # situation observed in the wild. The second config is invisible to every
-    # script today — a unit outside compliance at exit 0. ONE non-root config
-    # stays legal: it is the documented GR_CONFIG project-in-subdirectory
-    # layout (risk assessment 2 verified the threshold).
+    # Two or more unit-shaped configs with no manifest: the case discovery by
+    # convention cannot tell apart (ADR-dy4qcm), and one real repositories
+    # have. No script reads the second config — a unit outside
+    # compliance at exit 0. ONE non-root config stays legal: it is the
+    # documented GR_CONFIG project-in-subdirectory layout
+    # (docs/risk/2026-09-03-units-architecture-derived.md, section 2, verifies the threshold).
     strays=$(git ls-files --cached --others --exclude-standard -- '*/.guardrails/config.yaml' 2>/dev/null)
     n_strays=$(printf '%s' "$strays" | grep -c .) || true
     if [ "$n_strays" -ge 2 ]; then
@@ -110,7 +111,8 @@ $(printf '%s\n' "$strays" | sed 's/^/  /')
   the run exits 0. Declare them in $GR_UNITS, or remove all but one."
     fi
 
-    # The near-miss scan (risk assessment 2, 2026-09-03): only the manifest's
+    # The near-miss scan (docs/risk/2026-09-03-units-architecture-derived.md,
+    # section 2): only the manifest's
     # own directory, only the near-miss name class, only manifest-shaped
     # content. All three narrowings are critical — see the assessment for
     # what each one leaves as accepted residual.
@@ -149,8 +151,8 @@ units=$(gr_unit_list)
 disclaimed=$(gr_disclaimed_list)
 
 # unit_class UNIT — safety_class, validated: A, B or C prints its rank; TBD
-# and anything else dies, but ONLY when the caller is computing an edge (D5:
-# a floor computed from a placeholder is a gate disabling itself). Standalone
+# and anything else dies, but ONLY when the caller is computing an edge (a
+# floor computed from a placeholder is a gate disabling itself). Standalone
 # units keep TBD legally — tooth one.
 class_rank() {
     case "$1" in
@@ -209,7 +211,7 @@ case "$mode" in
 }$w" ;;
         esac
     done
-    # Transitive closure over reverse depends_on (D12): a unit whose
+    # Transitive closure over reverse depends_on: a unit whose
     # dependency chain reaches a touched unit ships that unit's changed
     # object code, whatever the intermediate contracts state.
     impact="$touched"
@@ -242,11 +244,11 @@ esac
 # --- default mode findings ---------------------------------------------------
 fail=0
 
-# UNCLAIMED-PATH (D7): every tracked path is claimed by a unit, disclaimed,
-# a root-level file, or under the root .guardrails/ (the manifest's own home
-# — D7 names "the manifest itself" implicitly disclaimed, and the installed
-# scripts live beside it). Everything else is the distinction D2's rejected
-# glob could not make: "not yet ratcheted", loudly.
+# UNCLAIMED-PATH (ADR-dy4qcm): every tracked path is claimed by a unit,
+# disclaimed, a root-level file, or under the root .guardrails/ (the
+# manifest's own home, implicitly disclaimed, and the installed scripts live
+# beside it). Everything else is the distinction discovery by convention
+# could not make: "not yet ratcheted", loudly.
 unclaimed=$(git ls-files --cached --others --exclude-standard 2>/dev/null | {
     while IFS= read -r p; do
         case "$p" in
@@ -265,7 +267,8 @@ if [ -n "$unclaimed" ]; then
     fail=1
 fi
 
-# DISCLAIMED-DRAFT (risk assessment 3, 2026-09-03): draft tokens and
+# DISCLAIMED-DRAFT (docs/risk/2026-09-03-units-architecture-derived.md, section 3):
+# draft tokens and
 # DRAFT-named files on every surface no unit run scans — the not_a_unit:
 # paths, tracked root-level files, and the root .guardrails/ (all three are
 # UNCLAIMED-PATH-exempt, so without this scan a draft parked there is scanned
@@ -306,7 +309,7 @@ if [ -n "$root_files" ]; then
 fi
 scan_drafts .guardrails ':(exclude).guardrails/scripts'
 
-# The class floor (D5) and its escape. Per consumer edge: the provider's
+# The class floor (ADR-tr72dr) and its escape. Per consumer edge: the provider's
 # class must reach the consumer's, or the consumer declares segregation whose
 # citation resolves.
 for c in $units; do
@@ -354,7 +357,7 @@ for c in $units; do
                     fi
                 fi ;;
             (ADR-*)
-                # D4 accepts a random token only: the token is checked against
+                # An ADR ID takes a random token only: the token is checked against
                 # GR_ID_TOKEN, which excludes the sequential form, before it is
                 # pasted into a glob: `ADR-*` would otherwise match any file.
                 # The glob needs `set +f`; the script runs under `set -f`.
@@ -365,7 +368,7 @@ for c in $units; do
                     continue
                 fi
                 # A file resolves the citation only if its first line is the
-                # item line that defines the cited ID (D1), as an (RC-…)
+                # item line that defines the cited ID, as an (RC-…)
                 # citation requires its definition line.
                 s_adr_found=0
                 s_adr_read=
@@ -402,7 +405,7 @@ for c in $units; do
     c_class=$(cfg_get safety_class "$c_cfg")
     for p in $(deps_of "$c"); do
         p_class=$(cfg_get safety_class "$p/.guardrails/config.yaml")
-        # TBD on either end of an EDGE is exit 2 (D5): the interview never
+        # TBD on either end of an EDGE is exit 2: the interview never
         # happened, and a floor computed from a placeholder is a gate
         # disabling itself. A standalone unit keeps TBD legally.
         for end in "$c:$c_class" "$p:$p_class"; do

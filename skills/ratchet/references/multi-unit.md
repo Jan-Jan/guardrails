@@ -23,6 +23,6 @@ or step 3.3 installs any file.
   `(ADR-<token>)`, because `check-units.sh` resolves it.
 - The step 4 safety-class interview runs once per unit, and each answer goes
   to `safety_class:` in that unit's config. The per-unit class is the input to
-  the class floor (D5), and it is the interview most likely to be skipped.
+  the class floor, and it is the interview most likely to be skipped.
 - After the files are written, `.guardrails/scripts/check-units.sh` validates
   the manifest and every unit's config in one pass.

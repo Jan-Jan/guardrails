@@ -34,8 +34,7 @@
 # MALFORMED-ID scans narrow to the unit; DUPLICATE-ID stays tree-wide.
 #
 # After the violation lines, one `fix <RULE>: <remedy>` line per rule that
-# fired, in the order the rules first fired (D8 of
-# docs/plans/2026-09-28-agent-first-skills.md). check_ids_remedy below is the
+# fired, in the order the rules first fired. check_ids_remedy below is the
 # remedy table; tests/remedies.bats checks that it has one entry per rule
 # above.
 #
@@ -61,19 +60,16 @@ check_ids_remedy() {
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
 
-# The engagement rule (architecture item 2): with no manifest this is a
+# The engagement rule: with no manifest this is a
 # no-op and everything below is exactly the single-unit script. Engaged,
 # GR_UNIT names the unit whose config this run reads, and the scans below
 # that narrow to the unit switch on — DUPLICATE-ID alone stays tree-wide.
 gr_unit_engage
 
-# This gate validated nothing about the config until change B — recorded as gap
-# 3 in docs/verification/2026-08-18-config-schema.md. It reads only
-# id_prefixes, so the omission looked harmless; it was not. Every shape
-# gr_check_config exists to reject — a misspelled key, a key hidden behind a
-# BOM, a declared prefix whose gate inputs are unconfigured — was caught by the
-# traceability and finalize gates only, so a project running check-ids.sh alone
-# got no config validation at all.
+# Validated although this gate reads only id_prefixes: a project running
+# check-ids.sh alone must still have every shape gr_check_config rejects — a
+# misspelled key, a key hidden behind a BOM, a declared prefix whose gate
+# inputs are unconfigured — reported.
 gr_check_config
 
 while [ $# -gt 0 ]; do
@@ -114,7 +110,7 @@ fired_rules=""
 # known gap rather than claimed as covered.
 # Scoped, drafts narrow to the unit: a sibling's drafts are the sibling's
 # change in flight, and convicting them here would make any unit's merge
-# block on every other unit's work in progress (architecture item 5). A
+# block on every other unit's work in progress. A
 # disclaimed path is then scanned by NO unit run — check-units.sh convicts
 # DISCLAIMED-DRAFT there at the repository level instead.
 if [ -n "$GR_UNIT" ]; then
@@ -164,14 +160,12 @@ fi
 # One scan, not two. git grep composes the two patterns on the LINE — every
 # line that opens a definition form, minus every line that opens a VALID one —
 # so there is nothing to frame and nothing to parse: the remaining lines are
-# the violations and are printed as they come. An earlier version harvested the
-# forms with -o and then searched for each one literally to find its location,
-# which reported every line that MENTIONED a malformed form, not the lines that
-# opened with one. Measured on a real 1178-file project: one violation, ten
-# lines of report.
+# the violations and are printed as they come. Harvesting the forms with -o
+# and then searching for each one literally to find its location would report
+# every line that MENTIONS a malformed form, not the lines that open with one.
 # MALFORMED-ID deliberately narrows too, and deliberately NOWHERE covers a
-# disclaimed path (risk assessment 3, 2026-09-03): legacy prose in
-# definition shape would convict line by line and drive pattern-widening —
+# disclaimed path (docs/risk/2026-09-03-units-architecture-derived.md, section 3):
+# legacy prose in definition shape would convict line by line and drive pattern-widening —
 # the exact pressure the assessment names. The narrowness is gated:
 # disclaimed-prose-is-not-malformed.
 # One gr_def_re_loose call site feeding both branches: the pathspec pair is
@@ -196,14 +190,14 @@ fi
 
 # --- DUPLICATE-ID: an ID defined at more than one site in the tree ----------
 # Status checked and stderr not suppressed, the same rule the two scans above
-# follow. This one did neither until independent review found it: a scan that
-# errors finds nothing, and "found nothing" is what a clean tree looks like.
-# NOT a pipeline — `$?` after `x=$(a | b)` is b's status, which here was always
-# uniq's 0. Harvest first, check, then reduce.
+# follow: a scan that errors finds nothing, and "found nothing" is what a
+# clean tree looks like.
+# NOT a pipeline — `$?` after `x=$(a | b)` is b's status, which here would
+# always be uniq's 0. Harvest first, check, then reduce.
 #
-# It matters more since this change than it did before: the duplicate-vs-base
-# gate is gone, so this is the only gate left that catches an ID defined twice.
-# DUPLICATE-ID stays TREE-WIDE under scope (architecture item 5): IDs are
+# No gate compares IDs against the base branch, so this is the only gate that
+# catches an ID defined twice.
+# DUPLICATE-ID stays TREE-WIDE under scope: IDs are
 # one global namespace, and a cross-unit duplicate must convict somewhere
 # even when neither unit depends on the other. This is the only gate that
 # sees it, the scan is read-only over definitions, and no false green rides

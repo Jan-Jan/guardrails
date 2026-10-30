@@ -1,17 +1,15 @@
 # Risk assessment — derived decisions from the units architecture
 
-Assesses the three decisions the monorepo units architecture
-(docs/plans/2026-09-03-units-architecture.md) marked **derived, needs
-assessment**, per the handoff in
-docs/verification/2026-09-03-monorepo-units-design.md.
+Assesses the three decisions the monorepo units architecture marked
+**derived, needs assessment**.
 
 As in docs/risk/2026-09-01-monorepo-derived-items.md: the subject is the
 guardrails toolkit itself, so harm is indirect — a false green here lets a
 defect ship from a downstream regulated project. Severity is rated at the
 worst credible downstream consumer (a Class C device); probability is rated
-for the toolkit's own failure mode. This repository is not yet self-hosted
-(docs/plans/2026-08-22-ratchet-gap-analysis.md), so items contain descriptive
-labels, not minted HAZ/RC tokens.
+for the toolkit's own failure mode. Items carry descriptive labels, not
+minted HAZ/RC tokens: they assess derived decisions of the toolkit's own
+design, and its scripts cite them by section number.
 
 ## Derived decisions assessment
 
@@ -108,7 +106,7 @@ of that name live), still passes silently with at most one unit config
 present. Accepted: such a file is
 indistinguishable from prose without guessing, the window closes the
 moment a second unit config is added (the stray-configs scan), and the
-migration path `/ratchet` will own (D9 facts interview) writes the
+`/ratchet` units interview writes the
 manifest itself rather than leaving the filename to hand-typing.
 
 ### 3. Disclaimed paths are scanned by no run
@@ -170,5 +168,4 @@ controls add one finding token (`DISCLAIMED-DRAFT`, exit 1,
 bats suite wherever each conviction occurs, alongside the architecture's
 own obligations — `plan-change` inherits them as requirements, not
 suggestions. The architecture document is amended in place to contain the
-token, the near-miss scan, and the obligations. REQ/RC minting awaits
-self-hosting (docs/plans/2026-08-22-ratchet-gap-analysis.md), as before.
+token, the near-miss scan, and the obligations.

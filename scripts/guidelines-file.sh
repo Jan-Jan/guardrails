@@ -3,10 +3,7 @@
 # Copyright (c) 2026 Dr. Jan-Jan van der Vyver
 # guidelines-file.sh KIND PATH...
 #
-# Prints the one guidelines file that governs each PATH
-# (docs/plans/2026-10-08-test-guidelines.md D3, D8;
-# docs/plans/2026-10-13-code-guidelines.md D4;
-# docs/plans/2026-10-14-architecture-guidelines.md D2), one line per
+# Prints the one guidelines file that governs each PATH, one line per
 # distinct file in the order each is first needed:
 #
 #   <file>: <path> <path>...

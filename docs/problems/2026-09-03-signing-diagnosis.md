@@ -1,88 +1,10 @@
 # Problem reports — check-signing.sh reports causes it did not measure
 
-The first two items were found on 2026-09-01 while investigating PR-52rnrn,
-and both are the same shape as the defect that investigation actually
-uncovered: the gate states a cause it never read. Both were recorded here
-before either was fixed, and both are resolved by the change that contains this
-file.
-
-Three more items joined them as the change proceeded and are still open:
-PR-2scmvn, found by a task subagent running the suite four times; PR-r8q9m7,
-split out of PR-52rnrn once the ssh half of the history was measured; and
-PR-k4t9k2, found while merging bd41d7a, whose new environment guard misses the
-state this whole investigation began from.
-
-**PR-74gcqg**: A signature whose verifier could not run at all is reported as
-`UNSIGNED (bad, expired, or revoked signature)` — the wording for a forgery.
-affects: scripts/check-signing.sh, its `B|X|Y|R` branch; and
-scripts/finish-merge.sh guard 1, which rejects cleanup on that verdict and
-repeats the accusation.
-opened: 2026-09-01
-status: resolved
-Root cause: `git log --format=%G?` reports `B` both for a signature the
-verifier examined and rejected AND for a verifier that was never run, and the
-`B|X|Y|R` branch printed the first reading as though it were measured —
-`UNSIGNED (bad, expired, or revoked signature)`, on a commit that is signed.
-Fixed by reporting `UNVERIFIED (the verifier did not accept this signature)`,
-followed by the verifier's own output; it still fails in BOTH modes, exactly as
-before. Reproduced by `check-signing: a verifier that cannot run is not called
-a forgery` (tests/check-signing.bats), watched failing against the old wording.
-The companion test `check-signing: a rejected signature still fails without
---strict` deliberately contains no `verifies:` annotation: it was green before
-the fix and could not have been otherwise, so it pins the verdict against the
-wording change without claiming to verify this item.
-
-**PR-mtmr7h**: `check-signing.sh --setup` reports `MISSING gpg.format` against
-a project that signs successfully with git's documented default, and returns
-before the proof that would have found the real fault.
-affects: scripts/check-signing.sh, `run_setup`'s first check and the
-`_missing` early return.
-opened: 2026-09-01
-status: resolved
-Root cause: `run_setup` read an unset `gpg.format` as absent, but git documents
-the default as `openpgp` (`git-config(1)`: "Default is \"openpgp\""), so a
-project that leaves it alone signs perfectly well — this repository's own
-OpenPGP history is the proof. The check therefore named a non-problem to the
-one operator who had none, and, because it set `_missing=1`, returned at
-`[ "$_missing" -eq 0 ] || return 1` BEFORE the signing proof — the only half of
-`--setup` that measures anything rather than reading settings. Fixed by
-defaulting `_fmt` to `openpgp`, which also removes a latent
-`git config gpg.format ""` written into the throwaway repository. Reproduced by
-`check-signing: --setup does not call git's default format missing`; the
-existing `check-signing: --setup names every missing piece of the
-configuration` had its `MISSING gpg.format` assertion INVERTED to a negative
-one rather than deleted, so the false positive is now gated against instead of
-pinned in place, and that inverted assertion was itself watched failing first.
-
-**PR-whkz8m**: `check-signing.sh` states a cause for a failed verdict that it never
-read, because `git log --format=%G?` returns one letter and discards the
-verifier's output.
-affects: scripts/check-signing.sh, `check_commits` — all three non-passing
-branches; and every reader of an `UNVERIFIED` line, including
-scripts/finish-merge.sh guard 1, which repeats whatever it states.
-opened: 2026-09-01
-status: resolved
-Recorded 2026-09-03, later than it was found, and that is worth stating: this
-defect was investigated and fixed on 2026-09-01 as part of PR-52rnrn, which
-named it in its statement. 817156c then closed PR-52rnrn on separate and
-correct grounds — the merge flow was never broken, because it runs in the
-maintainer's shell — and the reporting defect had no carrier of its own. It is
-given one here rather than left implied by a resolved item, so the tests that
-verify it name something that is still about them.
-Root cause: `%G?` answers with a letter and zero bytes of stderr (measured:
-a gpg dying on an unwritable trustdb reaches the script as `N`, silently), so
-the script supplied a cause by guessing — it appended the
-`gpg.ssh.allowedSignersFile` remedy to every failing verdict alike. On a
-history signed both ways (22 ssh, 9 OpenPGP) that remedy was right for one
-group and irrelevant to the other, and the OpenPGP failures were something else
-entirely: gpg opens `trustdb.gpg` read-write even to read it. Fixed by asking
-`git verify-commit` for the verifier's own words and printing them indented
-under every non-passing verdict, and by suppressing `%G?`'s own stderr so the
-reason appears exactly once and identically for both formats. Reproduced by
-`check-signing: a failed verdict contains the verifier's own reason`,
-`check-signing: an untrusted signature contains the verifier's reason too` and
-`check-signing: the verifier's reason is reported once, under its verdict` —
-one per branch of `check_commits`, each watched failing with its line removed.
+Two open items and one accepted (PR-2scmvn) from an investigation, begun on 2026-09-01, into a
+`check-signing.sh` that stated a cause it never read: PR-2scmvn, found by a
+task subagent running the suite four times; PR-r8q9m7, split out once the ssh
+half of the history was measured; and PR-k4t9k2, found while merging bd41d7a,
+whose new environment guard misses the state the investigation began from.
 
 **PR-2scmvn**: The verification suite fails intermittently in
 `tests/check-ids.bats`, on a different test each time, with git unable to
@@ -117,20 +39,19 @@ produced the misdiagnosis.
 **The exposure is wider than a lost run, and an earlier draft of this ruling
 stated the opposite.** That draft had the fault making a run falsely red
 rather than falsely green, and so costing no verdict. An independent reviewer refuted it.
-`tests/evidence.sh` derives its red figure by subtracting the new tests that
-PASSED from the new tests submitted, so a test failing for an environmental
-reason is counted as a test that proves a defect was fixed, and drops off the
-list of tests that cannot go red; ten merged records quote a figure
-derived that way. Every
-guard that script has is satisfied by a run which completes with a spurious
-failure in it. A mutation kill table inverts the same way, as the corrected
+The deleted `tests/evidence.sh` derived its red figure by subtracting the new
+tests that PASSED from the new tests submitted, so a test failing for an
+environmental reason was counted as a test that proves a defect was fixed, and
+dropped off the list of tests that cannot go red; the deleted records quoted a
+figure derived that way. Every guard that script had was satisfied by a run
+which completed with a spurious failure in it. A mutation kill table inverts the same way, as the corrected
 comment in `tests/helpers.bash` states.
 Accepted with that understanding recorded. The search stops,
 and `tests/helpers.bash` now prints five labelled facts — `tmpdir`, `testdir`,
 `inodes`, `blocks` and `openfiles` — on any test that did not complete, so a recurrence is identifiable
 from the run that contains it rather than from whoever reads the log. Reopen on any such
 capture.
-Found on 2026-09-01 by the T1 subagent of this change, from four full suite
+Found on 2026-09-01 from four full suite
 runs in one task worktree: runs 1 and 4 green at 438 ok, runs 2 and 3 each
 red on a DIFFERENT test — `poisoning gr_def_re changes every gate's verdict`,
 then `check-ids: a draft ID fails even with --allow-draft-files`, the latter
@@ -156,13 +77,10 @@ scripts/finish-merge.sh guard 1, which therefore attests the squash commit and
 nothing beneath it.
 opened: 2026-09-01
 status: open
-AMENDED 2026-09-03, and narrowed. This was split out of PR-52rnrn on 2026-09-01
-containing two things; PR-52rnrn's own closure (817156c) has since accepted the
-first of them explicitly — the ssh commits stay unverifiable while no
+The ssh commits stay unverifiable while no
 `allowed_signers` file exists, and the flow never needs them verified because
-`finish-merge.sh` checks the new HEAD only. That is an accepted gap and is not
-reopened here. What remains, and what this item now contains alone, is the
-second thing: no gate LOOKS. A merge gate that inspects only the commit it just
+`finish-merge.sh` checks the new HEAD only. That is an accepted gap (817156c)
+and not this item. This item is that no gate LOOKS. A merge gate that inspects only the commit it just
 made reports a green tail over an unverifiable trunk indefinitely, and would do
 so whatever the trunk contained.
 
@@ -176,18 +94,18 @@ the one that belongs in a ledger.
 **PR-k4t9k2**: `trust_root_env_guard` treats a keyring it can READ as a working
 one, so an unwritable `~/.gnupg` is still reported as a project fault.
 affects: scripts/check-signing.sh, the openpgp branch of
-`trust_root_env_guard` added by bd41d7a (PR-mvqm4s).
+`trust_root_env_guard` added by bd41d7a.
 opened: 2026-09-02
 status: open
 Found on 2026-09-02 while merging bd41d7a into this change, by running its new
-guard against the machine state that PR-52rnrn was originally reported from.
+guard against the machine state the investigation began from.
 The guard fires on `[ ! -r "$_tr_home" ] || [ ! -x "$_tr_home" ]`. Here
 `~/.gnupg` is both readable and executable; what it is not is WRITABLE, and
 gpg opens `trustdb.gpg` read-write even when only reading it — measured, the
 same file opens `O_RDONLY` and is denied `O_RDWR`. So gpg dies
 `Fatal: can't open ... Operation not permitted`, `%G?` reads `N`, and the
 verdict is `UNVERIFIED` at exit 1 — "the project is wrong" — for a fault that
-is purely environmental. That is the case PR-mvqm4s exists to catch, and it is
+is purely environmental. That is the case the guard exists to catch, and it is
 the single most likely one to be hit, because it is what a sandboxed agent
 sees. Not folded into the change that found it: extending the guard changes
 which exit code a state produces, which is a decision belonging to the design

@@ -142,11 +142,11 @@ problem_open_max: 10
 # coverage_command:
 #   - make coverage
 
-# Expectation triage limits (multi-unit repositories; docs/plans/
-# 2026-09-03-units-architecture.md). An expectation is a consumer REQ containing
-# `expects: <unit>` — work owed by a declared dependency. Non-RC-linked ones
-# age against these, exactly as problem reports age against the limits above;
-# an expectation that implements a risk control fails every run regardless.
+# Expectation triage limits (multi-unit repositories). An expectation is a
+# consumer REQ containing `expects: <unit>` — work owed by a declared
+# dependency. Non-RC-linked ones age against these, exactly as problem reports
+# age against the limits above; an expectation that implements a risk control
+# fails every run regardless.
 #
 # Shipped SET for the reason the problem limits are: an enforcement mechanism
 # that defaults to off does not answer the finding it exists for. Ninety, not

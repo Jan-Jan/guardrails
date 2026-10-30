@@ -1,4 +1,4 @@
-# Requirements
+# Requirements: guardrails
 
 **REQ-pwd7br**: The software shall report MISPLACED-ITEM for an item defined outside the files its kind's ledger setting resolves to, and for no item defined inside them.
 
@@ -14,17 +14,17 @@
 
 **REQ-pvz285**: The software shall take the first status: line in a problem report's block as that report's status.
 
-**REQ-fgdd5w**: The software shall warn UNRESOLVED-PR, without failing, for each problem report whose status is open.
+**REQ-fgdd5w**: The software shall warn `UNRESOLVED-PR <ID> (open N days)`, without failing, for each problem report whose status is open, N counted from opened: to today's local date.
 
 **REQ-xyxvm2**: The software shall report MALFORMED-STATUS, naming open and accepted as the values it takes, for a problem report whose status is not open, accepted or resolved.
 
 **REQ-p7xc4t**: The software shall summarise the counts of open and accepted problem reports and the age of the oldest open one, printing n/a for that age when none is open.
 
-**REQ-ars54m**: The software's find-items list shall exit 2, naming the values it takes, for an empty --kind, or a --status other than open or accepted.
+**REQ-ars54m**: The software's find-items.sh list shall exit 2, naming the values it takes, for an empty --kind, or a --status other than open or accepted.
 
 **REQ-fdk8kc**: The software shall print each finding as `<CODE> <subject> (<reason>)`.
 
-**REQ-e83fky**: The software shall print, after the findings and before the summary, one `fix <CODE>:` line per code reported, in the order the codes first fired, stating how to clear that code's findings.
+**REQ-e83fky**: The software shall print, after the findings and before the summary, one `fix <RULE>:` line per code reported, in the order the codes first fired, stating how to clear that code's findings.
 
 **REQ-x3rb2m**: The software shall report DANGLING-REF for an ID that a ledger or test names and no ledger defines.
 

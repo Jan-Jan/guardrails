@@ -6,7 +6,7 @@
 #
 # Usage: sh tests/fingerprint-tree.sh ROOT
 #
-# The fingerprint is one line, `<HEAD commit> <tree object>` (PR-y8ff5p).
+# The fingerprint is one line, `<HEAD commit> <tree object>`.
 # The tree object is written from a temporary index seeded from HEAD, so a
 # tracked file that .gitignore matches stays in the tree object, and the
 # repository's own index is left as it was; untracked and modified files

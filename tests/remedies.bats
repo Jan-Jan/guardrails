@@ -1,9 +1,9 @@
 load helpers
 
-# D8 (docs/plans/2026-09-28-agent-first-skills.md): after its violation lines,
-# and before any checked:, problems: or sources: line, a check script prints
-# one `fix <RULE>: <remedy>` line per distinct rule that fired, in the order
-# the rules first fired. The violation lines keep their documented form.
+# After its violation lines, and before any checked:, problems: or sources:
+# line, a check script prints one `fix <RULE>: <remedy>` line per distinct rule
+# that fired, in the order the rules first fired. The violation lines keep
+# their documented form.
 #
 # Assertions use `run` and `[ ]` followed by `|| { ...; false; }`: a bare
 # `[[ ]]` or `!` mid-test is skipped by errexit under bash 3.2, so it would
@@ -42,14 +42,13 @@ fix_count() {
     printf '%s\n' "$output" | grep -c '^fix ' || true
 }
 
-# Every remedy is at most 200 characters (the shared form in
-# docs/plans/2026-09-29-agent-first-skills-change-2.md).
+# Every remedy is at most 200 characters.
 remedies_within_limit() {
     printf '%s\n' "$output" | awk '/^fix / { sub(/^fix [A-Z0-9-]+: /, ""); if (length($0) > 200) { print "too long: " $0; bad = 1 } } END { exit bad }'
 }
 
 @test "check-trace: one fix line per rule that fired, after the violations" {
-    # verifies: REQ-e83fky
+    # verifies: REQ-e83fky, REQ-n99jz2
     two_rules_fixture
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
@@ -67,7 +66,7 @@ remedies_within_limit() {
 }
 
 @test "check-trace: a clean run prints no fix line" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-e83fky
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [ "$(fix_count)" -eq 0 ] || { echo "$output"; false; }
@@ -75,7 +74,7 @@ remedies_within_limit() {
 
 @test "check-trace: violation lines are unchanged" {
     # verifies: REQ-fdk8kc, REQ-x3rb2m
-    # The documented text of each line, as the script printed it before D8.
+    # The documented text of each line, as the script prints it.
     # Anything that greps or counts violation lines depends on it.
     two_rules_fixture
     run sh .guardrails/scripts/check-trace.sh
@@ -89,7 +88,7 @@ remedies_within_limit() {
 }
 
 @test "check-trace: every report in the roster has a remedy" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-e83fky, REQ-4qup72
     # The roster is the `#   TOKEN` lines of the script header, default and
     # scoped reports both — the extraction tests/skills.bats uses, without its
     # stop at the scoped heading. A remedy entry is a case pattern `(TOKEN)`
@@ -111,7 +110,7 @@ remedies_within_limit() {
 }
 
 @test "check-trace: a warning-only run prints its fix lines and exits 0" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-e83fky, REQ-fgdd5w
     write_pr PR-001 open "$(days_ago 5)"
     commit_all open-pr
     run sh .guardrails/scripts/check-trace.sh
@@ -122,7 +121,7 @@ remedies_within_limit() {
 }
 
 @test "check-ids: one fix line per rule that fired" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-e83fky, REQ-n99jz2
     cat >> docs/requirements/0001-01-01-base.md <<'MD'
 
 **REQ-abcdef**: a body that is not an ID.
@@ -142,7 +141,7 @@ MD
 }
 
 @test "check-ids: the remedy for a draft ID names new-id.sh" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-gtye7w
     # The token is built at run time: the literal in this file would be a
     # DRAFT-ID finding against the repository's own tree.
     draft=DRAFT
@@ -154,7 +153,7 @@ MD
 }
 
 @test "check-ids: the DRAFT-FILE fix line is the git mv to a dated name" {
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md), D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-xhs26z, REQ-n99jz2, ADR-cy7ahd
     # No merge step renames a ledger file (ADR-cy7ahd), so the fix line is the
     # rename itself: a line that only states to leave the file loops on this
     # failure.
@@ -168,14 +167,10 @@ MD
 }
 
 @test "check-trace: every report it prints has a remedy line" {
-    # verifies: PR-6d2jvt
-    # verifies: D8 (docs/plans/2026-09-28-agent-first-skills.md)
-    # PR-6d2jvt: d8502d1 added three reports and changed a fourth's accepted
-    # values, and the catalogue an author looked findings up in was not
-    # updated, so a failing gate printed reports documented nowhere. The
-    # catalogue is now the script's own `fix <RULE>:` output (D8), so this test
-    # requires a remedy entry in check_trace_remedy for every report the script
-    # prints.
+    # verifies: REQ-4qup72, REQ-e83fky
+    # The catalogue of reports is the script's own `fix <RULE>:` output, so this
+    # test requires a remedy entry in check_trace_remedy for every report the
+    # script prints.
     #
     # EXTRACTION, derived from the script rather than listed here — a list in
     # this test would be a third copy and would go out of date the same way:
@@ -214,7 +209,7 @@ MD
 }
 
 @test "check-trace: the problem-limit remedies offer the accepted ruling" {
-    # verifies: PR-9xxz3b, PR-4fwfjp
+    # verifies: REQ-5bejtg
     # STALE-PROBLEM and PROBLEM-BACKLOG offered the reporter two choices: fix
     # someone else's problem report under merge pressure, or raise a limit.
     # The third answer, a ruling as status: accepted, has to be stated where
@@ -260,9 +255,9 @@ MD
 }
 
 @test "check-trace: the UNANALYZED-DERIVED remedy names assesses:" {
-    # verifies: PR-n274s7
-    # D1 of that change was a hard cut: a mention of a derived item in the RMF
-    # stopped counting, so the remedy has to name the annotation that does.
+    # verifies: REQ-da2vup
+    # A mention of a derived item in the RMF does not count as its assessment,
+    # so the remedy names the annotation that does.
     printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
@@ -273,7 +268,7 @@ MD
 }
 
 @test "check-trace: the DANGLING-FILE remedy and message name the file's current name" {
-    # verifies: PR-58zsvf, D4 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-y6c2u5, REQ-n99jz2
     # A reference to a draft file renamed to its dated name: the fix is the
     # name the file has now, never deleting the reference.
     printf '\nHazards: docs/risk/DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
@@ -301,7 +296,7 @@ MD
 }
 
 @test "check-trace: a bare DANGLING-FILE name says to write the name the file has now, or the path across units" {
-    # verifies: D4 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-5v932q
     # A bare name resolves against this unit's ledger directories only, so the
     # message also names the path form for a draft in another unit.
     printf '\nSee DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md

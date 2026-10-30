@@ -121,9 +121,9 @@ token_re() {
     GR_ID_URANDOM=/nonexistent run .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]
     # The [ -r ] message specifically, not just the word "entropy". Both rejection
-    # paths in this script mention entropy, so the loose assertion left the
+    # paths in this script mention entropy, so a loose assertion leaves the
     # guard undetectable: deleting it and letting the draw fail instead still
-    # exits 2 with a message that matches. Mutation M13 reddened nothing.
+    # exits 2 with a message that matches.
     [[ "$output" == *"no entropy source at /nonexistent"* ]] || { echo "$output"; false; }
 }
 
@@ -139,8 +139,8 @@ token_re() {
 
 @test "new-id: the collision scan follows GR_SCAN_EXCLUDE" {
     # The one call site in this script, and nothing else in the suite
-    # distinguishes it from a hand-typed pathspec: mutation M36 gave it its own
-    # literal and reddened nothing. Move the exclusion instead, and require the
+    # distinguishes it from a hand-typed pathspec: a literal in its place
+    # would pass every other test. Move the exclusion instead, and require the
     # scan to follow — a token that is invisible while the tooling directory is
     # excluded must be seen once it is not.
     printf '**REQ-a3k9z2**: an item inside the excluded tooling dir.\n' \
@@ -158,7 +158,7 @@ token_re() {
 }
 
 @test "new-id: an entropy source that yields nothing fails instead of hanging" {
-    # Independent review, S1. /dev/zero is READABLE, so the [ -r ] guard passes,
+    # /dev/zero is READABLE, so the [ -r ] guard passes,
     # and `tr < src | dd count=6` waited forever for six usable bytes that
     # never came. The bounded read fixes the sources that RETURN without
     # yielding anything usable; a source that blocks instead is a separate
@@ -171,7 +171,7 @@ token_re() {
 }
 
 @test "new-id: the give-up message distinguishes no randomness from no free token" {
-    # Independent review, S2. Both cases are "100 attempts" from inside the
+    # Both cases are "100 attempts" from inside the
     # loop, and the message asserted the second for either.
     run timeout 30 env GR_ID_URANDOM=/dev/null .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]
@@ -186,7 +186,7 @@ token_re() {
 }
 
 @test "new-id: the alphabet is derived from the library, not retyped here" {
-    # Independent review, S4. The script's own comment names the hazard — "the
+    # The script's own comment names the hazard — "the
     # generator would drift from the matcher without a single test going red" —
     # and nothing guarded it: replacing both derivations with hand-typed but
     # IDENTICAL literals left the whole suite green. Narrow the library's
@@ -263,7 +263,7 @@ token_re() {
     [[ "$output" == *"100 attempts"* ]] || { echo "$output"; false; }
 }
 
-# verifies: engagement rule — --unit is meaningless without a manifest (finding-6c)
+# verifies: REQ-a5ehr8
 @test "new-id: --unit in a single-unit repository is exit 2, never a silent guess" {
     run sh .guardrails/scripts/new-id.sh --unit apps/pump REQ
     [ "$status" -eq 2 ]

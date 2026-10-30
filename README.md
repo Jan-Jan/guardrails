@@ -115,8 +115,8 @@ one of these places:
 - **The script headers** state what each check reports, and why.
 - **`skills/check-traceability/references/config.md`** states the config
   rules.
-- **`docs/plans/2026-09-03-units-architecture.md`** is the design of
-  multi-unit repositories.
+- **`docs/adr/`** records each trade-off with its reason, among them the
+  design of multi-unit repositories (ADR-dy4qcm, ADR-tr72dr).
 - **`AGENTS.md`** states the rules for developing guardrails itself.
 
 ## Development

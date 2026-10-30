@@ -17,8 +17,7 @@ setup() { make_fixture_repo; }
 #
 # Each assertion is a function that takes the directory whose awk it checks,
 # so the same assertions run against the stub and, as a contract test,
-# against the real BWK awk where this machine has one (D11 of
-# docs/plans/2026-10-07-test-seams.md). A stub checked only against its own
+# against the real BWK awk where this machine has one. A stub checked only against its own
 # specification drifts from the tool it imitates.
 
 awk_rejects_newline_in_assignment() {
@@ -71,51 +70,50 @@ contract_tool_dir() {
 }
 
 @test "strict awk: rejects a literal newline in a -v assignment" {
-    # verifies: PR-v3j4s2
+    # verifies: REQ-aek2sw
     bin=$(make_strict_awk)
     awk_rejects_newline_in_assignment "$bin"
 }
 
 @test "strict awk: accepts the same list flattened to spaces" {
-    # verifies: PR-v3j4s2
+    # verifies: REQ-aek2sw
     bin=$(make_strict_awk)
     awk_accepts_flattened_list "$bin"
 }
 
 @test "strict awk: passes every other invocation through to the real awk" {
-    # verifies: PR-v3j4s2
+    # verifies: REQ-aek2sw
     bin=$(make_strict_awk)
     awk_passes_plain_assignment "$bin"
 }
 
 @test "strict awk contract: the real BWK awk rejects a literal newline in a -v assignment" {
-    # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
+    # verifies: REQ-aek2sw
     contract_tool_dir real_bwk_awk_dir "BWK awk"
     awk_rejects_newline_in_assignment "$contract_dir"
 }
 
 @test "strict awk contract: the real BWK awk accepts the same list flattened to spaces" {
-    # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
+    # verifies: REQ-aek2sw
     contract_tool_dir real_bwk_awk_dir "BWK awk"
     awk_accepts_flattened_list "$contract_dir"
 }
 
 @test "strict awk contract: the real BWK awk takes a plain -v assignment" {
-    # verifies: PR-v3j4s2, D11 (docs/plans/2026-10-07-test-seams.md)
+    # verifies: REQ-aek2sw
     contract_tool_dir real_bwk_awk_dir "BWK awk"
     awk_passes_plain_assignment "$contract_dir"
 }
 
-# --- PR-v3j4s2 --------------------------------------------------------------
+# --- a newline in awk -v -----------------------------------------------------
 
 @test "check-review: runs under an awk that rejects a newline in -v" {
-    # verifies: PR-v3j4s2
-    # `scan_record` interpolated GR_RECORD_FIELDS — two literal newlines —
-    # straight into `awk -v kws=`. On macOS that is exit 2 before the program
-    # runs, so the gate never read a record: merge-change step 6c could not
-    # run on that platform at all. Not a false pass, but invisible on gawk,
-    # where the identical call succeeds. The message, which has many lines,
-    # must reach awk some other way.
+    # verifies: REQ-aek2sw
+    # GR_RECORD_FIELDS holds two literal newlines. Passed straight into
+    # `awk -v kws=`, it is exit 2 on macOS before the program runs, so the gate
+    # would never read a record and merge-change step 6c could not run on that
+    # platform at all — invisible on gawk, where the identical call succeeds.
+    # The message, which has many lines, must reach awk some other way.
     make_change_worktree my-change
     write_message '1. [fixed: scripts/x.sh] code low — first
    continued'
@@ -127,7 +125,7 @@ contract_tool_dir() {
 }
 
 @test "check-review: still names every missing field under a strict awk" {
-    # verifies: PR-v3j4s2
+    # verifies: REQ-aek2sw
     # The regression above would also be satisfied by a scan that was run and
     # read nothing. A message missing exactly one field still draws exactly
     # one INCOMPLETE-RECORD naming that field.
@@ -147,7 +145,7 @@ contract_tool_dir() {
 # --- the class, not the instance --------------------------------------------
 
 @test "every check script runs clean under an awk that rejects a newline in -v" {
-    # verifies: PR-v3j4s2
+    # verifies: REQ-aek2sw
     # The defect class is "a value containing a literal newline reaches awk -v",
     # and check-review.sh was one instance of it. Nothing stops the next one,
     # so every script that reaches an awk gate is swept here rather than only
@@ -222,7 +220,7 @@ EOF
     [ "$swept" -eq 5 ] || { echo "swept $swept scripts, expected 5"; false; }
 }
 
-# verifies: D8 (docs/plans/2026-10-08-test-guidelines.md)
+# verifies: REQ-ky9p6e, REQ-aek2sw
 @test "guidelines-file.sh resolves a unit's file under an awk that rejects a newline in -v" {
     # The fixture tests/guidelines-file.bats builds: an installed default, a
     # root file, a units manifest with one unit carrying its own file and a
@@ -250,7 +248,7 @@ docs/TEST_GUIDELINES.md: apps/ui/y.ts vendor/v.c"
     [ "$output" = "$expected" ] || { echo "$output"; false; }
 }
 
-# --- PR-yd2sft --------------------------------------------------------------
+# --- BSD date ----------------------------------------------------------------
 
 # Calibrated like the awk stub, and for the same reason: on macOS the real
 # date already behaves this way, so an instrument that never fired would be
@@ -279,25 +277,24 @@ real_bsd_date_dir() {
 }
 
 @test "bsd date stub: rejects -d and a doubled sign in -v" {
-    # verifies: PR-yd2sft
+    # verifies: REQ-e3n2xj
     bin=$(make_bsd_date)
     bsd_date_rejects_gnu_spellings "$bin"
 }
 
 @test "bsd date contract: the real BSD date rejects -d and a doubled sign in -v" {
-    # verifies: PR-yd2sft, D11 (docs/plans/2026-10-07-test-seams.md)
+    # verifies: REQ-e3n2xj
     contract_tool_dir real_bsd_date_dir "BSD date"
     bsd_date_rejects_gnu_spellings "$contract_dir"
 }
 
 @test "days_ago produces a date in the future as well as one in the past" {
-    # verifies: PR-yd2sft
+    # verifies: REQ-e3n2xj
     # `days_ago -1` is how the two clock-skew tests build tomorrow. GNU date
-    # takes `-d "-1 days ago"` and answers; BSD date is handed `-v--1d` and
-    # rejects it, so on macOS the helper returned the empty string and both
-    # tests asserted against a PR item with no `opened:` at all — failing
-    # several screens away from the cause, on a message about an incomplete
-    # item.
+    # takes `-d "-1 days ago"` and answers; BSD date handed `-v--1d` rejects
+    # it, and an empty result leaves both tests asserting against a PR item
+    # with no `opened:` at all — failing several screens away from the cause,
+    # on a message about an incomplete item.
     #
     # Run under a stub `date` that rejects `-d` and a doubled sign in
     # `-v`, so this reddens on a GNU box too. Without it the test could only
@@ -316,7 +313,7 @@ real_bsd_date_dir() {
         || { echo "days_ago -2 = $(days_ago -2), -1 = $(days_ago -1)"; false; }
 }
 
-# --- PR-pc6byk --------------------------------------------------------------
+# --- a pinned day ------------------------------------------------------------
 
 # pin_today's `date` stub is a fake of date(1) for the one call check-trace.sh
 # makes, `date +%Y-%m-%d`, so it gets a contract test (TEST_GUIDELINES.md,
@@ -354,13 +351,13 @@ today_is_one_iso_date_check_trace_accepts() {
 }
 
 @test "pinned date stub: answers today as one YYYY-MM-DD line check-trace accepts" {
-    # verifies: PR-pc6byk
+    # verifies: REQ-myarn4
     pin_today 2026-03-01
     today_is_one_iso_date_check_trace_accepts "$BATS_TEST_TMPDIR/pinned-date"
 }
 
 @test "pinned date contract: the real date answers today the same way" {
-    # verifies: PR-pc6byk
+    # verifies: REQ-myarn4
     # The real date is on every machine this suite runs on, so this never
     # skips. It goes first on PATH alone, through a link, so no other tool in
     # its directory shadows the one the scripts would otherwise find.
@@ -371,11 +368,11 @@ today_is_one_iso_date_check_trace_accepts() {
 }
 
 @test "days_ago counts back from a pinned day whose local midnight does not exist" {
-    # verifies: PR-pc6byk
+    # verifies: REQ-myarn4
     # America/Santiago springs forward at 00:00 on 2026-09-06, so that day has
     # no 00:00. GNU date reads `-d "2026-09-06 1 days ago"` as that missing
-    # midnight and rejects it; days_ago then fell through to the BSD spelling,
-    # which GNU date also rejects. A negative count is the future: GNU date
+    # midnight and rejects it, and the BSD spelling days_ago falls back to is
+    # rejected by GNU date too. A negative count is the future: GNU date
     # reads a signed number straight after a time of day as that time's zone
     # offset, so `-d "2026-09-06 12:00 -1 days ago"` answered the day before.
     # Each date(1) this machine has is asked for a count on both sides.
@@ -413,19 +410,14 @@ today_is_one_iso_date_check_trace_accepts() {
     [ "$tried" -gt 0 ] || skip "neither GNU nor BSD date on this machine"
 }
 
-# --- PR-44z762 --------------------------------------------------------------
+# --- in-place sed ------------------------------------------------------------
 
 @test "no in-place sed in the repository omits its backup suffix" {
-    # verifies: PR-44z762, PR-aap8nx
-    # `AGENTS.md` already requires `sed -i.bak` (then remove the `.bak`),
-    # because GNU sed takes the suffix as an optional argument glued to the
-    # flag and BSD sed takes it as a mandatory separate one — so the bare form
-    # silently eats the next word as the suffix and then has no script.
-    #
-    # The rule was written down and never enforced, and calls in tests/lib.bats
-    # drifted out of line with it, costing the shipped config template its
-    # schema check on every macOS box. A rule with a test is a rule; a rule in
-    # prose is a hope.
+    # verifies: REQ-epx832
+    # `AGENTS.md` requires `sed -i.bak` (then remove the `.bak`), because GNU
+    # sed takes the suffix as an optional argument glued to the flag and BSD
+    # sed takes it as a mandatory separate one — so the bare form silently
+    # eats the next word as the suffix and then has no script.
     #
     # The pattern matches the DEFECTIVE spelling only — the flag followed by
     # whitespace — so this file, which must name it to explain it, does not
@@ -433,33 +425,33 @@ today_is_one_iso_date_check_trace_accepts() {
     root=$(cd "$BATS_TEST_DIRNAME/.." && pwd)
     pat='sed -i[[:space:]]'
     paths="scripts tests templates skills install.sh"
-    # `docs/` is searched too, but for SCRIPTS only: the mutation suites under
-    # docs/verification/*.mutations/ are run, and on BSD sed the bare form
-    # changes nothing, so their cksum guard reports every mutation as unusable
-    # (exit 3) and a whole evidence suite silently measures nothing.
-    #
-    # The prose there is deliberately NOT linted. A verification record quoting
-    # the command someone actually typed — `docs/verification/2026-08-24-
-    # review-artefact.md` does, twice — is a record of what happened, and
-    # rewriting it to satisfy a scan falsifies it. The rule is that executable
-    # content is linted; a transcript is not.
-    # What must exist is the mutation SCRIPTS, not `docs/` — `docs/` is the one
-    # directory certain to be there, so guarding on it guards nothing. Guard on
-    # the reach instead: if the suites move to a top-level `verification/`, or
-    # stop being named `.mutations`, this arm finds nothing and states that
-    # rather than passing.
+    # `docs/` is searched too, but for executable content only: a script kept
+    # there is run, and on BSD sed the bare form changes nothing. Prose is not
+    # linted: a record quoting the command someone typed is a record of what
+    # happened, and rewriting it to satisfy a scan falsifies it. `docs/` may
+    # hold no executable content at all, and then this arm finds nothing.
+    # Matched by MODE as well as by name: a script that loses its `.sh`
+    # suffix is still run, and an --include glob would not see it.
+    # A find that fails must fail the test, not read as "no docs scripts".
+    doc_files=""
+    if [ -d "$root/docs" ]; then
+        if doc_files=$(cd "$root" && find docs -type f \
+            \( -name '*.sh' -o -perm -u+x \)); then
+            find_status=0
+        else
+            find_status=$?
+        fi
+        [ "$find_status" -eq 0 ] \
+            || { echo "find over docs/ failed with exit $find_status"; false; }
+        doc_files=$(printf '%s\n' "$doc_files" | sort)
+    fi
 
-    # `grep -r`, not `git grep`: tests/evidence.sh runs this suite from a copy
-    # in a mktemp directory with no `.git` and only part of the tree in it.
-    # There `git grep` exits 128, and an exit-code assertion reads a missing
+    # `grep -r`, not `git grep`: a copy of this suite run outside a repository,
+    # with only part of the tree in it, has no `.git`. There `git grep` exits
+    # 128, and an exit-code assertion reads a missing
     # repository as a clean toolkit. A partial copy has nothing to lint, so
     # state that — but only a partial copy may state it, or a directory
     # renamed in the real repository would silently turn this check off.
-    # Executable content under docs/, by MODE as well as by name: a mutation
-    # script that loses its `.sh` suffix is still run and still contains the
-    # defect, and an --include glob would not see it.
-    doc_files=$(cd "$root" && find docs -type f \
-        \( -name '*.sh' -o -perm -u+x \) 2>/dev/null | sort)
 
     # Each arm is judged on its own. Skipping the whole test because ONE root is
     # absent would let a partial copy that still contains scripts/ report clean
@@ -471,39 +463,57 @@ today_is_one_iso_date_check_trace_accepts() {
             echo "search path gone from the repository: $p"; false
         fi
     done
-    if [ -z "$doc_files" ]; then
-        git -C "$root" rev-parse --git-dir >/dev/null 2>&1 \
-            && { echo "no executable content under docs/ — has the mutation suite moved?"; false; }
-    fi
     [ -n "$have" ] || [ -n "$doc_files" ] \
         || skip "not a full checkout; nothing to lint here"
 
     # Positive control. A pattern that stopped matching the defect it names
     # would report a clean toolkit forever, and the exit code alone cannot tell
-    # "found nothing" from "looked for nothing" — measured: `git grep` returns
-    # 1, not 128, for a pathspec naming no such directory, so the exit code
-    # never contained the meaning the earlier version of this test claimed.
+    # "found nothing" from "looked for nothing": grep exits 1 both when the
+    # pattern matches no line and when it can match none.
     # Built with printf so this file does not contain the spelling it hunts.
     printf 'sed -%s %s\n' i "'s/a/b/' f" > "$BATS_TEST_TMPDIR/control.sh"
     grep -qE "$pat" "$BATS_TEST_TMPDIR/control.sh" \
         || { echo "the pattern no longer matches the defect it names"; false; }
 
-    found=$(cd "$root" && {
-        [ -n "$have" ] && grep -rnE --exclude-dir=.bats-core "$pat" $have
-        [ -n "$doc_files" ] && printf '%s\n' "$doc_files" | tr '\n' '\0' \
-            | xargs -0 grep -nE "$pat"
-    } 2>/dev/null || true)
+    # grep exits 1 for no match, the clean result, and 2 for an error, which
+    # must fail the test rather than read as a clean toolkit.
+    found=""
+    if [ -n "$have" ]; then
+        if found=$(cd "$root" || exit 2
+            grep -rnE --exclude-dir=.bats-core "$pat" $have); then
+            grep_status=0
+        else
+            grep_status=$?
+        fi
+        [ "$grep_status" -le 1 ] || { echo "grep failed with exit $grep_status"; false; }
+    fi
+    # One grep per docs file, its own status read: xargs folds a grep error
+    # into the no-match status (1 on BSD, 123 on GNU), so it is not used here.
+    # A cd that fails exits 2, so it fails the test rather than read as no match.
+    while IFS= read -r doc_file; do
+        [ -n "$doc_file" ] || continue
+        if hit=$(cd "$root" || exit 2; grep -nHE "$pat" "$doc_file"); then
+            doc_grep_status=0
+        else
+            doc_grep_status=$?
+        fi
+        [ "$doc_grep_status" -le 1 ] \
+            || { echo "grep over $doc_file failed with exit $doc_grep_status"; false; }
+        [ -z "$hit" ] || found=$(printf '%s\n%s\n' "$found" "$hit" | sed '/^$/d')
+    done <<EOF_DOCS
+$doc_files
+EOF_DOCS
     [ -z "$found" ] || { echo "in-place sed with no suffix:"; echo "$found"; false; }
 }
 
-# --- PR-vh6cud --------------------------------------------------------------
+# --- case patterns -----------------------------------------------------------
 
 @test "every case pattern in executable shell opens with a parenthesis" {
-    # verifies: PR-vh6cud, PR-cjvv8g
+    # verifies: REQ-g3bthd
     # bash 3.2 — macOS /bin/sh, forever — cannot parse a parenless case
     # pattern inside `$(...)`: the pattern's lone `)` unbalances the command
-    # substitution for that parser, and finish-merge.sh died at the terminal
-    # with `syntax error near unexpected token ';;'` before running a line.
+    # substitution for that parser, and a script dies at the terminal with
+    # `syntax error near unexpected token ';;'` before running a line.
     # The defective spelling cannot be grepped narrowly: whether a `case`
     # is inside a command substitution is not decidable by a line scan. So
     # the rule covers EVERY pattern — the leading `(` is POSIX everywhere,
@@ -532,7 +542,7 @@ today_is_one_iso_date_check_trace_accepts() {
     #
     # The single quote is matched as the regex literal /\047/, never as the
     # string "\\047": busybox awk does not decode an octal escape in a dynamic
-    # regex, counted no quotes, and read a quoted `case` as code (PR-cjvv8g).
+    # regex, counted no quotes, and read a quoted `case` as code.
     cat > "$BATS_TEST_TMPDIR/caselint.awk" <<'AWK'
 function inquote(p,  c) {
     c = p
@@ -592,9 +602,9 @@ AWK
     [ -z "$(awk -f "$BATS_TEST_TMPDIR/caselint.awk" "$BATS_TEST_TMPDIR/good.sh")" ] \
         || { echo "the scan flags the compliant spelling"; false; }
 
-    # The independent review of PR-vh6cud probed the shapes a line-anchored
+    # These probe the shapes a line-anchored
     # scan never sees: a one-line case statement (with and without `$(...)`
-    # around it — the very spelling that killed finish-merge.sh), a second
+    # around it — the spelling bash 3.2 cannot parse), a second
     # pattern after `;;` on the same line, `;;` followed by a trailing
     # comment, and `case "$x"` with `in` alone on the next line. Each stays
     # a control so the scan cannot regress to line anchors.
@@ -612,7 +622,7 @@ AWK
     # A `case` after an unclosed single quote is text inside a string, and the
     # loop after it is no case construct. Under an awk that counted no single
     # quotes, the `in` of that loop opened a pattern position and its words
-    # were flagged (PR-cjvv8g).
+    # were flagged.
     # The keyword goes in through a variable: a bare one on its own line here
     # would be a case statement to the scan of this file.
     keyword=case
@@ -623,9 +633,8 @@ AWK
             || { echo "the scan flags the compliant $shape spelling"; false; }
     done
 
-    # tests/evidence.sh runs this suite from a partial copy in a mktemp
-    # directory with no .git: there an absent install.sh has nothing to lint
-    # and is passed over. In the real repository an absent search path means
+    # A partial copy of this suite run outside a repository has no .git: there
+    # an absent install.sh has nothing to lint and is passed over. In the real repository an absent search path means
     # the check has been silently disconnected, and must fail instead.
     files=""
     for f in "$root"/scripts/*.sh "$root"/install.sh \
@@ -645,14 +654,13 @@ $f"
     [ -z "$found" ] || { echo "case patterns missing the leading (:"; echo "$found"; false; }
 }
 
-# --- PR-3kvpze --------------------------------------------------------------
+# --- bare negations ----------------------------------------------------------
 
 @test "no test asserts through a bare negation" {
-    # verifies: PR-3kvpze, PR-7za3at
+    # verifies: REQ-5s59f7
     # bash's errexit ignores a command negated with `!`, so `! grep -q X f`
     # fails a test only as the body's last command; anywhere else it checks
-    # nothing. Nine of fifteen such assertions had died that way when a line
-    # was added after them. A negation must end in an `||` list, its only
+    # nothing once a line is added after it. A negation must end in an `||` list, its only
     # `||`, whose last command is `false`: `|| false`, `|| { ...; false; }`,
     # or a `|| {` group spanning several lines whose last command before its
     # closing `}` is `false`. A `!` after `;`, `&`, `&&`, `||`, `then`, `do`,
@@ -998,27 +1006,25 @@ AWK
     [ -z "$found" ] || { echo "bare negations (errexit ignores them):"; echo "$found"; false; }
 }
 
-# --- PR-2scmvn --------------------------------------------------------------
+# --- a failed test's environment ---------------------------------------------
 
 # A test that did not complete prints the environment that would identify a
-# temp-file fault. PR-2scmvn was observed once and ruled on without a
-# mechanism, because the facts that would establish one were gone by the time
-# anyone read the log. These three tests pin both halves and the path between
+# temp-file fault, while the facts that would establish its mechanism still
+# exist. These three tests pin both halves and the path between
 # them: the diagnostics appear when a test failed, nothing is printed and the
 # directory is released when it passed, and the diagnostics reach a real bats
 # run's output.
 
 @test "a test that did not complete prints every fact it promises" {
-    # verifies: PR-2scmvn
-    # One assertion per labelled fact. Round 2 of this change's review deleted
-    # the df line and the tmpdir line in turn and both tests stayed green,
-    # because no assertion named either: a fact nothing pins can be removed in
-    # silence, which is the defect this capture exists to avoid.
+    # verifies: REQ-65dh7e
+    # One assertion per labelled fact: a fact nothing pins, such as the df
+    # line or the tmpdir line, can be removed in silence, which is the defect
+    # this capture exists to avoid.
     sandbox="$BATS_TEST_TMPDIR/failed"
     mkdir -p "$sandbox"
     run env -u BATS_TEST_COMPLETED "BATS_TEST_TMPDIR=$sandbox" \
         bash -c '. "$1"; teardown' _ "$BATS_TEST_DIRNAME/helpers.bash"
-    for fact in "failed test environment (PR-2scmvn)" "tmpdir: " "testdir: " \
+    for fact in "failed test environment" "tmpdir: " "testdir: " \
                 "inodes: " "blocks: " "openfiles: "; do
         [[ "$output" == *"$fact"* ]] \
             || { echo "no $fact line:"; echo "$output"; false; }
@@ -1030,7 +1036,7 @@ AWK
 }
 
 @test "a completed test prints nothing and releases its directory" {
-    # verifies: PR-2scmvn
+    # verifies: REQ-65dh7e
     sandbox="$BATS_TEST_TMPDIR/passed"
     mkdir -p "$sandbox"
     run env "BATS_TEST_COMPLETED=1" "BATS_TEST_TMPDIR=$sandbox" \
@@ -1042,32 +1048,27 @@ AWK
 }
 
 @test "the capture reaches a real bats run's output" {
-    # verifies: PR-2scmvn
+    # verifies: REQ-65dh7e
     # Both tests above call teardown in a subshell. Neither proves the
     # diagnostics reach bats' own output, which is where anyone
     # investigating a recurrence will look for them.
     # Built with printf, not a heredoc. A heredoc would put `@test` at column
-    # one in THIS file, where `tests/evidence.sh` counts it with
-    # `grep -c '^@test'` and then reports a plan mismatch against a base run
-    # that never had it. That is the same column-one-inside-a-heredoc defect
-    # `PR-tenhv4`'s change recorded at `tests/check-trace.bats:1739`.
+    # one in THIS file, where bats would read it as a test of this file.
     printf '%s\n' \
         "load \"$BATS_TEST_DIRNAME/helpers\"" \
         "@test \"deliberately failing probe\" {" \
         "    false" \
         "}" > "$BATS_TEST_TMPDIR/probe.bats"
-    # The same idiom as tests/evidence.sh:86. tests/run-tests.sh uses a
-    # system bats when one is on PATH and only then vendors tests/.bats-core,
-    # which is gitignored — so hard-coding the vendored path makes this test
-    # fail on any host that has bats installed.
-    # outside_bats: the enclosing run's PATH holds bats' internal entry point
-    # (PR-2nxadp).
+    # tests/run-tests.sh uses a system bats when one is on PATH and only then
+    # vendors tests/.bats-core, which is gitignored — so hard-coding the
+    # vendored path makes this test fail on any host that has bats installed.
+    # outside_bats: the enclosing run's PATH holds bats' internal entry point.
     probe_bats=$(outside_bats sh -c 'command -v bats' \
         || echo "$BATS_TEST_DIRNAME/.bats-core/bin/bats")
     run "$probe_bats" "$BATS_TEST_TMPDIR/probe.bats"
     [ "$status" -ne 0 ] \
         || { echo "the probe was expected to fail"; echo "$output"; false; }
-    [[ "$output" == *"failed test environment (PR-2scmvn)"* ]] \
+    [[ "$output" == *"failed test environment"* ]] \
         || { echo "the capture did not reach the run output"; \
              echo "$output"; false; }
     [[ "$output" == *"inodes: "* ]] \

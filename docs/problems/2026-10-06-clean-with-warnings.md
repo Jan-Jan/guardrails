@@ -1,7 +1,6 @@
 # Problem report — "clean" in verify-before-merge excludes the warnings that merge-preflight passes
 
-Found by review round 2 of `pr-s8dcmp` (finding-8). `affects:` names files,
-because guardrails keeps no REQ/SDD/LLR ledger of its own.
+Found by a conformance review. `affects:` names files.
 
 **PR-furm2z**: `verify-before-merge` check 2 requires `check-trace.sh` to be "clean", which `check-traceability` step 3 defines as exit 0 "with only these two lines", but every run prints a third summary line, `problems:`, and may print warnings (`UNRESOLVED-PR`, `ACCEPTED-PR`, an `UNMET-EXPECTATION` inside its budget), so read literally no run is clean, while `merge-preflight.sh` passes TRACE on exit status alone.
 affects: skills/verify-before-merge/SKILL.md (check 2), skills/check-traceability/SKILL.md (step 3), and ADR-3h4dky, whose upgrade completion check lets warnings stay listed in a plan.

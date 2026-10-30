@@ -527,7 +527,7 @@ ADR
     commit_all adrs
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: list --kind ADR prints an ADR defined in docs/adr" {
     write_adr_fixture
     run sh .guardrails/scripts/find-items.sh list --kind ADR
@@ -536,7 +536,7 @@ ADR
         || { echo "$output"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: show prints an ADR block and ends it at the heading" {
     write_adr_fixture
     run sh .guardrails/scripts/find-items.sh show ADR-x7k2m9
@@ -546,7 +546,7 @@ ADR
     [[ "$output" != *"## Context"* ]] || { echo "$output"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: show does not read an item line in a docs/adr file that is not named ADR-*.md" {
     write_adr_fixture
     run sh .guardrails/scripts/find-items.sh show ADR-q3w8e4
@@ -554,7 +554,7 @@ ADR
     [ "${lines[0]}" = "NOT-FOUND ADR-q3w8e4" ] || { echo "$output"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: list in a multi-unit repository reads the root ADRs and those of the unit that GR_CONFIG names" {
     make_units_fixture
     declare_adr_prefix apps/pump/.guardrails/config.yaml
@@ -575,7 +575,7 @@ ADR-p8w3n5 - apps/pump/docs/adr/ADR-p8w3n5-pump-limit.md:1 The pump reads its li
     [ "$output" = "$expected" ] || { echo "$output"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: the ADR files are not read when id_prefixes does not declare ADR" {
     mkdir -p docs/adr
     printf '**REQ-002**: A requirement line inside an ADR file.\n' \
@@ -589,7 +589,7 @@ ADR-p8w3n5 - apps/pump/docs/adr/ADR-p8w3n5-pump-limit.md:1 The pump reads its li
     [ "${lines[0]}" = "NOT-FOUND REQ-002" ] || { echo "$output"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: a directory whose name matches docs/adr/ADR-*.md is not read" {
     write_adr_fixture
     mkdir docs/adr/ADR-x7k2m9-dir.md
@@ -600,7 +600,7 @@ ADR-p8w3n5 - apps/pump/docs/adr/ADR-p8w3n5-pump-limit.md:1 The pump reads its li
     [ ! -s "$BATS_TEST_TMPDIR/stderr" ] || { cat "$BATS_TEST_TMPDIR/stderr"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: list with ADR declared and no docs/adr directory prints the other items and no error" {
     # templates/config.yaml declares ADR, and a new project has no docs/adr.
     declare_adr_prefix .guardrails/config.yaml
@@ -620,7 +620,7 @@ PR-004 - docs/problems/0001-01-01-base.md:19 The unit label is truncated.'
     [ ! -s "$BATS_TEST_TMPDIR/stderr" ] || { cat "$BATS_TEST_TMPDIR/stderr"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: list in a multi-unit repository with ADR declared and no docs/adr directory prints the unit's items and no error" {
     make_units_fixture
     declare_adr_prefix apps/pump/.guardrails/config.yaml
@@ -638,7 +638,7 @@ LLR-p6r3z9 - apps/pump/docs/architecture/0001-01-01-base.md:5 Clamp requested do
     [ ! -s "$BATS_TEST_TMPDIR/stderr" ] || { cat "$BATS_TEST_TMPDIR/stderr"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: the ADR files are not read when id_prefixes declares a prefix that contains ADR but not ADR" {
     sed -i.bak 's|^id_prefixes: REQ HAZ RC SDD LLR PR$|id_prefixes: REQ HAZ RC SDD LLR PR XADR|' .guardrails/config.yaml
     rm -f .guardrails/config.yaml.bak
@@ -655,7 +655,7 @@ LLR-p6r3z9 - apps/pump/docs/architecture/0001-01-01-base.md:5 Clamp requested do
     [ "${lines[0]}" = "NOT-FOUND REQ-002" ] || { echo "$output"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: the ADR files are not read when id_prefixes declares a prefix that begins with ADR but is not ADR" {
     sed -i.bak 's|^id_prefixes: REQ HAZ RC SDD LLR PR$|id_prefixes: REQ HAZ RC SDD LLR PR ADRX|' .guardrails/config.yaml
     rm -f .guardrails/config.yaml.bak
@@ -672,7 +672,7 @@ LLR-p6r3z9 - apps/pump/docs/architecture/0001-01-01-base.md:5 Clamp requested do
     [ "${lines[0]}" = "NOT-FOUND REQ-002" ] || { echo "$output"; false; }
 }
 
-# verifies: PR-ka8w9m
+# verifies: REQ-6s9sfz
 @test "find-items: a docs/adr file named ADR-* that does not end in .md is not read" {
     write_adr_fixture
     printf '**ADR-x7k2m9**: An older copy of the decision.\n' \

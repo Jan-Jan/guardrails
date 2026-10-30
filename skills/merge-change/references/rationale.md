@@ -193,8 +193,7 @@ round: a rule that waits for an empty round does not end. A `low` finding
 needs a rare state, or is reported correctly by the error beside it, or is a
 documentation gap over a correct tree, so recording it as an open problem item
 loses nothing a further round would have found. A mechanical fix costs less
-than the item, so it is made in the same round. The ruling of 2026-10-04,
-in `docs/plans/2026-09-29-agent-first-skills-change-2.md`, set this rule.
+than the item, so it is made in the same round.
 
 Bounding what a `record` finding costs inside a round, dispositioning it in
 place without a rerun, by a class of files no gate reads fails: there is none,
@@ -483,10 +482,10 @@ name identifies at most one registered worktree.
 
 ## Step 8: no re-verification
 
-Step 8 used to re-run the signature check under `--strict` after the user
-reported success. Guard 1 makes that check moments earlier, in the
-compound, in the user's shell, so a pass added nothing. A failure was usually
-the agent's own environment: a sandbox with a read-only `~/.gnupg` makes gpg
+Step 8 does not re-run the signature check under `--strict` after the user
+reports success. Guard 1 makes that check moments earlier, in the
+compound, in the user's shell, so a pass would add nothing. A failure would
+usually be the agent's own environment: a sandbox with a read-only `~/.gnupg` makes gpg
 read a good signature as `N`. The agent takes the user's word, and acts only
 on a reported problem or a non-zero exit. Step 7 tells the user what success
 prints, so a rejection does not pass for success.

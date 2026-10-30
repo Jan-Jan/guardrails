@@ -141,7 +141,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an ADR ID citation resolves to a file in the root docs/adr" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     mkdir -p docs/adr
     printf '**ADR-k3n8p2**: the pump reads the HAL through a checked interface.\n' > docs/adr/ADR-k3n8p2-hal-boundary.md
@@ -153,7 +153,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an ADR ID citation resolves to a file in the consumer unit's docs/adr" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     mkdir -p apps/pump/docs/adr
     printf '**ADR-k3n8p2**: the pump reads the HAL through a checked interface.\n' > apps/pump/docs/adr/ADR-k3n8p2-hal-boundary.md
@@ -165,7 +165,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an ADR ID citation with no file at the root or in the consumer unit is INCOMPLETE-SEGREGATION" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     # a file in the provider unit is in neither place the consumer's citation reads
     mkdir -p platform/hal/docs/adr
@@ -178,7 +178,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an ADR citation with a malformed token is INCOMPLETE-SEGREGATION, even where a file matches" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     mkdir -p docs/adr
     printf '**ADR-aaaaaa**: no digit.\n' > docs/adr/ADR-aaaaaa-no-digit.md
@@ -197,7 +197,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: a sequential ADR ID citation is INCOMPLETE-SEGREGATION, even where its file exists" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     mkdir -p docs/adr
     printf '**ADR-0007**: a sequential header.
@@ -210,7 +210,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an ADR ID citation whose file defines another ID is INCOMPLETE-SEGREGATION" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     mkdir -p docs/adr
     printf '**ADR-m4q7r9**: another decision.
@@ -223,7 +223,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an ADR ID citation whose file is empty is INCOMPLETE-SEGREGATION" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     mkdir -p apps/pump/docs/adr
     : > apps/pump/docs/adr/ADR-k3n8p2-x.md
@@ -235,7 +235,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an ADR ID citation whose file defines the ID below line 1 is INCOMPLETE-SEGREGATION" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     mkdir -p docs/adr
     printf '# HAL boundary\n\n**ADR-k3n8p2**: the pump reads the HAL through a checked interface.\n' > docs/adr/ADR-k3n8p2-x.md
@@ -247,7 +247,7 @@ segregate_pump_from_hal() {
 }
 
 @test "check-units: an alien citation's message names all three accepted forms" {
-    # verifies: D4 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-43kuvw
     make_units_fixture
     segregate_pump_from_hal 'see the wiki'
     commit_all alien
@@ -295,7 +295,7 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-# --- T7: flag modes -----------------------------------------------------------
+# --- flag modes ---------------------------------------------------------------
 # hal <- pump <- monitor, plus svc/standalone with no edges.
 add_third_tier() {
     make_unit apps/monitor apps/pump
@@ -412,7 +412,7 @@ EOF
     [ "$status" -eq 2 ]
 }
 
-# --- fix1 finding-1: the implicitly-disclaimed surface is draft-scanned ------
+# --- the implicitly-disclaimed surface is draft-scanned ------
 # Root-level files and the root .guardrails/ are UNCLAIMED-PATH-exempt by
 # design, and no unit's scoped run scans them either — so DISCLAIMED-DRAFT
 # must cover them here or a draft parked there is scanned by NO gate. The
@@ -449,7 +449,7 @@ EOF
     [[ "$output" == *"DISCLAIMED-DRAFT README.md:"* ]] || { echo "$output"; false; }
 }
 
-# --- fix1 finding-5: disclaimed definitions do not resolve a citation --------
+# --- disclaimed definitions do not resolve a citation --------
 
 @test "check-units: a segregation citation defined only under a disclaimed path is INCOMPLETE-SEGREGATION" {
     make_units_fixture

@@ -170,14 +170,14 @@ jobs_flag_count() {
 }
 
 @test "run-tests: a named .bats file runs alone, without the whole suite" {
-    # verifies: PR-r83mmd
+    # verifies: REQ-vjrem8
     run_runner "$named_file"
     [ "$status" -eq 0 ]
     [ "$output" = "$named_file" ] || { echo "$output"; false; }
 }
 
 @test "run-tests: two named files run, and nothing else" {
-    # verifies: PR-r83mmd
+    # verifies: REQ-vjrem8
     first_file="$BATS_TEST_TMPDIR/a.bats"
     second_file="$BATS_TEST_TMPDIR/b.bats"
     : > "$first_file"
@@ -188,7 +188,7 @@ jobs_flag_count() {
 }
 
 @test "run-tests: with no argument, every file in tests/ runs" {
-    # verifies: PR-r83mmd
+    # verifies: REQ-vjrem8
     run_runner
     [ "$status" -eq 0 ]
     expected=$(ls "$BATS_TEST_DIRNAME"/*.bats | wc -l | tr -d ' ')
@@ -197,7 +197,7 @@ jobs_flag_count() {
 }
 
 @test "run-tests: a named directory runs alone, without the whole suite" {
-    # verifies: PR-r83mmd
+    # verifies: REQ-vjrem8
     named_directory="$BATS_TEST_TMPDIR/some-tests"
     mkdir -p "$named_directory"
     run_runner "$named_directory"
@@ -206,7 +206,7 @@ jobs_flag_count() {
 }
 
 @test "run-tests: an option alone still runs every file" {
-    # verifies: PR-r83mmd
+    # verifies: REQ-vjrem8
     run_runner --filter something
     [ "$status" -eq 0 ]
     [ "${lines[0]}" = "--filter" ]
@@ -215,7 +215,7 @@ jobs_flag_count() {
 }
 
 @test "run-tests: an option value ending in .bats that names no file keeps the glob" {
-    # verifies: PR-r83mmd
+    # verifies: REQ-vjrem8
     run_runner --filter foo.bats
     [ "$status" -eq 0 ]
     [ "${lines[0]}" = "--filter" ]
@@ -224,7 +224,7 @@ jobs_flag_count() {
 }
 
 @test "run-tests: RUN_TESTS_JOBS=1 runs serially, even with parallel installed" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     make_gnu_parallel_stub
     runner_jobs=1 run_runner "$named_file"
     [ "$status" -eq 0 ]
@@ -232,7 +232,7 @@ jobs_flag_count() {
 }
 
 @test "run-tests: RUN_TESTS_JOBS=3 passes --jobs 3" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     make_gnu_parallel_stub
     runner_jobs=3 run_runner "$named_file"
     [ "$status" -eq 0 ]
@@ -249,35 +249,35 @@ assert_rejected() {
 }
 
 @test "run-tests: RUN_TESTS_JOBS=0 exits 2 and names the variable and value" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     runner_stderr_file="$BATS_TEST_TMPDIR/stderr"
     runner_jobs=0 run_runner "$named_file"
     assert_rejected 0
 }
 
 @test "run-tests: a non-numeric RUN_TESTS_JOBS exits 2 and names the variable and value" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     runner_stderr_file="$BATS_TEST_TMPDIR/stderr"
     runner_jobs=abc run_runner "$named_file"
     assert_rejected abc
 }
 
 @test "run-tests: a negative RUN_TESTS_JOBS exits 2 and names the variable and value" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     runner_stderr_file="$BATS_TEST_TMPDIR/stderr"
     runner_jobs=-2 run_runner "$named_file"
     assert_rejected -2
 }
 
 @test "run-tests: a RUN_TESTS_JOBS with trailing junk exits 2 and names the variable and value" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     runner_stderr_file="$BATS_TEST_TMPDIR/stderr"
     runner_jobs=3x run_runner "$named_file"
     assert_rejected 3x
 }
 
 @test "run-tests: a RUN_TESTS_JOBS longer than 4 digits exits 2 and names the bound and value" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     runner_stderr_file="$BATS_TEST_TMPDIR/stderr"
     runner_jobs=10000 run_runner "$named_file"
     assert_rejected 10000
@@ -286,7 +286,7 @@ assert_rejected() {
 }
 
 @test "run-tests: an empty RUN_TESTS_JOBS counts as unset" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     make_gnu_parallel_stub
     link_tool getconf
     cpu_count=$(getconf _NPROCESSORS_ONLN)
@@ -297,7 +297,7 @@ assert_rejected() {
 }
 
 @test "run-tests: unset, with parallel installed, passes --jobs <CPU count>" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     make_gnu_parallel_stub
     link_tool getconf
     cpu_count=$(getconf _NPROCESSORS_ONLN)
@@ -308,7 +308,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a parallel that is not GNU parallel counts as absent, and the run is serial" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     make_stub parallel 'echo "parallel from moreutils"; exit 0'
     make_stub getconf 'echo 4'
     run_runner "$named_file"
@@ -317,7 +317,7 @@ assert_rejected() {
 }
 
 @test "run-tests: the CPU count falls back to sysctl hw.ncpu when getconf fails" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     make_gnu_parallel_stub
     make_stub getconf 'exit 1'
     make_stub sysctl '[ "$*" = "-n hw.ncpu" ] && echo 3'
@@ -327,7 +327,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a CPU count of 1 passes no --jobs" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     make_gnu_parallel_stub
     make_stub getconf 'echo 1'
     run_runner "$named_file"
@@ -336,7 +336,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a non-numeric CPU count counts as 1 and passes no --jobs" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     make_gnu_parallel_stub
     make_stub getconf 'echo abc'
     run_runner "$named_file"
@@ -345,7 +345,7 @@ assert_rejected() {
 }
 
 @test "run-tests: with neither getconf nor sysctl answering, the count is 1 and no --jobs passes" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     make_gnu_parallel_stub
     make_stub getconf 'exit 1'
     make_stub sysctl 'exit 1'
@@ -355,7 +355,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a caller's own --jobs N passes through, and no second one is added" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-d4zbeu
     make_gnu_parallel_stub
     runner_jobs=3 run_runner --jobs 5 "$named_file"
     [ "$status" -eq 0 ]
@@ -364,7 +364,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a caller's own -j N passes through, and no second one is added" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-d4zbeu
     make_gnu_parallel_stub
     runner_jobs=3 run_runner -j 5 "$named_file"
     [ "$status" -eq 0 ]
@@ -373,14 +373,14 @@ assert_rejected() {
 }
 
 @test "run-tests: unset, without parallel, runs serially" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-au82tb
     run_runner "$named_file"
     [ "$status" -eq 0 ]
     [ "$output" = "$named_file" ] || { echo "$output"; false; }
 }
 
 @test "run-tests: --jobs goes before the caller's arguments, and the whole suite still runs" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-d4zbeu
     make_gnu_parallel_stub
     runner_jobs=2 run_runner --filter something
     [ "$status" -eq 0 ]
@@ -392,14 +392,14 @@ assert_rejected() {
 }
 
 @test "run-tests: an explicit RUN_TESTS_JOBS passes --jobs even without parallel" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-cc3z3w
     runner_jobs=3 run_runner "$named_file"
     [ "$status" -eq 0 ]
     [ "$output" = "$(printf -- '--jobs\n3\n%s' "$named_file")" ] || { echo "$output"; false; }
 }
 
 @test "run-tests: a clean checkout names the commit it tests" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     run_runner
     [ "$status" -eq 0 ] || { echo "status $status: $output"; false; }
@@ -407,7 +407,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a modified checkout says the run tests no commit, and still runs" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     echo modified >> "$checkout/README"
     run_runner
@@ -417,7 +417,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a tree changed during the run fails the run, though every test passed" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-82hmkm
     make_checkout
     make_stub bats "echo changed >> '$checkout/README'; exit 0"
     run_runner
@@ -426,7 +426,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a commit made during the run fails the run" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-82hmkm
     make_checkout
     make_stub bats "git -C '$checkout' commit -q --allow-empty -m during; exit 0"
     run_runner
@@ -437,7 +437,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a failing suite keeps its own status when the tree also changed" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-82hmkm
     make_checkout
     make_stub bats "echo changed >> '$checkout/README'; exit 3"
     run_runner
@@ -446,7 +446,7 @@ assert_rejected() {
 }
 
 @test "run-tests: outside a git checkout the commit tested is unknown" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     plain_dir="$BATS_TEST_TMPDIR/plain"
     mkdir -p "$plain_dir/tests"
     copy_runner "$plain_dir/tests"
@@ -458,14 +458,14 @@ assert_rejected() {
 }
 
 @test "run-tests: a checkout whose HEAD names no commit says so, and the commit tested is unknown" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     init_checkout
     run_runner
     assert_commit_tested_unknown "run-tests: HEAD names no commit; the commit tested is unknown"
 }
 
 @test "run-tests: a git that fails reading HEAD's tree is reported, and the commit tested is unknown" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     make_failing_git_stub '*^{tree}'
     run_runner
@@ -474,7 +474,7 @@ assert_rejected() {
 }
 
 @test "run-tests: an untracked file makes the working tree differ from the commit" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     echo new > "$checkout/untracked"
     run_runner
@@ -483,7 +483,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a tracked file that .gitignore matches leaves a clean checkout testing its commit" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     echo x.log > "$checkout/.gitignore"
     echo log > "$checkout/x.log"
@@ -497,7 +497,7 @@ assert_rejected() {
 }
 
 @test "run-tests: an ignored untracked file leaves a clean checkout testing its commit" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     echo tests/.bats-core/ > "$checkout/.gitignore"
     commit_all "ignore bats-core"
@@ -509,7 +509,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a runner nested in another repository's tree finds no checkout of its own" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     mkdir -p "$checkout/nested/tests"
     copy_runner "$checkout/nested/tests"
@@ -520,7 +520,7 @@ assert_rejected() {
 }
 
 @test "run-tests: without git on PATH the commit tested is unknown" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     rm "$tools_dir/git"
     run_runner
@@ -528,7 +528,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a git that fails before the run leaves the suite's own status, and the commit tested is unknown" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     make_failing_git_stub add
     make_stub bats 'exit 3'
@@ -542,7 +542,7 @@ assert_rejected() {
 }
 
 @test "run-tests: a git that fails after the run is reported, and fails a passing run" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-82hmkm
     make_checkout
     marker="$BATS_TEST_TMPDIR/bats-ran"
     make_failing_git_stub add "$marker"
@@ -554,7 +554,7 @@ assert_rejected() {
 }
 
 @test "outside_bats: the command runs without bats's libexec directory on PATH" {
-    # verifies: PR-2nxadp
+    # verifies: REQ-e6ej6b
     case ":$PATH:" in
         (*":$BATS_LIBEXEC:"*) ;;
         (*) echo "the test's own PATH lacks $BATS_LIBEXEC: $PATH"; false ;;
@@ -573,7 +573,7 @@ index_state() {
 }
 
 @test "run-tests: the checkout's own index is left as it was, staged and unstaged changes alike" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-3um87g
     make_checkout
     echo other > "$checkout/other"
     commit_all other
@@ -589,7 +589,7 @@ index_state() {
 }
 
 @test "run-tests: a mktemp that fails is reported in its own words, and the commit tested is unknown" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-d86bpq
     make_checkout
     make_stub mktemp 'echo "mktemp: stub refused" >&2; exit 1'
     run_runner
@@ -598,7 +598,7 @@ index_state() {
 }
 
 @test "run-tests: the fingerprint helper leaves nothing in TMPDIR" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-3um87g
     make_checkout
     runner_tmpdir="$BATS_TEST_TMPDIR/runner-tmp"
     mkdir -p "$runner_tmpdir"

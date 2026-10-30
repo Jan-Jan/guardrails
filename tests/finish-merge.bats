@@ -194,7 +194,7 @@ STUB
 }
 
 @test "finish-merge: a failing git worktree list rejects instead of deleting the branch" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-6vfb6a
     # The registry is read ONCE and its status taken on its own line, because
     # guard 4 and the removal both read it and neither may confuse "git failed"
     # with "nothing registered". Without that check `$wt_list` is empty, `$wt`
@@ -203,14 +203,10 @@ STUB
     # branch whose worktree is untouched on disk and may have work nested
     # inside it.
     #
-    # This test was written after the check, as test debt the third review
-    # found: green on arrival, and mutation-checked on its own by deleting the
-    # `|| gr_die`. What the mutant showed is worth recording, because it
-    # decides what this test may assert: with the check gone the script runs on
-    # to `git branch -D`, and GIT rejects it — "cannot delete branch used by
-    # worktree" — so the branch remains by accident, not by any guard. An
-    # assertion on the branch alone would therefore have passed the mutant.
-    # The rejection's IDENTITY is what kills it, and it is asserted below.
+    # With the check gone the script runs on to `git branch -D`, and GIT
+    # rejects it — "cannot delete branch used by worktree" — so the branch
+    # remains by accident, not by any guard. An assertion on the branch alone
+    # would pass without the check; the rejection's IDENTITY is asserted below.
     setup_ssh_signing
     make_squashed_change
     bin=$(make_failing_worktree_list)
@@ -221,7 +217,7 @@ STUB
     assert_nothing_removed
 }
 
-# verifies: PR-tz6gsp
+# verifies: REQ-6vfb6a
 @test "finish-merge: a failed git worktree list in gr_base_branch exits 2, is not read as a detached checkout" {
     # Every git worktree list fails here, the FIRST one included, which is
     # gr_base_branch's. Before gr_base_branch took the status, that failure
@@ -240,18 +236,16 @@ STUB
 }
 
 @test "finish-merge: a failing awk rejects instead of deleting the branch" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-6vfb6a
     # The worktree path is derived through awk, and an awk that dies leaves the
     # substitution empty — indistinguishable, without the status check, from a
     # branch whose worktree the harness already removed. The script would then
     # report "no worktree was registered", skip guard 4 and the removal, and
     # delete the branch anyway, with the real worktree still on disk.
     #
-    # Same provenance as the test above: written after the check it covers,
-    # green on arrival, mutation-checked on its own by deleting the `|| gr_die`
-    # — and killed the same way, by the rejection's identity rather than by the
-    # branch's survival, which git's own "used by worktree" rejection supplies
-    # here whatever this script does.
+    # As above, the rejection's identity is asserted, not the branch's
+    # survival, which git's own "used by worktree" rejection supplies here
+    # whatever this script does.
     setup_ssh_signing
     make_squashed_change
     bin=$(make_failing_awk)
@@ -276,7 +270,7 @@ STUB
 }
 
 @test "finish-merge: an unsigned HEAD fails with the worktree and branch intact" {
-    # verifies: PR-52rnrn
+    # verifies: REQ-8cp936
     setup_ssh_signing
     make_squashed_change unsigned
     run sh .guardrails/scripts/finish-merge.sh my-change
@@ -286,7 +280,7 @@ STUB
 }
 
 @test "finish-merge: an unverifiable signature fails, because --strict is unconditional" {
-    # verifies: PR-52rnrn
+    # verifies: REQ-8cp936
     # check-signing.sh's DEFAULT mode passes a signature it cannot verify
     # (WARN-UNVERIFIED), which is what a project with no allowed_signers file
     # gets. Cleaning up on that would answer a question nobody asked, so this
@@ -363,7 +357,7 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: a failed branch deletion after a removal reports the worktree removed" {
-    # verifies: PR-sa5y4k
+    # verifies: REQ-wpm2cu
     # The one exit 1 that follows a destructive act. The worktree is gone by
     # then, so the message has to state that it is, or the operator reads the
     # rejection as "nothing was removed" and looks for a worktree that no
@@ -382,7 +376,7 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: a failed branch deletion with no worktree registered does not claim a removal" {
-    # verifies: PR-sa5y4k
+    # verifies: REQ-wpm2cu
     # With no worktree registered the script removes nothing, so a message that
     # states a worktree was removed is false on this path.
     setup_ssh_signing
@@ -494,15 +488,14 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: a worktree nested inside the change worktree fails with everything intact" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-avq6gm
     # Guard 3 delegates to `git worktree remove` without --force, and that
     # rejection does not detect a NESTED worktree: `.worktrees/` is gitignored,
     # so the change worktree's own `git status` is clean, and git removes the
-    # outer worktree — files and all — at exit 0. Measured before this guard
-    # existed, in a scratch repository and in this fixture alike: the nested
-    # worktree's uncommitted work was deleted, its registration left `prunable`,
-    # and its task branch orphaned. Nesting is what worktree-discipline now
-    # mandates, so this change created the hazard and this guard closes it.
+    # outer worktree — files and all — at exit 0: the nested worktree's
+    # uncommitted work is deleted, its registration left `prunable`, and its
+    # task branch orphaned. worktree-discipline mandates nesting, so this guard
+    # is what keeps the removal from destroying a task's work.
     setup_ssh_signing
     ignore_worktrees_dir
     make_squashed_change
@@ -533,7 +526,7 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: a nested worktree is rejected even when it contains nothing uncommitted" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-avq6gm
     # The guard is CONTAINMENT, not dirtiness. A clean nested worktree is
     # destroyed just as silently — its directory deleted under a registration
     # git then calls `prunable`, its branch left with no worktree — and a guard
@@ -554,7 +547,7 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: a backslash in the change worktree's path does not defeat the guard" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-avq6gm
     # `awk -v k=v` ESCAPE-PROCESSES the value before the program sees it, so a
     # change worktree at `.../w\top` reached guard 4's prefix test spelled
     # `.../w<TAB>op/`. Nothing then matched, `$nested` came back empty, and the
@@ -581,7 +574,7 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: every nested worktree is named, not just the first" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-avq6gm
     # A five-way fan-out leaves five task worktrees. Reporting one and exiting
     # makes the operator run the script five times to learn what one run
     # already knew. Each re-run verifies the signature and uses no private key,
@@ -604,7 +597,7 @@ lock_change_branch_ref() {
     assert_nothing_removed
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-9vpzq2, REQ-dpzf47
 @test "finish-merge: guard 4's rejection names the task-worktree.sh remedy, as --check does" {
     # The change worktree is still in place when guard 4 rejects after the
     # squash, so the task-worktree.sh commands still apply from it. Every
@@ -629,7 +622,7 @@ lock_change_branch_ref() {
     assert_nothing_removed
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-9vpzq2, REQ-dpzf47
 @test "finish-merge: guard 4 after the squash names remove and discard for a task branch with a commit" {
     # A commit on a task branch after the squash is not in the squash, and it
     # was never gated or reviewed. `remove <tag>` rejects the branch, and the
@@ -661,7 +654,7 @@ lock_change_branch_ref() {
     branch_exists my-change-t1 || { echo "the task branch was deleted"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-9vpzq2, REQ-dpzf47
 @test "finish-merge: guard 4 after the squash names the plain git commands for a worktree task-worktree.sh did not create" {
     # A nested worktree whose path is not .worktrees/<change-branch>-<tag> was
     # not created by task-worktree.sh, so no task-worktree.sh command reaches
@@ -685,7 +678,7 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: a sibling whose path merely starts with the change worktree's is not nested" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-avq6gm
     # `<wt>-sibling` starts with `<wt>` and is NOT inside it. A prefix test
     # written without the separator would call it nested and reject every
     # cleanup that had one lying beside it — guard 4 failing CLOSED, on a state
@@ -706,7 +699,7 @@ lock_change_branch_ref() {
 }
 
 @test "finish-merge: a space in the change worktree's path does not defeat the guard" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-avq6gm
     # The prefix test walks git's porcelain output line by line, and a path
     # with a space in it comes through that walk intact only if the line is read as
     # one value. Field-splitting anywhere on the route truncates the path at
@@ -937,7 +930,7 @@ assert_guard5_refused() {
 }
 
 @test "finish-merge: a record committed after the gate leaves a squash its Gate-tree does not name" {
-    # verifies: PR-k4y59t
+    # verifies: ADR-f6ytg7
     # The defect's sequence: the gate measures the change branch, the record
     # is committed after it, and the squash carries the tree the gate
     # measured. The signed commit then holds a tree no gate saw.
@@ -961,7 +954,7 @@ assert_guard5_refused() {
 }
 
 @test "finish-merge: guard 5 reads the message when log.showSignature is set" {
-    # verifies: ADR-f6ytg7, PR-nyw3ww
+    # verifies: ADR-f6ytg7
     # With log.showSignature, git log prints the verifier's output above the
     # formatted message, which would read as body text before the subject.
     setup_ssh_signing
@@ -1172,7 +1165,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
 # squash commit, which does not exist at the point this mode is for, and guard
 # 3 is `git worktree remove` itself and cannot be proved without doing it.
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 @test "finish-merge: --check reports a nested worktree and removes nothing" {
     setup_ssh_signing
     ignore_worktrees_dir
@@ -1194,7 +1187,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     branch_exists my-change-t1 || { echo "the task branch was deleted"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-9vpzq2, REQ-dpzf47
 @test "finish-merge: --check names the task-worktree.sh remedy for each kind of nested worktree" {
     # Before the squash, every nested worktree is retired with `remove <tag>`,
     # the review worktree included, and a branch remove rejects is discarded
@@ -1222,7 +1215,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     assert_nothing_removed
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 @test "finish-merge: --check exits 0 when nothing is nested" {
     setup_ssh_signing
     ignore_worktrees_dir
@@ -1235,7 +1228,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     assert_nothing_removed
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 @test "finish-merge: --check runs from the change worktree, before any squash" {
     # The test that matters most. This mode is for merge-change step 6c — in
     # the change worktree, before the squash is staged — which is exactly the
@@ -1249,7 +1242,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
         || { echo "expected the clean verdict, got: $output"; false; }
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 @test "finish-merge: --check rejects the base branch" {
     # A usage error, not a verdict: naming the base branch here would report on
     # the primary checkout and read as a green light for a cleanup that would
@@ -1265,7 +1258,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     assert_nothing_removed
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 @test "finish-merge: --check never removes, even with everything green" {
     # Everything the real run needs is in place — signed squash, clean
     # worktree, nothing nested — and the check still removes nothing. A mode
@@ -1280,7 +1273,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     assert_nothing_removed
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 # The preflight's value is telling the operator what step 8 would state, so it
 # must not state it in a different number. Guard 4 switches singular/plural on an
 # embedded newline; this proves --check switches with it. The singular
@@ -1302,7 +1295,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
         || { echo "the verdict did not name the second worktree: $output"; false; }
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 @test "finish-merge: --check with no registered worktree states nothing was inspected" {
     # The third green this mode can print, and the one that proves NOTHING. A
     # branch that exists but has no worktree registered leaves guard 4 with
@@ -1329,7 +1322,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     branch_exists my-change || { echo "the branch was deleted by a check"; false; }
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-6vfb6a
 @test "finish-merge: --check rejects a failing git worktree list, it does not report a clean tree" {
     # The preflight reads the registry itself, so it owns this false green
     # separately from the removal mode's copy of it (covered by the test near
@@ -1348,7 +1341,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     assert_nothing_removed
 }
 
-# verifies: PR-tz6gsp
+# verifies: REQ-6vfb6a
 @test "finish-merge: --check exits 2 when gr_base_branch's git worktree list fails" {
     # Before gr_base_branch took the status, its failure printed nothing, which
     # this mode accepts as a detached primary checkout, and the run reached its
@@ -1364,7 +1357,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     assert_nothing_removed
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-6vfb6a
 @test "finish-merge: --check rejects a failing awk, it does not report a clean tree" {
     # The same false green through the other tool: the worktree path is
     # derived through awk, and an awk that dies leaves the substitution empty
@@ -1381,7 +1374,7 @@ stray line'; message_trailers "$head_tree"; } | resign_with_message
     assert_nothing_removed
 }
 
-# verifies: PR-k77dzn
+# verifies: REQ-5g2ymu
 @test "finish-merge: -n is --check" {
     # The short spelling is documented in the header and nowhere else — not
     # even in the `usage:` strings, which spell only `[--check]` — so a test is

@@ -32,7 +32,7 @@ You orchestrate the loop: a subagent runs it for one plan task under
   command):
 
   ```
-  Execute task 3 of docs/plans/2026-08-30-<topic>.md under the develop-tdd
+  Execute task 3 of docs/plans/<YYYY-MM-DD>-<topic>.md under the develop-tdd
   skill. Create your task worktree with
   `sh .guardrails/scripts/task-worktree.sh start t3` from the change worktree
   you are in; it is .worktrees/<change-branch>-t3, on branch

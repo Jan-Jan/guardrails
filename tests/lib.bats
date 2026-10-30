@@ -3,7 +3,7 @@ load helpers
 setup() { make_fixture_repo; }
 
 # A minimal valid two-unit manifest repo, built by hand: no root config.
-# T3's shared fixture will be above this; these tests construct by hand so
+# These tests construct by hand, not with the shared fixture, so
 # the validator is tested below the fixture that later depends on it.
 make_manifest_repo() {
     # setup() has already run make_fixture_repo; calling it again would
@@ -142,7 +142,7 @@ EOF
     [ -z "$output" ]
 }
 
-# verifies: PR-tz6gsp
+# verifies: REQ-656yvt
 @test "gr_base_branch returns git's status when git worktree list fails, and prints nothing" {
     # Before the status was taken, the failure returned 0 with no output, which
     # is the detached-primary result above, and git's error was discarded.
@@ -162,7 +162,7 @@ EOF
 }
 
 @test "gr_nested_worktrees prints each worktree inside WT, indented, and no sibling" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-pn4hs8
     git worktree add -q -b outer outer
     git worktree add -q -b sibling outer-sibling
     # Spelled as git records it: $BATS_TEST_TMPDIR can be a symlinked path.
@@ -208,7 +208,7 @@ gr_prefixes | tr "\n" " "'
 }
 
 @test "gr_check_config accepts a guardrails_commit key" {
-    # verifies: PR-dcn2xc
+    # verifies: REQ-j6h2d9
     # The qualification basis is "the suite at the version recorded in
     # config", but a version string moves — upstream can advance mid-change
     # while still reading the same number. The commit is what makes the basis
@@ -439,10 +439,10 @@ EOF
 }
 
 @test "gr_id_run keeps reading the list after a mistyped ID" {
-    # Independent review, S3. The skip left the stray characters in place, so
-    # the next ^-anchored match failed and one bad ID discarded every ID after
-    # it. The direction was safe — lost coverage reddens — but MISSING-TEST
-    # then also named the correctly spelled item, pointing at the wrong line.
+    # A skip that left the stray characters in place would fail the next
+    # ^-anchored match, so one bad ID would discard every ID after it. The
+    # direction is safe — lost coverage reddens — but MISSING-TEST would then
+    # also name the correctly spelled item, pointing at the wrong line.
     run sh -c '. .guardrails/scripts/lib.sh && printf "%s\n" "# verifies: REQ-a3k9z2x, REQ-b4m8p3" | gr_id_run "verifies:"'
     [ "$status" -eq 0 ]
     [ "${#lines[@]}" -eq 1 ] || { echo "harvested: $output"; false; }
@@ -505,7 +505,7 @@ EOF
 }
 
 @test "gr_check_config rejects a key set to nothing, whichever key it is" {
-    # verifies: PR-8uggn4
+    # verifies: REQ-fu7ux3
     # One `#` in front of one strict_paths item read as an empty list, every
     # traceability scan then walked no paths, and a merge over an undefined-ID
     # reference went from exit 1 to exit 0. The rule had been arriving one key
@@ -531,13 +531,10 @@ EOF
     [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
     [[ "$output" == *"DANGLING-REF"* ]] || { echo "$output"; false; }
 
-    # And now the half this test named and never reached. gr_check_forms
-    # branches on whether the key is in GR_LIST_KEYS: strict_paths above takes
-    # the cfg_list arm, and until PR-8uggn4 nothing in this file took the
-    # cfg_get arm beside it, so "scalar and list alike" was a claim about one
-    # arm. doc_problems is a scalar, and emptying it must be rejected the same
-    # way. Measured: with the scalar arm deleted (config-schema M90) this file
-    # killed the mutation 0 times and check-review.bats killed it.
+    # The scalar half. gr_check_forms branches on whether the key is in
+    # GR_LIST_KEYS: strict_paths above takes the cfg_list arm, and this takes
+    # the cfg_get arm beside it, so "scalar and list alike" covers both arms.
+    # doc_problems is a scalar, and emptying it must be rejected the same way.
     sed -i.bak 's|^doc_problems: .*$|doc_problems:|' .guardrails/config.yaml \
         && rm -f .guardrails/config.yaml.bak
     commit_all emptied-scalar-key
@@ -688,7 +685,7 @@ PY
 }
 
 @test "every script stops outside a git repository, at gr_root" {
-    # verifies: the fail-closed gr_root guard (docs/verification/2026-08-27-config-schema.md, its fixes carried)
+    # verifies: REQ-y4xa6r
     # `cd "$(gr_root)" || exit 2` does not fail closed under dash. The fix
     # was merged into all seven scripts and the evidence in one of them, so a
     # mutation reverting the other six was not detected by the whole suite.
@@ -754,8 +751,8 @@ PY
 }
 
 @test "gr_check_config rejects a list key that names nothing at all" {
-    # Absent is the same gate-off as empty, and the emptiness message used to
-    # RECOMMEND it. strict_paths is the whole of the source scan's scope: with
+    # Absent is the same gate-off as empty, so the emptiness message must not
+    # recommend it. strict_paths is the whole of the source scan's scope: with
     # no entries a reference to an ID nobody defined is never looked for.
     printf '// implements: REQ-zzz9zz\n' > src/main.c
     printf 'true\n' > tests/test_a.sh
@@ -890,8 +887,7 @@ PY
         || { echo "helpers.bash no longer defines the shared teardown"; false; }
 }
 
-# verifies: architecture item 8 — depends_on / segregated_from are per-unit
-# list keys the single-unit config accepts
+# verifies: ADR-ah4b5t, ADR-tr72dr
 @test "gr_check_config accepts depends_on and segregated_from as list keys" {
     cat >> .guardrails/config.yaml <<'EOF'
 depends_on:
@@ -903,8 +899,7 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-# verifies: architecture item 8 — a list key written as a scalar is rejected,
-# not read as empty
+# verifies: REQ-3z8s5a
 @test "gr_check_config rejects depends_on written in scalar form" {
     printf 'depends_on: platform/hal\n' >> .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_config'
@@ -912,8 +907,7 @@ EOF
     [[ "$output" == *"wrong form"* ]] || { echo "$output"; false; }
 }
 
-# verifies: architecture item 8 — expectation limits parse through the same
-# gr_limit path as the problem limits
+# verifies: REQ-d9m923
 @test "gr_limit parses the expectation limits like the problem limits" {
     printf 'expectation_age_days: 90\nexpectation_open_max: 10\n' >> .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_limit expectation_age_days && gr_limit expectation_open_max'
@@ -922,16 +916,14 @@ EOF
     [ "${lines[1]}" = "10" ]
 }
 
-# verifies: architecture item 8 — an unparseable expectation limit is exit 2,
-# never a silently disabled gate
+# verifies: REQ-d9m923
 @test "gr_limit rejects an unparseable expectation limit" {
     printf 'expectation_age_days: ninety\n' >> .guardrails/config.yaml
     run sh -c '. .guardrails/scripts/lib.sh && gr_limit expectation_age_days'
     [ "$status" -eq 2 ]
 }
 
-# verifies: architecture item 1 groundwork — one parser for every config-shaped
-# file: cfg_get/cfg_list read an explicit FILE argument
+# verifies: REQ-72z4ed
 @test "cfg_get and cfg_list read an explicit second file argument" {
     printf 'units:\n  - packages/pump\n' > other.yaml
     run sh -c '. .guardrails/scripts/lib.sh && cfg_list units other.yaml && cfg_get safety_class'
@@ -1045,16 +1037,16 @@ EOF
     [[ "$output" == *"outside the unit"* ]] || { echo "$output"; false; }
 }
 
-# --- T3: engagement rule, scope resolver, annotation parser -----------------
+# --- engagement rule, scope resolver, annotation parser ---------------------
 
-# verifies: no-manifest-changes-nothing (plan obligation)
+# verifies: REQ-8rtckf
 @test "gr_unit_engage is a no-op without a manifest" {
     run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage && printf "[%s]" "$GR_UNIT"'
     [ "$status" -eq 0 ]
     [ "$output" = "[]" ]
 }
 
-# verifies: engagement rule — root config rejected in a manifest repo
+# verifies: REQ-xs9zct
 @test "gr_unit_engage rejects the default config path in a manifest repo, naming the remedy" {
     make_units_fixture
     run sh -c '. .guardrails/scripts/lib.sh && gr_unit_engage'
@@ -1064,7 +1056,7 @@ EOF
     [[ "$output" == *"GR_CONFIG"* ]] || { echo "$output"; false; }
 }
 
-# verifies: engagement rule — undeclared config rejected
+# verifies: REQ-xs9zct
 @test "gr_unit_engage rejects a GR_CONFIG that is not a declared unit's" {
     make_units_fixture
     mkdir -p vendor/thing/.guardrails
@@ -1075,7 +1067,7 @@ EOF
     [[ "$output" == *"not a declared unit"* ]] || { echo "$output"; false; }
 }
 
-# verifies: engagement rule — declared unit config resolves to its unit
+# verifies: REQ-xs9zct
 @test "gr_unit_engage resolves a declared unit's config to its unit" {
     make_units_fixture
     GR_CONFIG=apps/pump/.guardrails/config.yaml \
@@ -1084,7 +1076,7 @@ EOF
     [ "$output" = "apps/pump" ]
 }
 
-# verifies: exports-mode-matches-resolution (plan obligation)
+# verifies: REQ-aut3rq
 @test "gr_exported_reqs lists exactly the exported REQ IDs with their files" {
     make_units_fixture
     run sh -c '. .guardrails/scripts/lib.sh && gr_check_units && gr_exported_reqs platform/hal'
@@ -1093,7 +1085,7 @@ EOF
     [[ "$output" != *"LLR-"* ]] || { echo "$output"; false; }
 }
 
-# verifies: annotation grammar reader (architecture item 3)
+# verifies: REQ-8x9ew2
 @test "gr_req_scan reports expects and opened per block" {
     make_units_fixture
     cat >> apps/pump/docs/requirements/0001-01-01-base.md <<'EOF'
@@ -1108,7 +1100,7 @@ EOF
     [[ "$output" == *"REQ-e7x2m4	"*"	OPENED	2026-09-01"* ]] || { echo "$output"; false; }
 }
 
-# verifies: consumer resolution over depends_on edges
+# verifies: REQ-82zcjv
 @test "gr_consumers_of names the units whose depends_on points here" {
     make_units_fixture
     run sh -c '. .guardrails/scripts/lib.sh && gr_consumers_of platform/hal && gr_consumers_of apps/pump'
@@ -1116,7 +1108,7 @@ EOF
     [ "$output" = "apps/pump" ]
 }
 
-# verifies: path-to-unit classification (D7 whole-component rule)
+# verifies: REQ-m3pt2e
 @test "gr_unit_of_path classifies unit, disclaimed and unowned paths" {
     make_units_fixture
     run sh -c '. .guardrails/scripts/lib.sh
@@ -1138,9 +1130,9 @@ EOF
     [ "$output" = "0" ]
 }
 
-# --- fix1 finding-3: the manifest engages on its exact byte-name only --------
+# --- the manifest engages on its exact byte-name only ------------------------
 
-# verifies: engagement rule (architecture item 2) — byte-exact manifest name
+# verifies: REQ-8rtckf
 @test "lib: UNITS.YAML on a case-insensitive filesystem never engages gr_units_present" {
     # On APFS (case-insensitive by default) `[ -f .guardrails/units.yaml ]` is
     # also satisfied by UNITS.YAML — a manifest that officially does not exist
@@ -1154,7 +1146,7 @@ EOF
     [ "$output" = "not-engaged" ]
 }
 
-# verifies: manifest validation (gr_check_units) — abnormal input: absolute entry
+# verifies: REQ-aeas98
 @test "lib: manifest entry that is absolute is exit 2" {
     make_manifest_repo
     printf '  - /abs\n' >> .guardrails/units.yaml
@@ -1185,7 +1177,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here accepts a list marker before the keyword" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-x7m2sy
     # The asymmetry this closes: gr_id_run finds `satisfies:` anywhere on the
     # line, so a bulleted annotation is credited inside a block while the
     # backstop could not see the same line outside one. The BACKSTOP is the
@@ -1198,7 +1190,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_here rejects a list marker before the keyword" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-nw7wy4
     # THE PROPERTY THE TWO REGRESSIONS TURNED ON, pinned so the readers cannot
     # drift onto the backstop's width again. Every scalar reader in this
     # toolkit is first-occurrence-wins, so a reader that accepted this line
@@ -1213,7 +1205,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here still rejects bare indentation" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-x7m2sy
     # SCOPE CONTROL, not a widening. A MARKER is required; indentation alone
     # changes nothing. This is what keeps the indented grammar comments in the
     # ledger templates inert, and it is the property the backstop is built
@@ -1245,15 +1237,14 @@ item_block_probe() {
 }
 
 # --- the ORDERED-list marker: the same defect, verbatim ---------------------
-# Round-2 review, finding 15. The first widening stepped over `-`, `*` and `+`
-# and nothing else, so an ordered-list item reproduced PR-h3wujj exactly:
-# `1. satisfies: REQ-001` outside every block was reported by nothing at all,
-# while gr_id_run credited the same line inside one. A markdown list is
-# bulleted OR ordered; a rule that knows only half of that closed half a hole
-# and the note above it claimed the whole one.
+# A widening that stepped over `-`, `*` and `+` and nothing else would let an
+# ordered-list item through:
+# `1. satisfies: REQ-001` outside every block would be reported by nothing at
+# all, while gr_id_run credits the same line inside one. A markdown list is
+# bulleted OR ordered; a rule that knows only half of that closes half a hole.
 
 @test "gr_kw_orphan_here accepts an ordered list marker before the keyword" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-x7m2sy
     run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
         '1. status: open'
     [ "$status" -eq 0 ]
@@ -1261,7 +1252,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here accepts the paren form of an ordered marker" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-x7m2sy
     # Both delimiters markdown allows, and a multi-digit number with them: the
     # tenth item of a list is no less an item than the first.
     run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
@@ -1271,7 +1262,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here steps over a run of markers, not just one" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-x7m2sy
     # A one-line nested list. Depth is not a reason to lose an orphan, so the
     # stripper consumes a RUN of markers rather than exactly one.
     run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
@@ -1281,7 +1272,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_here rejects an ordered list marker before the keyword" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-nw7wy4
     # SCOPE CONTROL. The widening is the BACKSTOP half and only that half. The
     # readers are first-occurrence-wins, so a reader that took this line would
     # let a quoted `1. status: resolved` outrank the column-one `status: open`
@@ -1294,7 +1285,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here still rejects a bare number with no delimiter" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-x7m2sy
     # SCOPE CONTROL, the ordered twin of "still rejects bare indentation". A
     # MARKER is required, and a run of digits alone is not one — `1 status: of
     # the bus is open` is prose, and a rule that stepped over it would report

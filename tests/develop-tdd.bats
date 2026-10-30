@@ -1,7 +1,6 @@
 # Content lints over skills/develop-tdd/SKILL.md: the TDD loop a dispatched
-# task subagent runs for one plan task (docs/plans/2026-10-13-code-guidelines.md,
-# D1). The section shape and word count are covered by the
-# skill-shape tests in skills.bats.
+# task subagent runs for one plan task. The section shape and word count are
+# covered by the skill-shape tests in skills.bats.
 
 load helpers
 
@@ -11,7 +10,7 @@ setup() {
 }
 
 @test "develop-tdd: the skill is named, and only a dispatched task subagent loads it" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-sync6b, REQ-3veknj
     grep -qxF 'name: develop-tdd' "$skill"
     preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$preconditions" | grep -qF 'You were dispatched by `develop-change` with one plan task'
@@ -19,7 +18,7 @@ setup() {
 }
 
 @test "develop-tdd: a TEST conformance finding is fixed under the loop, or reported not fixed" {
-    # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-z2rbmx
     preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$preconditions" | grep -qF 'or with the findings of a `TEST` conformance review to fix'
     printf '%s\n' "$preconditions" | grep -qF 'each finding is fixed under the loop below, citing the clause it names, or reported as `no change` with the reason'
@@ -27,12 +26,12 @@ setup() {
 }
 
 @test "develop-tdd: no production code without a failing test first" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-4bk9tg
     grep -qF '**No production code without a failing test first.**' "$skill"
 }
 
 @test "develop-tdd: the loop runs RED, then GREEN, and its sixth step commits" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-5e57px
     # worktree-discipline cites "develop-tdd step 6" for the commit on the
     # task branch, so the numbering is pinned.
     loop=$(section_of '### The loop, one behavior at a time' "$skill")
@@ -44,21 +43,21 @@ setup() {
 }
 
 @test "develop-tdd: the class rules and the bug rule" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-sh55a4
     grep -qF '**B and C, the robustness rule:**' "$skill"
     grep -qF 'every SDD item the change touches gets tests at its own interface' "$skill"
     grep -qF 'A bug is a missing test.' "$skill"
 }
 
 @test "develop-tdd: every test fails when the behavior it verifies breaks" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md); D2 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-d9b96s
     grep -qxF '**Every test fails when the behavior it `verifies:` breaks.**' "$skill"
     grep -qF 'An assertion only that a double was called meets this only where the' "$skill"
     grep -qxF 'call is the requirement.' "$skill"
 }
 
 @test "develop-tdd: before RED, guidelines-file.sh picks the one test guidelines file" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md); D2, D6, D8 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-6fp3aw
     grep -qF 'sh .guardrails/scripts/guidelines-file.sh TEST <the paths the task touches>' "$skill"
     section=$(section_of '### Test guidelines' "$skill" | tr '\n' ' ' | tr -s ' ')
     [ -n "$section" ] || { echo "no Test guidelines section"; false; }
@@ -68,7 +67,7 @@ setup() {
 }
 
 @test "develop-tdd: the dispatch report's shape, and an inherited test is coverage" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md); ADR-k3nkv3
+    # verifies: REQ-evg2bd, ADR-k3nkv3
     report=$(section_of '### The dispatch report' "$skill")
     [ -n "$report" ] || { echo "no dispatch report section"; false; }
     for line in 'task: <ID>' 'worktree: <path to the task worktree>' 'files touched: <paths>' \
@@ -80,24 +79,15 @@ setup() {
     printf '%s\n' "$report" | tr '\n' ' ' | tr -s ' ' | grep -qF 'It is coverage, not red-first evidence'
 }
 
-@test "develop-tdd: carries no repository-only mutation-anchor rule" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md); D10 (docs/plans/2026-10-08-test-guidelines.md)
-    [ -f "$skill" ] || { echo "no develop-tdd SKILL.md"; false; }
-    if grep -q 'mutations' "$skill"; then
-        echo "develop-tdd states the repository-only anchor rule"
-        false
-    fi
-}
-
 @test "develop-tdd: the subagent's red flags" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-4bk9tg, REQ-5e57px, REQ-3veknj
     grep -qF '| "I'"'"'ll keep the code I wrote as reference while I write the test" |' "$skill"
     grep -qF '| "The test passed on its first run, good" |' "$skill"
     grep -qF '| "I'"'"'ll merge my task branch when I am done" |' "$skill"
 }
 
 @test "develop-tdd: the skills that cite the TDD rules cite develop-tdd, and the README shows the split" {
-    # verifies: D1, D4, D6 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-7ughhm
     # develop-tdd holds the loop, the annotation rule and the red-first rule,
     # so a citation of them names it; a citation of the dispatcher names
     # develop-change.
@@ -110,7 +100,7 @@ setup() {
 }
 
 @test "develop-tdd: GREEN runs the guidelines file's selection, not the whole suite" {
-    # verifies: D2 (docs/plans/2026-10-15-test-selection-guideline.md)
+    # verifies: REQ-8kgv4d
     body=$(tr '\n' ' ' < "$skill" | tr -s ' ')
     step=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
     printf '%s' "$step" | grep -qF "the selection the guidelines file's \`Test runs\` section states" ||

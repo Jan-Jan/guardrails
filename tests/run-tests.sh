@@ -26,9 +26,9 @@ fi
 
 # An argument ending in .bats that is an existing file, or an argument that is
 # an existing directory, names what to run and replaces the glob; without one,
-# every file runs. Appending the glob ran a named file twice and the whole
-# suite once, and ran a named directory such as tests/ twice, since bats runs
-# a directory's files itself (PR-r83mmd). An option's value can end in .bats
+# every file runs. Appending the glob instead would run a named file twice and
+# the whole suite once, and a named directory such as tests/ twice, since bats
+# runs a directory's files itself. An option's value can end in .bats
 # too, as in --filter foo.bats, and must not drop the glob, so a name counts
 # only if the file exists.
 files_named=no
@@ -45,7 +45,7 @@ for argument in "$@"; do
     esac
 done
 
-# How many files bats runs at once (PR-hrx4vf). RUN_TESTS_JOBS=1 runs
+# How many files bats runs at once. RUN_TESTS_JOBS=1 runs
 # serially and RUN_TESTS_JOBS=<n> runs n at once; any other value is a
 # mistake, and running serially in its place would hide it. Unset or empty,
 # the runner uses every CPU where GNU parallel, which bats --jobs needs, is
@@ -59,7 +59,7 @@ case $jobs_setting in
     (?????*)
         # A sanity bound: no host has 10,000 CPUs. It also keeps the shell's
         # integer test below far from overflow, which starts at 19 digits and
-        # fails with "integer expression expected" (PR-hrx4vf).
+        # fails with "integer expression expected".
         echo "run-tests.sh: RUN_TESTS_JOBS must be at most 9999, not '$jobs_setting'" >&2
         exit 2 ;;
     (*)
@@ -80,7 +80,7 @@ done
 
 # bats --jobs needs GNU parallel. moreutils installs a different program under
 # the same name, and bats --jobs with it runs no test, so a parallel whose
-# --version does not say GNU parallel counts as absent (PR-hrx4vf).
+# --version does not say GNU parallel counts as absent.
 gnu_parallel_installed() {
     command -v parallel >/dev/null 2>&1 || return 1
     parallel_version=$(parallel --version </dev/null 2>/dev/null) || return 1
@@ -118,7 +118,7 @@ if [ "$files_named" = no ]; then
     set -- "$@" "$dir"/*.bats
 fi
 
-# The commit this run tests (PR-y8ff5p). The tests read the files of the
+# The commit this run tests. The tests read the files of the
 # working tree they live in, so a commit or an edit made there during a run
 # gives a result that describes no commit. Messages go to standard error and
 # leave the TAP stream as bats wrote it.

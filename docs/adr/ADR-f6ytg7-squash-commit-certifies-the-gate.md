@@ -6,8 +6,8 @@ Status: accepted
 ## Context
 
 A record committed in the change it certifies cannot name the commit or tree
-it is part of (PR-k4y59t): every base update made those lines stale, and
-rewriting them changed the tree they named. The squash message is outside
+it is part of: every base update makes those lines stale, and rewriting them
+changes the tree they name. The squash message is outside
 the tree, so it can name the tree the gate measured. The maintainer signs
 locally before pushing to open a pull request.
 
@@ -51,5 +51,4 @@ locally before pushing to open a pull request.
 - A forge that rebases or squash-merges a pull request after the push
   replaces the signed squash with a commit whose tree its `Gate-tree:` may
   not name, and nothing in guardrails re-checks `Gate-tree:` after that:
-  guard 5 runs once, at signing. PR-m7gcuq records how pull requests land as
-  open.
+  guard 5 runs once, at signing. How pull requests land is undecided.

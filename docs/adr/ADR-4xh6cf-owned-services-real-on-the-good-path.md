@@ -23,14 +23,11 @@ connection or from a fake, under the same contract test. A failure test may
 fake the successes that precede its failure, where each of those successes is
 verified against the real service by a normal-case test in the suite.
 
-Decisions D4, D7 point 4, D8 and D9 of `docs/plans/2026-10-07-test-seams.md`.
+## Consequences
 
-## Cost
-
-A project's REQ-level suite needs its owned services running in the test
-environment: containers or the equivalent. How a project provides them is
-its own test-environment decision.
-
-Amended by ADR-me39p4 (2026-10-08): this rule is the shipped default of
-`templates/TEST_GUIDELINES.md`, which a project may change in its own
-`docs/TEST_GUIDELINES.md`; it is not part of the compliance floor.
+- A project's REQ-level suite needs its owned services running in the test
+  environment: containers or the equivalent. How a project provides them is
+  its own test-environment decision.
+- Under ADR-me39p4 this rule is the shipped default of
+  `templates/TEST_GUIDELINES.md`, which a project may change in its own
+  `docs/TEST_GUIDELINES.md`; it is not part of the compliance floor.

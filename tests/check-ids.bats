@@ -47,7 +47,7 @@ EOF
 }
 
 @test "check-ids: a file listing that fails is an error, not a tree with no draft-named ledger file" {
-    # verifies: D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-beb6gm, REQ-knb3qu
     # A git that fails `ls-files` lists nothing, and nothing listed is what a
     # tree with no draft-named ledger file looks like. The draft name below
     # proves the run would otherwise have failed DRAFT-FILE.
@@ -120,12 +120,12 @@ EOF
 }
 
 @test "every script parses as POSIX sh" {
-    # verifies: PR-xyu6en
+    # verifies: REQ-why7yf
     cd "$BATS_TEST_DIRNAME/.."
-    # Twice during this change an apostrophe inside a single-quoted awk program
-    # closed the quote and left a script that could not be parsed at all. Both
-    # times the suite caught it — as 30-odd unrelated failures whose cause took
-    # a minute to find. One named test is cheaper.
+    # An apostrophe inside a single-quoted awk program closes the quote and
+    # leaves a script that cannot be parsed at all. The rest of the suite
+    # catches it only as dozens of unrelated failures; one named test says
+    # what broke.
     seen=0
     for f in scripts/*.sh; do
         seen=$((seen + 1))
@@ -136,12 +136,11 @@ EOF
 
 @test "poisoning gr_def_re changes every gate's verdict" {
     # verifies: REQ-vn6s4v
-    # The behavioural half of AC5 of change D, and the only half ever proved.
-    # Three rounds of review defeated text-based checks: a copy in another
-    # quoting style, a copy spelled [[:digit:]], a copy split across lines, a
-    # copy spelled [-][0-9], a call whose result is discarded on the next line,
-    # and a gr_def_re redefined inside the script itself. None of those defeats
-    # this.
+    # A behavioural check, because a text-based one is defeated by a copy in
+    # another quoting style, a copy spelled [[:digit:]], a copy split across
+    # lines, a copy spelled [-][0-9], a call whose result is discarded on the
+    # next line, or a gr_def_re redefined inside the script itself. None of
+    # those defeats this.
     #
     # Redefining at the END of lib.sh wins over the original by shell rules, so
     # every caller that really goes through lib.sh's constructor is poisoned.
@@ -221,7 +220,7 @@ LEDGER
 }
 
 @test "check-ids: a stock install does not report its own tooling" {
-    # verifies: AC9 (docs/plans/2026-08-20-scan-pathspec.md), its check-ids.sh half
+    # verifies: REQ-pxjhm4
     # The scan exclusion, which names .guardrails/scripts and nothing wider,
     # exists only so the installed scripts — whose comments contain
     # `REQ-DRAFT-b-1` and definition-form examples — do not trip the gates
@@ -237,9 +236,9 @@ LEDGER
 }
 
 @test "check-ids: a draft ID in a project file under .guardrails/ is reported" {
-    # AC3. The scan pathspec excluded the whole .guardrails/ tree, so anything
-    # a project kept there was invisible to every tree-wide gate. Only the
-    # tooling needs excluding.
+    # A scan pathspec that excludes the whole .guardrails/ tree hides anything
+    # a project keeps there from every tree-wide gate. Only the tooling needs
+    # excluding.
     mkdir -p .guardrails/docs/requirements
     cat > .guardrails/docs/requirements/DRAFT-x-srs.md <<'EOF'
 # SRS
@@ -266,18 +265,15 @@ EOF
 }
 
 @test "poisoning GR_SCAN_EXCLUDE changes every gate's verdict" {
-    # AC8 of change E, and the lesson of change D: a lint that greps for the
-    # right spelling is defeated by a different spelling. Three earlier attempts
-    # at a textual guard were each bypassed — by a single-quoted copy, by a
-    # comment that preserved the count, by a shadowing definition. So prove the
-    # single source of truth behaviourally: move the exclusion onto src/, and
+    # A lint that greps for the right spelling is defeated by a different
+    # spelling: a single-quoted copy, a comment that preserves the count, a
+    # shadowing definition. So prove the single source of truth
+    # behaviourally: move the exclusion onto src/, and
     # require every scan to follow it there. A call site still with its own
     # literal pathspec would not move, and would fail here.
     #
     # check-ids.sh has three such sites — the draft scan, MALFORMED-ID and the
-    # duplicate scan — and each has its own observable below. It had four until
-    # MALFORMED-ID's two passes were collapsed into one composed scan; the
-    # count here stated four for a while afterwards. Independent review, S8.
+    # duplicate scan — and each has its own observable below.
     printf '**REQ-001**: a second definition of the fixture item.\n**REQ-b4m7q3**: an item outside its ledger.\n**REQ-abcdef**: a body that is not an ID.\n**REQ-DRAFT-x-1**: a draft.\n' \
         > src/notes.md
     # check-trace.sh runs below, and this file's fixture leaves tests/ empty.
@@ -387,7 +383,7 @@ EOF
 # --- a draft-named ledger file fails, and no flag tolerates one -----------
 
 @test "check-ids: --allow-draft-files is gone, and is rejected rather than ignored" {
-    # verifies: D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-ta654s
     # No step creates or renames a draft-named ledger file (ADR-cy7ahd), so a
     # flag that let one pass would be a gate the caller believes they ran.
     # Rejected like --allow-drafts, so a stale CI line or an un-upgraded skill
@@ -405,11 +401,9 @@ EOF
     #
     # The draft token is in PROSE, not in definition form. Written as
     # **PR-DRAFT-x-1**: at column one it is also a MALFORMED-ID, and this test
-    # passed on that gate's message instead — mutation M24 blanked the draft
-    # message and reddened nothing at all.
+    # would pass on that gate's message even with the draft message blanked.
     #
-    # The message is the `fix DRAFT-ID:` line on stdout since D8
-    # (docs/plans/2026-09-28-agent-first-skills.md); it was a stderr paragraph.
+    # The message is the `fix DRAFT-ID:` line on stdout.
     printf 'A note referring to PR-DRAFT-x-1 in prose.\n' > docs/problems/z.md
     commit_all draft
 
@@ -421,7 +415,7 @@ EOF
 }
 
 @test "check-ids: a draft-named ledger file fails" {
-    # verifies: D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-knb3qu
     printf '**PR-a3k9z2**: a real item.\nstatus: open\n' \
         > docs/problems/DRAFT-x-new.md
     commit_all draftfile
@@ -432,7 +426,7 @@ EOF
 }
 
 @test "check-ids: a ledger file named at creation passes" {
-    # verifies: D1, D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-knb3qu, ADR-cy7ahd
     printf '**PR-a3k9z2**: a real item.\nstatus: open\n' > docs/problems/2026-10-13-new.md
     commit_all dated
     run sh .guardrails/scripts/check-ids.sh
@@ -519,10 +513,9 @@ EOF
 }
 
 @test "check-ids: a duplicate scan that ERRORS is not a clean tree" {
-    # Independent review, blocking finding 1. This scan suppressed stderr and
-    # checked no status, three lines below a comment condemning exactly that,
-    # and it is the only gate left that catches an ID defined twice — the
-    # duplicate-vs-base half went with the sequential scheme.
+    # A scan that suppressed stderr and checked no status would read an error
+    # as a clean tree, and it is the only gate that catches an ID defined
+    # twice: no gate compares IDs against the base branch.
     #
     # Fault injection rather than a poisoned pattern: a `git` earlier on PATH
     # that fails the one scan containing -oE, which in this script is the
@@ -554,11 +547,9 @@ EOF
 }
 
 @test "check-ids: the MALFORMED-ID failure states what to run instead" {
-    # Independent review, S13. DRAFT-ID's guidance is pinned by a test and by
-    # mutation M24; MALFORMED-ID's was pinned by neither, and M42 dropped all
-    # three of its guidance lines while reddening only the location assertion.
-    # The guidance is the `fix MALFORMED-ID:` line on stdout since D8
-    # (docs/plans/2026-09-28-agent-first-skills.md); it was a stderr paragraph.
+    # The location assertion alone would stay green with all three guidance
+    # lines dropped, so the guidance is asserted too.
+    # The guidance is the `fix MALFORMED-ID:` line on stdout.
     printf '**REQ-abcdef**: a body that is not an ID.\n' \
         > docs/requirements/2026-01-01-x.md
     commit_all malformed
@@ -570,9 +561,9 @@ EOF
 }
 
 @test "poisoning gr_def_re_loose changes the MALFORMED-ID verdict" {
-    # Independent review, finding 5: narrowing gr_def_re_loose alone reddened
-    # nothing, so check-ids.sh could drift back to a hand-spelled loose form
-    # with the suite still green. The behavioural pin the constructor lacked.
+    # Without this, narrowing gr_def_re_loose would redden nothing, so
+    # check-ids.sh could drift to a hand-spelled loose form with the suite
+    # still green. This pins the constructor behaviourally.
     printf '**REQ-abcdef**: hand-typed ID with no digit.\n' > docs/requirements/2026-01-01-x.md
     commit_all malformed-item
     run sh .guardrails/scripts/check-ids.sh
@@ -602,9 +593,9 @@ EOF
     [[ "$output" != *"MALFORMED-ID"* ]] || { echo "$output"; false; }
 }
 
-# --- T5: check-ids under scope ----------------------------------------------
+# --- check-ids under scope --------------------------------------------------
 
-# verifies: obligation duplicate-id-stays-tree-wide / disclaimed-prose-is-not-malformed (engagement precondition)
+# verifies: REQ-xs9zct
 @test "check-ids: a manifest repo without GR_CONFIG is exit 2 naming the remedy" {
     make_units_fixture
     run sh .guardrails/scripts/check-ids.sh
@@ -612,7 +603,7 @@ EOF
     [[ "$output" == *"multi-unit repository"* ]] || { echo "$output"; false; }
 }
 
-# verifies: obligation duplicate-id-stays-tree-wide (scoped drafts narrow to the unit)
+# verifies: REQ-9s5jpc
 @test "check-ids: a sibling's draft file and draft token are not this unit's finding" {
     make_units_fixture
     printf '# draft\nREQ-DRAFT-other-change-1\n' > platform/hal/docs/requirements/DRAFT-other-change-notes.md
@@ -625,7 +616,7 @@ EOF
     [[ "$output" == *"DRAFT-FILE"* ]] || { echo "$output"; false; }
 }
 
-# verifies: obligation disclaimed-prose-is-not-malformed (scoped half)
+# verifies: REQ-27uhud
 @test "check-ids: disclaimed-prose-is-not-malformed — a scoped run never reads a disclaimed path" {
     make_units_fixture
     printf '**REQ-abcdef**: legacy prose in definition shape.\n' >> legacy/notes.md
@@ -634,7 +625,7 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-# verifies: obligation duplicate-id-stays-tree-wide
+# verifies: REQ-scc93k
 @test "check-ids: duplicate-id-stays-tree-wide — a cross-unit duplicate convicts from either unit" {
     make_units_fixture
     printf '\n**REQ-h4m2p9**: a colliding definition.\n' >> apps/pump/docs/requirements/0001-01-01-base.md
@@ -647,7 +638,7 @@ EOF
     [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]] || { echo "$output"; false; }
 }
 
-# verifies: obligation duplicate-id-stays-tree-wide (disclaimed path included)
+# verifies: REQ-scc93k
 @test "check-ids: duplicate-id-stays-tree-wide — a duplicate under a disclaimed path still convicts" {
     make_units_fixture
     printf '**REQ-h4m2p9**: stale copy of the interface contract.\n' >> legacy/notes.md

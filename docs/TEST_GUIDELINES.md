@@ -24,10 +24,7 @@ A project that changes a clause rewrites its reason and examples with it.
    `docs/requirements/` and no LLR ledger, so here that is a REQ or an ADR.
    A regression test verifies the lowest-level item the defect broke: the
    LLR where one exists, else the REQ (or the RC's implementing REQ), never
-   the problem report. A test's existing citation of a plan decision stands
-   until the requirements ledger replaces it, and a test a change writes
-   cites no plan decision. A change re-points a citation of a plan decision
-   it reverses, or of a problem report the behavior no longer matches. Why:
+   the problem report. A test cites no plan decision or problem report. Why:
    an ID a test cites must outlive the test: a resolved problem report is
    deleted, a plan never reaches the base branch.
 
@@ -195,41 +192,6 @@ A project that changes a clause rewrites its reason and examples with it.
    criteria above holds. Whether a project must run mutation testing, with which
    command and to what score, is decided in this section; where it names no
    command, mutation testing is not required. This section names none.
-
-2. **A mutation a past record cites stays runnable.** New mutation
-   evidence is a `Mutation: <path>:<line> <mutant> — killed by "<test name>"`
-   trailer on the squash message, and no new `.mutations/` directory is
-   written. This rule covers the existing directories until the change that
-   deletes them. Each
-   `docs/verification/*.mutations/M*.sh` quotes one line of the script it
-   mutates verbatim: most as a literal `old = '''…'''` followed by
-   `assert s.count(old) == 1`, the older ones as a `sed` pattern. An edit to
-   the quoted line stops the mutation applying, and the record that cites it
-   can no longer be reproduced. While editing a script, run one grep per
-   changed line from the repository root:
-
-   ```sh
-   grep -rn 'the exact line you changed' docs/verification/*.mutations/
-   ```
-
-   On a hit:
-
-   - keep the edit: the anchor follows the script, the anchors of earlier
-     changes included;
-   - re-cut the anchor to the new text of the line, with the replacement text
-     the same mutation applied to the new line;
-   - prove the re-cut anchor applies: `tests/mutate.sh <the .mutations dir>`
-     reports it as applied;
-   - prove it still kills tests: apply it in a scratch copy of the tree, run
-     the tests the record lists against it, and see at least one fail. An
-     anchor that applies and kills nothing means the tests never covered that
-     mutation: report it as a finding, not a green result;
-   - commit the re-cut scripts with the change that edited the line.
-
-   Why: `tests/mutations.bats` reports a mutation that no longer applies, but
-   only when the full suite runs, after the edit is complete; the grep finds
-   the hit while the edit is in progress. Nothing checks that a re-cut anchor
-   still kills tests.
 
 ## Test runs
 

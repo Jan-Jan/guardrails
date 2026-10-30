@@ -1,27 +1,14 @@
 # Problem report — three testing gaps found by change test-seams
 
-Recorded by change `test-seams` (`docs/plans/2026-10-07-test-seams.md`,
-follow-ups). `affects:` names files, because guardrails keeps no REQ/SDD/LLR
-ledger of its own.
+Recorded by change `test-seams`. `affects:` names files.
 
-**PR-ttg99p**: `develop-change` step 6 tells every project to grep `docs/verification/*.mutations/` for each changed script line, but only the guardrails repository has that directory, so in an adopter project the grep matches nothing and the step reads as an obligation it cannot meet.
-affects: skills/develop-change/SKILL.md (step 6), skills/develop-change/references/mutation-anchors.md.
-opened: 2026-10-08
-status: resolved
-Resolved: the anchor rule was a guardrails-repository practice shipped in an adopter-facing skill; it moved from `develop-change` step 6 and its reference file to this repository's `docs/TEST_GUIDELINES.md` (`## Mutants` 2), and the skill no longer names the mutations (`develop-change: the mutation-anchor rule lives in this repository's TEST_GUIDELINES.md, not develop-change` in `tests/skills.bats`).
-
-Found by the overlap probe of the `test-seams` interview. Change 2
-(`testing-strategy`) decides whether adopters keep mutation evidence at all
-(D6); the step's wording follows from that ruling, so it is not fixed here.
-
-**PR-dfndh4**: `tests/run-tests.bats` fakes GNU `parallel`, `getconf` and `sysctl` with output that `tests/run-tests.sh` parses, and no contract test checks those fakes against the real tools, against D4 point 3 and D14 of `docs/plans/2026-10-07-test-seams.md`.
+**PR-dfndh4**: `tests/run-tests.bats` fakes GNU `parallel`, `getconf` and `sysctl` with output that `tests/run-tests.sh` parses, and no contract test checks those fakes against the real tools, against Doubles clause 3 of `docs/TEST_GUIDELINES.md`.
 affects: tests/run-tests.bats (make_gnu_parallel_stub, and the make_stub uses that print output), tests/run-tests.sh.
 opened: 2026-10-08
 status: open
 
-Found by fix round 1b's classification of this repository's doubles (plan,
-T3 Done note, D14). D10 leaves existing tests unedited, so the change records
-the gap instead of fixing it. `make_stub_bats` and the status-only `make_stub`
+Found by classifying this repository's doubles. The change that found it
+left existing tests unedited, so it records the gap instead of fixing it. `make_stub_bats` and the status-only `make_stub`
 uses are not covered by this item.
 
 **PR-qf5tkd**: Wall-clock `timeout` bounds in `tests/new-id.bats` turn a slow but correct run into a failure on a loaded host, as a full `tests/run-tests.sh` on tree a1e56eb that took about 2 h failed the give-up-message test (`timeout 30`) and the FIFO test (`timeout 20`, status 124).

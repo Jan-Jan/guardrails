@@ -68,8 +68,7 @@ failed_at() {
 
 # --- the passing run ------------------------------------------------------
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-# verifies: ADR-k3nkv3
+# verifies: REQ-3xmsqp, ADR-k3nkv3
 @test "merge-preflight: a change that passes every check prints one line per check and exits 0" {
     make_passing_change
     run sh .guardrails/scripts/merge-preflight.sh my-change
@@ -85,8 +84,7 @@ preflight: NESTED-WORKTREE ok"
     [ "$output" = "$expected" ] || { echo "$output"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-# verifies: ADR-k3nkv3
+# verifies: REQ-7rw8yx, ADR-k3nkv3
 @test "merge-preflight: --before-review passes with no verification record" {
     make_change_without_record
     run sh .guardrails/scripts/merge-preflight.sh --before-review my-change
@@ -107,7 +105,7 @@ origin_main_ahead() {
     git -C "$REPO" reset -q --hard HEAD~1
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-bkxg65
 @test "merge-preflight: CLEAN-TREE fails on an untracked file and lists it" {
     make_passing_change
     printf 'stray\n' > stray.txt
@@ -117,7 +115,7 @@ origin_main_ahead() {
     failed_at CLEAN-TREE
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: CLEAN-TREE exits 2 when git status fails" {
     make_passing_change
     # A corrupt index makes git status fail; rev-parse, worktree list and
@@ -129,7 +127,7 @@ origin_main_ahead() {
     output_lacks "preflight: CLEAN-TREE ok"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-4dajcn
 @test "merge-preflight: BASE-MERGED fails when the base branch has a commit HEAD lacks" {
     make_passing_change
     printf 'later\n' > "$REPO/later.txt"
@@ -142,7 +140,7 @@ origin_main_ahead() {
     printf '%s\n' "$output" | grep -qF "merge-change step 1" || { echo "$output"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-4dajcn
 @test "merge-preflight: BASE-MERGED fails when origin/<base> has a commit HEAD lacks" {
     make_passing_change
     origin_main_ahead
@@ -152,7 +150,7 @@ origin_main_ahead() {
     printf '%s\n' "$output" | grep -qF "origin/main" || { echo "$output"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6c9zgf
 @test "merge-preflight: --local-base passes BASE-MERGED with origin/<base> ahead of HEAD, and prints that it did" {
     make_passing_change
     origin_main_ahead
@@ -161,7 +159,7 @@ origin_main_ahead() {
     has_line "preflight: BASE-MERGED ok (local base only)"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-4dajcn, REQ-6c9zgf
 @test "merge-preflight: --local-base still fails BASE-MERGED on a local base HEAD lacks" {
     make_passing_change
     printf 'later\n' > "$REPO/later.txt"
@@ -172,10 +170,10 @@ origin_main_ahead() {
     failed_at BASE-MERGED
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-4dajcn
 @test "merge-preflight: --local-base fails BASE-MERGED when a tag named like the base branch is merged and the branch is not" {
-    # Before finding-91, the base was passed to git as a bare name, which git
-    # resolves to refs/tags/main before refs/heads/main, so the check passed.
+    # Passed to git as a bare name, the base resolves to refs/tags/main
+    # before refs/heads/main, and the check would pass.
     make_passing_change
     merged_commit=$(git -C "$REPO" rev-parse refs/heads/main)
     printf 'later\n' > "$REPO/later.txt"
@@ -188,8 +186,7 @@ origin_main_ahead() {
     has_line "main is not an ancestor of HEAD."
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-# verifies: ADR-k3nkv3
+# verifies: REQ-6c9zgf, REQ-7rw8yx, ADR-k3nkv3
 @test "merge-preflight: --local-base combines with --before-review, in either order" {
     make_change_without_record
     origin_main_ahead
@@ -203,7 +200,7 @@ origin_main_ahead() {
     done
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: the usage line names --local-base" {
     make_passing_change
     run sh .guardrails/scripts/merge-preflight.sh --no-such-flag my-change
@@ -211,7 +208,7 @@ origin_main_ahead() {
     output_has "[--local-base]"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-4dajcn
 @test "merge-preflight: BASE-MERGED passes when origin/<base> is merged" {
     make_passing_change
     git -C "$REPO" update-ref refs/remotes/origin/main main
@@ -358,7 +355,7 @@ origin_main_adds_plan() {
     output_lacks "preflight: PLANS ok"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-sufm9q
 @test "merge-preflight: IDS fails on a draft ID and prints check-ids.sh's own output" {
     make_passing_change
     # The token is built at run time: the literal in this file would be a
@@ -374,7 +371,7 @@ origin_main_adds_plan() {
     has_line "fix IDS: fix each check-ids.sh finding above; its script header documents every rule."
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md), D3 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+# verifies: REQ-sufm9q, ADR-cy7ahd
 @test "merge-preflight: IDS fails on a draft-named ledger file, and its fix line renames it" {
     make_passing_change
     # The name is built at run time, as the draft ID above is.
@@ -392,7 +389,7 @@ origin_main_adds_plan() {
     failed_at IDS
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-sufm9q
 @test "merge-preflight: TRACE fails on a requirement with no test and prints check-trace.sh's own output" {
     make_passing_change
     printf '\n**REQ-001**: The system shall exist.\n' >> docs/requirements/README.md
@@ -403,7 +400,7 @@ origin_main_adds_plan() {
     failed_at TRACE
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-w2nfbd
 @test "merge-preflight: a passing TRACE shows the warnings check-trace.sh printed" {
     make_passing_change
     # The report affects REQ-001, so REQ-001 exists and has a test: the one
@@ -432,7 +429,7 @@ origin_main_adds_plan() {
     output_lacks "sources:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-sufm9q
 @test "merge-preflight: REVIEW fails with no squash message" {
     # verifies: ADR-k3nkv3
     make_change_without_record
@@ -443,7 +440,7 @@ origin_main_adds_plan() {
     has_line "fix REVIEW: write or complete the squash message as merge-change steps 5 and 6b state."
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-rqa72w
 @test "merge-preflight: NESTED-WORKTREE fails on a worktree registered inside the change worktree" {
     make_passing_change
     git worktree add -q .worktrees/my-change-t1 -b my-change-t1 my-change
@@ -453,7 +450,7 @@ origin_main_adds_plan() {
     failed_at NESTED-WORKTREE
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-rqa72w
 @test "merge-preflight: NESTED-WORKTREE names remove and discard, and no merging command" {
     # A merge is the dispatcher's decision after a green task report, never a
     # remedy. The fix line names `remove <tag>` for every nested worktree, the
@@ -476,7 +473,7 @@ origin_main_adds_plan() {
     output_lacks "task-worktree.sh $retired_command"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-rqa72w
 @test "merge-preflight: NESTED-WORKTREE fails on the no-worktree-registered verdict" {
     # The real finish-merge.sh --check, on a change worktree its repository
     # does not register: its git directory is moved out of the common one,
@@ -515,8 +512,7 @@ make_units_change() {
     write_message
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
-# verifies: ADR-k3nkv3
+# verifies: REQ-e337dy, ADR-k3nkv3
 @test "merge-preflight: in a multi-unit repository UNITS runs in place of IDS and TRACE" {
     make_units_change
     run sh .guardrails/scripts/merge-preflight.sh my-change
@@ -532,7 +528,7 @@ preflight: NESTED-WORKTREE ok"
     [ "$output" = "$expected" ] || { echo "$output"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-e337dy
 @test "merge-preflight: UNITS fails on a finding in a dependent unit of the impact set" {
     # The change touches platform/hal only; apps/pump depends on it, so the
     # impact set contains pump, and pump's own trace gate must run.
@@ -550,12 +546,12 @@ preflight: NESTED-WORKTREE ok"
     failed_at UNITS
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-e337dy
 @test "merge-preflight: UNITS reads the impact range from the base branch, not a tag named like it" {
     # The change touches apps/pump only, and hal is not a dependent of pump.
     # A hal requirement with no test is on the base branch, after the commit
-    # a tag named main points at. Before finding-91 the range was main..HEAD,
-    # which git resolves to the tag, so hal entered the impact set and failed.
+    # a tag named main points at. Read as main..HEAD, the range would resolve
+    # main to the tag, and hal would enter the impact set and fail.
     make_units_fixture
     tagged_commit=$(git rev-parse HEAD)
     printf '\n**REQ-h7v3c8**: The hal shall stop.\n' >> platform/hal/docs/requirements/0001-01-01-base.md
@@ -570,7 +566,7 @@ preflight: NESTED-WORKTREE ok"
     output_lacks "platform/hal"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-e337dy
 @test "merge-preflight: UNITS fails on a check-ids.sh finding in a unit of the impact set" {
     make_units_change
     # A definition form whose ID has no digit: MALFORMED-ID for check-ids.sh,
@@ -589,7 +585,7 @@ preflight: NESTED-WORKTREE ok"
     failed_at UNITS
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-w2nfbd
 @test "merge-preflight: a passing UNITS shows a unit's check-trace.sh warnings under that unit's header" {
     make_units_change
     # An open report against hal's traced requirement: UNRESOLVED-PR is a
@@ -620,7 +616,7 @@ EOF
     output_lacks "checked:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-e337dy
 @test "merge-preflight: UNITS fails on a repository-level check-units.sh finding" {
     make_units_change
     mkdir -p stray
@@ -634,7 +630,7 @@ EOF
 
 # --- where it may run: exit 2 ---------------------------------------------
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-s8ufhk
 @test "merge-preflight: a tool that exits 2 makes the pre-flight exit 2 with the tool's output" {
     make_passing_change
     sed -i.bak 's/^strict_paths:/strict-paths:/' .guardrails/config.yaml \
@@ -649,7 +645,7 @@ EOF
     failed_at IDS
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: run from the primary checkout it exits 2" {
     run sh .guardrails/scripts/merge-preflight.sh main
     [ "$status" -eq 2 ] || { echo "$output"; false; }
@@ -657,7 +653,7 @@ EOF
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-y4xa6r
 @test "merge-preflight: outside a git repository it exits 2 at once, naming that reason only" {
     outside="$BATS_TEST_TMPDIR/outside"
     mkdir -p "$outside"
@@ -669,7 +665,7 @@ EOF
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: on the base branch it exits 2" {
     git worktree add -q --force "$BATS_TEST_TMPDIR/wt" main
     cd "$BATS_TEST_TMPDIR/wt"
@@ -679,7 +675,7 @@ EOF
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: a branch that is not the current branch exits 2" {
     make_passing_change
     git branch other-change
@@ -689,7 +685,7 @@ EOF
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: a detached HEAD exits 2" {
     make_passing_change
     git checkout -q --detach
@@ -698,7 +694,7 @@ EOF
     printf '%s\n' "$output" | grep -qF "not the current branch" || { echo "$output"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: no branch named, or an unknown flag, exits 2 with the usage line" {
     make_passing_change
     run sh .guardrails/scripts/merge-preflight.sh
@@ -711,7 +707,7 @@ EOF
     [ "$status" -eq 2 ] || { echo "$output"; false; }
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: an unknown flag is named as one, not read as a branch" {
     make_passing_change
     for args in "--skip-review" "my-change --skip-review"; do
@@ -723,7 +719,7 @@ EOF
     done
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: the change branch named twice exits 2 before any check" {
     # Both names are the current branch, so only the one-branch rule rejects
     # the call; every check would pass.
@@ -734,7 +730,7 @@ EOF
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-vj67wy
 @test "merge-preflight: a detached primary checkout exits 2, because the base branch cannot be determined" {
     make_passing_change
     git -C "$REPO" checkout -q --detach
@@ -746,7 +742,7 @@ EOF
 
 # --- portability ----------------------------------------------------------
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-aek2sw
 @test "merge-preflight: passes under an awk that rejects a newline in -v" {
     # This script calls awk itself (the impact set's unit column) and through
     # lib.sh, so it belongs to the strict-awk sweep that the comment on
@@ -786,7 +782,7 @@ STUB
     printf '%s\n' "$stub_dir"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: an awk failure while reading a check's warnings exits 2" {
     make_passing_change
     bin=$(make_failing_awk '/^(checked|units): / { exit } { print }')
@@ -796,7 +792,7 @@ STUB
     output_lacks "preflight: IDS ok"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: an awk failure while reading the impact set's unit column exits 2" {
     make_units_change
     bin=$(make_failing_awk 'NF { print $1 }')
@@ -810,7 +806,7 @@ STUB
 
 # make_git_failing_on is defined in tests/helpers.bash.
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: a failed git rev-parse --git-dir exits 2 before any check" {
     # Before the status was taken, an empty git dir differed from the common
     # git dir, and the primary-checkout check passed.
@@ -822,7 +818,7 @@ STUB
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: a failed git rev-parse --git-common-dir exits 2 before any check" {
     make_passing_change
     stub_directory=$(make_git_failing_on '*" rev-parse --git-common-dir "*')
@@ -832,7 +828,7 @@ STUB
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: a failed git branch --show-current exits 2, is not read as a detached HEAD, before any check" {
     make_passing_change
     stub_directory=$(make_git_failing_on '*" branch --show-current "*')
@@ -843,7 +839,7 @@ STUB
     output_lacks "preflight:"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: a failed git rev-parse of origin/<base> exits 2, is not read as an absent origin/<base>" {
     # Before the status was taken, the failure read as "no origin/main", the
     # origin half of BASE-MERGED was skipped, and the run passed with
@@ -858,7 +854,7 @@ STUB
     has_line "fix BASE-MERGED: run git rev-parse --verify refs/remotes/origin/main in this worktree and resolve its error."
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: a failed git merge-base --is-ancestor exits 2, is not read as a base HEAD lacks" {
     make_passing_change
     stub_directory=$(make_git_failing_on '*" merge-base --is-ancestor refs/heads/main HEAD "*')
@@ -870,7 +866,7 @@ STUB
     output_lacks "merge the base branch"
 }
 
-# verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+# verifies: REQ-6vfb6a
 @test "merge-preflight: a failed git worktree list exits 2, is not read as a detached primary checkout" {
     # Before gr_base_branch took the status, the failure printed nothing, and
     # nothing reads as a detached primary checkout: exit 2 with the remedy

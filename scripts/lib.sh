@@ -52,11 +52,9 @@ depends_on
 segregated_from'
 
 # depends_on / segregated_from / expectation_age_days / expectation_open_max
-# are the per-unit keys of the monorepo machinery (docs/plans/
-# 2026-09-03-units-architecture.md item 8). In a single-unit repository they
-# are accepted and read by nothing that gates — the same status safety_class
-# had before the class floor — because a config must stay valid when a
-# repository grows a manifest.
+# are the per-unit keys of the monorepo machinery. In a single-unit
+# repository they are accepted and read by nothing that gates, because a
+# config must stay valid when a repository grows a manifest.
 
 GR_KNOWN_KEYS='guardrails_version
 guardrails_commit
@@ -189,38 +187,37 @@ function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
 # collects, and CLOSES at a markdown heading or at ANY BOLD LINE CONTAINING A
 # COLON. That is the whole closing rule.
 #
-# It is stated as a SUBTRACTION, and that framing is the point. Until
-# 2026-08-22 the rule closed on every line starting `**`. An emphasised
-# sentence inside an item body (`**21 of 35 inverted, 14 not.**`) therefore
-# ended the item there, and everything after it — annotations included —
-# belonged to no item: UNTRACED-DESIGN and UNSATISFIED-LLR then rejected
-# correct documents, while UNANALYZED-DERIVED and UNRESOLVED-PR passed over
-# real violations in silence. One rule, four gates, both failure directions.
+# It is stated as a SUBTRACTION, and that framing is the point. A rule that
+# closed on every line starting `**` would end an item at an emphasised
+# sentence inside its body (`**21 of 35 inverted, 14 not.**`), and everything
+# after it — annotations included — would belong to no item: UNTRACED-DESIGN
+# and UNSATISFIED-LLR would reject correct documents, while UNANALYZED-DERIVED
+# and UNRESOLVED-PR would pass over real violations in silence. One rule, four
+# gates, both failure directions.
 #
-# The close set must therefore be everything that rule closed, MINUS the shape
-# that caused the defect, and nothing else. The defect line contains no colon;
-# so the colon is the subtraction, and there is no other. Three review rounds
-# were spent narrowing instead — to definition forms, then to header shapes,
-# then to a colon adjoining the closing asterisks — and each narrowing lost
-# lines the old rule closed, which is a regression however small the loss. A
+# The close set is therefore every line starting `**`, MINUS the shape of an
+# emphasised sentence, and nothing else. That sentence contains no colon; so
+# the colon is the subtraction, and there is no other. Any narrower close
+# set — definition forms, header shapes, a colon adjoining the closing
+# asterisks — loses lines the wider rule closes, and each lost line leaves a
+# block open on a header the reader sees. A
 # line a reader takes for a header but the rule does not becomes body text, and
 # its annotations are credited to the item ABOVE it: a resolved PR inherits the
-# next one`s `status: open`. That is a wrong answer, where the original defect
-# gave a missing one.
+# next one`s `status: open`. A wrong answer is worse than a missing one.
 #
 # BYTE-WISE, not a regex, and this is not stylistic. `.` in an ERE does not
 # match an invalid byte sequence under gawk in a multibyte locale, so
-# `^\*\*.*:` silently stopped closing on a ledger saved in latin-1 — a header
-# like `**Détail**:` — while mawk, busybox awk and gawk under LC_ALL=C all
-# closed it. The same tree, the same script, two verdicts, decided by the
+# `^\*\*.*:` does not close on a ledger saved in latin-1 — a header like
+# `**Détail**:` — under gawk in such a locale, while mawk, busybox awk and gawk
+# under LC_ALL=C close it. The same tree, the same script, two verdicts, decided by the
 # operator`s locale. substr and index count bytes in every awk and every
 # locale, so they implement the rule the sentence above states.
 #
 # The residual limit, stated exactly: a bold line containing no ASCII colon does
 # not close. `**Decision 7**` does not; `**Decision 7**:` does. A full-width
 # colon (U+FF1A) is not an ASCII colon and does not close. Nothing
-# distinguishes a colon-free bold line from the sentence in the original
-# report, so that one is irreducible.
+# distinguishes a colon-free bold line from an emphasised sentence such as
+# `**21 of 35 inverted, 14 not.**`, so that limit is irreducible.
 #
 # One definition, for the same reason GR_AWK_ID_RUN and gr_def_re have one, and
 # with one addition: ORPHAN-ANNOTATION is a fifth reader of this rule, and a
@@ -244,7 +241,7 @@ function gr_block_opens(line) { return (line ~ GR_BLOCK_OPEN_RE) }
 # Does this line END whatever block is open? Any bold line containing a colon,
 # and any markdown heading. See the block comment above for why this is
 # substr/index rather than a regex, and why the colon is the only subtraction
-# from the pre-2026-08-22 rule.
+# from closing on every line starting `**`.
 function gr_block_closes(line) {
     if (substr(line, 1, 1) == "#") return 1
     return (substr(line, 1, 2) == "**" && index(line, ":") > 0)
@@ -255,17 +252,14 @@ function gr_block_closes(line) {
 #
 # TWO MARKER FORMS, AND NOT ALL OF MARKDOWN LIST SYNTAX: a bullet marker, `-`,
 # `*` or `+`, and an ordered marker, a run of digits closed by `.` or `)`. Say
-# two forms and not both halves: an earlier version of this comment claimed
-# both halves of list syntax and a GFM task-list item is list syntax this rule
+# two forms and not both halves: a GFM task-list item is list syntax this rule
 # does not reach — `- [x] satisfies:` is stepped over as far as the `-`, and
 # `[x] satisfies:` does not match, so it is credited inside a block and
-# reported by nothing outside one. That is unfixed, and PR-h3wujj stays open
-# for it.
+# reported by nothing outside one. That gap is open.
 #
-# The first version knew the bullets alone, and an ordered item reproduced the
-# defect it was built to close, verbatim: round-2 review measured
-# `1. satisfies:` outside every block reported by nothing while gr_id_run
-# credited the same line inside one.
+# The ordered marker is needed as much as the bullets: without it,
+# `1. satisfies:` outside every block is reported by nothing while gr_id_run
+# credits the same line inside one.
 #
 # A RUN of them, not one: `- 1. status:` is a one-line nested list, and depth
 # is no reason to lose an orphan. The loop terminates because every pass
@@ -329,13 +323,12 @@ function gr_kw_here(line, kw) {
 # deliberately wider than gr_kw_here per the invariant above. One caller, a
 # backstop: check_orphans in check-trace.sh. No reader may call it.
 #
-# What the width buys, PR-h3wujj: gr_id_run finds its keyword ANYWHERE on the
-# line, so `- satisfies: REQ-001` was credited to an item inside a block while
-# the same line outside every block was reported by nothing at all — exit 0
-# with a derived item never checked against the RMF. The list form is now
-# reported wherever it belongs to no item, whether or not a reader would have
-# taken it, and `1. satisfies: REQ-001` with it — see gr_kw_lead for why the
-# ordered marker took a second round to arrive.
+# What the width buys: gr_id_run finds its keyword ANYWHERE on the line, so
+# `- satisfies: REQ-001` is credited to an item inside a block, and the same
+# line outside every block, unreported, would be exit 0 with a derived item
+# never checked against the RMF. The list form is reported wherever it belongs
+# to no item, whether or not a reader would take it, and
+# `1. satisfies: REQ-001` with it — see gr_kw_lead.
 #
 # What this does NOT cover is NOT ENUMERATED HERE, and that omission is the
 # point. gr_id_run finds its keyword ANYWHERE on the line; gr_kw_lead steps
@@ -343,14 +336,9 @@ function gr_kw_here(line, kw) {
 # position gr_id_run accepts is still credited to an item inside a block and
 # still invisible to the backstop.
 #
-# Three versions of this note each enumerated the remainder and each was wrong
-# within one review round: the first named a mid-sentence mention alone and
-# missed ordered markers; the second added a blockquote, a table cell and
-# emphasis and missed task-list items. A fourth list would rest on the same
-# evidence as the previous three — that nobody has yet found the next form —
-# so what is written down is what this rule DOES, and the remainder is
-# declared open-ended and presumed live. Examples exist in the problem item;
-# they are examples and never a set.
+# An enumeration of the remainder would rest on no more than that nobody has
+# yet found the next form, so what is written down is what this rule DOES, and
+# the remainder is declared open-ended and presumed live.
 #
 # Leaving that residue is deliberate, and the reason is the SAD. templates/
 # sad.md ships the annotation ON the definition line, and check-trace.sh states
@@ -358,16 +346,16 @@ function gr_kw_here(line, kw) {
 # documented primary form and every SAD written against it. No lead-stripper
 # closes the class either — a prefix regex cannot decide what a markdown line
 # is — which is why this one claims two marker forms and not closure, and why
-# closing PR-h3wujj needs either a reader the backstop can contain without
+# closing the gap needs either a reader the backstop can contain without
 # enumerating anything, or a markdown-aware line classifier.
 #
-# A list-marker rule was tried once before, on gr_kw_here, and reverted because
-# it fired on `- status: resolved only in the same change that merges the fix.`,
-# prose in the shipped templates/problems.md and in the twin the ratchet
-# installs at docs/problems/README.md. That sentence is a hazard to THIS
-# function for the same reason, so both lines now give the illustrative form
-# inline in backticks, which is the convention those templates already state
-# for their own examples. An extended-regex grep over docs/, templates/ and
+# gr_kw_here carries no list-marker rule because such a rule fires on
+# `- status: resolved only in the same change that merges the fix.`, prose in
+# the shipped templates/problems.md and in the twin the ratchet installs at
+# docs/problems/README.md. That sentence is a hazard to THIS function for the
+# same reason, so both lines give the illustrative form inline in backticks,
+# which is the convention those templates already state for their own
+# examples. An extended-regex grep over docs/, templates/ and
 # skills/ for the WIDENED marker rule followed by a block-parsed keyword —
 # ^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+ — returns nothing at all. That
 # is the sizing grep in skills/ratchet/references/upgrade-notes.md, and it is
@@ -431,14 +419,13 @@ function gr_fm_reset() { GR_FM_IN = 0; GR_FM_END = 0 }
 function gr_fm_scan(line, n) {
     # Line 2 decides. A `---` at line 1 opens front matter only if a KEY
     # follows it immediately; `---` then a blank line is a horizontal rule at
-    # the top of a document, and treating one as a header switched the scan off
-    # for everything up to the next rule. The independent review of 2026-08-25
-    # reproduced that on the problem-report reader — an open item 236 days old
-    # absent from the roll-call at exit 0 — and this is the same defect in the
-    # backstop, where it silently drops every annotation in the span instead.
+    # the top of a document, and treating one as a header would switch the scan
+    # off for everything up to the next rule: on the problem-report reader an
+    # open item drops out of the roll-call at exit 0, and in the backstop every
+    # annotation in the span is silently dropped.
     # YAML has no blank line between the opening delimiter and the first key,
     # so nothing legitimate is lost, and the rule can only make the scan read
-    # MORE than before: no report that used to fire stops firing.
+    # MORE: it never suppresses a report.
     if (n == 1) { GR_FM_MAYBE = (line ~ /^---[ \t\r]*$/); return }
     if (n == 2) {
         if (GR_FM_MAYBE && line !~ /^[ \t\r]*$/) GR_FM_IN = 1
@@ -457,10 +444,9 @@ function gr_fm_skip(n) { return (n <= GR_FM_END) }
 # it is integer work done here — which runs the same on gawk, mawk and busybox
 # awk, and needs no locale, no timezone database and no external process.
 #
-# BYTE-WISE, deliberately. The obvious shape test is a regex, and the previous
-# change measured what that costs: under gawk in a multibyte locale a bracket
-# expression does not match an invalid byte sequence, so a latin-1 value made
-# the check fail OPEN. substr and index count bytes in every locale.
+# BYTE-WISE, deliberately. The obvious shape test is a regex, and it fails
+# OPEN: under gawk in a multibyte locale a bracket expression does not match
+# an invalid byte sequence, so a latin-1 value passes it. substr and index count bytes in every locale.
 #
 # gr_date_ok sets GR_DATE_DAYS as a side effect rather than returning it,
 # because the day number is legitimately negative for dates before 1970 and
@@ -675,17 +661,17 @@ gr_prefix_re() {
 # installed scripts do not report themselves — their comments contain a literal
 # `REQ-DRAFT-b-1` and definition-form examples — and the scripts are the only
 # thing under `.guardrails/` that matches any gate's pattern; config.yaml
-# matches none. Excluding the whole directory also hid the project's own files:
-# with `doc_srs: .guardrails/docs/requirements`, the finalize step renamed the
-# draft ledger to its finalize-date name, minted nothing, and exited 0, and both
-# check scripts then passed a tree with a live `REQ-DRAFT-x-1` in it.
+# matches none. Excluding the whole directory would also hide the project's own
+# files: with `doc_srs: .guardrails/docs/requirements`, the ledger would be
+# invisible to every gate, and both check scripts would pass a tree with a
+# live `REQ-DRAFT-x-1` in it.
 # Narrowing cannot reach one case: a doc_* configured INSIDE this directory is
 # still accepted, and checked: counts its items as zero. Whether any gate
 # complains first depends on whether git tracks or ignores the ledger, and on
 # whether the ledger has been renamed out of its DRAFT- name — the same is true
-# of .git/, gitignored paths and symlinks leaving the repository. The measured
-# matrix is in docs/verification/2026-08-20-scan-pathspec.md. A check that rejected the shape
-# outright was attempted and cut; see the same record.
+# of .git/, gitignored paths and symlinks leaving the repository. No check
+# rejects the shape outright: it is a configuration nobody writes, and the
+# check costs far more code than the narrowing.
 #
 # A variable, not a function like gr_def_re: this is a separate `git grep`
 # argument, and a function's output would have to be word-split — which
@@ -744,19 +730,20 @@ gr_def_re() {
 # gr_def_re does not is a definition form whose ID cannot be read, and there is
 # no third possibility — which is what makes "loose minus strict" a total
 # classification of DEFINITION-SHAPED lines. It is not a classification of
-# header-shaped ones, and that distinction is the whole of the 2026-08-23
-# amendment: where ADR is not declared, `**ADR-0007**:` is a header this
+# header-shaped ones, and that distinction matters: where ADR is not declared, `**ADR-0007**:` is a header this
 # pattern does not match. Where it is declared, as in the shipped config, both
 # this pattern and gr_def_re match it, and it is a valid item.
 #
-# ONE consumer: the MALFORMED-ID scan in check-ids.sh, which spelled the
-# pattern out by hand until 2026-08-23. There such a line is a document defect
+# ONE consumer: the MALFORMED-ID scan in check-ids.sh. There such a line is a
+# document defect
 # — the item it announces is invisible to every gate — and it is reported at
 # exit 1.
 #
-# check-trace.sh does NOT use it, though two earlier designs did. A pre-flight
-# rejecting such trees outright was written and cut, and the block rule closes
-# on a header SHAPE, which is broader and keyed on no vocabulary. Kept as a
+# check-trace.sh does NOT use it. A check-trace.sh pre-flight that rejected a
+# tree holding such a line would make check-trace.sh's soundness depend on a
+# scan that belongs to check-ids.sh, and would break the drift-test fixtures
+# that rely on a malformed form being inert. Its block rule closes on a header
+# SHAPE instead, which is broader and keyed on no vocabulary. Kept as a
 # constructor rather than folded back inline because MALFORMED-ID is the
 # complement of gr_def_re over one anchor, and the two belong next to each
 # other where that is visible.
@@ -1457,8 +1444,8 @@ gr_limit() {
     #
     # Asked of the shell rather than guessed at as a digit width: whatever it
     # can compare HERE it can compare at the point of use, on any shell, with
-    # no constant to be wrong about. The first version fixed nine digits, which
-    # rejected 1000000000 with the untrue explanation that it was too large to
+    # no constant to be wrong about. A fixed nine-digit width would reject a value
+    # such as 1000000000 with the untrue explanation that it was too large to
     # compare. awk is the other consumer (`agelim + 0`), where a value past
     # the exact-integer range would silently become a float.
     [ "$_lv" -ge 0 ] 2>/dev/null || gr_die \
@@ -1472,9 +1459,8 @@ gr_limit() {
 # readable; no BOM; no bare-CR line endings; every line blank, a comment, a
 # `  - item` belonging to a key, a document separator, or `identifier:` at
 # column one; no key set twice. Prints the file's top-level keys, one per
-# line. Extracted from gr_check_config when the manifest arrived, because a
-# second hand-copied structure gate is how the item-block defect of
-# 2026-08-22 happened.
+# line. The config and the unit manifest are both checked by it, because two
+# hand-copied structure gates drift apart and then read one file two ways.
 gr_check_flat() {
     _ff="$1"
     [ -f "$_ff" ] || gr_die "file not found: $_ff"
@@ -1696,8 +1682,8 @@ gr_check_config() {
     # rather than passing vacuously — so requiring those keys would forbid
     # legitimate shapes, such as a class A project with no architecture
     # document. The rule is "no gate is ever silently skipped", not "every gate
-    # has every input", and this comment must keep stating it: an earlier draft
-    # claimed the map was complete and a reviewer proved it was not.
+    # has every input", and this comment must keep stating it: the map is not
+    # the complete set of gate inputs, and reading it as one is wrong.
     for _p in $_pfx; do
         case "$_p" in
             (REQ) _need="doc_srs" ;;
@@ -1723,10 +1709,7 @@ gr_check_config() {
     # the gate that reads controls reads the SRS. Every other entry is already
     # required above, so this rule rejects exactly one new shape: RC declared
     # with no doc_rmf, which configures a project where no control can ever be
-    # correctly placed. Change B's map had RC needing doc_srs and NOT doc_rmf,
-    # with the reason that no RC gate read doc_rmf — true until this gate
-    # existed, and recorded here so the reversal reads as the premise change it
-    # is rather than an oscillation.
+    # correctly placed.
     for _p in $_pfx; do
         case "$_p" in
             (REQ)    _home="doc_srs" ;;
@@ -1739,10 +1722,9 @@ gr_check_config() {
             gr_die "id_prefixes declares $_p but $_home is not configured — that is the only document a $_p may be defined in, so every $_p would be misplaced"
     done
 
-    # ABSENT IS THE SAME GATE-OFF AS EMPTY, and until this rule the emptiness
-    # check above actually RECOMMENDED it: "remove the key and its items
-    # entirely" turned a rejection into the exit-0 no-scan state it was
-    # rejecting.
+    # ABSENT IS THE SAME GATE-OFF AS EMPTY: without this rule, removing the key
+    # would turn the emptiness check's rejection into the exit-0 no-scan state
+    # it rejects.
     #
     # `strict_paths` is the whole of DANGLING-REF's source-code scope. With no
     # entries, a reference to an ID nobody defined goes from exit 1 to exit 0
@@ -1757,10 +1739,10 @@ gr_check_config() {
   ledger directories."
     # `verify_commands` has the same defect one level up — absent, the merge
     # gate runs no commands and reports that nothing failed — and is NOT
-    # required here, deliberately. Nothing in this change reads it; the script
+    # required here, deliberately. Nothing in this validator reads it; the script
     # that runs those commands is what should reject running none of them, and
     # requiring it from a validator that never uses it would be a rule with no
-    # reader behind it. Recorded rather than fixed in passing.
+    # reader behind it.
 
     if gr_contains "$_pfx" REQ || gr_contains "$_pfx" LLR; then
         [ -n "$(cfg_list test_paths)" ] || \
@@ -1768,7 +1750,7 @@ gr_check_config() {
     fi
 }
 
-# --- The unit manifest (docs/plans/2026-09-03-units-architecture.md) ---------
+# --- The unit manifest -------------------------------------------------------
 #
 # .guardrails/units.yaml declares a multi-unit repository. Its PRESENCE is the
 # whole engagement rule: absent, every script below runs exactly the code it
@@ -1844,7 +1826,7 @@ gr_check_units() {
     for _e in $_all; do
         case "$_e" in
             (*" "* | *"	"*) gr_die "manifest entry contains whitespace: '$_e' — it would read as two entries to any space-separated consumer" ;;
-            (*[\*\?\[]*)     gr_die "manifest entry contains a glob character: $_e — entries are literal directory paths, never patterns (D2 rejected discovery by convention)" ;;
+            (*[\*\?\[]*)     gr_die "manifest entry contains a glob character: $_e — entries are literal directory paths, never patterns, so a unit is declared, never discovered by convention" ;;
             (*/)             gr_die "manifest entry has a trailing slash: $_e" ;;
             (.)              gr_die "manifest entry names the repository root: . — the root cannot be a unit" ;;
             (/*)             gr_die "manifest entry is absolute: $_e — entries are repository-relative" ;;
@@ -1880,7 +1862,7 @@ gr_check_units() {
         ( GR_CONFIG="$_ucfg"; gr_check_config ) || gr_die \
 "unit config failed validation: $_ucfg (see above)"
 
-        # Own scope must BE the unit (architecture item 2): two units' scans
+        # Own scope must BE the unit: two units' scans
         # are disjoint by construction, or MISPLACED-ITEM sees a sibling's
         # items and the scoped summary lies.
         for _dk in doc_srs doc_rmf doc_sad doc_soup doc_problems; do
@@ -1908,7 +1890,7 @@ gr_check_units() {
     done
 
     # Cycles: peel units whose dependencies are all peeled; a remainder is a
-    # cycle. A worklist over flat lists — POSIX sh, per D12's note.
+    # cycle. A worklist over flat lists — POSIX sh.
     _left="$_units"
     _progress=1
     while [ -n "$_left" ] && [ "$_progress" -eq 1 ]; do
@@ -1929,7 +1911,7 @@ gr_check_units() {
     [ -z "$_left" ] || gr_die \
 "dependency cycle among units: $(printf '%s' "$_left" | tr '\n' ' ')
   Cyclic units are not partially independent at all — every gate built on the
-  edge direction would read ambiguously (D12)."
+  edge direction would read ambiguously."
 
     [ "$_un_f" -eq 1 ] || set +f
     if [ "$_saved_ifs" = "__gr_unset__" ]; then unset IFS; else IFS=$_saved_ifs; fi
@@ -1940,7 +1922,7 @@ gr_check_units() {
 # leaves the real directory unclaimed, which UNCLAIMED-PATH reports loudly —
 # the failure is toward conviction, so no rule is needed here.
 
-# gr_unit_engage — the engagement rule (architecture item 2). Sets GR_UNIT to
+# gr_unit_engage — the engagement rule. Sets GR_UNIT to
 # the running unit's path, or to "" in a single-unit repository. Every
 # unit-scoped script calls this immediately after cd'ing to the root and
 # BEFORE gr_check_config: engaged, the config named by GR_CONFIG is the
@@ -1969,7 +1951,7 @@ gr_unit_engage() {
   Declared units: $(gr_unit_list | tr '\n' ' ')"
 }
 
-# gr_req_scan FILE... — the annotation reader of architecture item 3. One
+# gr_req_scan FILE... — the item-annotation reader. One
 # line per fact, tab-separated: <id> <file> KIND <value>, where KIND is
 #   DEF      the block exists (value -)
 #   EXP      exported: (raw value — the consumer judges it)
@@ -2072,7 +2054,7 @@ gr_consumers_of() {
 
 # gr_unit_of_path PATH — the unit claiming PATH ("apps/pump"), or
 # "not_a_unit <entry>" for a disclaimed one; status 1 for a path nobody
-# claims. Whole path components (D7's rule): docs claims docs/adr/x.md and
+# claims. Whole path components: docs claims docs/adr/x.md and
 # never docs-site/.
 gr_unit_of_path() {
     for _pu in $(gr_unit_list); do

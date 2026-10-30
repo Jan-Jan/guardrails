@@ -41,9 +41,9 @@ setup() {
 }
 
 @test "check-trace: the host's global or system git config does not change the verdict" {
-    # verifies: PR-ad4vmm
+    # verifies: REQ-2d5tsw
     # The isolation lives in helpers.bash, so it covers every suite file, not
-    # only check-signing.bats (PR-gw6wts). The host's configuration is built
+    # only check-signing.bats. The host's configuration is built
     # here, before helpers load again, so the test does not depend on the
     # machine running it: every file git reads outside the repository names
     # an excludes file that ignores the fixture's only test, left untracked.
@@ -722,14 +722,7 @@ EOF
 }
 
 @test "check-trace: RC declared without doc_rmf is rejected, not left unplaceable" {
-    # This test asserted the OPPOSITE until the placement gate existed, and the
-    # reversal is a premise change rather than an oscillation. Before the gate,
-    # nothing read where an RC was defined — UNIMPLEMENTED-CONTROL reads
-    # doc_srs — so requiring doc_rmf would have rejected a retrofit that had
-    # requirements, controls and design but no risk management file yet, while
-    # telling it a gate "could never run" that demonstrably did.
-    #
-    # MISPLACED-ITEM now reads doc_rmf to decide whether each control is
+    # MISPLACED-ITEM reads doc_rmf to decide whether each control is
     # defined where its gates can see it. Unconfigured, that gate is not
     # skipped: it condemns every control in the project, once each, naming a
     # key the config never set. One error before any gate runs is the better
@@ -829,10 +822,8 @@ EOF
 
 @test "check-trace: correctly placed items are not reported as misplaced" {
     # verifies: REQ-pwd7br
-    # A guard, not a RED test: it passed before the gate existed, because the
-    # gate did. Its value is in the mutation runs — removing the gr_contains
-    # check in check_placement turns it red while the misplacement tests stay
-    # green, which is what proves it constrains over-firing.
+    # A guard against over-firing: removing the gr_contains check in
+    # check_placement turns it red while the misplacement tests stay green.
     printf '**PR-001**: A closed problem.\n\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n' \
         > docs/problems/0001-01-01-base.md
     commit_all placed
@@ -867,11 +858,8 @@ EOF
     # mode-ignoring filesystem. With nothing staged the index equals HEAD, so
     # this is strictly earlier, never later.
     cd "$BATS_TEST_DIRNAME/.."
-    # tests/evidence.sh stages the base revision's scripts into a plain
-    # directory to run this same suite against them. There is no git there to
-    # ask, and a hard failure would book this test as "red against the base" —
-    # evidence that the change fixed something, when the base was fine. That
-    # exact miscount has now happened twice; skip rather than lie about it.
+    # Outside a git checkout there is no index to ask, and a failure there
+    # would report a mode fault no checkout has; skip instead.
     git rev-parse --git-dir >/dev/null 2>&1 || skip "not a git checkout"
     run git ls-files -s scripts/
     [ "$status" -eq 0 ]
@@ -913,8 +901,7 @@ EOF
 }
 
 @test "check-trace: an indented definition defines nothing" {
-    # AC4: the three shell gates must agree, in both directions. The plan
-    # predicted exit 0 here; the gate is sharper than that. The indented token
+    # The three shell gates must agree, in both directions. The indented token
     # is not a definition, so REQ stays at 1 — and REQ-002 is then a reference
     # to something nothing defines, which is DANGLING-REF. Being *reported as a
     # mention* is stronger evidence than silence that it was not read as a
@@ -939,11 +926,10 @@ EOF
 }
 
 @test "check-trace: the awk block parsers agree with gr_def_re on indentation" {
-    # AC6: the block parsers are awk EREs and cannot share gr_def_re's source
+    # The block parsers are awk EREs and cannot share gr_def_re's source
     # (awk has no portable {3,}), so they are pinned by test. An indented header
-    # must not open a block. All FOUR are covered: an earlier version of this
-    # test exercised only LLR and SDD, and unanchoring the REQ or PR parser
-    # reddened nothing at all (independent review, round 2, finding 3).
+    # must not open a block. All FOUR are covered: with only LLR and SDD
+    # exercised, unanchoring the REQ or PR parser would redden nothing.
     #
     # Each id is chosen so that parsing the block would produce a visible
     # verdict: the LLR would be UNSATISFIED, the SDD UNTRACED, the REQ would be
@@ -979,7 +965,7 @@ EOF
 }
 
 @test "check-trace: an indented bold line does not close a block either" {
-    # Round 3, note 3: the four parsers are spelled by eight patterns — an
+    # The four parsers are spelled by eight patterns — an
     # opener and a closer each — and only the openers were pinned. Unanchoring a
     # closer reddened nothing. A closer that fires on an indented bold line ends
     # the block early, and the annotation after it is lost: here LLR-001 would
@@ -1023,10 +1009,11 @@ MD
 }
 
 @test "check-trace: items in a ledger under .guardrails/ are counted, not silently zero" {
-    # AC5. ids_defined applied the tree-wide exclusion while gr_doc_files, which
-    # builds the file list from the config, did not. One script, two opinions
-    # about which files exist: the summary read `sources: srs 2` beside
-    # `checked: REQ 0`, and every REQ gate became a no-op that still exited 0.
+    # ids_defined and gr_doc_files, which builds the file list from the config,
+    # must apply the same exclusion. Were they to differ, one script would hold
+    # two opinions about which files exist: the summary would read
+    # `sources: srs 2` beside `checked: REQ 0`, and every REQ gate would be a
+    # no-op that still exits 0.
     mkdir -p .guardrails/docs/requirements
     printf '# Requirements ledger\n' > .guardrails/docs/requirements/README.md
     git mv docs/requirements/0001-01-01-base.md \
@@ -1148,15 +1135,14 @@ EOF
     # The status assertion is not decoration: without it this test passed
     # against a check-trace.sh that exited 2 before running a single gate —
     # the absence it asserts is also what a script that did nothing produces.
-    # Independent review, S6.
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     [[ "$output" != *"UNANALYZED-DERIVED"* ]] || { echo "$output"; false; }
 }
 
 @test "check-trace: a derived token is not satisfied by a longer ID that starts with it" {
-    # The boundary that used to be spelled [^0-9]: with tokens, a mention of
+    # The boundary after a token's last character: a mention of
     # LLR-q7w4zbq would otherwise be read as covering LLR-q7w4zb. Nothing else
-    # in the suite distinguishes those two spellings.
+    # in the suite pins that boundary.
     token_fixture
     printf '\n**LLR-q7w4zb**: A derived helper. satisfies: derived\n' \
         >> docs/architecture/0001-01-01-base.md
@@ -1185,10 +1171,9 @@ EOF
     # REQ-update, PR-banner: six letters of the token alphabet and no digit.
     # Without the digit rule each becomes a DANGLING-REF against an item nobody
     # ever wrote, in ordinary source and prose. Both words are checked against
-    # the alphabet on purpose — the first draft used PR-review, whose `i` the
-    # alphabet excludes, so half the fixture could not have matched under any
-    # relaxation of the rule and the comment claiming otherwise was wrong.
-    # Independent review, S8.
+    # the alphabet on purpose: a word such as PR-review, whose `i` the
+    # alphabet excludes, could not match under any relaxation of the rule,
+    # and would prove nothing.
     token_fixture
     printf 'a REQ-update path and a PR-banner note\n' > src/notes.txt
     commit_all english
@@ -1281,8 +1266,7 @@ EOF
     # The truncation must not be reported under a name nobody wrote. The
     # shorter ID here is deliberately UNDEFINED: with REQ-a3k9z2x, whose first
     # six characters name a defined item, the harvest resolves it silently and
-    # this test could not fail either way — mutation M46 dropped the boundary
-    # and reddened nothing.
+    # this test could not fail either way, boundary or none.
     token_fixture
     printf 'a mention of REQ-n9p3chx in source\n' > src/notes.txt
     commit_all truncated-mention
@@ -1292,10 +1276,9 @@ EOF
 }
 
 @test "check-trace: a reference scan that ERRORS is not a tree without dangling refs" {
-    # Independent review, blocking finding 1, second site. The harvest that
-    # feeds DANGLING-REF suppressed stderr and checked no status, so a scan
-    # that errored found nothing — which is exactly what a tree with no bad
-    # references looks like.
+    # If the harvest that feeds DANGLING-REF suppressed stderr and checked no
+    # status, a scan that errored would find nothing — which is exactly what a
+    # tree with no bad references looks like.
     #
     # The fault keys on the boundary class, which in this script only the
     # reference harvest passes to a -oE scan.
@@ -1329,9 +1312,9 @@ EOF
 }
 
 # --- item blocks end at the next ITEM, not at any bold line ----------------
-# docs/plans/2026-08-22-item-blocks.md. One rule, written out four times, made
-# two gates reject correct documents and two gates pass silently over real
-# violations. The four tests below are one per gate, split by direction.
+# A block closed at any bold line makes two gates reject correct documents
+# and two gates pass silently over real violations. The four tests below are
+# one per gate, split by direction.
 
 @test "check-trace: an emphasised line in a PR body does not detach status:" {
     cat > docs/problems/0001-01-01-base.md <<LEDGER
@@ -1373,9 +1356,8 @@ LEDGER
     [[ "$output" != *"UNSATISFIED-LLR LLR-002"* ]] || { echo "$output"; false; }
 }
 
-# The two boundaries the rule must KEEP. Both pass before this change and must
-# still pass after it: widening "any bold line" to "any definition form" must
-# not widen it to "nothing at all".
+# The two boundaries the rule must KEEP: a block closes on any definition
+# form, and that must not widen to closing on nothing at all.
 
 @test "check-trace: another prefix's definition closes an item block" {
     printf '\n**LLR-002**: Debounce sensor input.\n**SDD-002**: Logging module. traces: REQ-001\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
@@ -1436,8 +1418,8 @@ LEDGER
 # --- ORPHAN-ANNOTATION: an annotation belonging to no item ----------------
 # Every termination rule has an outside. An annotation before the first item in
 # a file, or under a heading with no item since, belongs to nothing under any
-# rule — and until this gate it was discarded without a word, which is the same
-# silent shape the block rule above exists to remove.
+# rule. Discarding it without a word would be the same silent shape the block
+# rule above exists to remove.
 
 @test "check-trace: a status: line before the first item is an orphan" {
     # verifies: REQ-x7m2sy
@@ -1497,10 +1479,10 @@ LEDGER
 # widened reader demonstrated.
 
 @test "check-trace: a bullet satisfies: outside every block is an orphan" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-x7m2sy
     # The measured silent case: the heading closes the LLR block, so the
     # annotation below it belongs to nothing under any rule. gr_id_run reads
-    # it; until the widening the backstop could not see it.
+    # it, and so does the backstop.
     printf '\n## Notes\n- satisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
     commit_all bullet-satisfies
     run sh .guardrails/scripts/check-trace.sh
@@ -1509,11 +1491,10 @@ LEDGER
 }
 
 @test "check-trace: an ordered-list satisfies: outside every block is an orphan" {
-    # verifies: PR-h3wujj
-    # Round-2 review, finding 15. The first widening knew `-`, `*` and `+` and
-    # stopped there, so THIS line — the same annotation in the other half of
-    # markdown list syntax — reproduced the defect verbatim: gr_id_run credits
-    # it inside a block, and outside every block nothing reported it.
+    # verifies: REQ-x7m2sy
+    # Bullets alone are not enough: THIS line — the same annotation in the
+    # other half of markdown list syntax — is credited by gr_id_run inside a
+    # block, so outside every block it must be reported too.
     printf '\n## Notes\n1. satisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
     commit_all ordered-satisfies
     run sh .guardrails/scripts/check-trace.sh
@@ -1523,7 +1504,7 @@ LEDGER
 }
 
 @test "check-trace: an ordered-list satisfies: inside a block is still credited" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-745rsc
     # THE OTHER HALF OF THE MEASURED PAIR, and it is a pin of what does NOT
     # move. gr_id_run reads `1. satisfies: derived` at any position, so the
     # derived REQ was credited here before the widening and is credited after
@@ -1540,10 +1521,10 @@ LEDGER
 }
 
 @test "check-trace: a bullet status: is not read as the problem status" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-8sepe5, REQ-nw7wy4
     # The reader half, and it is a REJECTION. This item has no status any
     # reader can see, so it is INCOMPLETE-PROBLEM — the loud answer, and the
-    # one this change chooses deliberately over reading the bullet.
+    # one chosen deliberately over reading the bullet.
     #
     # Reading it would mean widening the reader, and the reader is
     # first-occurrence-wins: the same widening promotes a QUOTED `- status:`
@@ -1595,8 +1576,9 @@ LEDGER
 }
 
 @test "check-trace: a derived REQ named only in passing in the RMF is unassessed" {
-    # verifies: PR-n274s7 — the ID is what an author produces anyway; a scope
-    # note naming it is a mention, not an assessment.
+    # verifies: REQ-czp8dt
+    # The ID is what an author produces anyway; a scope note naming it is a
+    # mention, not an assessment.
     printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
@@ -1608,7 +1590,7 @@ LEDGER
 }
 
 @test "check-trace: a derived LLR named only in a verification-table row is unassessed" {
-    # verifies: PR-n274s7
+    # verifies: REQ-czp8dt
     printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     printf '\n| Item | Verified by |\n|---|---|\n| LLR-002 | tests/test_b.sh |\n' >> docs/risk/0001-01-01-base.md
@@ -1619,8 +1601,9 @@ LEDGER
 }
 
 @test "check-trace: an assesses: line accepts a derived REQ and a derived LLR" {
-    # verifies: PR-n274s7 — the boundary from the other side: a later
-    # tightening cannot pass by rejecting everything.
+    # verifies: REQ-czp8dt
+    # The boundary from the other side: a later tightening cannot pass by
+    # rejecting everything.
     printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
@@ -1634,8 +1617,9 @@ LEDGER
 }
 
 @test "check-trace: an assesses: run for one item does not clear a second it mentions" {
-    # verifies: PR-n274s7 — the run ends at the first character that is not
-    # an ID, comma or space, so the parenthetical credits nothing.
+    # verifies: REQ-czp8dt
+    # The run ends at the first character that is not an ID, comma or space,
+    # so the parenthetical credits nothing.
     printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '\n**LLR-002**: Debounce sensor input. satisfies: derived\n' >> docs/architecture/0001-01-01-base.md
@@ -1649,7 +1633,7 @@ LEDGER
 }
 
 @test "check-trace: an assesses: line outside the RMF files counts for nothing" {
-    # verifies: PR-n274s7
+    # verifies: REQ-czp8dt
     printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
@@ -1661,14 +1645,14 @@ LEDGER
 }
 
 @test "check-trace: a ledger reference to a draft file that does not exist is DANGLING-FILE" {
-    # verifies: PR-58zsvf — the case finalize's rewrite cannot reach: the
-    # draft was renamed by another change's merge, or lives in another unit.
+    # verifies: REQ-3gzxr3
+    # The draft was renamed by another change's merge, or lives in another unit.
     printf '\nHazards: docs/risk/DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
     commit_all dangling-file
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
     # The message is pinned, not just the site: the two arms were split so
-    # each states where it looked (review findings 19, 22, 23), and without an
+    # each states where it looked, and without an
     # assertion on the text an edit that swapped the arms' wording — or
     # dropped this arm's `_why` — would keep every test green.
     [[ "$output" == *"DANGLING-FILE docs/risk/DRAFT-other-alarms.md (docs/requirements/0001-01-01-base.md:"*"found neither at the repository root nor beside the file naming it"* ]] \
@@ -1676,8 +1660,9 @@ LEDGER
 }
 
 @test "check-trace: a reference to a draft file that exists is the in-flight state and passes" {
-    # verifies: PR-58zsvf — resolve, never ban: convicting an existing draft
-    # would fire on every worktree doing this correctly.
+    # verifies: REQ-3gzxr3, REQ-p9q9ym
+    # Resolve, never ban: convicting an existing draft would fire on every
+    # worktree doing this correctly.
     printf '# Draft hazards\n' > docs/risk/DRAFT-feature-alarms.md
     printf '\nHazards: docs/risk/DRAFT-feature-alarms.md, also DRAFT-feature-alarms.md.\n' \
         >> docs/requirements/0001-01-01-base.md
@@ -1688,7 +1673,7 @@ LEDGER
 }
 
 @test "check-trace: a bare draft basename resolves against every ledger directory" {
-    # verifies: PR-58zsvf
+    # verifies: REQ-p9q9ym
     printf '# Draft hazards\n' > docs/risk/DRAFT-feature-alarms.md
     printf '\nSee DRAFT-feature-alarms.md.\n' >> docs/architecture/0001-01-01-base.md
     commit_all bare-resolves
@@ -1698,8 +1683,10 @@ LEDGER
 }
 
 @test "check-trace: a dangling draft reference outside the ledgers is prose" {
-    # verifies: PR-58zsvf — D3: strict_paths and plans narrate history and
-    # are not resolved; the scope is exactly the files finalize rewrites.
+    # verifies: REQ-3gzxr3
+    # The scope is the ledger (doc_*) files and the SOUP file, not strict_paths
+    # or plans: those may narrate history, and "created as DRAFT-x.md" is a
+    # true sentence there.
     printf 'Created as DRAFT-feature-x.md, finalized at merge.\n' > src/NOTES.md
     commit_all prose-ref
     run sh .guardrails/scripts/check-trace.sh
@@ -1708,7 +1695,8 @@ LEDGER
 }
 
 @test "check-trace: the grammar placeholder DRAFT-<branch>-<slug>.md is not a reference" {
-    # verifies: PR-58zsvf — the ledger READMEs shipped by ratchet contain it.
+    # verifies: REQ-2ytmyr
+    # An adopter's ledger README may carry it to state the draft-name grammar.
     printf '\nfrom your worktree DRAFT-<branch>-<slug>.md, renamed at merge\n' >> docs/risk/0001-01-01-base.md
     commit_all placeholder
     run sh .guardrails/scripts/check-trace.sh
@@ -1792,12 +1780,12 @@ POISON
 }
 
 # --- what closes a block: header SHAPE, not the loose definition form ------
-# Independent review, 2026-08-23, BLOCKING 2. Closing on the loose definition
+# Closing on the loose definition
 # form (`**<declared prefix>-<anything>**:`) is not enough. Three shapes that a
-# reader sees as an item header do not match it, so under that rule they became
-# body text and handed their annotations to the item ABOVE — a wrong answer, and
-# on the first of them a red-to-green regression against the pre-change rule,
-# which closed on any bold line.
+# reader sees as an item header do not match it, so under that rule they
+# become body text and hand their annotations to the item ABOVE — a wrong
+# answer, and the first of them is a line that closing on any bold line
+# closes.
 
 @test "check-trace: a header with an undeclared prefix closes the block" {
     printf '\n**LLR-002**: Debounce sensor input.\n\n**ADR-0007**: We debounce in the driver.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
@@ -1829,8 +1817,8 @@ POISON
 }
 
 @test "check-trace: an emphasised sentence with spaces still closes nothing" {
-    # The regression guard for the fix above: whitespace inside the bold is what
-    # separates emphasis from a header. This is the line from the original bug.
+    # The other side of the header tests above: whitespace inside the bold is
+    # what separates emphasis from a header.
     printf '**PR-001**: Crash on empty dose input.\nopened: %s\n**21 of 35 inverted, 14 not.**\nstatus: open\n' "$(days_ago 5)" > docs/problems/0001-01-01-base.md
     commit_all emphasis-with-spaces
     run sh .guardrails/scripts/check-trace.sh
@@ -1839,10 +1827,10 @@ POISON
 }
 
 # --- the backstop must agree with the gates it backs -----------------------
-# Independent review, BLOCKING 1. Each gate opens a block on ITS OWN prefix;
-# the orphan gate opened on any declared prefix. That leaves three states, not
-# two — inside my block, outside every block, and inside SOMEONE ELSE'S block —
-# and the third was read by no gate and reported by none.
+# Each gate opens a block on ITS OWN prefix. An orphan gate that opened on any
+# declared prefix would leave three states, not two — inside my block, outside
+# every block, and inside SOMEONE ELSE'S block — and the third would be read
+# by no gate and reported by none.
 
 @test "check-trace: an annotation inside another prefix's block is an orphan" {
     cat > .guardrails/config.yaml <<'CFG'
@@ -1880,13 +1868,11 @@ CFG
 }
 
 
-# --- the close must be everything main closed that contains a colon --------
-# Review round 2. The close set was a strict SUBSET of the pre-change rule for
-# every non-definition line, so every shape it missed was a regression, not a
-# gap. Three more were found on the first day. The discriminator is the COLON
-# adjoining the closing asterisks — the line from the original report has
-# none — and NOT whitespace, which was untested and bought nothing: deleting
-# the whitespace exclusion reddened no test and left the reported defect fixed.
+# --- the close is every bold line that contains a colon --------------------
+# A close set narrower than "any bold line" for a non-definition line leaves
+# a block open on every header shape it misses, one the reader sees. The discriminator is the
+# COLON — an emphasised sentence such as `**21 of 35 inverted, 14 not.**` has
+# none — and NOT whitespace, which buys nothing.
 
 @test "check-trace: a bold-italic header closes the block" {
     printf '\n**LLR-002**: Debounce sensor input.\n\n***ADR-0007***: We debounce in the driver.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
@@ -1908,8 +1894,8 @@ CFG
 
 @test "check-trace: a multi-word bold header closes the block" {
     # A header can be a phrase and emphasis can be one token, so whitespace
-    # never separated them. An earlier round excluded whitespace from the bold
-    # run and lost this shape.
+    # never separated them. A bold run that excludes whitespace loses this
+    # shape.
     printf '\n**LLR-002**: Debounce sensor input.\n\n**Decision 7**: We debounce in the driver.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
     printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
     commit_all multiword-header
@@ -1919,8 +1905,8 @@ CFG
 }
 
 @test "check-trace: single-asterisk emphasis closes nothing" {
-    # Parity with the pre-change rule, which required two asterisks at line
-    # start. Widening to one would newly reject ledgers that always passed.
+    # A header needs two asterisks at line start. Accepting one would reject
+    # ledgers whose italic asides sit inside an item block.
     printf '**PR-001**: Crash on empty dose input.\nopened: %s\n*Note*: an italic aside.\nstatus: open\n' "$(days_ago 5)" > docs/problems/0001-01-01-base.md
     commit_all single-asterisk
     run sh .guardrails/scripts/check-trace.sh
@@ -1988,11 +1974,11 @@ SAD
 }
 
 # --- the close is EVERY bold line containing a colon ------------------------
-# Review round 3. Rounds 1-3 each hand-fitted the pattern to the shapes the
-# previous round demonstrated, and each time the class stayed open. The suite
-# could not tell the shipped regex from the rule it claimed to implement:
-# substituting `^\*\*.*:` reddened nothing, and every difference between them
-# was a regression. These fixtures are that difference, made visible.
+# A pattern hand-fitted to known header shapes leaves the class open, and a
+# suite that cannot tell such a regex from the rule it claims to implement
+# lets every difference between them through as a block left open on a
+# header the reader sees. These fixtures
+# are that difference, made visible.
 
 @test "check-trace: a header with text between the bold and the colon closes" {
     # verifies: REQ-k773kh, REQ-x7m2sy
@@ -2001,9 +1987,9 @@ SAD
     run sh .guardrails/scripts/check-trace.sh
     # It closes PR-001 and opens NOTHING: the opening form requires the colon
     # immediately after the bold, so this is not a definition. Asserting only
-    # the absence of PR-001 was too weak — an opening pattern that dropped its
-    # colon reported `UNRESOLVED-PR PR-b4m8p3** (duplicate of PR-001):` and
-    # passed.
+    # the absence of PR-001 is too weak: an opening pattern that dropped its
+    # colon would report `UNRESOLVED-PR PR-b4m8p3** (duplicate of PR-001):` and
+    # pass.
     [[ "$output" != *"UNRESOLVED-PR"* ]] || { echo "$output"; false; }
     [[ "$output" == *"ORPHAN-ANNOTATION"* ]] || { echo "$output"; false; }
     [ "$status" -eq 1 ]
@@ -2026,7 +2012,7 @@ SAD
 }
 
 @test "check-trace: a header with a non-ASCII space before its colon closes" {
-    # U+00A0 NO-BREAK SPACE. The same family as the U+2011 hyphen from round 1:
+    # U+00A0 NO-BREAK SPACE. The same family as the U+2011 hyphen above:
     # an ASCII-only character class is a vocabulary, and the close must not
     # depend on one.
     printf '\n**LLR-002**: Debounce sensor input.\n\n**ADR-0007**\xc2\xa0: superseded.\nsatisfies: REQ-001\n' >> docs/architecture/0001-01-01-base.md
@@ -2063,7 +2049,7 @@ SAD
 }
 
 @test "check-trace: the status: backstop opens on PR and no other prefix" {
-    # Round 1's per-keyword scoping was pinned only for satisfies:. An SDD
+    # The per-keyword scoping, pinned for status: as well as satisfies:. An SDD
     # header in the problems ledger must not open a block the status: backstop
     # honours — if it did, the annotation under it would be read by nobody and
     # reported by nobody, which is the whole defect.
@@ -2536,7 +2522,7 @@ STUB
 
 @test "check-trace: an implements: in a gitignored requirements file implements nothing" {
     # verifies: REQ-qw3aze
-    # The block pass drops the files git ignores (review round 3, finding-3),
+    # The block pass drops the files git ignores,
     # and a crediting REQ must be one ids_defined reports, which reads through
     # git grep and so skips ignored files too. Either guard alone keeps this
     # green; the gitignored-ledger-file test below defines the owner in a
@@ -2578,13 +2564,13 @@ CFG
     [[ "$output" == *"checked: PR 0"* ]] || { echo "$output"; false; }
 }
 
-# --- Problem-report triage: practice-feedback finding 09a -------------------
+# --- Problem-report triage ------------------------------------------------
 # The roll-call has to be complete before it is worth pricing higher. These
 # pin the reader; the limits that act on it are further down.
 
 @test "check-trace: an item with no status: line is reported, not read as resolved" {
-    # verifies: practice-feedback finding 09a (D1)
-    # Measured on sightings-app: one item of 159 (PR-028) records its state in
+    # verifies: REQ-8sepe5
+    # Measured on sightings-app: one item of 159 records its state in
     # prose bullets and contains no status: line. Every gate run since it was
     # written has read it as resolved.
     printf '**PR-001**: Crash on empty dose input.\naffects: REQ-001\n' \
@@ -2596,17 +2582,16 @@ CFG
     [[ "$output" == *"status:"* ]] || { echo "$output"; false; }
 }
 
-@test "check-trace: an indented status: line no longer states an item's status" {
-    # verifies: practice-feedback finding 09a (D1)
+@test "check-trace: an indented status: line does not state an item's status" {
+    # verifies: REQ-8sepe5, REQ-nw7wy4
     # Column one, so that the reader and the ORPHAN-ANNOTATION backstop look in
-    # the same place. Silently dropping the line would be the same false green
-    # moved one step; it becomes INCOMPLETE-PROBLEM instead.
+    # the same place. Silently dropping the line would be a false green; it
+    # becomes INCOMPLETE-PROBLEM instead.
     #
-    # The item is otherwise COMPLETE on purpose. The first version left out
-    # opened: as well, so INCOMPLETE-PROBLEM fired whatever the
-    # status rule did and the test passed without constraining it — a mutation
-    # restoring the old anywhere-on-the-line reader passed it untouched.
-    # Here only the status rule can decide the verdict.
+    # The item is otherwise COMPLETE on purpose: with opened: missing as well,
+    # INCOMPLETE-PROBLEM would fire whatever the status rule did, and a reader
+    # that accepted the line anywhere would pass. Here only the status rule can
+    # decide the verdict.
     printf '**PR-001**: Crash on empty dose input.\nopened: %s\n  status: open\n' "$(days_ago 5)" \
         > docs/problems/0001-01-01-base.md
     commit_all indented-status
@@ -2618,7 +2603,7 @@ CFG
 }
 
 @test "check-trace: a status: value outside the closed set is malformed" {
-    # verifies: practice-feedback finding 09a (D1)
+    # verifies: REQ-xyxvm2
     printf '**PR-001**: Crash.\nstatus: openish\n' > docs/problems/0001-01-01-base.md
     commit_all bad-status
     run sh .guardrails/scripts/check-trace.sh
@@ -2628,7 +2613,7 @@ CFG
 }
 
 @test "check-trace: a capitalised Status: does not state an item's status" {
-    # verifies: practice-feedback finding 09a (D1)
+    # verifies: REQ-8sepe5, REQ-nw7wy4
     # The old pattern matched `status:` only, so `Status: open` left the item
     # reading as resolved. It is now an omission, which is loud.
     # Complete but for the status, so that only the status rule decides — see
@@ -2667,7 +2652,7 @@ CFG
 }
 
 @test "check-trace: an open item needs no owner:" {
-    # verifies: PR-dudg35
+    # verifies: REQ-q4kdav
     # Authorship is already answered by `git blame` on the ledger line, and
     # problems are not personally owned — anyone may resolve them. `opened:`
     # and `status:` are the whole grammar for an open item.
@@ -2681,7 +2666,7 @@ CFG
 }
 
 @test "check-trace: a leftover owner: line inside an item is inert" {
-    # verifies: PR-dudg35
+    # verifies: REQ-q4kdav
     # Backward compatibility: ledgers written under the old grammar contain
     # owner: lines, full and empty alike. Both are prose now — the run is
     # the same as if they were absent, and no output mentions them.
@@ -2696,7 +2681,7 @@ CFG
 }
 
 @test "check-trace: an open item with no opened: is still on the roll-call" {
-    # verifies: practice-feedback finding 09a (D2)
+    # verifies: REQ-zzdfz4
     # The item cannot be aged, but it is open, and an open item missing from
     # the roll-call is the defect this whole gate exists to remove.
     printf '**PR-001**: Crash.\nstatus: open\n' \
@@ -2710,7 +2695,7 @@ CFG
 }
 
 @test "check-trace: a complete open item passes and reports its age" {
-    # verifies: practice-feedback finding 09a (D2, task 4), PR-dudg35
+    # verifies: REQ-fgdd5w, REQ-q4kdav
     write_pr PR-001 open "$(days_ago 10)"
     commit_all complete-open
     run sh .guardrails/scripts/check-trace.sh
@@ -2720,19 +2705,18 @@ CFG
 }
 
 @test "check-trace: an opened: that is not a calendar date is malformed" {
-    # verifies: practice-feedback finding 09a (D5)
+    # verifies: REQ-6hr9xa
     #
-    # Each input asserts MALFORMED-DATE specifically. The first version allowed
+    # Each input asserts MALFORMED-DATE specifically. Allowing
     # `MALFORMED-DATE || INCOMPLETE-PROBLEM (no opened:)` so that the empty
-    # value could share the loop — a disjunction no input could distinguish,
-    # which left the empty-value rule unpinned on all eight. The independent
-    # review's mutation of that rule passed the whole suite. The empty value
-    # now has its own test below.
+    # value could share the loop would be a disjunction no input could
+    # distinguish, leaving the empty-value rule unpinned. The empty value has
+    # its own test below.
     #
     # 2026-00-10 and 2026-08-00 are here because a zero component is a
     # plausible typo and the calendar test is the only thing that rejects it:
-    # a mutation dropping the `m < 1 || d < 1` half of gr_date_valid passed
-    # the list without them.
+    # without them, dropping the `m < 1 || d < 1` half of gr_date_valid would
+    # pass the list.
     for bad in 2026-13-01 2026-02-30 2023-02-29 2026-00-10 2026-08-00 24-08-01 2026-08-1 2026-1a-01 yesterday 2026/08/01; do
         printf '**PR-001**: Crash.\nopened: %s\nstatus: open\n' "$bad" \
             > docs/problems/0001-01-01-base.md
@@ -2745,9 +2729,9 @@ CFG
 }
 
 @test "check-trace: an empty opened: is an omission, not a date" {
-    # verifies: practice-feedback finding 09a (D2)
-    # A keyword with nothing after it declares nothing. This rule had no
-    # test of its own at first, and the review found it unpinned.
+    # verifies: REQ-zzdfz4
+    # A keyword with nothing after it declares nothing. The malformed-date
+    # loop above does not reach this rule, so it has its own test.
     printf '**PR-001**: Crash.\nopened:\nstatus: open\n' \
         > docs/problems/0001-01-01-base.md
     commit_all empty-opened
@@ -2758,7 +2742,7 @@ CFG
 }
 
 @test "check-trace: a leap day is a calendar date and a non-leap century day is not" {
-    # verifies: practice-feedback finding 09a (D5)
+    # verifies: REQ-6hr9xa
     # Hand-rolled date arithmetic is wrong in February or it is not wrong at all.
     printf '**PR-001**: Crash.\nopened: 2024-02-29\nstatus: open\n' \
         > docs/problems/0001-01-01-base.md
@@ -2769,11 +2753,10 @@ CFG
     # 1900 is divisible by 4 and by 100 but not by 400 — not a leap year, and
     # the century rule is the half of the calendar a naive `% 4` gets wrong.
     #
-    # 1900, and not 2100, deliberately. The first version used 2100, which is
-    # in the FUTURE: dropping the century rule made the date valid, the future
-    # rule then reported MALFORMED-DATE anyway, and the test passed while
-    # constraining nothing — a mutation removing the century rule passed it.
-    # A past date leaves only the calendar rule able to reject it.
+    # 1900, and not 2100, deliberately. 2100 is in the FUTURE: with the century
+    # rule dropped the date would be valid, the future rule would report
+    # MALFORMED-DATE anyway, and the test would constrain nothing. A past date
+    # leaves only the calendar rule able to reject it.
     printf '**PR-001**: Crash.\nopened: 1900-02-29\nstatus: open\n' \
         > docs/problems/0001-01-01-base.md
     commit_all leap-century
@@ -2785,10 +2768,10 @@ CFG
 }
 
 @test "check-trace: an opened: date in the future is rejected, not treated as young" {
-    # verifies: practice-feedback finding 09a (D4, amended)
+    # verifies: REQ-za8yjf
     # A future date yields a negative age, which compares as younger than any
     # limit — the false-green direction, so it fails rather than clamping.
-    # AMENDED by the independent review: one day of tolerance, because that is
+    # One day of tolerance is allowed, because that is
     # the width of a timezone disagreement about "today". This test now uses
     # two days; the boundary itself is pinned by `an opened: one day ahead is
     # clock skew, further is an error`.
@@ -2802,7 +2785,7 @@ CFG
 }
 
 @test "check-trace: an item opened today is zero days old, not a day either way" {
-    # verifies: practice-feedback finding 09a (D4), PR-dudg35
+    # verifies: REQ-fgdd5w
     printf '**PR-001**: Crash.\nopened: %s\nstatus: open\n' "$(days_ago 0)" \
         > docs/problems/0001-01-01-base.md
     commit_all opened-today
@@ -2812,7 +2795,7 @@ CFG
 }
 
 @test "check-trace: problem_age_days fails an item older than the limit" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-ct5sxz
     printf 'problem_age_days: 30\n' >> .guardrails/config.yaml
     printf '**PR-001**: Crash.\nopened: %s\nstatus: open\n' "$(days_ago 31)" \
         > docs/problems/0001-01-01-base.md
@@ -2823,7 +2806,7 @@ CFG
 }
 
 @test "check-trace: problem_age_days passes an item exactly at the limit" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-ct5sxz
     # The limit is "more than", stated once here so it cannot drift.
     printf 'problem_age_days: 30\n' >> .guardrails/config.yaml
     printf '**PR-001**: Crash.\nopened: %s\nstatus: open\n' "$(days_ago 30)" \
@@ -2835,7 +2818,7 @@ CFG
 }
 
 @test "check-trace: problem_open_max fails a backlog past the limit" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-cs8dwk
     printf 'problem_open_max: 2\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
     write_pr PR-p9r5wx open "$(days_ago 1)"
@@ -2847,7 +2830,7 @@ CFG
 }
 
 @test "check-trace: problem_open_max passes a backlog exactly at the limit" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-cs8dwk
     printf 'problem_open_max: 2\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
     write_pr PR-p9r5wx open "$(days_ago 1)"
@@ -2858,7 +2841,7 @@ CFG
 }
 
 @test "check-trace: the backlog count spans every ledger file, not one at a time" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-cs8dwk
     # The scan runs per file; the limit is a property of the ledger.
     printf 'problem_open_max: 1\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
@@ -2871,7 +2854,7 @@ CFG
 }
 
 @test "check-trace: an unparseable limit is an environment error, not no limit" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-d9m923
     # A limit the reader cannot see reads as "no limit" through cfg_get — a
     # gate disabling itself on a typo, which is the whole shape gr_check_config
     # exists to reject.
@@ -2886,7 +2869,7 @@ CFG
 }
 
 @test "check-trace: problem_age_days 0 is a limit, not an absent one" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-ct5sxz
     # Zero and unset are distinguishable and must stay so: cfg_get returns the
     # empty string for both a missing key and an empty value, which is exactly
     # how a configured limit would vanish.
@@ -2900,7 +2883,7 @@ CFG
 }
 
 @test "check-trace: the summary states the limits, set or not, on pass and on failure" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-w9fctu
     # An unset limit is a legitimate configuration and never a silent one.
     write_pr PR-001 open "$(days_ago 7)"
     commit_all summary-unset
@@ -2927,7 +2910,7 @@ CFG
 }
 
 @test "check-trace: an undatable open item counts toward the backlog limit" {
-    # verifies: practice-feedback finding 09a (D2, D6)
+    # verifies: REQ-cs8dwk, REQ-zzdfz4
     # It is already failing for the missing field. It must not ALSO be missing
     # from the count, or a ledger could keep its backlog low by omission.
     printf 'problem_open_max: 1\n' >> .guardrails/config.yaml
@@ -2942,7 +2925,7 @@ CFG
 
 # --- status: accepted — a problem the project investigated and ruled on -----
 
-# verifies: PR-4fwfjp
+# verifies: REQ-x6d3n9
 @test "check-trace: an accepted problem with a disposition: is not stale and not counted open" {
     # The age is absurd on purpose: with problem_age_days set, the exemption is
     # the only thing standing between this item and STALE-PROBLEM.
@@ -2957,7 +2940,7 @@ CFG
     [[ "$output" == *"problems: open 0, accepted 1"* ]] || { echo "$output"; false; }
 }
 
-# verifies: PR-4fwfjp
+# verifies: REQ-mgp32r
 @test "check-trace: an accepted problem with no disposition: is INCOMPLETE-PROBLEM" {
     # Without this, `accepted` is a one-word escape from both limits and the
     # gate ships its own bypass. The ruling is the price of the exemption.
@@ -2970,7 +2953,7 @@ CFG
         || { echo "$output"; false; }
 }
 
-# verifies: PR-4fwfjp
+# verifies: REQ-zzdfz4
 @test "check-trace: an accepted problem with no opened: is INCOMPLETE-PROBLEM" {
     # An accepted item still has a date and still appears in the roll-call, so
     # the field that makes the roll-call readable is still required.
@@ -2983,7 +2966,7 @@ CFG
         || { echo "$output"; false; }
 }
 
-# verifies: PR-4fwfjp
+# verifies: REQ-6hr9xa
 @test "check-trace: an accepted problem's opened: is judged as a date" {
     # The field was required and never read: the accepted branch returned
     # before gr_date_ok, so `status: accepted` with 2020-13-45 passed at exit
@@ -2999,7 +2982,7 @@ CFG
         || { echo "rejected for the wrong reason: $output"; false; }
 }
 
-# verifies: PR-4fwfjp
+# verifies: REQ-za8yjf
 @test "check-trace: an accepted problem's opened: cannot be in the future" {
     # An accepted item ages against nothing, so this is not the false-green
     # argument the open branch makes: the date is the record of WHEN the
@@ -3024,7 +3007,7 @@ CFG
     [[ "$output" == *"ACCEPTED-PR PR-a4c7k2"* ]] || { echo "$output"; false; }
 }
 
-# verifies: PR-4fwfjp
+# verifies: REQ-x6d3n9
 @test "check-trace: the ACCEPTED-PR roll-call line contains the date" {
     # `opened:` is required on an accepted item because "an accepted item
     # still has a date, and the roll-call reports it" — which the roll-call
@@ -3042,7 +3025,7 @@ CFG
     [[ "$output" != *"STALE-PROBLEM"* ]] || { echo "$output"; false; }
 }
 
-# verifies: PR-4fwfjp
+# verifies: REQ-x6d3n9
 @test "check-trace: an accepted problem does not count toward problem_open_max" {
     # A project that triages honestly must not reach the ceiling faster than
     # one that quietly drops things.
@@ -3106,7 +3089,7 @@ CFG
 }
 
 @test "check-trace: an opened: in another ledger is out of scope" {
-    # verifies: practice-feedback finding 09a (D8), PR-dudg35
+    # verifies: REQ-c3d8yk
     # Per-keyword scope, as for status:. It is block-parsed only in
     # doc_problems; reporting it from the SRS, where nothing reads it,
     # would be noise, and noise is what teaches people to read past the output.
@@ -3130,7 +3113,7 @@ CFG
 }
 
 @test "check-trace: a CRLF ledger states its status like any other" {
-    # verifies: practice-feedback finding 09a (D1), PR-dudg35
+    # verifies: REQ-j8dee9
     # A ledger written on Windows must not read as an item with no status.
     printf '**PR-001**: Crash.\r\nopened: %s\r\nstatus: open\r\n' "$(days_ago 4)" \
         > docs/problems/0001-01-01-base.md
@@ -3141,7 +3124,7 @@ CFG
 }
 
 @test "check-trace: an indented opened: does not answer for an open item" {
-    # verifies: practice-feedback finding 09a (D1, D8), PR-dudg35
+    # verifies: REQ-zzdfz4, REQ-nw7wy4
     # The other half of the column-one rule. Its companion test proves an
     # indented opened: in a grammar comment is not an ORPHAN; this one proves
     # it is not a FIELD either. Only the pair rules out a grammar comment
@@ -3155,7 +3138,7 @@ CFG
 }
 
 @test "check-trace: an age is counted from the pinned day on both sides" {
-    # verifies: PR-pc6byk, D10 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-fgdd5w
     # The fixture's date and the script's "today" must come from one day, or
     # a run that crosses local midnight between them reports one day more.
     pin_today 2026-03-01
@@ -3170,7 +3153,7 @@ CFG
 }
 
 @test "check-trace: trailing whitespace on a field is not part of its value" {
-    # verifies: practice-feedback finding 09a (D1), PR-dudg35
+    # verifies: REQ-j8dee9
     # `status: open ` must be open, not a fourth state.
     printf '**PR-001**: Crash.\nopened: %s \nstatus: open \n' "$(days_ago 4)" \
         > docs/problems/0001-01-01-base.md
@@ -3193,7 +3176,7 @@ CFG
 }
 
 @test "check-trace: a date(1) that does not produce a calendar date is an error" {
-    # verifies: practice-feedback finding 09a (D5)
+    # verifies: REQ-8q9a2u
     # "Today" is the denominator of every age this gate computes. A garbage
     # value would not fail — it would make every age silently wrong, which is
     # the shape of every other defect in this file.
@@ -3208,7 +3191,7 @@ CFG
 }
 
 @test "check-trace: a date(1) that is date-SHAPED but not a real date is an error" {
-    # verifies: practice-feedback finding 09a (D5)
+    # verifies: REQ-8q9a2u
     # The shell check tests the shape and the awk guard tests the calendar.
     # Only the pair rejects 2026-13-45, and a mutation that removes just one
     # of them passes — which is why both are exercised here.
@@ -3219,30 +3202,26 @@ CFG
     chmod +x "$BATS_TEST_TMPDIR/fakebin2/date"
     PATH="$BATS_TEST_TMPDIR/fakebin2:$PATH" run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
-    # INDEPENDENT REVIEW, finding 9. The calendar guard used to live in the
-    # per-file awk, so a clock problem was announced as `problem-report scan
-    # failed on docs/problems/....md` — naming a ledger file for a fault in
-    # date(1). Asserting only the exit code did not catch the misdirection.
+    # A calendar guard in the per-file awk would announce a clock problem as
+    # `problem-report scan failed on docs/problems/....md` — naming a ledger
+    # file for a fault in date(1). The exit code alone cannot catch that.
     [[ "$output" == *"not a calendar date"* ]] || { echo "$output"; false; }
     [[ "$output" != *"scan failed on"* ]] \
         || { echo "a clock fault blamed on a ledger file: $output"; false; }
 }
 
 @test "check-trace: a leading --- does not hide the items beneath it" {
-    # verifies: practice-feedback finding 09a (D1)
+    # verifies: REQ-r8k6ah
     #
-    # INDEPENDENT REVIEW, BLOCKING 1, and this test is the repair of the test
-    # that pinned the defect. The triage scan first shipped with a front-matter
-    # skip, argued as "the reader and the backstop must read the same bytes".
-    # GR_AWK_FRONT_MATTER opens on ANY `---` at line 1, so a leading horizontal
-    # rule swallowed every item definition up to the next one: an open problem
-    # 236 days old absent from the roll-call, problem_open_max not applied,
-    # exit 0 — with `checked: PR 2` printed next to `problems: open 1` and
-    # nothing reconciling them.
+    # A front-matter skip in the triage scan would let a leading horizontal
+    # rule swallow every item definition up to the next one: an open problem
+    # absent from the roll-call, problem_open_max not applied, exit 0 — with
+    # `checked: PR 2` printed next to `problems: open 1` and nothing
+    # reconciling them.
     #
-    # The test that shipped with it asserted the ID appeared NOWHERE in the
-    # output, which is true both when the header is correctly ignored and when
-    # a real item is swallowed. It could not tell the two apart.
+    # Asserting the ID appears NOWHERE in the output is not enough: that is
+    # true both when a header is correctly ignored and when a real item is
+    # swallowed.
     printf -- '---\n\n# Problem reports\n\n**PR-p9r5wx**: Swallowed.\nopened: 2026-01-01\nstatus: open\n\n---\n\n**PR-001**: Another.\nopened: %s\nstatus: open\n' "$(days_ago 5)" \
         > docs/problems/0001-01-01-base.md
     commit_all leading-rule
@@ -3254,7 +3233,7 @@ CFG
 }
 
 @test "check-trace: the open count and the item count reconcile" {
-    # verifies: practice-feedback finding 09a (D1)
+    # verifies: REQ-r8k6ah
     # The self-contradiction the blocking finding left in the output is itself
     # worth pinning: `checked:` counts the items and `problems:` counts the
     # open ones, and no reading of a ledger where every item is open can make
@@ -3269,7 +3248,7 @@ CFG
 }
 
 @test "check-trace: an age spanning February is counted exactly" {
-    # verifies: practice-feedback finding 09a (D5), PR-dudg35
+    # verifies: REQ-fgdd5w
     # days_from_civil shifts March to the start of its year so that the leap
     # day falls at the END. Every other test in this file uses a date near
     # today, which is never in January or February, so the shift itself went
@@ -3306,7 +3285,7 @@ CFG
 }
 
 @test "check-trace: an item opened today is the oldest, not no age at all" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-p7xc4t
     # The running maximum started at awk's uninitialised 0, so an age of 0 —
     # the only age that does not exceed it — never registered, and a ledger
     # whose sole open item was opened today reported `oldest n/a`: an open
@@ -3321,7 +3300,7 @@ CFG
 }
 
 @test "check-trace: the first opened: in a block wins" {
-    # verifies: practice-feedback finding 09a (D1), PR-dudg35
+    # verifies: REQ-sbpr3f
     # The review's mutation making the LAST occurrence win passed the whole
     # suite once. templates/problems.md states the rule, so it was documented
     # and unenforced — the pairing this toolkit exists to end.
@@ -3334,7 +3313,7 @@ CFG
 }
 
 @test "check-trace: an age spanning a century boundary is counted exactly" {
-    # verifies: practice-feedback finding 09a (D5), PR-dudg35
+    # verifies: REQ-fgdd5w
     # days_from_civil's `- int(yoe / 100)` term. Every dated fixture lives in
     # 2024-2026, so the term was never exercised and a mutation deleting it
     # passed: 1999-01-01 to 2001-01-01 is 731 days, and 728 without it. This
@@ -3351,7 +3330,7 @@ CFG
 }
 
 @test "check-trace: a BOM in front of the first item does not hide it" {
-    # verifies: practice-feedback finding 09a (D1), PR-dudg35
+    # verifies: REQ-r8k6ah
     # A BOM is in front of column one and hides it from every match. The
     # strip was copied from check_orphans and nothing pinned it.
     #
@@ -3369,8 +3348,8 @@ CFG
 }
 
 @test "check-trace: an opened: one day ahead is clock skew, further is an error" {
-    # verifies: practice-feedback finding 09a (D4, amended), PR-dudg35
-    # INDEPENDENT REVIEW, finding 2. resolve-problem tells the author to write
+    # verifies: REQ-za8yjf
+    # resolve-problem tells the author to write
     # today, and "today" differs by a day across timezones; without tolerance
     # an author in UTC+13 blocked the merge on a correct item on the day they
     # recorded it. One day cannot make a stale item look fresh against limits
@@ -3391,10 +3370,10 @@ CFG
 }
 
 @test "check-trace: a limit too large to compare is an error, not no limit" {
-    # verifies: practice-feedback finding 09a (D6)
-    # INDEPENDENT REVIEW, finding 3. Digits alone passed gr_limit, then
-    # `[ n -gt limit ]` failed with "Illegal number", the if took its else
-    # branch, and the backlog gate was off with the run green.
+    # verifies: REQ-d9m923
+    # If digits alone passed gr_limit, `[ n -gt limit ]` would fail with
+    # "Illegal number", the if would take its else branch, and the backlog
+    # gate would be off with the run green.
     printf 'problem_open_max: 99999999999999999999\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
     commit_all huge-limit
@@ -3404,8 +3383,8 @@ CFG
 }
 
 @test "check-trace: a bad limit is diagnosed before any gate runs" {
-    # verifies: practice-feedback finding 09a (D6)
-    # INDEPENDENT REVIEW, finding 5. Read at the point of use, a typo in a
+    # verifies: REQ-d9m923
+    # Read at the point of use, a typo in a
     # limit was reported after a page of violations and with every summary
     # line suppressed — the evidence lost to the error.
     printf 'problem_age_days: thirty\n' >> .guardrails/config.yaml
@@ -3419,8 +3398,8 @@ CFG
 }
 
 @test "check-trace: the summary counts undated open items apart from the oldest" {
-    # verifies: practice-feedback finding 09a (D6)
-    # INDEPENDENT REVIEW, finding 10. `oldest` is the oldest DATABLE item, so
+    # verifies: REQ-w9fctu
+    # `oldest` is the oldest DATABLE item, so
     # an undated open item was in the count and invisible in the age.
     write_pr PR-001 open "$(days_ago 3)"
     printf '\n**PR-p9r5wx**: Undated.\nstatus: open\n' \
@@ -3433,7 +3412,7 @@ CFG
 }
 
 @test "check-trace: one open problem report is reported in the singular" {
-    # verifies: practice-feedback finding 09a (D6)
+    # verifies: REQ-cs8dwk
     printf 'problem_open_max: 0\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
     commit_all singular
@@ -3445,13 +3424,10 @@ CFG
 @test "check-trace: a leading --- does not switch the orphan backstop off either" {
     # verifies: REQ-x7m2sy
     #
-    # INDEPENDENT REVIEW, second pass, finding N2. The blocking finding was
-    # repaired in the READER by removing its front-matter skip; the BACKSTOP
-    # still could not tell a header from a horizontal rule, so a leading `---`
-    # silently dropped every annotation up to the next one. Pre-existing for
-    # `status:`, and this change had newly extended it to `opened:` —
-    # the two gates disagreeing about what `---` means, in a change whose whole
-    # argument is that they must agree.
+    # The READER has no front-matter skip; the BACKSTOP must tell a header
+    # from a horizontal rule, or a leading `---` silently drops every
+    # annotation up to the next one, for `status:` and `opened:` alike — the
+    # two gates disagreeing about what `---` means, when they must agree.
     #
     # The bound is on line 2: YAML has no blank line between the opening
     # delimiter and the first key, so `---` followed by a blank line is a rule.
@@ -3468,7 +3444,7 @@ CFG
     # verifies: REQ-x7m2sy
     # The other side of the bound above: a header block with a key on line 2
     # is still a header block, and a `status: draft` in it is a title-page
-    # field, not an orphan. Without this the fix would trade one false green
+    # field, not an orphan. Without this the backstop would trade one false green
     # for a false red on every document that contains front matter.
     printf -- '---\nstatus: draft\nauthor: docs team\ntitle: Problem reports\n---\n\n**PR-001**: Crash.\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n' \
         > docs/problems/0001-01-01-base.md
@@ -3479,12 +3455,11 @@ CFG
 }
 
 @test "check-trace: a limit at the shell's integer range is accepted" {
-    # verifies: practice-feedback finding 09a (D6)
-    # INDEPENDENT REVIEW, second pass, N5. The first repair fixed nine digits
-    # and rejected 1000000000 with the untrue explanation that it was too large
-    # to compare. Loosening that constant to eighteen digits passed the whole
-    # suite, so the boundary was unpinned in both directions. The rule now asks
-    # the shell, and both ends are pinned here.
+    # verifies: REQ-d9m923
+    # A fixed nine-digit width would reject 1000000000 with the untrue explanation
+    # that it was too large to compare, and loosening it would pass a suite
+    # that pins neither end. The rule asks the shell, and both ends are pinned
+    # here.
     printf 'problem_open_max: 1000000000\n' >> .guardrails/config.yaml
     write_pr PR-001 open "$(days_ago 1)"
     commit_all big-but-comparable
@@ -3494,8 +3469,8 @@ CFG
 }
 
 @test "check-trace: an item with a rejected date is counted as having no usable date" {
-    # verifies: practice-feedback finding 09a (D6)
-    # INDEPENDENT REVIEW, second pass, N6. The count is of items whose age is
+    # verifies: REQ-w9fctu
+    # The count is of items whose age is
     # unknown, which includes a date that was read and REJECTED — not only one
     # that is absent. The word had to become true of both.
     printf '**PR-001**: Crash.\nopened: 2026-13-01\nstatus: open\n' \
@@ -3748,7 +3723,7 @@ EOF
     [[ "$output" == *"MISSING-TEST"* ]] || { echo "$output"; false; }
 }
 
-# verifies: engagement rule (architecture item 2) — byte-exact manifest name
+# verifies: REQ-8rtckf
 @test "check-trace: a UNITS.YAML near-miss leaves the run in single-unit mode on any filesystem" {
     # setup()'s fixture is the green single-unit shape; the near-miss manifest
     # must not flip this run into a scoped or rejecting mode — on APFS the old
@@ -3762,9 +3737,9 @@ EOF
     [[ "$output" != *"scope: unit"* ]] || { echo "$output"; false; }
 }
 
-# --- fix1 finding-6: abnormal-input coverage for the unit annotations --------
+# --- abnormal-input coverage for the unit annotations --------
 
-# verifies: MISEXPORTED-ITEM (D8) — abnormal input: empty exported: value
+# verifies: REQ-79vkt3
 @test "check-trace: an empty-valued exported: convicts MISEXPORTED-ITEM" {
     make_units_fixture
     # appends inside pump's REQ block; the value is empty, which must read as
@@ -3777,7 +3752,7 @@ EOF
     [[ "$output" == *"only accepted value is yes"* ]] || { echo "$output"; false; }
 }
 
-# verifies: ORPHAN-ANNOTATION backstop over exported:/expects: (architecture item 3)
+# verifies: REQ-x7m2sy
 @test "check-trace: orphan exported: and expects: outside any block convict ORPHAN-ANNOTATION in a scoped run" {
     make_units_fixture
     cat > apps/pump/docs/requirements/0002-01-01-orphan.md <<'ORPHAN'
@@ -3794,8 +3769,9 @@ ORPHAN
 }
 
 @test "check-trace: a relative link to a draft that exists resolves from the referencing file" {
-    # verifies: PR-58zsvf — review finding 4: the one link form a markdown
-    # renderer follows must not be convicted while the file is there.
+    # verifies: REQ-3gzxr3
+    # The one link form a markdown renderer follows must not be convicted
+    # while the file is there.
     printf '# Draft hazards\n' > docs/risk/DRAFT-feature-a.md
     printf '\nSee [hazards](../risk/DRAFT-feature-a.md).\n' >> docs/requirements/0001-01-01-base.md
     commit_all relative-link
@@ -3805,8 +3781,9 @@ ORPHAN
 }
 
 @test "check-trace: a glued prefix is not a path, so the bare name resolves" {
-    # verifies: PR-58zsvf — review finding 14: the scan pattern requires every
-    # path component to end in "/", so xDRAFT-… yields the bare name.
+    # verifies: REQ-p9q9ym
+    # The scan pattern requires every path component to end in "/", so
+    # xDRAFT-… yields the bare name.
     printf '# Draft hazards\n' > docs/risk/DRAFT-feature-a.md
     printf '\nGlued: xDRAFT-feature-a.md.\n' >> docs/requirements/0001-01-01-base.md
     commit_all glued-prefix
@@ -3816,9 +3793,9 @@ ORPHAN
 }
 
 @test "check-trace: a bare draft name found in no ledger directory states where it looked" {
-    # verifies: PR-58zsvf — review finding 19: a bare name resolves against
-    # THIS config's ledger directories, and the message must not claim the
-    # file does not exist anywhere.
+    # verifies: REQ-3gzxr3, REQ-p9q9ym
+    # A bare name resolves against THIS config's ledger directories, and the
+    # message must not claim the file does not exist anywhere.
     printf '\nSee DRAFT-other-alarms.md.\n' >> docs/requirements/0001-01-01-base.md
     commit_all bare-dangling
     run sh .guardrails/scripts/check-trace.sh
@@ -3827,7 +3804,7 @@ ORPHAN
 }
 
 @test "check-trace: a quoted bulleted status: does not outrank the item's own" {
-    # verifies: PR-h3wujj
+    # verifies: REQ-nw7wy4
     # The regression a wide reader produces, pinned. Every scalar reader here
     # is FIRST-OCCURRENCE-WINS, so a reader that steps over a list marker
     # promotes any quoted form above the annotation the item actually made:
@@ -3846,7 +3823,7 @@ ORPHAN
     [[ "$output" == *"problems: open 1,"* ]] || { echo "$output"; false; }
 }
 
-# --- Block-attributed credits (docs/plans/2026-10-08-block-attributed-credits.md)
+# --- Block-attributed credits --------------------------------------------
 # implements: credits an RC only from a line inside a REQ block of doc_srs,
 # and mitigates: a HAZ only from a line inside an RC block of doc_rmf. RC-002
 # below has a hazard and nothing else implements it, so each test turns on
@@ -3857,8 +3834,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: before the first item of the SRS credits nothing and is reported" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze, REQ-x7m2sy
     add_unimplemented_control
     printf '# SRS\n\nimplements: RC-002\n\n**REQ-001**: The system shall limit the dose. (implements: RC-001)\n' \
         > docs/requirements/0001-01-01-base.md
@@ -3871,8 +3847,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: under a heading after the last REQ credits nothing and is reported" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze, REQ-x7m2sy
     add_unimplemented_control
     printf '\n## Notes\n\nimplements: RC-002\n' >> docs/requirements/0001-01-01-base.md
     commit_all implements-after-last-item
@@ -3884,8 +3859,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: mid-sentence in SRS prose credits nothing and is not an orphan" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze, REQ-x7m2sy
     # The backstop's rule is column one, so prose is not reported; the
     # coverage gate the line would have satisfied is.
     add_unimplemented_control
@@ -3898,8 +3872,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: under a sub-heading inside a REQ credits nothing and is reported" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze, REQ-x7m2sy
     # The heading closes REQ-002's block, so the line below it is no REQ's.
     add_unimplemented_control
     printf '\n**REQ-002**: The system shall raise the stuck-sensor alarm.\n\n### Why\n\nimplements: RC-002\n' \
@@ -3914,7 +3887,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: a mitigates: in RMF prose with no RC mitigates nothing" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze
     printf '\n**HAZ-002**: Stuck sensor.\n\n## Notes\n\nA control that mitigates: HAZ-002 must say so.\n' \
         >> docs/risk/0001-01-01-base.md
     commit_all mitigates-in-prose
@@ -3924,8 +3897,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: a column-one mitigates: under a heading after the last RC mitigates nothing and is reported" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze, REQ-x7m2sy
     printf '\n**HAZ-002**: Stuck sensor.\n\n## Notes\n\nmitigates: HAZ-002\n' >> docs/risk/0001-01-01-base.md
     commit_all mitigates-after-last-item
     run sh .guardrails/scripts/check-trace.sh
@@ -3967,8 +3939,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an expecting REQ's implements: after a bold-colon line is reported and claims no risk control" {
-    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze, REQ-k773kh, REQ-x7m2sy
     # The **Note:** line closes REQ-e7x2m4's block. The expectation severity
     # reads the same block records UNIMPLEMENTED-CONTROL reads, so the stray
     # line neither makes the expectation risk-linked nor passes silently.
@@ -3985,7 +3956,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: key line in front matter credits nothing and is not an orphan" {
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-wwqc2d
     # A YAML key line opens no block, so the block reader credits nothing
     # here with or without its front-matter skip; what this pins is the
     # backstop's skip: no orphan report, and the coverage gate reports. The
@@ -4002,7 +3973,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: a definition line in front matter opens no block and credits nothing" {
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-wwqc2d
     # credit_scan skips front matter by GR_AWK_FRONT_MATTER, the rule the
     # backstop uses, so a definition line inside it opens no block.
     add_unimplemented_control
@@ -4016,7 +3987,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: a block in a gitignored ledger file credits no control and mitigates no hazard" {
-    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-hj3fs5
     # The owners are items defined in tracked files, so only the dropped
     # ignored files keep these lines from crediting.
     add_unimplemented_control
@@ -4034,7 +4005,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: in the block of a REQ ids_defined does not report credits nothing" {
-    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-hj3fs5
     # The BOM hides REQ-002's definition from ids_defined's column-one git
     # grep, while the block reader strips it and opens the block. Only the
     # defined-owner filter keeps the implements: from crediting RC-002.
@@ -4048,7 +4019,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: a mitigates: in the block of an RC ids_defined does not report mitigates nothing" {
-    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-hj3fs5
     # The same BOM shape on the RMF side: RC-003 is invisible to
     # ids_defined, so its mitigates: must not credit HAZ-002.
     printf '\n**HAZ-002**: Stuck sensor.\n' >> docs/risk/0001-01-01-base.md
@@ -4061,7 +4032,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: inline and bulleted credits inside a block still credit" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze
     # Scope control: the shipped definition-line forms and a bulleted line
     # inside the block are all inside the block.
     add_unimplemented_control
@@ -4075,7 +4046,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: a block open at the end of one SRS file credits nothing in the next" {
-    # verifies: D1 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-qw3aze
     # The base SRS ends inside REQ-001's block. The later file's first line
     # is prose that names RC-002 after implements:; the block reader starts
     # every file outside any block, so that line belongs to no REQ. It is not
@@ -4090,7 +4061,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: front matter in one SRS file skips no lines of the next" {
-    # verifies: D3 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-wwqc2d
     # The earlier file's front matter runs to line 6. The later file defines
     # REQ-002 on line 1 and credits RC-002 on line 2; the front-matter span
     # is found afresh for each file, so those lines are read.
@@ -4107,7 +4078,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an expecting REQ's implements: in a gitignored requirements file claims no risk control" {
-    # verifies: D2 (docs/plans/2026-10-08-block-attributed-credits.md)
+    # verifies: REQ-hj3fs5
     # The expectation severity reads the records UNIMPLEMENTED-CONTROL reads,
     # and that one block pass drops the files git ignores, so the ignored
     # line does not make the expectation risk-linked.

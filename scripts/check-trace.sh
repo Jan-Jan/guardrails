@@ -188,7 +188,7 @@
 #
 # After the violation lines and before `checked:`, one `fix <RULE>: <remedy>`
 # line per rule that fired, warnings included, in the order the rules first
-# fired (D8 of docs/plans/2026-09-28-agent-first-skills.md).
+# fired.
 # check_trace_remedy below is the remedy table; tests/remedies.bats checks that
 # it has one entry per report in the roster above.
 #
@@ -236,7 +236,7 @@ check_trace_remedy() {
 gr_repo_root=$(gr_root) || exit 2
 cd "$gr_repo_root" || exit 2
 
-# The engagement rule (architecture item 2): with no manifest this is a
+# The engagement rule: with no manifest this is a
 # no-op and everything below is exactly the single-unit script. Engaged,
 # GR_UNIT names the unit whose config this run reads, and the scoped
 # machinery at the bottom of this file switches on.
@@ -393,7 +393,7 @@ $(printf '%s\n' "$_cs" | awk -F'\t' -v me="$GR_UNIT" \
 fi
 
 # unignored_files LIST — LIST's files that git does not ignore, one per line.
-# THE FILES GIT GREP READS, and no others (review round 3, finding-3). The
+# THE FILES GIT GREP READS, and no others. The
 # definition readers — ids_defined and its kin — read through `git grep
 # --untracked`, which skips a file git ignores; a block pass that read the
 # file system instead credited an ignored file's lines. Used by credit_scan
@@ -403,7 +403,7 @@ fi
 # prints quoted is kept and read, as before, rather than missed. With the
 # index (no --no-index), a tracked file is never ignored, as git grep searches
 # it. Exit 1 is "nothing ignored". No files, no call: `git check-ignore --`
-# with no path exits 128 (review round 4, finding-1). Status 2 when git fails.
+# with no path exits 128. Status 2 when git fails.
 unignored_files() {
     [ -n "$1" ] || return 0
     # shellcheck disable=SC2086
@@ -413,8 +413,8 @@ unignored_files() {
         gr_contains "$_unignored_dropped" "$_unignored_file" || printf '%s\n' "$_unignored_file"
     done
 }
-# --- Credits: docs/plans/2026-10-08-block-attributed-credits.md ------------
-# A credit belongs to the block it is written in (D1). `implements: RC-…`
+# --- Credits ----------------------------------------------------------------
+# A credit belongs to the block it is written in. `implements: RC-…`
 # credits the RC only on a line inside a REQ block of doc_srs, and
 # `mitigates: HAZ-…` the HAZ only on a line inside an RC block of doc_rmf. The
 # keyword may sit anywhere on that line — the inline `(implements: RC-…)` on
@@ -426,11 +426,10 @@ unignored_files() {
 # A block cannot span files, so the open block is dropped at each file's
 # first line.
 #
-# ONE reader per keyword (D2): every consumer reads these records, so no two
-# gates can disagree on what a line credits. Until this pass, a line-wise
-# reader credited a line in no block, while the block readers did not:
-# UNIMPLEMENTED-CONTROL and UNMITIGATED-HAZARD passed on a credit no item
-# made, and the expectation severity disagreed with them.
+# ONE reader per keyword: every consumer reads these records, so no two
+# gates can disagree on what a line credits. A second, line-wise reader
+# would credit a line in no block, and UNIMPLEMENTED-CONTROL or
+# UNMITIGATED-HAZARD would pass on a credit no item made.
 #
 # credit_scan KEYWORD OWNER TARGET FILES — one `<owner> <ID>` line per credit:
 # an ID of prefix TARGET named by KEYWORD inside a block of prefix OWNER.
@@ -489,7 +488,7 @@ if [ -n "$srs_files" ]; then
         || gr_die "implements: scan failed"
 fi
 
-# --- Unit annotations and expectations (architecture items 3 and 4) ----------
+# --- Unit annotations and expectations ---------------------------------------
 # Scoped runs only. exported:/expects:/opened: are read by gr_req_scan under
 # the same column-one, first-occurrence, block-attributed rules as status:,
 # and the ORPHAN-ANNOTATION backstop below is extended to match.
@@ -499,7 +498,7 @@ if [ -n "$GR_UNIT" ]; then
     # shellcheck disable=SC2086
     own_scan=$(gr_req_scan $srs_files $rmf_files $sad_files $problems_files) || exit 2
 
-    # MISEXPORTED-ITEM: only `exported: yes` on a REQ is an export (D8). A
+    # MISEXPORTED-ITEM: only `exported: yes` on a REQ is an export. A
     # misspelled value would read as "not exported" and strand every consumer
     # silently, so any other value — empty included — convicts, as does the
     # annotation on a non-REQ block.
@@ -549,8 +548,7 @@ if [ -n "$GR_UNIT" ]; then
             continue
         fi
         # met iff the named provider defines an EXPORTED REQ containing
-        # satisfies: <this ID> — both conditions (D11; obligation
-        # expectation-met-requires-export).
+        # satisfies: <this ID> — both conditions.
         # Globbing back on for the provider scan, as at the foreign/reverse
         # computation above and for the same *.md-glob reason.
         set +f
@@ -766,7 +764,7 @@ if [ -n "$test_paths" ]; then
 $sats"
     done
     for id in $(ids_defined REQ); do
-        # A valid UNMET expectation is exempt (D10): it cannot have a
+        # A valid UNMET expectation is exempt: it cannot have a
         # verifying test yet and is already reported once, accurately, by
         # UNMET-EXPECTATION above. Met, it is an ordinary REQ again.
         gr_contains "$exempt_expect" "$id" && continue
@@ -793,8 +791,7 @@ fi
 
 # --- UNIMPLEMENTED-CONTROL: every RC needs a REQ that implements it ---------
 # Credited by credit_scan: an `implements:` inside the block of a REQ that
-# ids_defined reports. A line in no REQ block implements nothing (D1 of the
-# block-attributed-credits change).
+# ids_defined reports. A line in no REQ block implements nothing.
 if [ -n "$srs_files" ]; then
     defined_req_flat=" $(ids_defined REQ | tr '\n' ' ')"
     implemented=$(printf '%s\n' "$implements_records" \
@@ -847,14 +844,11 @@ $(LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ITEM_BLOCK"'
         cur != "" && /satisfies:[ \t]*derived/ { print cur; cur = "" }
     ' "$f")"
 done
-# The assessment is DECLARED, not inferred. Until 2026-09-08 this was one
-# free-text `git grep` per derived ID over $rmf_files, so an ID in a
-# verification table, a scope note or a parenthetical read as an assessment.
-# The ID is exactly what an author produces anyway — a derived item is
-# normally named in the same file's verification table — so the gate could
-# not tell the failure it exists to detect from compliance. Measured on one
-# downstream project: 26 derived items, 25 genuinely assessed, one credited
-# on a parenthetical inside a blockquote (PR-n274s7).
+# The assessment is DECLARED, not inferred. A free-text search for a derived
+# ID over $rmf_files would read an ID in a verification table, a scope note
+# or a parenthetical as an assessment, and a derived item is normally named
+# in its file's verification table, so such a gate could not tell the
+# failure it exists to detect from compliance.
 #
 # `assesses:` is read line-wise by ids_matching through GR_AWK_ID_RUN, unlike
 # mitigates: and implements:, which credit_scan reads by block. The run ends
@@ -957,30 +951,28 @@ fi
 # is a change not yet renamed, and a gate on the prefix alone is DRAFT-FILE's
 # job, not this one's.
 #
-# Scope is the doc_* files and the SOUP file, not strict_paths (D3,
-# 2026-09-08): plans and verification records narrate history, and "created
-# as DRAFT-x.md" is a true sentence that must stay true. The token must look
-# like a real file name, so the grammar placeholder
-# `DRAFT-<branch>-<slug>.md`, which the ledger READMEs carried before
-# ADR-cy7ahd and an older adopter's copy may still carry, matches nothing. A
-# path-shaped reference resolves from the repository root and then from the
-# referencing file's own directory, so the relative link a markdown renderer
-# actually follows is not convicted while its target exists (review finding
-# 4). Each arm's message names the places it looked rather than asserting the
-# file exists nowhere:
+# Scope is the doc_* files and the SOUP file, not strict_paths: a plan or a
+# change record may narrate history, and "created as DRAFT-x.md" is a true
+# sentence that must stay true. The token must look like a real file name, so
+# the grammar placeholder `DRAFT-<branch>-<slug>.md`, which an adopter's
+# ledger README may carry, matches nothing. A path-shaped reference resolves
+# from the repository root and then from the referencing file's own
+# directory, so the relative link a markdown renderer actually follows is not
+# convicted while its target exists. Each arm's message names the places it
+# looked rather than asserting the file exists nowhere:
 # in a manifest repository a path written relative to another unit's root
-# resolves against neither root, and "does not exist" would be false of it
-# (findings 19 and 22). A bare basename resolves against every ledger
+# resolves against neither root, and "does not exist" would be false of it.
+# A bare basename resolves against every ledger
 # directory, because a bare name is how authors cite a sibling ledger.
 #
 # The token class is the ledger grammar's — letters, digits, underscore, dot,
 # hyphen — so a draft named outside it (a + or @ in the slug) is not looked
 # for; DRAFT-FILE convicts any DRAFT- name, so this is narrower than that gate,
-# deliberately: widening it to any non-space character makes prose match
-# (review finding 18). A bare name resolves against THIS config's ledger
+# deliberately: widening it to any non-space character makes prose match.
+# A bare name resolves against THIS config's ledger
 # directories: in a manifest repository a bare reference to another unit's
 # draft is reported even while that draft exists, because a bare name across
-# units is ambiguous — the path form resolves (finding 19).
+# units is ambiguous — the path form resolves.
 file_scope=""
 for f in $srs_files $rmf_files $sad_files $soup_files $problems_files; do
     [ -n "$f" ] && file_scope="${file_scope}${file_scope:+
@@ -1061,31 +1053,30 @@ fi
 # limits does not fail the run. What DOES fail is an item the roll-call cannot
 # state truthfully, and a backlog past a limit the project set for itself.
 #
-# The reader was rewritten here for one reason. It used to be
+# The reader is anchored for one reason. An unanchored one such as
 #
 #     cur != "" && /status:[ \t]*open/ { open = 1 }
 #
-# — unanchored, matched anywhere in the line, and therefore reading a `status:`
+# matches anywhere in the line, and therefore reads a `status:`
 # occurrence that check_orphans below CANNOT SEE, because that backstop reports
 # a keyword only where a keyword could be read at all. ORPHAN-ANNOTATION
 # exists to catch annotations belonging to no item; a reader looking where the
 # backstop does not reopens the hole it closed. Worse, an item whose `status:`
-# line the pattern missed — `Status: open`, `status : open`, no `status:` line
-# at all — read as RESOLVED and vanished from the roll-call: an open problem no
-# merge would ever see. Measured on a real ledger, one item in 159 was in
-# exactly that state.
+# line such a pattern misses — `Status: open`, `status : open`, no `status:`
+# line at all — reads as RESOLVED and vanishes from the roll-call: an open
+# problem no merge would ever see.
 #
 # So: gr_kw_here — column one and nothing else, first occurrence in the block
 # wins, value from a closed set. Anchoring alone would move the false green
-# rather than remove it, which is why the missing-status: violation ships in
-# the same change.
+# rather than remove it, which is why the missing-status: violation goes with
+# it.
 #
 # COLUMN ONE AND NOTHING ELSE is what the rule rests on, and the pairing with first
 # occurrence is what makes it so. A reader that also accepted a leading list
-# marker was tried and rejected in review: a block quoting `- status: resolved`
-# in its prose, above its own column-one `status: open`, handed the reader the
-# quotation, and the open item left this roll-call at exit 0 — the very failure
-# the rewrite above removed, restored by the widening. check_orphans below is
+# marker is rejected: a block quoting `- status: resolved` in its prose, above
+# its own column-one `status: open`, would hand the reader the quotation, and
+# the open item would leave this roll-call at exit 0 — the very failure the
+# anchoring removes, restored by the widening. check_orphans below is
 # wider, and that direction is safe: it reports, it does not read. The
 # invariant, stated once in lib.sh at gr_kw_here, is backstop-contains-reader.
 #
@@ -1227,25 +1218,22 @@ _prs=$(
             }
             FNR == 1 { sub(/^\357\273\277/, "") }
             # NO front-matter skip here, and that is a decision, not an
-            # omission. The first version of this scan skipped front matter
-            # "so the reader and the backstop agree", and the independent
-            # review reproduced what that costs: GR_AWK_FRONT_MATTER treats ANY
-            # `---` on line 1 as opening a header block, so a leading
-            # horizontal rule swallowed every ITEM DEFINITION up to the next
-            # `---`. An open problem 236 days old vanished from the roll-call,
-            # `problem_open_max` did not apply, and the run exited 0 — every
-            # failure this gate exists to prevent, introduced by the gate.
+            # omission. Skipping front matter "so the reader and the backstop
+            # agree" costs this: a leading `---` taken for a header block
+            # swallows every ITEM DEFINITION up to the next `---`, so an open
+            # problem vanishes from the roll-call, `problem_open_max` does not
+            # apply, and the run exits 0 — every failure this gate exists to
+            # prevent, introduced by the gate.
             #
             # The backstop reads ANNOTATIONS, where skipping a real header
             # block is right; this scan reads DEFINITIONS, and the rule for
             # those is already settled across the toolkit — a definition form
             # at column one is judged wherever it appears, fenced block or not.
             #
-            # That is not the whole story, and the rest was found by the same
-            # review: the backstop could not tell a header from a horizontal
-            # rule either, so a leading `---` switched IT off for the same span
-            # and dropped every annotation in it. GR_AWK_FRONT_MATTER now
-            # requires a key on line 2, which fixes both. One disagreement
+            # The backstop must tell a header from a horizontal rule too, or
+            # a leading `---` switches IT off for the same span and drops
+            # every annotation in it. GR_AWK_FRONT_MATTER requires a key on
+            # line 2 for that reason. One disagreement
             # remains and is fail-loud: an item definition pasted INSIDE a
             # genuine header block is read here and invisible to the backstop,
             # so its own fields are reported as orphans. A contrived document,
@@ -1284,11 +1272,10 @@ _undatable_n=$(printf '%s\n' "$_prs" | grep -c '^W -1 ' || true)
 # subtraction somebody has to remember to keep in step.
 _accepted_n=$(printf '%s\n' "$_prs" | grep -c '^A ' || true)
 # m starts at -1, which is also what an undatable item reports, so "no age
-# known" and "the maximum age" are the same value and need no second flag. The
-# first version seeded the maximum from awk's uninitialised 0 and kept a `seen`
-# flag: an age of 0 is the one age that does not exceed 0, so a ledger whose
-# only open item was opened TODAY reported `oldest n/a` — an item counted as
-# open and absent from the age.
+# known" and "the maximum age" are the same value and need no second flag.
+# NOT seeded from awk's uninitialised 0: an age of 0 is the one age that does
+# not exceed 0, so a ledger whose only open item was opened TODAY would report
+# `oldest n/a` — an item counted as open and absent from the age.
 _oldest=$(printf '%s\n' "$_prs" | LC_ALL=C awk 'BEGIN { m = -1 } $1 == "W" && $2 + 0 > m { m = $2 + 0 } END { print m }')
 if [ -n "$_prs" ]; then
     print_violations "$(printf '%s\n' "$_prs" | cut -d' ' -f3-)"
@@ -1303,13 +1290,12 @@ fi
 
 # --- ORPHAN-ANNOTATION: an annotation that belongs to no item --------------
 # The backstop to the block rule, and the reason that rule can be relaxed
-# safely. Blocks now end at a header shape rather than at any bold line,
-# which fixes the case that was reported — but every termination rule has an
-# outside, and the outside is where this defect lived. An annotation before the
-# first item in a file, or under a heading with no item since, belongs to
-# nothing under ANY rule. Until this gate it was read, matched, and dropped in
-# silence: `status: open` on such a line left the item open in the ledger and
-# absent from the known-problem review, with the run still exiting 0.
+# safely. Blocks end at a header shape rather than at any bold line, but
+# every termination rule has an outside. An annotation before the first item
+# in a file, or under a heading with no item since, belongs to nothing under
+# ANY rule. Without this gate it is read, matched, and dropped in silence:
+# `status: open` on such a line leaves the item open in the ledger and absent
+# from the known-problem review, with the run still exiting 0.
 #
 # Scope is per keyword, and only where that keyword is BLOCK-parsed:
 # `verifies:` and `assesses:` are read line-wise by ids_matching, never against
@@ -1329,9 +1315,9 @@ fi
 #
 # Wider costs nothing here. This gate REPORTS; it takes no value and decides
 # no item's state, so a bulleted annotation outside every block is reported
-# whether or not a reader would have taken it — which is the PR-h3wujj defect,
-# since gr_id_run reads `- satisfies: REQ-001` inside a block and nothing at
-# all saw it outside one.
+# whether or not a reader would take it, since gr_id_run reads
+# `- satisfies: REQ-001` inside a block and nothing else would see it outside
+# one.
 #
 # A line with NO marker is tested unchanged, and that is what keeps the
 # indented item grammar shipped in templates/problems.md inert — the property
@@ -1367,8 +1353,8 @@ check_orphans() {
             FNR == 1 { sub(/^\357\273\277/, "") }
             # Front matter is skipped, bounded, in two passes. The rule has ONE
             # definition — GR_AWK_FRONT_MATTER in lib.sh — because
-            # check-review.sh reads it too, and a second reader of a hand-copied
-            # rule is how the item-block defect of 2026-08-22 happened.
+            # check-review.sh reads it too, and two hand-copied versions of a rule
+            # drift apart and then read one file two ways.
             FNR == NR { gr_fm_scan($0, FNR); next }
             gr_fm_skip(FNR) { next }
             gr_block_closes($0) { inblock = gr_block_opens($0) }
@@ -1396,7 +1382,7 @@ _orphans=$(
     # too: under a looser block rule an orphaned opened: is credited to the
     # item above, and an undated item then reads as dated.
     check_orphans 'opened:' PR $problems_files
-    # Block-parsed as of PR-4fwfjp, so the backstop covers it: an orphaned
+    # Block-parsed, so the backstop covers it: an orphaned
     # disposition: would otherwise be credited to nothing while the accepted
     # item above it reads as undisposed.
     #
@@ -1517,7 +1503,7 @@ echo "problems: open $_open_n, accepted $_accepted_n, oldest $_oldest_txt; limit
 if [ -n "$GR_UNIT" ]; then
     echo "scope: unit $GR_UNIT; foreign $(count_lines "$foreign"), reverse $(count_lines "$reverse")"
     [ -n "$exp_summary" ] && echo "$exp_summary"
-    # The D10 advisory: the open expectations standing against THIS unit,
+    # The provider-side advisory: the open expectations standing against THIS unit,
     # computed from the reverse edge and our own exports. Exit 0 — the
     # consumer's aging budget is the gate; this is the courtesy on top.
     _against=0

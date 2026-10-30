@@ -1,7 +1,7 @@
 load helpers
 
-# Task T1 of docs/plans/2026-10-04-adr-ids.md: what check-ids.sh, check-trace.sh
-# and new-id.sh report once ADR is a declared prefix.
+# What check-ids.sh, check-trace.sh and new-id.sh report once ADR is a
+# declared prefix.
 #
 # Every ADR ID, PR ID and draft token in this file is assembled at run time
 # from a prefix variable. This repository's own gates scan tests/ for
@@ -23,7 +23,7 @@ setup() {
     adr_file="docs/adr/$adr_id-x.md"
 }
 
-# write_adr_item FILE ID — an ADR file that opens with the item line of D1.
+# write_adr_item FILE ID — an ADR file that opens with its item line.
 write_adr_item() {
     printf '**%s**: The configuration is flat YAML.\n\nStatus: accepted\n' "$2" > "$1"
 }
@@ -42,7 +42,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: an ADR item with no reference to it passes every check" {
-    # verifies: D1, D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-vcxj6k, REQ-ywgg6c
     write_adr_item "$adr_file" "$adr_id"
     commit_all "ADR item"
     assert_check_ids_clean
@@ -52,7 +52,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: a reference from an SRS item and from a strict path resolves" {
-    # verifies: D1, D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-ezvb8b
     write_adr_item "$adr_file" "$adr_id"
     write_srs_reference "The format is $adr_id."
     printf '/* format decided in %s */\n' "$adr_id" > src/config.c
@@ -65,7 +65,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: a reference to an ADR ID defined nowhere is DANGLING-REF, as for a PR ID" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-x3rb2m
     undefined_adr="$adr_prefix-m4q7r9"
     problem_prefix=PR
     undefined_problem="$problem_prefix-m4q7r9"
@@ -79,7 +79,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: the same ADR ID defined in two files is DUPLICATE-ID" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-scc93k
     write_adr_item "$adr_file" "$adr_id"
     write_adr_item "docs/adr/$adr_id-y.md" "$adr_id"
     commit_all "duplicate ADR"
@@ -92,7 +92,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: a sequential header in a dated file is a valid ID to every check" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-cntxt8
     # The measurement for the upgrade note: GR_ID_BODY accepts three or more
     # digits, so a sequential header of four digits is an item, and a
     # reference to it resolves.
@@ -107,7 +107,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: a header with a two-digit number is MALFORMED-ID" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-cd7tn5
     # The upgrade-note row for a header of fewer than three digits.
     short_id="${adr_prefix}-07"
     write_adr_item docs/adr/2026-08-22-short.md "$short_id"
@@ -118,7 +118,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: a reference with a two-digit number is reported by no check" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-yuk987
     # The upgrade-note row for a reference of fewer than three digits: the
     # reference pattern does not match it, so it is neither resolved nor
     # DANGLING-REF.
@@ -133,8 +133,8 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: a dated ADR file with a heading and no item line passes every check" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
-    # The form of the ADRs in this repository before T3.
+    # verifies: REQ-wq3bq2
+    # The form of an ADR written before ADR IDs.
     printf '# ADR: the configuration is flat YAML\n\nDate: 2026-08-22\nStatus: accepted\n' \
         > docs/adr/2026-08-22-flat-config.md
     commit_all "dated ADR without an item line"
@@ -145,7 +145,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: an ADR draft token is DRAFT-ID" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-cf2396
     draft_marker=DRAFT
     draft_token="$adr_prefix-$draft_marker-x-1"
     write_adr_item docs/adr/draft.md "$draft_token"
@@ -156,7 +156,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: new-id.sh ADR prints one ADR ID" {
-    # verifies: D1, D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-ts97ry
     token_re=$(sh -c '. .guardrails/scripts/lib.sh && printf "%s" "$GR_ID_TOKEN"')
     [ -n "$token_re" ]
     run sh .guardrails/scripts/new-id.sh ADR
@@ -166,7 +166,7 @@ assert_check_ids_clean() {
 }
 
 @test "ADR IDs: new-id.sh ADR exits 2 when ADR is not declared" {
-    # verifies: D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-62j2k5
     sed -i.bak -E 's/^(id_prefixes:.*) ADR( |$)/\1\2/' .guardrails/config.yaml \
         && rm -f .guardrails/config.yaml.bak
     run grep -qE '^id_prefixes:.* ADR( |$)' .guardrails/config.yaml

@@ -14,7 +14,7 @@ ratchet_step() {
 }
 
 @test "ratchet: tool qualification states how and where the suite runs" {
-    # verifies: PR-ac96zf
+    # verifies: REQ-5cg78a
     # The step-5 checklist item asks the installer to record the suite result
     # at install time. Without these three anchors it never stated how that
     # result is produced, and a /ratchet run in a target project was left to
@@ -27,7 +27,7 @@ ratchet_step() {
 }
 
 @test "ratchet: tool qualification warns that a pipe discards the suite's exit status" {
-    # verifies: PR-nzpp57
+    # verifies: REQ-9p7adb
     # The step-5 item requires capturing the suite's exit code, but a natural
     # way to run it — `run-tests.sh | tee log` — leaves $? set to tee's status,
     # and the recorded pass/fail is then the wrong command's. A reporter
@@ -38,7 +38,7 @@ ratchet_step() {
 }
 
 @test "ratchet: the setup checklist installs GNU parallel for the qualification suite" {
-    # verifies: PR-hrx4vf
+    # verifies: REQ-6bszfj
     checklist="$BATS_TEST_DIRNAME/../skills/ratchet/references/setup-checklist.md"
     grep -q 'GNU `parallel`' "$checklist" || { echo "no GNU parallel item"; false; }
     grep -q 'brew install parallel' "$checklist" || { echo "no macOS install line"; false; }
@@ -46,7 +46,7 @@ ratchet_step() {
 }
 
 @test "ratchet: updating the scripts also refreshes the ledger READMEs" {
-    # verifies: PR-uavq3f
+    # verifies: REQ-87dcq8
     # The upgrade guidance replaced the scripts and the AGENTS.md managed
     # block but never the ledger READMEs, so a target project's READMEs kept
     # teaching grammar the scripts no longer read (the owner: case) — one
@@ -58,7 +58,7 @@ ratchet_step() {
 }
 
 @test "ratchet: Done when states when an upgrade is complete" {
-    # verifies: PR-s8dcmp
+    # verifies: ADR-3h4dky
     # verifies: ADR-k3nkv3
     # Upgrade became a third mode with no completion check: Done when asked a
     # retrofit for a gap analysis and asked an upgrade for nothing, so
@@ -75,19 +75,19 @@ ratchet_step() {
 }
 
 @test "ratchet: upgrade step 4 fixes each failure and lists each new warning in the squash message" {
-    # verifies: PR-s8dcmp
+    # verifies: ADR-3h4dky
     # verifies: ADR-k3nkv3
     # Done when checks that each failure is fixed and each warning listed, so
     # the upgrade procedure has to say so. A failure cannot be listed instead:
     # the upgrade merges through merge-change, whose gate needs check-trace.sh
-    # to pass (review round 1, finding-1).
+    # to pass.
     # Only new warnings are listed: the old ones are already in the problem
-    # ledger (round 2, finding-5).
+    # ledger.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     upgrade=$(awk '/^### Upgrading the scripts/ { inside = 1; next } /^##/ { inside = 0 } inside' "$skill")
     printf '%s\n' "$upgrade" | grep -q '^4\. Run `check-trace.sh`; fix each failure, and list each new warning in the$'
     # Step 5 writes the record after upgrade step 4 and retrofit step 3.2, so
-    # each says the list goes in once the record exists (round 4, finding-5).
+    # each says the list goes in once the record exists.
     printf '%s\n' "$upgrade" | grep -q '^   squash message once Step 5 writes it\.' ||
         { echo "upgrade step 4 writes into a record Step 5 has not written"; false; }
     ! grep -q 'or list it in a plan' "$skill" \
@@ -100,7 +100,7 @@ ratchet_step() {
 }
 
 @test "ratchet: upgrade is a mode resting on ADR-3h4dky, and retrofit no longer inventories a re-ratchet" {
-    # verifies: PR-s8dcmp
+    # verifies: ADR-3h4dky
     # No decision created the upgrade mode. The decision is recorded now, and
     # step 1 points to the reason. The retrofit inventory's "if re-ratcheting"
     # clause sent an installed project to the mode that it no longer belongs to.
@@ -138,7 +138,7 @@ ratchet_step() {
 }
 
 @test "ratchet: the upgrade order of work has the macOS pass and defines a new warning" {
-    # verifies: PR-s8dcmp
+    # verifies: ADR-3h4dky
     # verifies: ADR-k3nkv3
     # Moved out of SKILL.md's upgrade steps to make room for the Done when
     # entry; the order of work is what upgrade step 1 has the agent follow.
@@ -159,9 +159,9 @@ ratchet_step() {
 }
 
 @test "ratchet: the retrofit still advises splitting each monolithic ledger file, and why" {
-    # verifies: PR-s8dcmp
-    # The word trim for the upgrade entry shortened this sentence to srs.md
-    # alone and dropped its reason (review round 1, finding-3).
+    # verifies: REQ-4wbudv
+    # The advice covers every doc_* key, not srs.md alone, and keeps its
+    # reason.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'monolithic `doc_\*` file into a directory as its first dated file' "$skill"
     grep -q 'README, so changes stop conflicting' "$skill"
@@ -169,7 +169,7 @@ ratchet_step() {
 }
 
 @test "ratchet: the qualification basis names a commit, not just a version" {
-    # verifies: PR-dcn2xc
+    # verifies: REQ-tj6xeu
     # "435 tests at 0.5.1" is nominal the moment upstream advances without a
     # version bump; a recorded commit makes the basis checkable. The skill
     # must tell the installer to record it, and the shipped config template
@@ -180,7 +180,7 @@ ratchet_step() {
 }
 
 @test "ratchet: step 0 clones the checkout before reading it, and finds it through .guardrails-source" {
-    # verifies: PR-y8ff5p, PR-783b29
+    # verifies: REQ-8tt5fw
     # A suite that reads the checkout's live tree mixes two commits when one
     # is made there mid-run, and a copied skill has no checkout two levels
     # above it. Step 0 reads the path install.sh --copy records, then clones.
@@ -192,7 +192,7 @@ ratchet_step() {
 }
 
 @test "ratchet: step 0 clones into a temporary directory outside the project, removed afterwards" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-8tt5fw
     # Step 5 runs the suite in the clone, never in the target
     # project. A clone made inside the project's tree would put the suite
     # there, and one left behind is a stray copy of guardrails in it.
@@ -204,7 +204,7 @@ ratchet_step() {
 }
 
 @test "ratchet: the qualification log must name the recorded commit" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-xd8xkm
     # Only the runner's "testing commit" line says the result describes one
     # commit; the skill must have the agent look for it.
     root="$BATS_TEST_DIRNAME/.."
@@ -213,7 +213,7 @@ ratchet_step() {
 }
 
 @test "ratchet: a qualification log line describes no commit only when it begins run-tests:" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-xd8xkm
     # The log also holds the suite's TAP lines, and test names contain
     # "run-tests:" (ok N run-tests: outside a git checkout ...). Read as "any
     # other run-tests: line", every passing log fails the check.
@@ -228,7 +228,7 @@ ratchet_step() {
 }
 
 @test "ratchet: the rationale lists every line the runner says about what it tested" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-xd8xkm
     # tests/run-tests.sh and tests/fingerprint-tree.sh say these run-tests:
     # lines on standard error (tests/run-tests.bats tests each at its command
     # line); a list missing one is not the runner's, and a reader of the log
@@ -250,7 +250,7 @@ ratchet_step() {
 }
 
 @test "ratchet: the guardrails source is named the checkout or the clone, never the guardrails repo" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-rck84h
     # Step 0 names the source the checkout and the copy every step reads
     # <guardrails>, the clone. "The guardrails repo" covers both, and a
     # reader can run the suite or copy templates from the checkout.
@@ -270,7 +270,7 @@ ratchet_step() {
 }
 
 @test "ratchet: the suite's exit status is captured in rc, never in zsh's read-only status" {
-    # verifies: PR-ww36qr
+    # verifies: REQ-9p7adb
     # zsh's status is read-only: status=$? fails, and the suite's real exit
     # status is lost.
     root="$BATS_TEST_DIRNAME/.."
@@ -282,7 +282,7 @@ ratchet_step() {
 }
 
 @test "ratchet: step 5 writes the qualification log outside the clone" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-bwy9nm
     # The runner fingerprints every file git does not ignore. A log written
     # inside <guardrails> (a bare ratchet.log run from the clone) dirties the
     # tree before the run and changes it during the run, so every run fails
@@ -304,7 +304,7 @@ ratchet_step() {
 }
 
 @test "ratchet: step 5 does not both run the suite exactly once and run it again" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-bwy9nm
     # "Run it exactly once" and "run it again" on a run that names no commit
     # contradict each other; one qualifying run per update is the rule.
     step5=$(ratchet_step 5)
@@ -314,20 +314,18 @@ ratchet_step() {
 }
 
 @test "ratchet: the upgrade notes say the checkout is cloned and the suite names its commit" {
-    # verifies: PR-y8ff5p
+    # verifies: REQ-u83j4k
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     grep -qx '## The guardrails checkout is cloned, and the suite names its commit' "$notes" \
         || { echo "no upgrade-notes section"; false; }
 }
 
 @test "worktree-discipline: the task worktree is nested inside the change worktree" {
-    # verifies: PR-n57ayn
-    # Step 1 used to pick the task worktree's location by convention, and
-    # presented the harness location beside the change worktree as an equally
-    # good option. A dispatched subagent that took it was pinned to the change
-    # worktree's subtree and could not use what it had just created. The rule
-    # is containment; the false-success traps are why the failure arrived too
-    # late to undo.
+    # verifies: REQ-y5uymy
+    # A dispatched subagent is pinned to the change worktree's subtree, so a
+    # task worktree anywhere else is created and then unusable. The rule is
+    # containment; the false-success traps are why that failure would arrive
+    # too late to undo.
     skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
     grep -q 'nested inside the change worktree' "$skill"
     grep -q 'pins that subagent to a subtree' "$skill"
@@ -335,7 +333,7 @@ ratchet_step() {
 }
 
 @test "develop-change: the dispatch prompt names the nested task worktree path" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-c6kcjh
     # A subagent cannot discover its pin before it violates it, so the
     # dispatcher states the path instead of leaving the subagent to choose it.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
@@ -343,7 +341,7 @@ ratchet_step() {
 }
 
 @test "the repository ignores the nested task-worktree directory" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-yxcn29
     # worktree-discipline makes the ignore entry the dispatcher's
     # precondition, and an unignored task worktree would dirty
     # verify-before-merge's clean git status.
@@ -351,7 +349,7 @@ ratchet_step() {
 }
 
 @test "develop-change: the dispatch prompt forbids the change branch, not the change worktree" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-c6kcjh
     # Under the containment rule the subagent starts pinned in the change
     # worktree and must run `git worktree add` from there, so "do not enter
     # the change worktree" is unfollowable. What is actually forbidden is
@@ -368,7 +366,7 @@ ratchet_step() {
 }
 
 @test "worktree-discipline: a fresh task worktree has none of the ignored artifacts" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-p5hrv9
     # A worktree branched fresh off the change branch checks out the tree and
     # nothing else, so a vendored test runner or an installed dependency is
     # simply absent — and the runner that tries to refetch it fails on a
@@ -380,7 +378,7 @@ ratchet_step() {
 }
 
 @test "merge-change: the review dispatch names the reviewer's worktree path" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-e2q5g5
     # The containment rule was applied at develop-change's dispatch site only.
     # Step 4 dispatches a reviewer that creates a task worktree of its own,
     # and a reviewer left to choose the location repeats the whole failure —
@@ -395,14 +393,13 @@ ratchet_step() {
     # that repeats it; mutate it and the first occurrence becomes the removal
     # line, which is not less than itself.
     #
-    # Re-aimed 2026-09-29 under D4 of docs/plans/2026-09-28-agent-first-skills.md:
-    # the removal command is `task-worktree.sh remove review`, which takes the
+    # The removal command is `task-worktree.sh remove review`, which takes the
     # tag, so the dispatch is the only occurrence of the path.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
     record_at=$(grep -n '^5\. \*\*Squash message\*\*' "$skill" | head -n 1 | cut -d: -f1)
     path_at=$(grep -n '\.worktrees/<change-branch>-review' "$skill" | head -n 1 | cut -d: -f1)
-    # Re-aimed 2026-10-01 under D4: the review worktree is retired with
+    # The review worktree is retired with
     # `remove review`, which merges nothing.
     remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
@@ -416,7 +413,7 @@ ratchet_step() {
 }
 
 @test "merge-change: the review worktree is removed at the end of its own dispatch" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-rstp46
     # The review step ends "the sequence reruns from step 1" when findings
     # come back, so the steps after it are reached only on the last round. The
     # review worktree's path and branch are fixed, so a worktree left by one
@@ -429,7 +426,7 @@ ratchet_step() {
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     review_at=$(grep -n '^4\. \*\*Independent review\*\*' "$skill" | head -n 1 | cut -d: -f1)
     record_at=$(grep -n '^5\. \*\*Squash message\*\*' "$skill" | head -n 1 | cut -d: -f1)
-    # Re-aimed 2026-10-01 under D4: the review worktree is retired with
+    # The review worktree is retired with
     # `remove review`, which merges nothing.
     remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
@@ -444,11 +441,11 @@ ratchet_step() {
     s_at=$(grep -n '^7\. \*\*Squash onto the base branch' "$skill" | head -n 1 | cut -d: -f1)
     [ -n "$d_at" ]
     [ -n "$s_at" ]
-    # Re-aimed 2026-09-10 (PR-k77dzn): the structural check is now a command
+    # The structural check is a command
     # with a verdict, `finish-merge.sh --check`, rather than a raw
     # `git worktree list` the author reads by eye. What this pin protects is
     # that 6d still checks the registry at all — not which spelling it uses.
-    # Re-aimed 2026-09-29 under D4: the 6c pre-flight runs that check as
+    # The 6c pre-flight runs that check as
     # NESTED-WORKTREE, and 6d is where its failure is answered.
     sed -n "${d_at},${s_at}p" "$skill" | grep -q 'NESTED-WORKTREE'
     # worktree-discipline cross-references the removal's home, so it follows it
@@ -464,7 +461,7 @@ ratchet_step() {
 }
 
 @test "merge-change: every fix dispatch names the nested task worktree path" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-9xhvwd
     # Two dispatch statements in this file name the nested path: the sequence
     # header's fix dispatch, and the review step's dispatch of the fix for a
     # finding. A mutant replacing both with "a task worktree" must fail. Both
@@ -487,14 +484,14 @@ ratchet_step() {
 }
 
 @test "merge-change: a review worktree left dirty by scratch has a remedy" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-2crnq2
     # `git worktree remove` fails on untracked files as well as modified
     # ones, and a reviewer leaves scratch behind — a log, a note. The step
     # identified the state to check and stopped there, which leaves `--force`
     # as the only obvious way out of it, and `--force` is what destroys the
     # thing the guard exists to protect.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    # Re-aimed 2026-10-01 under D4: the removal is `task-worktree.sh remove`.
+    # The removal is `task-worktree.sh remove`.
     grep -q 'rejects untracked files as well as modified ones' "$skill"
     grep -q 'read the scratch, delete it, and run `remove` again' "$skill"
     grep -q 'the remedy step 4 gives' "$skill"
@@ -517,7 +514,7 @@ ratchet_step() {
 }
 
 @test "merge-change: step 6d's criterion is containment, not an empty registry" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-744g4c
     # The heading is containment-scoped — "nothing registered **inside** the
     # change worktree", which is what guard 4 objects to — but the criterion
     # sentence was absolute: "Nothing but the primary checkout and the change
@@ -532,7 +529,7 @@ ratchet_step() {
     [ -n "$d_at" ]
     [ -n "$s_at" ]
     # The "read the list by eye" sentence went with the raw `git worktree list`
-    # it described (PR-k77dzn); `--check` applies the containment criterion
+    # it described; `--check` applies the containment criterion
     # itself. The criterion sentence below is what this pin is actually for,
     # and it stays — it is the half a command cannot state.
     sed -n "${d_at},${s_at}p" "$skill" | grep -q 'A worktree registered anywhere else is not this step'
@@ -545,7 +542,7 @@ ratchet_step() {
 }
 
 @test "merge-change: the review worktree removal is conditioned on one existing" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-rstp46
     # The removal was stated unconditionally ("Every round, findings or not"),
     # while the same step documents two paths on which no review worktree ever
     # exists: a human reviewer per team policy, and a class A change skipping
@@ -560,10 +557,9 @@ ratchet_step() {
     [ -n "$record_at" ]
     sed -n "${review_at},${record_at}p" "$skill" | grep -q 'every round that created one'
     sed -n "${review_at},${record_at}p" "$skill" | grep -q 'Not every round creates one'
-    # The skip names when no review worktree exists (review round 4, finding
-    # 18): a cut left "skip it there" with no antecedent.
+    # The skip names when no review worktree exists, so "skip it there" has an antecedent.
     sed -n "${review_at},${record_at}p" "$skill" | grep -q 'Not every round creates one: a human reviewer uses their checkout'
-    # Re-aimed 2026-10-01 under D4: `task-worktree.sh remove` takes a tag.
+    # `task-worktree.sh remove` takes a tag.
     sed -n "${review_at},${record_at}p" "$skill" | grep -q 'fails on a tag that was never started'
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
@@ -574,8 +570,7 @@ ratchet_step() {
 }
 
 @test "merge-change: a fix dispatch's tag is unique, and AGENTS.md defers on tags" {
-    # verifies: PR-n57ayn
-    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-443ewb
     # `.worktrees/<change-branch>-<tag>` leaves the tag unconstrained, so the
     # rule that it must not repeat is worth keeping — but its first
     # justification was false. Two findings rounds that both use the
@@ -602,7 +597,7 @@ ratchet_step() {
     # nested worktree; gitignored, it is invisible to `git status`, so step 6d
     # and guard 4 are what find it, late. The `fatal:` covers both cases
     # because git validates the new branch name before the worktree path.
-    # Re-aimed 2026-10-01 under D4: `task-worktree.sh merge` does both after a
+    # `task-worktree.sh merge` does both after a
     # green report, and its `start` rejects a path or branch that already exists.
     grep -q 'task-worktree.sh merge <tag>' "$skill"
     grep -q 'the next round cannot create its worktree on that path and branch' "$rationale"
@@ -631,7 +626,7 @@ ratchet_step() {
 }
 
 @test "worktree-discipline: the location rule is scoped to a pinning harness" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-y5uymy
     # The rule ships to other projects via /ratchet, and it rests on one dated
     # measurement of one harness. Stated as a law about harnesses in general
     # it is a law those projects never measured, so the passage names the
@@ -650,7 +645,7 @@ ratchet_step() {
 }
 
 @test "worktree-discipline: the task worktree passage states how to get inside" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-pqymt7
     # Creating the worktree is half the step. "Harness tool first" was deleted
     # with nothing put in its place, and `<N>` was never defined — so the
     # passage now walks create -> get inside, and states what `<N>` is,
@@ -716,7 +711,7 @@ sh_fence() {
 }
 
 @test "worktree-discipline: a change opens after checking the worktrees and the claimed items" {
-    # verifies: D4 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # verifies: REQ-h76m4z, REQ-wn6kjg
     # Changes may run in parallel, so two sessions can resolve the same item
     # unless the second looks first. Before step 2 creates the change worktree,
     # the skill has the agent list every registered worktree and ask whether an
@@ -742,20 +737,19 @@ sh_fence() {
     grep -qE '^- `references/before-opening\.md` — read when ' "$skill"
     [ -f "$reference" ]
     grep -q 'git worktree list --porcelain' "$reference"
-    # The snippet, not the file: the prose below it quotes the same command
-    # (review round 2, finding 9).
+    # The snippet, not the file: the prose below it quotes the same command.
     gr_last_sh_fence "$reference" '## (b) ' | grep -qF 'git diff "$BASE...$branch"'
     tr '\n' ' ' < "$reference" | grep -q 'plain `git grep`'
     # The claim check cannot see an uncommitted claim; the doc ties that to
-    # the dirty count (a) prints (review round 1, finding 6).
+    # the dirty count (a) prints.
     tr '\n' ' ' < "$reference" | tr -s ' ' | grep -q 'The check reads committed history only'
     tr '\n' ' ' < "$reference" | tr -s ' ' | grep -q 'with a dirty count above 0 may hold one'
 }
 
 @test "worktree-discipline: the before-opening snippets run, and the claim check reads the diff" {
     # verifies: REQ-h76m4z, REQ-wn6kjg
-    # The two snippets in before-opening.md are run, not only grepped (review
-    # round 1, finding 4). A scratch repository has a branch that claims an
+    # The two snippets in before-opening.md are run, not only grepped.
+    # A scratch repository has a branch that claims an
     # item, a branch that does not, and a worktree with an uncommitted file.
     # Check (a) must print each worktree's ahead and dirty counts; check (b)
     # must name the claiming branch and not the clean one. A plain
@@ -809,7 +803,7 @@ sh_fence() {
     # shows the ID line as context, which is not a claim. A worktree on a
     # detached HEAD, and one whose directory is gone, so git lists it as
     # prunable. Each pins a line of the snippets that before-opening.md
-    # documents (review round 3, finding 14).
+    # documents.
     git branch neighbour
     git worktree add -q "$scratch/wt-neighbour" neighbour
     printf 'status: open\n' >> "$scratch/wt-neighbour/ledger.md"
@@ -821,7 +815,7 @@ sh_fence() {
     # The checks are pasted into whatever shell the caller has, with BASE set
     # but not exported by the detection line. zsh does not word-split an
     # unquoted variable, and its `path` is tied to PATH, so the doc runs each
-    # check under sh (review round 4, finding 15). Each check runs as pasted
+    # check under sh. Each check runs as pasted
     # under sh and, where installed, under zsh.
     gr_all_sh_fences "$reference" '## (a) ' > "$scratch/worktrees.pasted"
     gr_all_sh_fences "$reference" '## (b) ' \
@@ -869,7 +863,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     # Base detection failed, and the block was pasted whole: with BASE empty,
     # (a) printed `ahead 0` for every worktree, which reads as valid data, and
     # (b) printed no CLAIMED line, the answer for an unclaimed item. Each check
-    # stops first and names the cause (review round 6, finding 26).
+    # stops first and names the cause.
     for shell in $shells; do
         for pasted in worktrees claims; do
             run "$shell" -c "BASE=; $(cat "$scratch/$pasted.pasted")"
@@ -885,7 +879,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "the repository ignores the nested task-worktree directory exactly once" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-yxcn29
     # This change added `.worktrees/` while the base branch added the same
     # line independently, and the base merge kept both. A duplicate makes the
     # preceding test vacuous: delete either line and it still passes.
@@ -894,7 +888,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the sequence removes the review worktree before the squash" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-rstp46
     # The review step dispatches every reviewer into a worktree nested inside
     # the change worktree, and finish-merge.sh guard 4 will not remove a change
     # worktree that has a worktree registered inside it. Without a removal in
@@ -903,7 +897,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     # before the squash is staged, so the ordering is asserted and not merely
     # the presence of the command.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
-    # Re-aimed 2026-10-01 under D4: the review worktree is retired with
+    # The review worktree is retired with
     # `remove review`, which merges nothing.
     remove_at=$(grep -n 'task-worktree\.sh remove review' \
         "$skill" | head -n 1 | cut -d: -f1)
@@ -917,10 +911,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     # ordering against the squash, which is what finish-merge.sh's guard 4
     # makes critical.
     wd="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
-    # The same bullet used to argue for taking the path from the dispatch
-    # report "rather than rebuilding it", because `.worktrees/` is relative to
-    # the change worktree while a harness location is not. Step 1 retired that
-    # framing: there is one location now, and the dispatcher names it.
+    # There is one task worktree location, and the dispatcher names it.
     grep -q 'the one the dispatcher named' "$wd"
     # `run` and an explicit status, not `! grep`: bash suppresses errexit for a
     # negated command, so a bare `! grep` anywhere but the test's final line
@@ -931,8 +922,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: step 8 maps guard 4's rejection to a remedy" {
-    # verifies: PR-n57ayn
-    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-63smcs
     # verifies: ADR-k3nkv3
     # Step 7 counts the guards finish-merge.sh proves and step 8's table is the
     # one place that maps a rejection to a remedy. Guard 4 was added without
@@ -969,7 +959,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: step 8 reports without re-verifying the signature" {
-    # verifies: D1, D2, D3 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
+    # verifies: REQ-bc52mm
     # Guard 1 of finish-merge.sh verifies the signature under --strict in the
     # user's shell before it removes anything. Step 8 re-ran the same check
     # from the agent's shell, where a read-only ~/.gnupg reads a good
@@ -980,7 +970,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     [ -n "$step8" ]
     printf '%s\n' "$step8" | grep -q 'closing line from the message: branch and IDs'
     printf '%s\n' "$step8" | grep -q 'Run no git command: `finish-merge.sh` verified the signature'
-    # Re-aimed 2026-10-07 (parallel-changes review round 4): what the message
+    # What the message
     # states was removed moved to cleanup-rejections.md, which step 8 names.
     grep -q 'the worktree alone when only the branch deletion' \
         "$(dirname "$skill")/references/cleanup-rejections.md"
@@ -994,7 +984,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: step 7 tells the user what success looks like" {
-    # verifies: D4 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
+    # verifies: REQ-2jkzcr
     # Step 8 no longer checks, so the user is the one who notices a guard's
     # rejection. Step 7 names the success output, and that output is what
     # finish-merge.sh prints at exit 0: three lines prefixed `finish-merge:`.
@@ -1008,7 +998,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: Done when names finish-merge.sh as the verifier" {
-    # verifies: D5 (docs/plans/2026-10-05-step-8-trusts-finish-merge.md)
+    # verifies: REQ-bc52mm
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     done_when=$(awk '/^## Done when/ { inside = 1; next } /^## / { inside = 0 } inside' "$skill")
     printf '%s\n' "$done_when" | grep -q 'verified by `finish-merge.sh`'
@@ -1017,7 +1007,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "verify-before-merge: the fix dispatch names the nested task worktree path" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-9xhvwd
     # Three skills dispatch a fix into a task worktree of its own, and this is
     # the third site. Its path text was normative and unasserted: deleting it
     # left the suite green. Written as a characterization pin — green when
@@ -1028,7 +1018,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "ratchet: both worktree directories are gitignored, and why each is" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-2gkx3b
     # /ratchet is how the containment rule reaches other projects, and the
     # ignore entry is the dispatcher's precondition for it: without
     # `.worktrees/` the nested task worktree dirties verify-before-merge's
@@ -1041,10 +1031,9 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "AGENTS.md: non-negotiable 1 nests the task worktree and names its path" {
-    # verifies: PR-n57ayn
+    # verifies: REQ-tzbg6w
     # This repository develops under its own rules, so non-negotiable 1 is
-    # where an agent reads the containment rule first. It was rewritten for
-    # this change and no test asserted it.
+    # where an agent reads the containment rule first.
     agents="$BATS_TEST_DIRNAME/../AGENTS.md"
     grep -q 'nested inside the change worktree' "$agents"
     grep -q '\.worktrees/<change-branch>-t<N>' "$agents"
@@ -1066,7 +1055,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "AGENTS.md: non-negotiable 4 states the rule and points to its ADR" {
-    # verifies: D10 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: ADR-y8jmes
     agents="$BATS_TEST_DIRNAME/../AGENTS.md"
     adr="$BATS_TEST_DIRNAME/../docs/adr/ADR-y8jmes-local-main-is-the-base.md"
     grep -q 'Never consult `origin`' "$agents"
@@ -1077,7 +1066,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "AGENTS.md: changes may run in parallel; the non-negotiables run 1 to 4" {
-    # verifies: D1 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # verifies: REQ-zy25dp
     root="$BATS_TEST_DIRNAME/.."
     agents="$root/AGENTS.md"
     run grep -n -e 'Open one change at a time' -e 'never across changes' "$agents"
@@ -1094,7 +1083,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     run grep -n 'Changes are sequential' "$root/README.md"
     [ "$status" -ne 0 ]
     # The old rule must not return in another wording, and the README must
-    # state the new one (review round 1, finding 5).
+    # state the new one.
     run grep -n -e 'Bring a change to its signed squash before' \
         -e 'before opening the next' "$agents"
     [ "$status" -ne 0 ]
@@ -1103,7 +1092,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "problem grammar prose: no shipped file still contains owner:" {
-    # verifies: PR-dudg35
+    # verifies: REQ-tbppw8
     # owner: was dropped from the problem-item grammar; any shipped prose
     # (templates, skills, READMEs) still requiring or documenting it would
     # reintroduce the field the scripts no longer read. The dated ledger
@@ -1123,7 +1112,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "ratchet-asks-one-system-or-many: mode detection includes the units question" {
-    # verifies: D9 (docs/plans/2026-08-26-monorepo-support.md)
+    # verifies: REQ-99p7nx
     # Without this question a twelve-package repository gets a root config and
     # every gate silently reads one unit's facts as the whole tree's.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
@@ -1131,11 +1120,11 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     grep -q 'a single-unit project gets no manifest' "$skill"
 }
 
-@test "ratchet-units-interview-writes-facts-not-rules: the D9 line is stated in the skill" {
-    # verifies: D9
+@test "ratchet-units-interview-writes-facts-not-rules: the skill states the interview declares the facts and the rules are not configurable" {
+    # verifies: REQ-van2eh
     # The interview writes units:, not_a_unit:, depends_on:, segregated_from:,
     # safety_class — and must STATE it does not ask about the rules, or the next
-    # editor adds the enforcement knob D9 rejects by name.
+    # editor adds the enforcement knob the skill rejects by name.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'declares the facts; the rules are not configurable' "$skill"
     grep -q 'not_a_unit:' "$skill"
@@ -1144,7 +1133,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "ratchet-manifest-repo-has-no-root-config: scaffold branches on the manifest" {
-    # verifies: D2/D9; exclusivity implemented in gr_check_units (0a35669)
+    # verifies: REQ-n7s9em
     # Copying templates/config.yaml to the root of a manifest repository is
     # exit 2 at the next gate — the scaffold step must state which file goes
     # where in each mode, or ratchet scaffolds a rejected shape.
@@ -1155,7 +1144,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "ratchet-tooth-one-is-manifest-and-disclaimers: adoption order is stated" {
-    # verifies: D9 (tooth ordering, confirmed 2026-08-31)
+    # verifies: REQ-gt4xn2
     # Without the ordering, adoption on a large repo reads as all-or-nothing
     # and the honest first tooth (manifest + disclaimers, no edges) is missed.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
@@ -1164,16 +1153,14 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "ratchet-per-unit-class-interview: step 4 repeats per unit" {
-    # verifies: D5/D9 — the per-unit class is the input to the class floor,
-    # and the interview most likely to be skipped.
+    # verifies: REQ-5rv47z
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'repeat this interview per unit' "$skill"
     grep -q "record each class in that unit's config" "$skill"
 }
 
 @test "merge-consumes-impact-mechanically: the skill names the mode and forbids hand-picking" {
-    # verifies: D6/D12; --impact semantics quoted from scripts/check-units.sh
-    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-7779tj
     # The composed-chain obligations test the chain THROUGH this mode; a
     # hand-judged unit list is the false green the mode exists to prevent.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
@@ -1183,9 +1170,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-runs-impact-set-gates: per-unit runs are spelled out" {
-    # verifies: D6 — gates and verify_commands of every unit in the impact
-    # set, plus the repository-level check-units.sh run.
-    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-jnj999
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     grep -q 'GR_CONFIG=<unit>/.guardrails/config.yaml' "$skill"
     grep -q 'every unit in the impact set' "$skill"
@@ -1193,9 +1178,8 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-record-names-units: the squash message contains the impact set" {
-    # verifies: D6 — one record per change; the record names the units.
-    # verifies: ADR-k3nkv3 — the record is the squash message, and each
-    # unit's totals are a Tests: trailer.
+    # verifies: REQ-qg3r38
+    # verifies: ADR-k3nkv3
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/references/multi-unit.md"
     grep -q "the message's body also names the units touched and the impact" "$skill"
     grep -q 'One branch, one squash, one message' "$skill"
@@ -1203,9 +1187,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "grill-dependency-assessment-interview: the provider's artefacts are consulted by name" {
-    # verifies: D10 — adopted as skill guidance, rejected as mechanism; the
-    # consultation list is the decision's own: exports, RMF, ADRs, open
-    # problem reports, SOUP.
+    # verifies: REQ-myh9b3
     skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
     grep -q 'check-units.sh --exports' "$skill"
     grep -q 'does its risk analysis consider this use' "$skill"
@@ -1214,8 +1196,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "grill-gap-becomes-expectation: expects: grammar with the met condition" {
-    # verifies: D10/D11 — the gap is a requirement; met = provider's exported
-    # REQ with satisfies:.
+    # verifies: REQ-z3y539
     skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
     grep -q 'expects: <unit>' "$skill"
     grep -q 'UNMET-EXPECTATION' "$skill"
@@ -1225,7 +1206,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "grill-glossary-escalates-interface-terms: unit default, root escalation, conflict rule" {
-    # verifies: D13 — a skill rule for the interviews, not a check.
+    # verifies: REQ-acq9rz
     skill="$BATS_TEST_DIRNAME/../skills/grill-requirements/SKILL.md"
     grep -q 'the root glossary owns interface terms' "$skill"
     grep -q 'the moment it appears in an exported REQ or an `expects:` item' "$skill"
@@ -1233,18 +1214,14 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "design-depends-on-is-a-decision: the design skill routes the edge through the assessment" {
-    # verifies: D10 — the consultation belongs to grill-requirements AND
-    # design-architecture; a dependency drawn on the diagram without the
-    # interview is an unassessed supplier.
+    # verifies: REQ-dw2uv8
     skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
     grep -q 'Declaring a dependency' "$skill"
     grep -q 'an unassessed supplier' "$skill"
 }
 
 @test "design-segregation-cites-a-control: segregated_from: names its mechanism" {
-    # verifies: D5 + architecture — check-units.sh convicts an uncited entry
-    # (INCOMPLETE-SEGREGATION) and an uncovered class gap
-    # (MISCLASSED-DEPENDENCY); the skill must state where the citation lives.
+    # verifies: ADR-tr72dr
     skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
     grep -q 'segregated_from:' "$skill"
     grep -q 'INCOMPLETE-SEGREGATION' "$skill"
@@ -1252,8 +1229,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "assesses-is-the-remedy: every place that tells an author how to assess names the annotation" {
-    # verifies: PR-n274s7 — D1: hard cut, so the remedy must be stated where
-    # the author reads, not only in the gate's message.
+    # verifies: REQ-vs8xr4
     root="$BATS_TEST_DIRNAME/.."
     grep -q 'assesses:' "$root/skills/analyze-risks/SKILL.md"
     grep -q 'assesses:' "$root/skills/grill-requirements/SKILL.md"
@@ -1268,14 +1244,14 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "upgrade-notes-announce-the-hard-cut: ratchet states derived assessments go red at upgrade" {
-    # verifies: PR-n274s7 — D1
+    # verifies: REQ-44vq67
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
     grep -q 'Derived assessments are now declared' "$skill"
     grep -q 'DANGLING-FILE' "$skill"
 }
 
 @test "code guidelines: the naming rules left the managed block for the code guidelines template" {
-    # verifies: D2 (docs/plans/2026-10-13-code-guidelines.md); D2 (docs/plans/2026-10-05-drop-prose-rules.md)
+    # verifies: REQ-96x6xg
     # Naming is a preference no standard or gate needs, so its rules are the
     # Names clauses of the shipped code guidelines, which a project tailors;
     # a rule with two homes drifts. Neither file states a past-participle
@@ -1295,7 +1271,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "code guidelines: this repository's naming rules live in its own code guidelines file" {
-    # verifies: D2 (docs/plans/2026-10-13-code-guidelines.md); D1, D2 (docs/plans/2026-10-05-drop-prose-rules.md)
+    # verifies: REQ-96x6xg
     # AGENTS.md is guardrails' own copy of the rules it ships, and the naming
     # rules it ships are code guidelines clauses, so this repository's code
     # guidelines file carries them. Neither the block nor AGENTS.md has a
@@ -1319,7 +1295,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: one conformance review per guidelines file replaces the old whole-diff pass" {
-    # verifies: D4, D5 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-atch44
     # Three dots, pinned literally. `main...<branch>` is the diff since the two
     # diverged — what this change did — while `main..<branch>` also reports
     # whatever the base branch gained meanwhile, which is not this change's
@@ -1335,7 +1311,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: the conformance reviews run for ARCHITECTURE too" {
-    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-atch44
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
     [ -n "$section" ] || { echo "no conformance reviews section"; false; }
@@ -1349,7 +1325,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "worktree-discipline: a task subagent runs develop-tdd's selection, not verify_commands" {
-    # verifies: D4 (docs/plans/2026-10-15-test-selection-guideline.md)
+    # verifies: REQ-ghqnw5
     skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
     step=$(step_of "$skill" 1 | tr '\n' ' ' | tr -s ' ')
     [ -n "$step" ] || { echo "no step 1"; false; }
@@ -1369,7 +1345,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: the dispatcher claims no whole-suite run before the gate" {
-    # verifies: D4 (docs/plans/2026-10-15-test-selection-guideline.md)
+    # verifies: REQ-r9qnm3
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     flat=$(tr '\n' ' ' < "$skill" | tr -s ' ')
     if printf '%s\n' "$flat" | grep -qF 'and the suite is green'; then
@@ -1383,10 +1359,9 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: an architecture finding that needs a design change is a stop" {
-    # verifies: D3 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-37phvm
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    # The heading names more than one stop: D3's architecture finding is one
-    # (D3, docs/plans/2026-10-14-architecture-guidelines.md).
+    # The heading names more than one stop; an architecture finding is one.
     derail=$(section_of '### Derailment and the other stops' "$skill" | tr '\n' ' ' | tr -s ' ')
     [ -n "$derail" ] || { echo "no derailment section"; false; }
     printf '%s\n' "$derail" | grep -qF 'an architecture finding `develop-refactor` returns as needing a design change' \
@@ -1398,7 +1373,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "design-architecture: reads the architecture guidelines file, and a departure names its clause" {
-    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-7udzw8
     skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
     steps=$(section_of '## Steps' "$skill" | tr '\n' ' ' | tr -s ' ')
     [ -n "$steps" ] || { echo "no Steps section"; false; }
@@ -1409,7 +1384,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "design-architecture: an architecture finding stands in for the requirements, not for reading the config" {
-    # verifies: D3 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-y84pxw
     skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
     pre=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
     [ -n "$pre" ] || { echo "no Preconditions section"; false; }
@@ -1421,7 +1396,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "design-architecture: one responsibility per item lives in the guidelines template" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-z4a8dg
     skill="$BATS_TEST_DIRNAME/../skills/design-architecture/SKILL.md"
     template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
     step2=$(section_of '## Steps' "$skill" | awk '/^2\. / { inside = 1 } /^3\. / { inside = 0 } inside' | tr '\n' ' ' | tr -s ' ')
@@ -1434,20 +1409,20 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the review checklist asks for the ARCHITECTURE reviews" {
-    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-buf8y3
     checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     tr '\n' ' ' < "$checklist" | tr -s ' ' | grep -qF 'guidelines-file.sh ARCHITECTURE' \
         || { echo "the checklist does not ask for the ARCHITECTURE reviews"; false; }
 }
 
 @test "README: tailor-guidelines names the architecture guidelines file" {
-    # verifies: D2 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-wdx9kz
     grep -qF 'ARCHITECTURE_GUIDELINES.md' "$BATS_TEST_DIRNAME/../README.md" \
         || { echo "README does not name ARCHITECTURE_GUIDELINES.md"; false; }
 }
 
 @test "clanker: the conformance reviews are not deferred to the merge review" {
-    # verifies: D4 (docs/plans/2026-09-14-clanker-adoption.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-br59wv
     # merge-change reruns from step 1 on any finding, so a naming nit raised
     # at step 4 costs a full merge-sequence restart. The skill has to state why the
     # conformance reviews run here, or a later editor moves them to the review
@@ -1466,7 +1441,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: a conformance reviewer changes nothing and gets no task worktree" {
-    # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md); D8 (docs/plans/2026-09-14-clanker-adoption.md)
+    # verifies: REQ-65z467
     # Every other dispatch names a nested task worktree, so a reviewer given
     # no location follows that pattern and creates one. The prompt line and
     # the paragraph that states why are both pinned.
@@ -1476,7 +1451,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "clanker: develop-change tells a stuck task to change approach" {
-    # verifies: D7 (docs/plans/2026-09-14-clanker-adoption.md)
+    # verifies: REQ-fdx45r
     # The derailment rule re-dispatches on the first failure. Without this,
     # the re-dispatch repeats the approach that already failed.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
@@ -1484,29 +1459,28 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: a conformance finding that recurs after its fix stops the loop; a new one does not" {
-    # verifies: D1, D2 (docs/plans/2026-10-14-derailment-conformance.md)
+    # verifies: REQ-5u9fc6
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    # The heading names more than one stop: D3's architecture finding is one
-    # (D3, docs/plans/2026-10-14-architecture-guidelines.md).
+    # The heading names more than one stop; an architecture finding is one.
     derail=$(section_of '### Derailment and the other stops' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$derail" | grep -qF 'a conformance review reports a finding again after the fix dispatched for it was merged'
     printf '%s\n' "$derail" | grep -qF 'A conformance round with new findings is the loop working, not a repeat'
-    # Review round 1, finding-1: a place is what the earlier finding cited.
+    # A place is what the earlier finding cited.
     printf '%s\n' "$derail" | grep -qF 'A place is the file and lines the earlier finding cited; the same clause at another site is a new finding, not a recurrence.'
-    # D2: only a finding above low counts toward the third stop.
+    # Only a finding above low counts toward the third stop.
     printf '%s\n' "$derail" | grep -qF 'Only a finding above low counts: a round with nothing above low is the last, whatever recurs in it.'
-    # Review round 1, finding-3: the remedy names a recurring finding's choices.
+    # The remedy names a recurring finding's choices.
     printf '%s\n' "$derail" | grep -qF 'for a recurring conformance finding, accept the finding, or rule against the guideline clause.'
     # The loop's own section is where a dispatcher reads when to stop it, so
     # it must point at the stop as well as the derailment list stating it.
     section=$(section_of '### The conformance reviews' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$section" | grep -qF 'stops at the first finding that recurs (Derailment)'
-    # D1's third statement: the recurrence is the only stop, so no round cap.
+    # The recurrence is the only stop, so no round cap.
     printf '%s\n' "$section" | grep -qF 'No round count bounds the loop'
 }
 
 @test "verify-before-merge: check 8 asks that each conformance review ran and was dispositioned" {
-    # verifies: D5 (docs/plans/2026-10-13-code-guidelines.md); D6 (docs/plans/2026-09-14-clanker-adoption.md)
+    # verifies: REQ-j78a6z
     # In a suite where every other step is mechanically checked, an
     # unenforced step is the one that stops running. The enforcement is
     # cheap: an existing gate with one more check in it.
@@ -1518,13 +1492,13 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "verify-before-merge: check 6 cites the robustness rule where develop-tdd states it" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-myp987
     skill="$BATS_TEST_DIRNAME/../skills/verify-before-merge/SKILL.md"
     tr '\n' ' ' < "$skill" | tr -s ' ' | grep -qF "per \`develop-tdd\`'s robustness rule"
 }
 
 @test "clanker: a bug caused by the design escalates to design-architecture" {
-    # verifies: D1 (docs/plans/2026-09-14-clanker-adoption.md)
+    # verifies: REQ-ef8y3r
     # The escalation list already covers a missing requirement, a missed
     # hazard and a wrong spec. A bug that is a consequence of the
     # architecture had nowhere to go, so it was fixed where it surfaced and
@@ -1535,7 +1509,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "ratchet: the retrofit inventory no longer looks for a ## Code: names section" {
-    # verifies: D2 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-96x6xg
     # The managed block has no ## Code: names section, so a block without one
     # is no gap for the retrofit inventory to report.
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
@@ -1544,7 +1518,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: a CODE finding is fixed under develop-refactor, a TEST finding under develop-tdd" {
-    # verifies: D1, D4 (docs/plans/2026-10-13-code-guidelines.md); D3 (docs/plans/2026-10-05-drop-prose-rules.md)
+    # verifies: REQ-hd4gfj
     # The agent that fixes does not review its fix, and the naming rules are
     # the code guidelines file's, not AGENTS.md's.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
@@ -1558,34 +1532,8 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     if grep -q 'writing and naming rules' "$skill"; then echo "develop-change still names: writing and naming rules"; false; fi
 }
 
-@test "develop-change: the mutation-anchor rule lives in this repository's TEST_GUIDELINES.md, not develop-change" {
-    # verifies: PR-dr7k7k, PR-ttg99p
-    # Was annotated PR-4fwfjp, which is the `status: accepted` item and states
-    # nothing about mutation anchors: this test asserts an obligation that
-    # belonged to no item at all until PR-dr7k7k was written for it.
-    # A mutation script embeds a line of the script it mutates as a literal
-    # `old = '''…'''` and asserts one match, so a change that edits a quoted
-    # line leaves a mutation that cannot apply. tests/mutations.bats reports
-    # such a mutation, but only when the full suite is run, after the edit is
-    # complete; the grep in the TDD loop finds the hit while the edit is in
-    # progress.
-    # Only this repository has docs/verification/*.mutations/, so the rule is
-    # stated in its own docs/TEST_GUIDELINES.md and not in the shipped skill,
-    # where an adopter's grep matched nothing (PR-ttg99p).
-    guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
-    skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
-    grep -q 'mutations' "$guidelines"
-    # Re-cutting is the prescribed answer, and re-cutting without re-proving is
-    # the failure it invites: an anchor can match again and kill nothing.
-    grep -q 'kills tests' "$guidelines"
-    if grep -q 'mutations' "$skill"; then
-        echo "develop-change still states the repository-only anchor rule"
-        false
-    fi
-}
-
 @test "merge-change: the message states the ledger delta, not the open count" {
-    # verifies: PR-hkc376
+    # verifies: REQ-t3jwwv
     # verifies: ADR-k3nkv3
     # The squash message states what this change resolves or opens, not
     # "open PR warnings": an open count is a census of the whole ledger at
@@ -1599,7 +1547,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the message template states the Resolves and Opens trailers" {
-    # verifies: PR-hkc376
+    # verifies: REQ-t3jwwv
     # verifies: ADR-k3nkv3
     # Deltas are checkable against the diff forever. The trailers are in the
     # template step 5 copies, not in a block the skill restates.
@@ -1618,7 +1566,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "verify-before-merge: the gate summary holds what step 6b's trailers need" {
-    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-f6ytg7
     # verifies: ADR-k3nkv3
     root="$BATS_TEST_DIRNAME/.."
     skill_text=$(tr '\n' ' ' < "$root/skills/verify-before-merge/SKILL.md" | tr -s ' ')
@@ -1646,41 +1594,20 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     done
 }
 
-@test "PR-kc2pzm carries P8 and P9 as candidates, with P9's defect" {
-    # verifies: D10 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
-    # A parallel suite run measured 650 s, over D10's five minutes, so the
-    # cheaper record lane still pays for itself and both proposals are kept
-    # on the item that owns the question, rather than lost with the branch
-    # that carried them.
-    ledger="$BATS_TEST_DIRNAME/../docs/problems/2026-09-15-field-report-two.md"
-    item=$(awk '/^\*\*PR-kc2pzm\*\*:/ { inside = 1; print; next }
-                inside && /^\*\*[A-Z]+-[a-z0-9]+\*\*:/ { exit }
-                inside' "$ledger" | tr '\n' ' ' | tr -s ' ')
-    [ -n "$item" ]
-    printf '%s\n' "$item" | grep -q '^\*\*PR-kc2pzm\*\*:'
-    printf '%s\n' "$item" | grep -qF 'Candidate formulations, neither adopted'
-    printf '%s\n' "$item" | grep -qF '**P8, per gate, by running the gates.**'
-    printf '%s\n' "$item" | grep -qF '**P9, the reviewer'"'"'s run scoped to the round'"'"'s delta.**'
-    printf '%s\n' "$item" | grep -qF 'is empty under that pathspec and can still turn the suite red'
-    printf '%s\n' "$item" | grep -q '^.*status: open'
-    rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
-    tr '\n' ' ' < "$rationale" | tr -s ' ' | grep -qF '`PR-kc2pzm` records two candidates that answer it per gate instead'
-}
-
 @test "resolve-problem: a backlog figure in a document is a red flag" {
-    # verifies: PR-hkc376
+    # verifies: REQ-t3jwwv
     skill="$BATS_TEST_DIRNAME/../skills/resolve-problem/SKILL.md"
     grep -q 'State the backlog size' "$skill"
     grep -q 'Name the IDs that moved' "$skill"
 }
 
 @test "squash message template: the gate's figures and their tree are trailers, written at step 6b" {
-    # verifies: PR-dkm5tq, PR-k4y59t
+    # verifies: REQ-c8hkb5
     # verifies: ADR-k3nkv3
-    # Gate evidence is keyed to a tree or it is keyed to nothing (PR-dkm5tq).
+    # Gate evidence is keyed to a tree or it is keyed to nothing.
     # The message is outside the tree, so it can name the tree the gate
     # measured; step 6b writes the trailers once the summary is confirmed for
-    # that tree, so a rerun replaces them rather than staling them (PR-k4y59t).
+    # that tree, so a rerun replaces them rather than staling them.
     template="$BATS_TEST_DIRNAME/../templates/squash-message.txt"
     for wanted in 'Gate-tree: <tree>' 'Tests: <command> <passed>/<total>' \
             'Coverage: <command> <figure>' 'Base: <base ref> at <commit>'; do
@@ -1697,10 +1624,10 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "ledger files: the skills and templates name a ledger file at creation, and nothing renames it" {
-    # verifies: D1, D2 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: ADR-cy7ahd
     root="$BATS_TEST_DIRNAME/.."
     # The ratchet files name the old convention on purpose: they tell an
-    # adopter how to retire it (T5 pins what they say).
+    # adopter how to retire it.
     # grep exits 1 when nothing matches, the passing case, and 2 on a path it
     # cannot read; each status is kept so that 0 and 1 pass and 2 or above
     # fails the test.
@@ -1742,8 +1669,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: no step renames a ledger file, and the tree check confirms the tree the gate summary describes" {
-    # verifies: D5 (docs/plans/2026-10-13-ledger-names-at-creation.md)
-    # verifies: D5 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: ADR-cy7ahd, REQ-kqb2vp
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     if grep -qi 'finaliz' "$skill"; then
         grep -ni 'finaliz' "$skill"; false
@@ -1754,7 +1680,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: two changes that name a ledger file alike meet at step 1, and the documented resolution keeps both" {
-    # verifies: D6 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-6jyypf
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     step1=$(step_of "$skill" 1 \
         | tr '\n' ' ' | tr -s ' ')
@@ -1787,7 +1713,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the tree check lets the gate summary stand where the tree is unchanged" {
-    # verifies: PR-dkm5tq
+    # verifies: REQ-kqb2vp
     # Step 6b follows the 6a gate, and every fix reruns from step 1, so a second
     # dispatch on an unchanged tree measures what the first already measured.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
@@ -1796,7 +1722,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the reviewer tags every finding" {
-    # verifies: PR-3s74u3
+    # verifies: REQ-4kyacv
     # check-review.sh block-parses the header and ignores the value, so the tag
     # adds no script and no new malformed case.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
@@ -1806,10 +1732,8 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: a round with nothing above low severity is the last" {
-    # verifies: PR-3s74u3
-    # Ruling of 2026-10-04 (docs/plans/2026-09-29-agent-first-skills-change-2.md):
-    # rounds 16 to 21 of agent-first-scripts each raised one to four low
-    # findings, so a clean-round rule did not converge.
+    # verifies: REQ-5nb2wu
+    # A clean-round rule does not converge: rounds keep raising low findings.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     grep -q 'are all `low` is the last review' "$skill"
@@ -1821,17 +1745,14 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "the skills and templates name the creation date, not the merge date" {
-    # verifies: PR-xec7dd
+    # verifies: ADR-cy7ahd
     # A ledger file is dated the day its change creates it (ADR-cy7ahd), and
     # nothing re-dates it at merge, so the date is not the merge date, and no
-    # skill, template or README may say it is. PR-xec7dd lists the sites that
-    # did.
+    # skill, template or README may say it is.
     #
     # The scan covers docs/problems/README.md as well, which is this repository's
     # own copy of templates/problems.md: fixing the template does not fix the
-    # copy, and the copy is what a reader of this ledger opens. Round 2 of the
-    # review found it still stating the merge date after round 1 had repaired
-    # the template and the README.
+    # copy, and the copy is what a reader of this ledger opens.
     root="$BATS_TEST_DIRNAME/.."
     ! grep -rniE 'merge.date' "$root"/skills "$root"/templates/*.md \
         "$root"/README.md "$root"/docs/problems/README.md \
@@ -1839,7 +1760,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the gate step records the tree its summary describes" {
-    # verifies: PR-dkm5tq
+    # verifies: REQ-kqb2vp
     # Step 6b compares the current tree against the one step 6a measured, so
     # step 6a has to have written that hash down. Without it the comparison has
     # no left-hand side and the rule is unusable on its first pass.
@@ -1852,7 +1773,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "squash message template opens every finding with its tag" {
-    # verifies: PR-3s74u3
+    # verifies: REQ-4kyacv
     # verifies: ADR-k3nkv3
     # The review step requires `code`, `requirement` or `record` as the first
     # word of a finding, and the template step 5 copies is the one place the
@@ -1874,29 +1795,24 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the tag does not shorten the sequence" {
-    # verifies: PR-3s74u3
-    # verifies: D4 (docs/plans/2026-09-28-agent-first-skills.md)
-    # The reporter asked for three things: classify findings, bound what a record
-    # finding costs, and say when to stop. Five review rounds each rejected a
-    # formulation of the middle one, every version resting on naming a class of
-    # files no gate reads — there is none, check-ids.sh greps the whole tree. The
-    # change ships the first and third and states plainly that it ships no
-    # boundary, so a reader does not infer one from the tag's existence.
+    # verifies: REQ-quq85e
+    # The skill classifies findings and says when to stop, and states plainly
+    # that it bounds no record finding's cost: a bound would rest on a class of
+    # files no gate reads, and there is none, since check-ids.sh greps the whole
+    # tree. Stating it keeps a reader from inferring a bound from the tag.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     grep -q 'Every finding still sends the sequence back to step 1' "$skill"
     grep -q 'deliberately not taken' "$skill"
     # and the tag's actual effect, which is what makes the convergence rule
     # below executable: a record-only round reruns like any other but dispatches
-    # no further reviewer. Cutting the boundary rule without stating this left
-    # the two rules contradicting each other for exactly the case convergence
-    # is about.
+    # no further reviewer. Without it the two rules would contradict each other
+    # for exactly the case convergence is about.
     grep -q 'whether \*\*another' "$skill"
     grep -q 'no further reviewer is dispatched' "$skill"
     # The neighbouring paragraphs must not re-derive a shortened sequence from
-    # the tag. Round 6 fixed the rule and left one of them stating its negation;
-    # round 7 found that, because the guard then asserted only the absence of the
-    # phrase "finding-free round", which a reworded sentence satisfies while
-    # keeping the inference. So assert the claim that replaced it, and reject the
+    # the tag. The absence of the phrase "finding-free round" alone is not
+    # enough: a reworded sentence satisfies it while keeping the inference.
+    # So assert the claim that replaced it, and reject the
     # two inferences by shape rather than by one spelling.
     run grep -rq 'finding-free round' "$(dirname "$skill")"
     [ "$status" -ne 0 ]
@@ -1914,7 +1830,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: the mechanical checks are the pre-flight" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-994yy6
     # merge-preflight.sh runs the pre-flight and step 6c's checks in one
     # command. Each step names the script, inside its own span, so a step that
     # goes back to listing the commands one at a time is reported.
@@ -1934,7 +1850,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "develop-change: the dispatch prompt names task-worktree.sh" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-rmsk4r
     # task-worktree.sh creates the task worktree and retires it. The dispatch
     # prompt tells the subagent to run `start`, and the dispatcher runs
     # `merge` after a green report, in place of the hand-written merge, remove
@@ -1947,7 +1863,7 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "merge-change: step 6d and the cleanup reference name remove and discard, and no remedy merges" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b7kmx8
     # A merge is the dispatcher's step after a green task report. A remedy for
     # a rejection never names one: step 6d and the cleanup reference name
     # remove, discard and the git commands that merge nothing.
@@ -1982,9 +1898,9 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
 }
 
 @test "check-traceability: the fix table is a pointer to the remedy lines" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-dmk4mf
     # check-trace.sh and check-ids.sh print one `fix <RULE>:` line per rule
-    # that fired (D8). A second copy of each remedy in the skill drifts from
+    # that fired. A second copy of each remedy in the skill drifts from
     # the script, so the skill points at the output instead.
     skill="$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
     run grep -q '^## Fixing each rule' "$skill"
@@ -1992,15 +1908,16 @@ CLAIMED  PR-abc123  by remover' ] || { echo "(b) under $shell: $output"; false; 
     grep -qF 'fix <RULE>:' "$skill"
 }
 
-# The skill shape (docs/plans/2026-09-28-agent-first-skills.md, D5 and D9).
+# The skill shape: section order, word ceiling and References.
 
 # The `## ` headings of a SKILL.md outside fenced code, joined with `|`.
 gr_skill_headings() {
     awk '/^```/ { fenced = !fenced; next } !fenced && /^## / { sub(/^## /, ""); printf "%s|", $0 }' "$1"
 }
 
-# 0 when a SKILL.md has the D9 order, with or without References.
-gr_skill_has_d9_order() {
+# 0 when a SKILL.md's sections are in the order AGENTS.md states, with or
+# without References.
+gr_skill_has_section_order() {
     case "$(gr_skill_headings "$1")" in
         ('Preconditions|Steps|Red flags|Done when|References|') return 0 ;;
         ('Preconditions|Steps|Red flags|Done when|') return 0 ;;
@@ -2012,7 +1929,7 @@ gr_skill_words() {
     wc -w < "$1" | tr -d ' '
 }
 
-# 0 when a SKILL.md is at most 2,000 words (D5).
+# 0 when a SKILL.md is at most 2,000 words.
 gr_skill_within_word_ceiling() {
     [ "$(gr_skill_words "$1")" -le 2000 ]
 }
@@ -2022,7 +1939,7 @@ gr_skill_within_word_ceiling() {
 # reference file no SKILL.md names is never read; a named one that does not
 # exist is a dead instruction. A file is listed only by an entry line, one
 # opening with "- `references/"; a name on a continuation line or in prose
-# does not list it (review round 6, finding 35).
+# does not list it.
 gr_skill_reference_failures() {
     local skill_dir="$1" skill_name names_in_section files_on_disk malformed_entries
     skill_name=$(basename "$skill_dir")
@@ -2038,12 +1955,12 @@ gr_skill_reference_failures() {
     if [ "$names_in_section" != "$files_on_disk" ]; then
         printf ' %s' "$skill_name:[listed: $(echo $names_in_section)][present: $(echo $files_on_disk)]"
     fi
-    # D9: the section is omitted when the skill has no reference file.
+    # The section is omitted when the skill has no reference file.
     # A trailing space after the heading is still the heading.
     if [ -z "$files_on_disk" ] && grep -qE '^## References[[:space:]]*$' "${skill_dir}SKILL.md"; then
         printf ' %s' "$skill_name:[a References heading and no reference file]"
     fi
-    # D9: each entry names the file and the condition for reading it.
+    # Each entry names the file and the condition for reading it.
     # Every non-blank line after the heading is an entry or an indented
     # continuation of one, so a prose line or a `* ` bullet is reported,
     # not skipped.
@@ -2059,28 +1976,26 @@ gr_skill_reference_failures() {
     fi
 }
 
-@test "skill shape: every SKILL.md has the D9 sections in order" {
-    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
-    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
+@test "skill shape: every SKILL.md has Preconditions, Steps, Red flags, Done when and References in that order" {
+    # verifies: REQ-h528pv
     # A fixed order lets an agent find the step it needs without reading the
     # whole file.
     cd "$BATS_TEST_DIRNAME/.." || return 1
     failures=""
     for skill_file in skills/*/SKILL.md; do
         skill_name=$(basename "$(dirname "$skill_file")")
-        if ! gr_skill_has_d9_order "$skill_file"; then
+        if ! gr_skill_has_section_order "$skill_file"; then
             failures="$failures $skill_name:[$(gr_skill_headings "$skill_file")]"
         fi
     done
     if [ -n "$failures" ]; then
-        echo "skills out of the D9 section order:$failures"
+        echo "skills out of the Preconditions, Steps, Red flags, Done when, References order:$failures"
         return 1
     fi
 }
 
 @test "skill shape: every SKILL.md is at most 2,000 words" {
-    # verifies: D5 (docs/plans/2026-09-28-agent-first-skills.md)
-    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-x57fr8
     # A ceiling nobody checks is how the skills reached their size.
     cd "$BATS_TEST_DIRNAME/.." || return 1
     failures=""
@@ -2097,7 +2012,7 @@ gr_skill_reference_failures() {
 }
 
 @test "skill shape: the References section lists exactly the reference files" {
-    # verifies: D6, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9nf5v
     # The check and its reasons are in gr_skill_reference_failures.
     cd "$BATS_TEST_DIRNAME/.." || return 1
     failures=""
@@ -2111,7 +2026,7 @@ gr_skill_reference_failures() {
 }
 
 # Fixture SKILL.md files for the shape predicates. The shipped skills are in
-# the D9 shape, so the tests above never see a rejection; these tests write a
+# the required shape, so the tests above never see a rejection; these tests write a
 # fixture of each kind the predicates must reject, and two they must accept.
 
 # Writes $1/SKILL.md with frontmatter and one `## ` section per remaining
@@ -2133,24 +2048,23 @@ gr_write_skill_fixture() {
 }
 
 @test "skill shape fixture: sections out of order are rejected" {
-    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
-    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-h528pv
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Steps Preconditions "Red flags" "Done when"
-    run gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    run gr_skill_has_section_order "${skill_dir}SKILL.md"
     [ "$status" -ne 0 ]
 }
 
 @test "skill shape fixture: a missing Red flags section is rejected" {
-    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-h528pv
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Preconditions Steps "Done when"
-    run gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    run gr_skill_has_section_order "${skill_dir}SKILL.md"
     [ "$status" -ne 0 ]
 }
 
 @test "skill shape fixture: a References heading with no reference file is rejected" {
-    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9nf5v
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
     run gr_skill_reference_failures "$skill_dir"
@@ -2158,7 +2072,7 @@ gr_write_skill_fixture() {
 }
 
 @test "skill shape fixture: a References entry that names a missing file is rejected" {
-    # verifies: D6, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9nf5v
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
     printf -- '- `references/missing.md` — read when the fixture asks for it.\n' \
@@ -2168,7 +2082,7 @@ gr_write_skill_fixture() {
 }
 
 @test "skill shape fixture: a References entry with no read-when condition is rejected" {
-    # verifies: D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-b9nf5v
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
     mkdir -p "${skill_dir}references"
@@ -2179,8 +2093,7 @@ gr_write_skill_fixture() {
 }
 
 @test "skill shape fixture: a 2,001-word SKILL.md is rejected, and 2,000 words is accepted" {
-    # verifies: D5 (docs/plans/2026-09-28-agent-first-skills.md)
-    # verifies: D3 item 3 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-x57fr8
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when"
     padding_words=$((2000 - $(gr_skill_words "${skill_dir}SKILL.md")))
@@ -2194,39 +2107,38 @@ gr_write_skill_fixture() {
 }
 
 @test "skill shape fixture: a SKILL.md with no References section is accepted" {
-    # verifies: D5, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-h528pv, REQ-x57fr8, REQ-b9nf5v
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when"
-    gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    gr_skill_has_section_order "${skill_dir}SKILL.md"
     gr_skill_within_word_ceiling "${skill_dir}SKILL.md"
     run gr_skill_reference_failures "$skill_dir"
     [ -z "$output" ]
 }
 
 @test "skill shape fixture: a SKILL.md with a well-formed References section is accepted" {
-    # verifies: D5, D6, D9 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-h528pv, REQ-x57fr8, REQ-b9nf5v
     skill_dir="$BATS_TEST_TMPDIR/fixture/"
     gr_write_skill_fixture "$skill_dir" Preconditions Steps "Red flags" "Done when" References
     mkdir -p "${skill_dir}references"
     printf 'Reference text.\n' > "${skill_dir}references/notes.md"
     printf -- '- `references/notes.md` — read when the fixture asks for it,\n  and on a\n  continuation line.\n' \
         >> "${skill_dir}SKILL.md"
-    gr_skill_has_d9_order "${skill_dir}SKILL.md"
+    gr_skill_has_section_order "${skill_dir}SKILL.md"
     gr_skill_within_word_ceiling "${skill_dir}SKILL.md"
     run gr_skill_reference_failures "$skill_dir"
     [ -z "$output" ]
 }
 
-@test "merge-change: text the first rewrite lost is stated again" {
-    # verifies: ADR-3hsvvq, ADR-k3nkv3
-    # Review round 1 of agent-first-skills found instructions from the old
-    # skill that were neither kept nor listed as dropped history.
+@test "merge-change: the skill and its rationale state the round-message, hand-over, worktree and exit-2 instructions and their reasons" {
+    # verifies: REQ-994yy6, REQ-e2q5g5, REQ-5nb2wu, REQ-rstp46, REQ-2crnq2, REQ-c6vc2k, REQ-t3jwwv, REQ-qg3r38, REQ-kqb2vp, REQ-c8hkb5, REQ-744g4c, REQ-su9jg5, REQ-63smcs, REQ-bc52mm, ADR-3hsvvq
+    # Instructions the skill must state, each pinned by its text.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     grep -q "A later round's reviewer reads the message earlier rounds wrote" "$skill"
     grep -q 'name it so the user can run it' "$skill"
     grep -q 'consider two independent' "$skill"
-    # Review round 9: the advice applies to class C only.
+    # The advice applies to class C only.
     grep -q 'C a thorough review; for class C,' "$skill"
     grep -q 'With no worktree registered for the branch' "$skill"
     grep -q 'leave or remove it with the harness tool' "$skill"
@@ -2234,15 +2146,14 @@ gr_write_skill_fixture() {
     # superseded-item check states the successor's own test.
     grep -q 'The successor has its own test' \
         "$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
-    # Re-aimed 2026-10-07 (parallel-changes review round 4): two reasons moved
-    # to the rationale to make room for instructions.
-    # Review round 4, finding 18: a cut dropped where an exit 2 can come from.
+    # Two reasons live in the rationale to make room for instructions, and
+    # the skill states where an exit 2 can come from.
     grep -q 'usage or environment error from the pre-flight or a tool it runs' "$skill"
     grep -q 'their shell has none of your variables' "$rationale"
     grep -q 'cannot be re-identified one round' "$rationale"
-    # Review round 6: the rationale file no longer points into script
-    # comments (see "the rationale file describes no script"), so what remains
-    # to assert here is the reasons it keeps.
+    # The rationale file points into no script comments (see "the rationale
+    # file describes no script"), so what is asserted here is the reasons it
+    # keeps.
     grep -q 'what the duplicate scan at step 2 was compared against' "$rationale"
     grep -q 'fails step 2 for every later change' "$rationale"
     grep -q 'not the counts it was handed' "$rationale"
@@ -2260,10 +2171,10 @@ gr_write_skill_fixture() {
     grep -q 'It names exactly the PR items the diff deletes' "$rationale"
     grep -q 'starts a blocking wait on the user' "$rationale"
     grep -q 'a chance to remove the wrong directory' "$rationale"
-    grep -q 'so a pass added nothing' "$rationale"
+    grep -q 'so a pass would add nothing' "$rationale"
     grep -q 'only the cleanup is outstanding' "$rationale"
-    # Finding 23 of review round 4: the step 1 paragraph stated that two
-    # branches cannot collide by construction.
+    # The step 1 paragraph must not state that two branches cannot collide
+    # by construction.
     run grep -q 'cannot collide by construction' "$rationale"
     [ "$status" -ne 0 ]
     run grep -q 'with two independent reviewers for critical' "$skill"
@@ -2271,9 +2182,9 @@ gr_write_skill_fixture() {
 }
 
 @test "merge-change: changes may run in parallel, and the rationale says why" {
-    # verifies: D2 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # verifies: REQ-zy25dp
     # Nothing may bar a second change from opening, since AGENTS.md allows
-    # parallel changes (D1). The rationale must state why that is safe: step 1
+    # parallel changes. The rationale must state why that is safe: step 1
     # merges the base every round, IDs are random tokens, and each change's
     # record is its own worktree's squash message (ADR-k3nkv3).
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
@@ -2285,7 +2196,7 @@ gr_write_skill_fixture() {
     run grep -qi 'one change at a time' "$skill" "$rationale"
     [ "$status" -ne 0 ]
     # The same precondition may return in other words, such as "Only one open
-    # change" (review round 2, finding 10). The Preconditions section keeps
+    # change". The Preconditions section keeps
     # its three bullets, and none of its lines pairs "change" with "open",
     # "one" or "next".
     preconditions=$(awk '/^## / { inside = ($0 == "## Preconditions"); next } inside' "$skill")
@@ -2303,17 +2214,16 @@ gr_write_skill_fixture() {
 }
 
 @test "merge-change: a base merge that shares a file with the change gets a fresh review" {
-    # verifies: D2 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # verifies: REQ-r8rsew
     # With changes open in parallel, the base can move after the last
     # reviewer was dispatched: on the rerun after an all-low round, or after
     # step 7's base-moved remedy. The gate reruns on the merged tree, but no
-    # reviewer saw the merge (review round 4, finding 16). The maintainer
-    # ruled on 2026-10-07: when the base and the change edited the same file,
+    # reviewer saw the merge. When the base and the change edited the same file,
     # the whole change goes to a fresh reviewer; when the files are disjoint,
     # the gate rerun covers it. Step 1 lists the files the base edited after
     # the commit step 4 marked as reviewed that the change also edits. It compares
     # against that marker, not the last base merge, so a rerun after a failed
-    # gate lists the file again (review round 5, finding 21). This test runs
+    # gate lists the file again. This test runs
     # step 1's fence and step 4's marker against one fixture, scenario by scenario.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
@@ -2411,14 +2321,14 @@ gr_write_skill_fixture() {
 }
 
 @test "merge-change: step 7 checks for a staged squash before staging its own" {
-    # verifies: D5 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # verifies: REQ-yg9b8s
     # With one squash already staged in the primary index, a second
     # `git merge --squash` exits 0 and stacks its files onto the first when
     # the two touch different files and it fast-forwards; on a shared file git
     # refuses. The staged squash is a lock only if step 7 looks for it before
     # staging. The check is joined to the squash with `&&`: run as two lines in
     # one shell call, a non-empty index fails the check and the squash runs
-    # anyway (review round 1, finding 1).
+    # anyway.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     # Prose wraps, so a phrase is matched on the file with its lines joined.
@@ -2431,7 +2341,7 @@ gr_write_skill_fixture() {
     # The second line compares the index with the branch after every squash,
     # not only when the index check fails: a base that moved after the last
     # step 1 makes the squash a three-way merge that exits 0 and stages a
-    # tree the gate never saw (review round 3, finding 11).
+    # tree the gate never saw.
     printf '%s\n' "$step7" | grep -qE '^ *git diff --cached --quiet <branch>$'
     squash_at=$(printf '%s\n' "$step7" | grep -n 'git merge --squash <branch>$' | cut -d: -f1)
     compare_at=$(printf '%s\n' "$step7" | grep -n '^ *git diff --cached --quiet <branch>$' | cut -d: -f1)
@@ -2440,15 +2350,14 @@ gr_write_skill_fixture() {
     printf '%s\n' "$step7_text" | grep -qF "The second line exits 0 when the index holds exactly the branch's tree: go on."
     # Which case a failed comparison is follows from the first line's
     # output, not its exit status: a conflicted squash of this change also
-    # exits 1 (review round 3, finding 13). A squash that ran is cleared and
+    # exits 1. A squash that ran is cleared and
     # the sequence reruns from step 1. A squash git refused because the
     # primary checkout is dirty is not a moved base: `git reset --merge` keeps
-    # the edit, and the rerun would loop (review round 4, finding 17).
+    # the edit, and the rerun would loop.
     printf '%s\n' "$step7_text" | grep -qF 'The first line printed that files "would be overwritten": the primary checkout is dirty. Stop and tell the user.'
     printf '%s\n' "$step7_text" | grep -qF "It printed other output: the base moved after step 1. Run \`git reset --merge\`, then rerun from step 1 as a base-move round:"
     # A squash staged before is another change's or an outdated one of this
-    # change: the agent stops and the user decides (review round 2, findings
-    # 8 and 10).
+    # change: the agent stops and the user decides.
     printf '%s\n' "$step7_text" | grep -qF "It printed nothing: a squash was already staged, another change's or an outdated one of this change. Stop and tell the user; once they sign or clear it, rerun from step 1."
     run grep -q 'staged files are' "$skill" "$rationale"
     [ "$status" -ne 0 ]
@@ -2460,30 +2369,28 @@ gr_write_skill_fixture() {
     printf '%s\n' "$rationale_text" | grep -qF '`git diff --cached --quiet <branch>` can'
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'when an outdated squash of this change is'
     # The parallel section must not claim the index holds one squash by
-    # itself; it holds one because step 7 checks (review round 1, finding 3).
+    # itself; it holds one because step 7 checks.
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'holds one staged squash only because step 7 checks'
     # Step 1 alone does not close the parallel-change race; step 7's tree
-    # comparison does (review round 3, finding 11).
+    # comparison does.
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'Step 1 alone does not close the gap'
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q "Step 7's tree comparison catches that base move"
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'A gate result describes the branch.s tree, and nothing else'
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'runs after every squash, not only when the index check fails'
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -qF '`git reset --merge` resets the index to HEAD'
     # A squash over a staged one stacks only when the two touch different
-    # files; on a shared file git refuses, fast-forward or not (review round
-    # 3, finding 12).
+    # files; on a shared file git refuses, fast-forward or not.
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'touch different files and the second squash fast-forwards'
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'fast-forward or not'
     run sh -c 'printf "%s\n" "$1" | tr -s " " | grep -q "When it fast-forwards, it exits 0"' _ "$rationale_text"
     [ "$status" -ne 0 ]
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'means the primary checkout has an edit or a file in the squash.s way'
     # Two step 7s at the same instant can still race; the rationale states
-    # what catches each outcome (review round 4, finding 17).
+    # what catches each outcome.
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'Two sessions that run step 7 at the same instant can still race'
     printf '%s\n' "$rationale_text" | tr -s ' ' | grep -q 'that session.s signing then fails with "nothing to commit"'
 
-    # Step 7's two lines run against git, not only as prose (review round 4,
-    # finding 19). Each case is set up in the primary checkout of a scratch
+    # Step 7's two lines run against git, not only as prose. Each case is set up in the primary checkout of a scratch
     # repository, with the change branch `feature` already merged with main.
     fence=$(printf '%s\n' "$step7" | awk '
         /^ *```sh$/ { fenced = 1; next }
@@ -2549,7 +2456,7 @@ gr_write_skill_fixture() {
 }
 
 @test "merge-change: the squash step compares the staged tree with the gated tree and hands over the message file" {
-    # verifies: D1, D2, D4 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: REQ-su9jg5
     # verifies: ADR-k3nkv3
     # Step 7 writes no message: step 5 wrote it and step 6b added the gate's
     # trailers. It squashes, compares the staged tree with the Gate-tree:
@@ -2621,8 +2528,7 @@ gr_write_skill_fixture() {
 }
 
 @test "merge-change: the message is written before the gate, and step 5 writes no gate figure" {
-    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
-    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-4wm324
     # verifies: ADR-k3nkv3
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
@@ -2646,11 +2552,10 @@ gr_write_skill_fixture() {
 }
 
 @test "merge-change: the rationale file describes no script" {
-    # verifies: D6 (docs/plans/2026-09-28-agent-first-skills.md)
-    # Review rounds 3 to 6 found the rationale file's statements about scripts
-    # false, and then the comments its pointers led to. It now keeps only the
-    # reasons behind the agent's rules; a script's own comments describe the
-    # script. A path under `scripts/` or any word ending in `.sh` is a
+    # verifies: REQ-hrccx6
+    # Statements about scripts drift from the scripts, and so do pointers to
+    # their comments, so the rationale file keeps only the reasons behind the
+    # agent's rules; a script's own comments describe the script. A path under `scripts/` or any word ending in `.sh` is a
     # description creeping back.
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     [ -s "$rationale" ]
@@ -2663,7 +2568,7 @@ gr_write_skill_fixture() {
 }
 
 @test "skill references: no blank line separates two rows of one table" {
-    # verifies: D7 (docs/plans/2026-09-28-agent-first-skills.md)
+    # verifies: REQ-q8shms
     # A blank line ends a markdown table, so the rows after it render as plain
     # text.
     split_tables=$(awk '
@@ -2677,7 +2582,7 @@ gr_write_skill_fixture() {
 }
 
 @test "ADRs: the skills and the shipped config mint ADR IDs" {
-    # verifies: D1, D2 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-9sgsbg
     root="$BATS_TEST_DIRNAME/.."
     grep -qF 'new-id.sh ADR' "$root/skills/grill-requirements/SKILL.md"
     grep -qF 'docs/adr/ADR-<token>-<slug>.md' "$root/skills/grill-requirements/SKILL.md"
@@ -2689,8 +2594,7 @@ gr_write_skill_fixture() {
 
 # adr_file_is_named_by_its_item FILE — exit 0 when FILE is named
 # ADR-<token>-<slug>.md, the token matches GR_ID_TOKEN from scripts/lib.sh, and
-# the first line of FILE is the item line that defines the same ID (D1 of
-# docs/plans/2026-10-04-adr-ids.md). Exit 1 otherwise.
+# the first line of FILE is the item line that defines the same ID. Exit 1 otherwise.
 adr_file_is_named_by_its_item() {
     adr_token_pattern=$(sh -c '. "$1" && printf "%s" "$GR_ID_TOKEN"' sh \
         "$BATS_TEST_DIRNAME/../scripts/lib.sh")
@@ -2705,7 +2609,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ADRs: every file in docs/adr is named by the ID its item line defines" {
-    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-2vqqvq
     failures=""
     for adr_file in "$BATS_TEST_DIRNAME"/../docs/adr/*.md; do
         adr_file_is_named_by_its_item "$adr_file" || failures="$failures $adr_file"
@@ -2717,7 +2621,7 @@ adr_file_is_named_by_its_item() {
 # the repository gates scan tests/ for references.
 
 @test "ADRs: the naming check accepts a file named by the token its first line defines" {
-    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-2vqqvq
     adr_prefix=ADR
     adr_id="$adr_prefix-k3n8p2"
     printf '**%s**: The configuration is flat YAML.\n\nStatus: accepted\n' "$adr_id" \
@@ -2726,7 +2630,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ADRs: the naming check rejects a file named by an ID its item line does not define" {
-    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-2vqqvq
     adr_prefix=ADR
     printf '**%s**: The configuration is flat YAML.\n' "$adr_prefix-m4q7r9" \
         > "$BATS_TEST_TMPDIR/$adr_prefix-k3n8p2-flat-config.md"
@@ -2735,7 +2639,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ADRs: the naming check rejects an item line that is not on line 1" {
-    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-2vqqvq
     adr_prefix=ADR
     adr_id="$adr_prefix-k3n8p2"
     printf '# Flat configuration\n\n**%s**: The configuration is flat YAML.\n' "$adr_id" \
@@ -2745,7 +2649,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ADRs: the naming check rejects a token with no digit" {
-    # verifies: D1 (docs/plans/2026-10-04-adr-ids.md)
+    # verifies: REQ-2vqqvq
     adr_prefix=ADR
     adr_id="$adr_prefix-aaaaaa"
     printf '**%s**: The configuration is flat YAML.\n' "$adr_id" \
@@ -2962,7 +2866,7 @@ adr_file_is_named_by_its_item() {
     # The message has three required fields, `branch:` gone with the record
     # file; a ratchet change's message is written early, its review fields
     # still holding the template's placeholders, which check-review.sh does
-    # not reject (round 4, finding-3 and finding-4).
+    # not reject.
     root="$BATS_TEST_DIRNAME/.."
     step5=$(step_of "$root/skills/merge-change/SKILL.md" 5 | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$step5" | grep -qF '`reviewer:`, `verdict:` and `reproduced:`' ||
@@ -3072,7 +2976,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the base merge stops while a squash is staged in the primary checkout" {
-    # verifies: D1 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-3kbtyn
     # A squash staged in the primary checkout is about to move the base: a
     # gate run against the current base would be rejected at step 7. Runs
     # step 1's fence from a change worktree, with and without a staged index.
@@ -3132,7 +3036,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: a round that dispatches no reviewer skips the pre-flight before the review" {
-    # verifies: D2 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-x8j3ne
     # verifies: ADR-k3nkv3
     # A base-move round reruns the message only after a review; the rationale
     # names no rerun for a plan.
@@ -3155,7 +3059,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: a round with no finding is the last" {
-    # verifies: D3 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-5nb2wu
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     awk '
         index($0, "are all `low` is the last review round.") && index(prev, "findings, if any,") { found = 1 }
@@ -3165,7 +3069,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the reviewer runs only the tests it judges" {
-    # verifies: D1 (docs/plans/2026-10-15-reviewer-scoped-suite.md)
+    # verifies: REQ-c6vc2k
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     step_4=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
     printf '%s' "$step_4" | grep -qF '**The reviewer runs only the tests it judges**' ||
@@ -3182,7 +3086,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the step 6a gate is the round's only full run" {
-    # verifies: D2 (docs/plans/2026-10-15-reviewer-scoped-suite.md)
+    # verifies: REQ-c6vc2k
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     step_4=$(step_of "$skill" 4 | tr '\n' ' ' | tr -s ' ')
     printf '%s' "$step_4" | grep -qF "6a's gate runs the whole suite" ||
@@ -3196,7 +3100,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the rationale states what scoping the reviewer costs" {
-    # verifies: D3 (docs/plans/2026-10-15-reviewer-scoped-suite.md)
+    # verifies: REQ-c6vc2k
     rationale="$BATS_TEST_DIRNAME/../skills/merge-change/references/rationale.md"
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     section=$(section_of '## Step 4: the reviewer runs the tests it judges' "$rationale" | tr '\n' ' ' | tr -s ' ')
@@ -3227,7 +3131,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the review checklist's last round covers a round with no finding" {
-    # verifies: D3 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-5nb2wu
     # The checklist the reviewer is handed states the same rule as the skill.
     checklist="$BATS_TEST_DIRNAME/../skills/merge-change/references/review-checklist.md"
     checklist_text=$(tr '\n' ' ' < "$checklist" | tr -s ' ')
@@ -3236,7 +3140,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the review checklist asks for the message only where it exists" {
-    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-2bdnh6
     # verifies: ADR-k3nkv3
     # The message follows the review, so a first-round reviewer has none. The
     # checklist asks for no plan.
@@ -3265,7 +3169,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ratchet: the upgrade notes say the base merge stops on a staged squash" {
-    # verifies: D1 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-584wwc
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     entry=$(awk '/^## The merge steps are renumbered/ { on = 1; next } on && /^## / { exit } on' "$notes" | tr '\n' ' ' | tr -s ' ')
     [ -n "$entry" ] || { echo "no renumbering entry"; false; }
@@ -3276,7 +3180,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: it starts after develop-change, since the gate runs inside it" {
-    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-ssfur7
     # The gate runs inside merge-change after the record, so neither the
     # description nor a precondition can require verify-before-merge first.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
@@ -3290,11 +3194,10 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the gate runs after the message, on the tree that is signed" {
-    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-4wm324
     # verifies: ADR-k3nkv3
     # The message is written before the gate, so one gate per round measures
-    # the tree step 7 squashes, and 6b names that tree in the message. The
-    # step labels follow D5.
+    # the tree step 7 squashes, and 6b names that tree in the message.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
     labels=$(grep -E '^[0-9]+[a-d]?\. \*\*' "$skill" | sed 's/\. .*//' | tr '\n' ' ')
     [ "$labels" = '1 2 3 4 5 6a 6b 6c 6d 7 8 ' ] || { echo "step labels: $labels"; false; }
@@ -3316,7 +3219,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: a late gate's costs are stated: a reviewer for its fix, and no suite for a docs-only review" {
-    # verifies: D4 (docs/plans/2026-10-14-base-move-round.md)
+    # verifies: REQ-4wm324
     # The gate follows the review, so its failure's fix needs a reviewer, and a
     # documentation-only diff has no earlier gate summary for its reviewer.
     skill="$BATS_TEST_DIRNAME/../skills/merge-change/SKILL.md"
@@ -3367,7 +3270,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ratchet: the upgrade notes name review_cite, its default and how to opt in" {
-    # verifies: C1 (docs/plans/2026-10-08-check-review-cite.md)
+    # verifies: REQ-7wref3
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     grep -q '^## Dispositions cite what they changed: `review_cite`$' "$notes" ||
         { echo "no review_cite section"; false; }
@@ -3408,7 +3311,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "squash message template and upgrade notes: a guideline finding cites as a code finding does" {
-    # verifies: D12 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
+    # verifies: REQ-x9mq37
     # verifies: ADR-k3nkv3
     # check-review.sh --cite checks a guideline finding's disposition too: the
     # template gives guideline findings the same line and dispositions as code
@@ -3424,23 +3327,8 @@ adr_file_is_named_by_its_item() {
         { echo "the upgrade note does not name guideline findings"; false; }
 }
 
-@test "ADRs: the pruning decision is recorded and superseded" {
-    # verifies: D11 (docs/plans/2026-10-06-salvage-churn-and-parallel.md)
-    # verifies: ADR-k3nkv3
-    # The ID is built from a prefix variable: the gates scan tests/.
-    adr_prefix=ADR
-    adr_file="$BATS_TEST_DIRNAME/../docs/adr/$adr_prefix-bh4xgr-plans-are-pruned-at-merge.md"
-    [ -f "$adr_file" ] || { echo "no $adr_file"; false; }
-    adr_file_is_named_by_its_item "$adr_file"
-    grep -qx "Status: superseded by $adr_prefix-k3nkv3" "$adr_file" ||
-        { echo "ADR-bh4xgr is not superseded by its successor"; false; }
-    adr_text=$(tr '\n' ' ' < "$adr_file" | tr -s ' ')
-    printf '%s\n' "$adr_text" | grep -q 'prune-plans.sh' || { echo "no script"; false; }
-    printf '%s\n' "$adr_text" | grep -q '`merge-change` step 1' || { echo "no step 1"; false; }
-}
-
 @test "ADRs: the ledger-naming decision is recorded and accepted" {
-    # verifies: D1 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: ADR-cy7ahd
     # The ID is built from a prefix variable: the gates scan tests/.
     adr_prefix=ADR
     adr_file="$BATS_TEST_DIRNAME/../docs/adr/$adr_prefix-cy7ahd-ledger-files-named-at-creation.md"
@@ -3456,7 +3344,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ADRs: the gate-proof decision is recorded, and the base statement is the Base: trailer" {
-    # verifies: D3, D7 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-f6ytg7, ADR-y8jmes
     # The IDs are built from a prefix variable: the gates scan tests/.
     adr_prefix=ADR
     root="$BATS_TEST_DIRNAME/.."
@@ -3467,7 +3355,7 @@ adr_file_is_named_by_its_item() {
     adr_text=$(tr '\n' ' ' < "$adr_file" | tr -s ' ')
     for wanted in '`Gate-tree:`' '`Tests:`' '`Coverage:`' '`Base:`' 'finish-merge.sh' \
             "guard 5 refuses the cleanup, removing nothing, unless the signed message passes the $adr_prefix-3hsvvq check" \
-            'git write-tree' 'PR-k4y59t' "$adr_prefix-y8jmes"; do
+            'git write-tree' 'cannot name the commit or tree it is part of' "$adr_prefix-y8jmes"; do
         printf '%s\n' "$adr_text" | grep -qF -- "$wanted" \
             || { echo "the ADR lacks $wanted"; false; }
     done
@@ -3488,18 +3376,18 @@ adr_file_is_named_by_its_item() {
             || { echo "$file does not state the Base: trailer"; false; }
     done
     tr '\n' ' ' < "$base_adr" | tr -s ' ' | grep -qF "$adr_prefix-f6ytg7" \
-        || { echo "the base ADR does not name the decision that moved its statement"; false; }
-    tr '\n' ' ' < "$base_adr" | tr -s ' ' | grep -qF 'moved the base commit it named into the `Base:` trailer' \
-        || { echo "the base ADR does not say only the base commit moved into a trailer"; false; }
+        || { echo "the base ADR does not name the decision that placed its statement"; false; }
+    tr '\n' ' ' < "$base_adr" | tr -s ' ' | grep -qF 'the `Base:` trailer is where a change names its base commit' \
+        || { echo "the base ADR does not say the Base: trailer names the base commit"; false; }
     run grep -n 'State it in the verification record' "$root/AGENTS.md"
     [ "$status" -eq 1 ] || { echo "AGENTS.md still puts the base in the record: $output"; false; }
 }
 
 @test "merge-change: the forge flow after the push is an open item, not a procedure" {
-    # verifies: D11 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-f6ytg7
     # A forge rebase or squash merge after the push replaces the signed
-    # squash; how pull requests land is undecided, so the ADR names the open
-    # item and no reference ships a recipe for it.
+    # squash; how pull requests land is undecided, so the ADR says so, the
+    # ledger holds the open item, and no reference ships a recipe for it.
     # The IDs are built from prefix variables: the gates scan tests/.
     adr_prefix=ADR
     pr_prefix=PR
@@ -3512,7 +3400,7 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$item" | grep -qF "$pr_prefix-yd4pug" || { echo "the item does not relate to the fetched-base item"; false; }
     consequences=$(section_of '## Consequences' \
         "$root/docs/adr/$adr_prefix-f6ytg7-squash-commit-certifies-the-gate.md" | tr '\n' ' ' | tr -s ' ')
-    for wanted in "$pr_prefix-m7gcuq" 'replaces the signed squash' 'nothing in guardrails re-checks `Gate-tree:`'; do
+    for wanted in 'How pull requests land is undecided.' 'replaces the signed squash' 'nothing in guardrails re-checks `Gate-tree:`'; do
         printf '%s\n' "$consequences" | grep -qF -- "$wanted" \
             || { echo "the ADR's Consequences lack: $wanted"; false; }
     done
@@ -3533,7 +3421,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "AGENTS.md: non-negotiable 2 says finish-merge.sh checks the Gate-tree trailer" {
-    # verifies: D5, D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-f6ytg7
     agents="$BATS_TEST_DIRNAME/../AGENTS.md"
     text=$(tr '\n' ' ' < "$agents" | tr -s ' ')
     printf '%s\n' "$text" | grep -qF \
@@ -3549,7 +3437,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "worktree-discipline: the squash message holds the reviews, and its trailers hold what was run" {
-    # verifies: D6 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: ADR-3hsvvq
     # verifies: ADR-k3nkv3
     skill="$BATS_TEST_DIRNAME/../skills/worktree-discipline/SKILL.md"
     text=$(tr '\n' ' ' < "$skill" | tr -s ' ')
@@ -3561,14 +3449,14 @@ adr_file_is_named_by_its_item() {
     [ "$status" -eq 1 ] || { echo "the old description remains: $output"; false; }
 }
 
-# --- test guidelines (docs/plans/2026-10-08-test-guidelines.md) --------------
+# --- test guidelines ---------------------------------------------------------
 # The seam and double rules are clauses of templates/TEST_GUIDELINES.md
 # (tests/test-guidelines.bats pins them there). The floor and the one-file rule belong to the TDD loop,
-# which develop-tdd holds (docs/plans/2026-10-13-code-guidelines.md, D1), and
+# which develop-tdd holds, and
 # tests/develop-tdd.bats pins them there; develop-change holds the dispatch.
 
 @test "develop-change: it is the dispatcher, which no subagent loads" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-da5xd8
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     grep -qxF 'name: develop-change' "$skill"
     description=$(grep '^description: ' "$skill")
@@ -3579,7 +3467,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "develop-change: task subagents load develop-tdd, and the loop is stated there, not here" {
-    # verifies: D1 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-da5xd8
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     prompt=$(awk '/^  Execute task 3 of/ { inside = 1 } inside && /^  ```$/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$prompt" | grep -qF 'under the develop-tdd skill' || { echo "the prompt does not name develop-tdd"; false; }
@@ -3590,13 +3478,13 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "develop-change: the task prompt names the guidelines file guidelines-file.sh TEST printed" {
-    # verifies: D8, D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-f8xaq4
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     grep -qF 'the guidelines file `guidelines-file.sh TEST` printed for' "$skill"
 }
 
 @test "develop-change: the conformance reviews follow derailment, before merge-change" {
-    # verifies: D1 (docs/plans/2026-10-08-test-guidelines.md); D4 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-br59wv
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     headings=$(grep '^### ' "$skill")
     last_heading=$(printf '%s\n' "$headings" | tail -n 1)
@@ -3609,7 +3497,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "develop-change: guideline review findings go into the plan as they arrive, and merge-change's message copies them" {
-    # verifies: D1, D9 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-e5ze3h
     # verifies: ADR-k3nkv3
     # The reviews run before merge-change, so their findings wait in the plan
     # as the red -> green lines do; step 4 reads them there, and step 5 copies them
@@ -3627,10 +3515,9 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "develop-change: the dispatch prompt names the guidelines file for each of the task's paths" {
-    # verifies: D3, D8 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-f8xaq4
     # A task whose paths span units has more than one governing file; the
-    # prompt carries every line guidelines-file.sh printed (finding-6c,
-    # review round 1).
+    # prompt carries every line guidelines-file.sh printed.
     skill="$BATS_TEST_DIRNAME/../skills/develop-change/SKILL.md"
     prompt=$(awk '/^  Execute task 3 of/ { inside = 1 } inside && /^  ```$/ { inside = 0 } inside' "$skill" | tr '\n' ' ' | tr -s ' ')
     [ -n "$prompt" ] || { echo "no dispatch prompt template"; false; }
@@ -3639,7 +3526,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "develop-change: the seam reference files are gone" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-f8rfhr
     # Their content moved to templates/TEST_GUIDELINES.md, so each rule has
     # one home.
     skill_dir="$BATS_TEST_DIRNAME/../skills/develop-change"
@@ -3651,7 +3538,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "merge-change: the review checklist's test section is the floor, and checks the guideline reviews ran" {
-    # verifies: D2, D9 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-buf8y3
     # The seam and double rules are a project's preference, checked by
     # review-conformance against its own file; step 4 holds the floor alone and
     # checks that each guideline review ran and was dispositioned.
@@ -3667,11 +3554,11 @@ adr_file_is_named_by_its_item() {
     printf '%s\n' "$section" | grep -qF -- '- At class B and C, every REQ and LLR has abnormal-input tests'
     printf '%s\n' "$section" | grep -qF -- '- At class C, every SDD item the change touches is tested at its own interface'
     # The plan holds the guideline reviews when step 4 runs; step 5 copies them into
-    # the record afterwards (finding-4, review round 1).
+    # the record afterwards.
     printf '%s\n' "$section" | grep -qF 'the plan lists a conformance review for each file `guidelines-file.sh TEST` prints for the diff'
     printf '%s\n' "$section" | grep -qF 'and for each file `guidelines-file.sh CODE` prints for it'
     printf '%s\n' "$section" | grep -qF 'every finding with a disposition'
-    # verifies: ADR-k3nkv3 — the record is the squash message.
+    # verifies: ADR-k3nkv3
     printf '%s\n' "$section" | grep -qF 'and the message holds them as `guideline` findings where the message exists'
     for removed in 'three kinds' 'markup snapshot' 'runs for real on the normal path'; do
         if grep -qF "$removed" "$checklist"; then echo "checklist still states: $removed"; false; fi
@@ -3679,7 +3566,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "squash message template: guideline review findings are tagged apart from the review's" {
-    # verifies: D9 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-4kyacv
     # verifies: ADR-k3nkv3
     # The `guideline` tag keeps a preference finding apart from a compliance
     # finding in the one Findings: section, as the separate section did.
@@ -3693,7 +3580,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ratchet: the upgrade notes say ledger files are named at creation, and how to rename a draft in flight" {
-    # verifies: D7 (docs/plans/2026-10-13-ledger-names-at-creation.md)
+    # verifies: REQ-2jr68c
     # verifies: ADR-k3nkv3
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     skill="$BATS_TEST_DIRNAME/../skills/ratchet/SKILL.md"
@@ -3720,7 +3607,7 @@ adr_file_is_named_by_its_item() {
 }
 
 @test "ratchet: the upgrade notes say the squash commit certifies the gate, and how to repair a squash without its trailer" {
-    # verifies: D9 (docs/plans/2026-10-14-gate-proof-in-trailers.md)
+    # verifies: REQ-7q6gv7
     notes="$BATS_TEST_DIRNAME/../skills/ratchet/references/upgrade-notes.md"
     grep -q '^## The squash commit certifies the gate$' "$notes" || { echo "no section"; false; }
     section=$(awk '/^## The squash commit certifies the gate$/ { inside = 1; next }

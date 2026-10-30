@@ -1,15 +1,12 @@
-# Content checks over the shipped test guidelines, templates/TEST_GUIDELINES.md:
-# the project file an agent reads in place of the seam rules develop-change
-# once carried. The pins in the first five tests carried over from the
-# test-seams tests in tests/skills.bats, repointed here (T2 of
-# docs/plans/2026-10-08-test-guidelines.md).
+# Content checks over the shipped test guidelines, templates/TEST_GUIDELINES.md,
+# and this repository's own docs/TEST_GUIDELINES.md.
 
 load helpers
 
 template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 
 @test "test guidelines: a test attaches only to an interface a REQ or LLR describes" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D1, D2, D3 (docs/plans/2026-10-07-test-seams.md)
+    # verifies: ADR-8ft3hb
     grep -qF '**A test calls only an interface that a REQ or LLR describes.**' "$template"
     grep -qF '**A deeper interface gets a direct test only once it has an LLR**' "$template"
     grep -qF 'A journey is a REQ of its own only when it states an' "$template"
@@ -26,7 +23,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: doubles fake only at the codebase boundary, each with a contract test" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D4, D8, D9, D14 (docs/plans/2026-10-07-test-seams.md)
+    # verifies: REQ-avc8hp, ADR-4xh6cf
     grep -qF 'A service the project owns runs for real' "$template"
     grep -qF 'its failures may be injected or faked.' "$template"
     grep -qF '4. **An interaction is asserted only where it is the requirement.**' "$template"
@@ -47,7 +44,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: property tests repeat and pin, and a survivor never goes below the seam" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D5, D6 (docs/plans/2026-10-07-test-seams.md)
+    # verifies: REQ-v8dv6x
     grep -qF 'encoding (criteria 2 and 3 above), prefer a property test: generated inputs,' "$template"
     grep -qF 'seam, or dead code: never a test below the seam.' "$template"
     grep -qF '2. **Repeatable.**' "$template"
@@ -61,7 +58,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: a UI's interface is what the user perceives, and a markup snapshot verifies nothing" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D7 (docs/plans/2026-10-07-test-seams.md), point 3's snapshot sentence superseded by D1 (docs/plans/2026-10-15-guidelines-field-report.md); PR-kqesz5; D1 (docs/plans/2026-10-15-guidelines-field-report.md)
+    # verifies: REQ-3ptkw8
     flat=$(tr '\n' ' ' < "$template" | tr -s ' ')
     printf '%s' "$flat" | grep -qF 'a markup snapshot has no behavior to verify' ||
         { echo "UI 6 does not say a markup snapshot has no behavior to verify"; false; }
@@ -84,7 +81,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the rules bind new tests and tests whose code a change edits, and the floor binds every test" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D10 (docs/plans/2026-10-07-test-seams.md), its one remedy for every edited test superseded by D3 (docs/plans/2026-10-15-guidelines-field-report.md); PR-9n87ec; D3 (docs/plans/2026-10-15-guidelines-field-report.md)
+    # verifies: REQ-s7mbqy
     for guidelines in "$template" "$repo_guidelines"; do
         [ -f "$guidelines" ] || { echo "no $guidelines"; false; }
         flat=$(section_of '## Existing suites' "$guidelines" | tr '\n' ' ' | tr -s ' ')
@@ -104,7 +101,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the template has the eight headings, in order" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md); D1 (docs/plans/2026-10-15-test-selection-guideline.md)
+    # verifies: REQ-zmkef8
     expected='# Test guidelines
 ## Seams
 ## Doubles
@@ -120,7 +117,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the preface states the one-file rule and the floor rule" {
-    # verifies: D2, D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: ADR-me39p4
     preface=$(awk '/^## /{exit} {print}' "$template")
     printf '%s\n' "$preface" | grep -qF 'and no other guidelines file'
     printf '%s\n' "$preface" | grep -qF 'is a finding against the clause'
@@ -129,8 +126,8 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the template stands alone, naming no guardrails document or skill" {
-    # verifies: D6 (docs/plans/2026-10-08-test-guidelines.md)
-    for forbidden in 'ADR-' 'docs/plans/' 'references/' 'SKILL.md'; do
+    # verifies: REQ-jb83qg
+    for forbidden in 'ADR-' 'docs/plans/' 'references/' 'SKILL.md' 'AGENTS.md'; do
         count=$(grep -cF -- "$forbidden" "$template" || true)
         [ "$count" -eq 0 ] || { echo "names $forbidden $count times"; false; }
     done
@@ -142,7 +139,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the UI section opens by saying when to keep it" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-3ptkw8
     first_ui_line=$(awk '/^## UI$/{found=1; next} found && NF {print; exit}' "$template")
     [ "$first_ui_line" = 'Keep this section only where the project has a user interface.' ] \
         || { echo "$first_ui_line"; false; }
@@ -150,13 +147,13 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the template is at most 1,950 words" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-764283
     words=$(wc -w < "$template" | tr -d ' ')
     [ "$words" -le 1950 ] || { echo "$words words"; false; }
 }
 
 @test "test guidelines: Doubles states why a rule of no doubles at all was rejected" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-avc8hp, REQ-u6wzy2
     doubles=$(awk '/^## Doubles$/{found=1; next} /^## /{found=0} found' "$template")
     printf '%s\n' "$doubles" | grep -qxF '   A rule of no doubles at all was rejected: it makes the dependency-failure' \
         || { echo "Doubles lacks the rejected-rule reason"; false; }
@@ -164,7 +161,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: Owned services states their cost and leaves the provision to the project" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: ADR-4xh6cf, REQ-u6wzy2
     owned=$(awk '/^## Owned services$/{found=1; next} /^## /{found=0} found' "$template")
     printf '%s\n' "$owned" | grep -qxF '3. **The cost is test infrastructure.** The owned services must run in the' \
         || { echo "Owned services lacks its cost"; false; }
@@ -173,7 +170,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the real-browser clause names a progressive web app's error routes" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-3ptkw8
     ui=$(awk '/^## UI$/{found=1; next} /^## /{found=0} found' "$template")
     printf '%s\n' "$ui" | grep -qxF '   IndexedDB, storage quota, installation. For a progressive web app, offline' \
         || { echo "UI lacks the progressive web app sentence"; false; }
@@ -182,7 +179,7 @@ template="$BATS_TEST_DIRNAME/../templates/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: deep IO and property invariants keep their full wording" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: ADR-8ft3hb, REQ-v8dv6x
     grep -qxF '3. **Deep IO with complex error handling follows the same order.** An error' "$template" \
         || { echo "Seams 3 is the shortened deep-IO clause"; false; }
     grep -qxF '   the code handles (retried, turned into a fallback, translated for the' "$template"
@@ -207,7 +204,7 @@ section_text() {
 }
 
 @test "test guidelines: each template clause that lacked a reason states one" {
-    # verifies: D5 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-u6wzy2
     seams=$(section_text Seams "$template")
     case "$seams" in
         (*'Why: a handled error is behavior a user sees; only a contract of its own earns the adapter a seam.'*) ;;
@@ -246,12 +243,12 @@ section_text() {
     esac
 }
 
-# --- this repository's own file, docs/TEST_GUIDELINES.md (T7) --------------
+# --- this repository's own file, docs/TEST_GUIDELINES.md -------------------
 
 repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
 
 @test "test guidelines: this repository's file has the template's headings except UI" {
-    # verifies: D6, D10 (docs/plans/2026-10-08-test-guidelines.md); D1 (docs/plans/2026-10-15-test-selection-guideline.md)
+    # verifies: REQ-kyb2hq
     # This repository has no user interface, so its file drops ## UI and
     # keeps the eight other headings in the template's order.
     expected='# Test guidelines
@@ -268,9 +265,9 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: this repository's file stands alone, naming no guardrails document or skill" {
-    # verifies: D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-jb83qg
     [ -f "$repo_guidelines" ] || { echo "no docs/TEST_GUIDELINES.md"; false; }
-    for forbidden in 'ADR-' 'docs/plans/' 'references/' 'SKILL.md'; do
+    for forbidden in 'ADR-' 'docs/plans/' 'references/' 'SKILL.md' 'AGENTS.md'; do
         count=$(grep -cF -- "$forbidden" "$repo_guidelines" || true)
         [ "$count" -eq 0 ] || { echo "names $forbidden $count times"; false; }
     done
@@ -299,23 +296,17 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
     grep -qxF '   test does not source the library to call one directly unless clause 2' "$repo_guidelines"
     llr_count=$(grep -cF -e 'once it has an LLR' -e 'with an LLR stating' "$repo_guidelines" || true)
     [ "$llr_count" -eq 0 ] || { echo "names an LLR as the permission $llr_count times"; false; }
-    # Seams 1 lets a test's existing plan-decision citation stand until the
-    # requirements ledger replaces it, bars a new one, and re-points one a
-    # change reverses; two of its lines name a plan decision, and no other
-    # line may.
-    grep -qxF "   the problem report. A test's existing citation of a plan decision stands" "$repo_guidelines" \
-        || { echo "Seams 1 does not let an existing plan-decision citation stand"; false; }
-    grep -qxF '   until the requirements ledger replaces it, and a test a change writes' "$repo_guidelines" \
-        || { echo "Seams 1 does not bar a new plan-decision citation"; false; }
-    grep -qxF '   cites no plan decision. A change re-points a citation of a plan decision' "$repo_guidelines" \
-        || { echo "Seams 1 does not re-point a reversed plan-decision citation"; false; }
+    # Seams 1 bars a plan-decision citation; that line names a plan
+    # decision, and no other line may.
+    grep -qxF '   the problem report. A test cites no plan decision or problem report. Why:' "$repo_guidelines" \
+        || { echo "Seams 1 does not bar a plan-decision citation"; false; }
     # grep -c exits 1 on a count of zero, so the count carries the verdict; an
     # unreadable file has already failed the greps above.
     plan_count=$(grep -cF 'plan decision' "$repo_guidelines" || true)
-    [ "$plan_count" -eq 2 ] || { echo "names a plan decision on $plan_count lines, not 2"; false; }
+    [ "$plan_count" -eq 1 ] || { echo "names a plan decision on $plan_count lines, not 1"; false; }
 }
 
-@test "test guidelines: Seams 1 has a test verify a REQ, LLR or ADR, never a problem report, and re-points a reversed citation" {
+@test "test guidelines: Seams 1 has a test verify a REQ, LLR or ADR, never a problem report, and cites no plan decision or problem report" {
     # verifies: ADR-k3nkv3
     for guidelines in "$template" "$repo_guidelines"; do
         clause=$(awk '/^1\. \*\*A test calls only an interface/ { inside = 1 }
@@ -325,8 +316,7 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
                 "the lowest-level item the defect broke: the LLR where one exists, else the REQ (or the RC's implementing REQ)" \
                 'Why: an ID a test cites must outlive' \
                 'a resolved problem report is deleted, a plan never reaches the base branch' \
-                'A change re-points a citation of a plan decision it reverses, or' \
-                'problem report the behavior no longer matches.'; do
+                'A test cites no plan decision or problem report.'; do
             printf '%s\n' "$clause" | grep -qF -- "$phrase" \
                 || { echo "$guidelines Seams 1 lacks: $phrase"; false; }
         done
@@ -365,7 +355,7 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: both files define the robustness rule where they first name it" {
-    # verifies: D5, D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-bs735x
     for guidelines in "$template" "$repo_guidelines"; do
         first_use=$(grep -nF 'robustness rule' "$guidelines" | head -n 1 | cut -d: -f1)
         definition=$(grep -nxF '   The robustness rule is that every requirement gets abnormal-input tests' "$guidelines" | cut -d: -f1)
@@ -377,7 +367,7 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: this repository's file carries the template's added reasons" {
-    # verifies: D5, D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-u6wzy2
     seams=$(section_text Seams "$repo_guidelines")
     case "$seams" in
         (*'Why: a handled error is behavior a user sees; only a contract of its own earns the adapter a seam.'*) ;;
@@ -400,20 +390,20 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
 }
 
 @test "test guidelines: the seam and owned-service ADRs say ADR-me39p4 made them shipped defaults" {
-    # verifies: D2, D3 (docs/plans/2026-10-08-test-guidelines.md)
-    amendment='Amended by ADR-me39p4 (2026-10-08): this rule is the shipped default of `templates/TEST_GUIDELINES.md`, which a project may change in its own `docs/TEST_GUIDELINES.md`; it is not part of the compliance floor.'
+    # verifies: ADR-me39p4
+    amendment='Under ADR-me39p4 this rule is the shipped default of `templates/TEST_GUIDELINES.md`, which a project may change in its own `docs/TEST_GUIDELINES.md`; it is not part of the compliance floor.'
     for adr in "$BATS_TEST_DIRNAME"/../docs/adr/ADR-8ft3hb-*.md "$BATS_TEST_DIRNAME"/../docs/adr/ADR-4xh6cf-*.md; do
         [ -f "$adr" ] || { echo "no file $adr"; false; }
         flat=$(tr '\n' ' ' < "$adr" | tr -s ' ')
         case "$flat" in
             (*"$amendment"*) ;;
-            (*) echo "$adr carries no amendment note"; false ;;
+            (*) echo "$adr does not state ADR-me39p4's consequence"; false ;;
         esac
     done
 }
 
 @test "test guidelines: Test runs scopes development runs and leaves the whole suite to the merge gate" {
-    # verifies: D1 (docs/plans/2026-10-15-test-selection-guideline.md)
+    # verifies: REQ-mzgek2
     for guidelines in "$template" "$repo_guidelines"; do
         body=$(section_of '## Test runs' "$guidelines" | tr '\n' ' ' | tr -s ' ')
         [ -n "$body" ] || { echo "$guidelines has no Test runs section"; false; }
@@ -425,7 +415,7 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
 }
 
 @test "guidelines: no guidelines file exempts a test from verifies: or from being watched red" {
-    # verifies: PR-kqesz5; D2 (docs/plans/2026-10-15-guidelines-field-report.md)
+    # verifies: REQ-9gt5rj
     guidelines_count=0
     for guidelines in "$BATS_TEST_DIRNAME"/../templates/*_GUIDELINES.md "$BATS_TEST_DIRNAME"/../docs/*_GUIDELINES.md; do
         [ -f "$guidelines" ] || { echo "no guidelines file matches $guidelines"; false; }
@@ -441,15 +431,4 @@ repo_guidelines="$BATS_TEST_DIRNAME/../docs/TEST_GUIDELINES.md"
         [ -z "$exempting_phrase" ] || { echo "$guidelines exempts a test from the floor: $exempting_phrase"; false; }
     done
     [ "$guidelines_count" -ge 2 ] || { echo "only $guidelines_count guidelines files found"; false; }
-}
-
-@test "test guidelines: here new mutation evidence is a Mutation: trailer, and the anchor rule covers the existing directories" {
-    # verifies: ADR-k3nkv3
-    mutants=$(section_of '## Mutants' "$repo_guidelines" | tr '\n' ' ' | tr -s ' ')
-    printf '%s\n' "$mutants" | grep -qF 'New mutation evidence is a `Mutation: <path>:<line> <mutant> — killed by "<test name>"` trailer on the squash message' ||
-        { echo "Mutants does not name the trailer: $mutants"; false; }
-    printf '%s\n' "$mutants" | grep -qF 'no new `.mutations/` directory is written' ||
-        { echo "Mutants still lets a new directory be written"; false; }
-    printf '%s\n' "$mutants" | grep -qF 'until the change that deletes them' ||
-        { echo "Mutants does not bound the anchor rule"; false; }
 }

@@ -273,7 +273,7 @@ if [ -z "$change_branch" ]; then
         fi
         # core.editor=true: after a conflict, rebase --continue on the merge
         # backend opens an editor for the commit message, and with no editor
-        # it exits 1 (finding-90).
+        # it exits 1.
         change_busy "a rebase is in progress in $gr_repo_root" \
             "resolve any conflict, then git -c commit.gpgsign=false -c core.editor=true rebase --continue" \
             "git rebase --abort" "$rebase_return_step"

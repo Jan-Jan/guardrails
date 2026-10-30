@@ -1,13 +1,12 @@
 # Content checks over the shipped architecture guidelines,
-# templates/ARCHITECTURE_GUIDELINES.md
-# (docs/plans/2026-10-14-architecture-guidelines.md, D1 and D4).
+# templates/ARCHITECTURE_GUIDELINES.md.
 
 load helpers
 
 template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 
 @test "architecture guidelines: the template's clauses, by heading and number" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-r4sebu
     expected="## Domain | 1. **A public interface speaks the glossary.**
 ## Domain | 2. **A new public term enters the glossary in the same change.**
 ## Domain | 3. **One term, one meaning, within a unit.**
@@ -26,7 +25,7 @@ template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 }
 
 @test "architecture guidelines: the template has the five headings, in order" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-r4sebu
     expected='# Architecture guidelines
 ## Domain
 ## Core and edges
@@ -39,21 +38,21 @@ template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 }
 
 @test "architecture guidelines: every clause states a reason and an example" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-mdxb9m
     [ -f "$template" ] || { echo "no templates/ARCHITECTURE_GUIDELINES.md"; false; }
     missing=$(clauses_missing_reason_or_example "$template")
     [ -z "$missing" ] || { echo "clauses with no reason or example: $missing"; false; }
 }
 
-@test "architecture guidelines: the boundaries D4 names are stated" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+@test "architecture guidelines: the template keeps every access out of the core and bounds names, imports, errors, rules and restructuring" {
+    # verifies: REQ-fs3xya, REQ-esqnn8, REQ-fcab3d, REQ-a5wqng, REQ-k4q8s6, REQ-47369y
     [ -f "$template" ] || { echo "no templates/ARCHITECTURE_GUIDELINES.md"; false; }
     flat=$(tr '\n' ' ' < "$template" | tr -s ' ')
     printf '%s\n' "$flat" | grep -qF 'never a synonym it lists under `_Avoid_`'
     printf '%s\n' "$flat" | grep -qF 'Names inside an item are not bound by this clause.'
     printf '%s\n' "$flat" | grep -qF 'Two units may define a word differently.'
     printf '%s\n' "$flat" | grep -qF 'reads and writes no file, network, database, device, environment variable, clock or random source'
-    # D4: the adapters hold every access the core is kept from, environment variables included.
+    # The adapters hold every access the core is kept from, environment variables included.
     printf '%s\n' "$flat" | grep -qF 'Each access to a file, network, database, device, environment variable, clock or random source is in an adapter' \
         || { echo "Core and edges 2 omits an access Core and edges 1 keeps out of the core"; false; }
     printf '%s\n' "$flat" | grep -qF 'The core imports no adapter, framework or infrastructure module'
@@ -64,7 +63,7 @@ template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 }
 
 @test "architecture guidelines: the boundary's test fake is the interface's second implementation" {
-    # verifies: D8 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-a48vvm
     [ -f "$template" ] || { echo "no templates/ARCHITECTURE_GUIDELINES.md"; false; }
     core=$(section_of '## Core and edges' "$template" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$core" | grep -qF "The test fake at the boundary counts as the interface's second implementation" ||
@@ -74,12 +73,12 @@ template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 }
 
 @test "architecture guidelines: a rule a tool can decide is an LLR with a test" {
-    # verifies: D1, D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-uytup7
     [ -f "$template" ] || { echo "no templates/ARCHITECTURE_GUIDELINES.md"; false; }
     constraints=$(section_of '## Constraints' "$template" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$constraints" | grep -qF 'is written as an LLR on the software item it binds'
     printf '%s\n' "$constraints" | grep -qF 'annotated with that LLR'
-    # D4: the example names a kind of tool, not one language's package.
+    # The example names a kind of tool, not one language's package.
     printf '%s\n' "$constraints" | grep -qF "verified by an import linter's rule run in the test suite" \
         || { echo "the example is not language-neutral: $constraints"; false; }
     if printf '%s\n' "$constraints" | grep -qF 'import-linter'; then
@@ -88,7 +87,7 @@ template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 }
 
 @test "architecture guidelines: the preface states the one-file rule and the floor rule" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-n45q7m
     [ -f "$template" ] || { echo "no templates/ARCHITECTURE_GUIDELINES.md"; false; }
     preface=$(awk '/^## /{exit} {print}' "$template")
     flat_preface=$(printf '%s\n' "$preface" | tr '\n' ' ' | tr -s ' ')
@@ -99,13 +98,13 @@ template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 }
 
 @test "architecture guidelines: the template stands alone, naming no guardrails document or skill" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md); D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-jb83qg
     [ -f "$template" ] || { echo "no templates/ARCHITECTURE_GUIDELINES.md"; false; }
     names_no_guardrails_document_or_skill "$template"
 }
 
 @test "architecture guidelines: the template is at most 1,300 words" {
-    # verifies: D4 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-h6e9bu
     [ -f "$template" ] || { echo "no templates/ARCHITECTURE_GUIDELINES.md"; false; }
     words=$(wc -w < "$template" | tr -d ' ')
     [ "$words" -le 1300 ] || { echo "$words words"; false; }
@@ -114,29 +113,29 @@ template="$BATS_TEST_DIRNAME/../templates/ARCHITECTURE_GUIDELINES.md"
 repo_guidelines="$BATS_TEST_DIRNAME/../docs/ARCHITECTURE_GUIDELINES.md"
 
 @test "architecture guidelines: this repository's file stands alone, naming no guardrails document or skill" {
-    # verifies: D5 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-jb83qg
     [ -f "$repo_guidelines" ] || { echo "no docs/ARCHITECTURE_GUIDELINES.md"; false; }
     names_no_guardrails_document_or_skill "$repo_guidelines"
 }
 
 @test "architecture guidelines: every clause of this repository's file states a reason and an example" {
-    # verifies: D5 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-mdxb9m
     [ -f "$repo_guidelines" ] || { echo "no docs/ARCHITECTURE_GUIDELINES.md"; false; }
-    # D5: a file with no clauses would pass the reason-and-example scan vacuously.
+    # A file with no clauses would pass the reason-and-example scan vacuously.
     [ -n "$(clause_list "$repo_guidelines")" ] || { echo "docs/ARCHITECTURE_GUIDELINES.md has no clauses"; false; }
     missing=$(clauses_missing_reason_or_example "$repo_guidelines")
     [ -z "$missing" ] || { echo "clauses with no reason or example: $missing"; false; }
 }
 
 @test "architecture guidelines: this repository's file is at most 1,500 words" {
-    # verifies: D5 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-9q9v3p
     [ -f "$repo_guidelines" ] || { echo "no docs/ARCHITECTURE_GUIDELINES.md"; false; }
     words=$(wc -w < "$repo_guidelines" | tr -d ' ')
     [ "$words" -le 1500 ] || { echo "$words words"; false; }
 }
 
 @test "architecture guidelines: correcting a comment or a citation does not edit code" {
-    # verifies: PR-9n87ec; D3 (docs/plans/2026-10-15-guidelines-field-report.md)
+    # verifies: REQ-3ucveq
     for guidelines in "$template" "$repo_guidelines"; do
         [ -f "$guidelines" ] || { echo "no $guidelines"; false; }
         flat=$(section_of '## Existing code' "$guidelines" | tr '\n' ' ' | tr -s ' ')

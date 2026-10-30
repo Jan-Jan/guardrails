@@ -144,7 +144,7 @@ raise new `MISSING-TEST` / `UNMITIGATED-HAZARD` failures. Rewrite them as
 Two verdicts that an older `check-signing.sh` could pass in default mode now
 fail. Neither needs a project change; each removes a false green.
 
-* **A signature git could not compute a verdict for fails** (PR-8zcc72).
+* **A signature git could not compute a verdict for fails**.
   When `git log --format=%G?` fails for a commit that carries a signature,
   the commit now reads `UNVERIFIED ... (git could not compute a verdict for
   this signature)`, exit 1, in both modes. In default mode an older script
@@ -154,7 +154,7 @@ fail. Neither needs a project change; each removes a false green.
   wins the race, while on an idle machine the same commit already failed. A
   merge gate that passed intermittently on such a verifier now fails every
   time; fix the verifier (`check-signing.sh --setup`).
-* **A `gpgsig` line in a commit message is not a signature** (PR-qm5gfy).
+* **A `gpgsig` line in a commit message is not a signature**.
   Only the commit header is read for one. An older script searched the whole
   commit object, so an unsigned commit whose message had a line starting with
   `gpgsig` read as signed: `WARN-UNVERIFIED`, exit 0, in default mode, and
@@ -364,8 +364,8 @@ the templates ship them, are unchanged. A block opens at the item's definition
 line and closes at the next markdown heading, the next bold line that contains
 an ASCII colon, or the end of the file. The older `check-trace.sh` read both
 keywords line-wise, from any line of the document, credited to no item: a
-control or hazard counted as covered by a line that belonged to no REQ or RC
-(PR-44ww7q for `implements:`, PR-z7w5bf for `mitigates:`). This can go red on
+control or hazard counted as covered by a line that belonged to no REQ or RC.
+This can go red on
 an existing ledger.
 
 * **Where it goes red.** An `implements:` or `mitigates:` line that sits:
@@ -783,9 +783,8 @@ that annotated a replaced or dropped item, or kept a fixed problem report.
   `.guardrails/templates/TEST_GUIDELINES.md`, now states that a test verifies
   the REQ, LLR or ADR stating its behavior, a regression test the
   lowest-level item the defect broke (the LLR where one exists, else the REQ,
-  or the RC's implementing REQ), and that a change re-points a citation of a
-  plan decision it reverses, or of a problem report the behavior no longer
-  matches, because an ID a test cites must outlive the test. To keep the
+  or the RC's implementing REQ), and that a test cites no plan decision or
+  problem report, because an ID a test cites must outlive the test. To keep the
   default within its word cap, Seams 1's first `Why:`, Seams 4, Doubles 1
   and 5, Owned services 1, Property tests 1, Mutants 1, UI 4 and Existing
   suites 1 were shortened without changing their rule. A

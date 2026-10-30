@@ -25,9 +25,7 @@ finding against the guideline.
 The test-doubles rule of ADR-4xh6cf and the seam rule of ADR-8ft3hb are, under
 this decision, the shipped defaults of `TEST_GUIDELINES.md`, not floor.
 
-Decisions D2, D3 and D6 of `docs/plans/2026-10-08-test-guidelines.md`.
-
-## Cost
+## Consequences
 
 A unit file repeats everything it keeps from the project file, and a project
 file everything it keeps from the default; a later improvement to the default

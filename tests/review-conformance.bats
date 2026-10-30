@@ -9,20 +9,19 @@ setup() {
 }
 
 @test "review-conformance: the frontmatter names the skill" {
-    # verifies: D4 (docs/plans/2026-10-08-test-guidelines.md); D6 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-sync6b
     grep -qxF 'name: review-conformance' "$skill"
 }
 
 @test "review-conformance: a finding cites a clause, a severity and a location" {
-    # verifies: D4 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-4jfpsb
     # The line sits indented inside a list item; it is pinned whole once the
     # indent is stripped.
     sed 's/^ *//' "$skill" | grep -qxF '**finding-N**: guideline <low | medium | high> — <clause cited as Heading N, quoted> — <file:line>'
 }
 
 @test "review-conformance: the floor is listed in full" {
-    # verifies: D2, D4 (docs/plans/2026-10-08-test-guidelines.md)
-    # verifies: D6 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-2dte4r, REQ-s7f7bc
     grep -qF 'every test carries `verifies:`' "$skill"
     grep -qF 'every new test was watched red' "$skill"
     grep -qF 'every test fails when the behavior it `verifies:` breaks' "$skill"
@@ -32,36 +31,35 @@ setup() {
 }
 
 @test "review-conformance: a clause that contradicts the floor is a finding against the clause" {
-    # verifies: D2, D4 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-xewha4
     grep -qF 'Report a clause that contradicts the floor as a finding against the clause' "$skill"
 }
 
 @test "review-conformance: a stale reason or a reference out of the file is a finding against the clause" {
-    # verifies: D5, D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-xewha4
     grep -qF 'a clause whose reason no longer fits its rule' "$skill"
     grep -qF 'a clause that refers to another guidelines file or to a document the project does not contain' "$skill"
 }
 
 @test "review-conformance: what the file does not state is a note, never a finding" {
-    # verifies: D4 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-h4xp5q
     grep -qF 'What the file does not state is a `note:`, never a finding' "$skill"
 }
 
 @test "review-conformance: the report ends with a verdict line" {
-    # verifies: D4 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-3apcdd
     grep -qF 'End with `verdict: <one line>`' "$skill"
 }
 
 @test "review-conformance: the three red flags are present" {
-    # verifies: D4, D6 (docs/plans/2026-10-08-test-guidelines.md)
+    # verifies: REQ-h4xp5q, REQ-xewha4, REQ-6wwrv4
     grep -qF "| \"This is bad but the file doesn't say so\" |" "$skill"
     grep -qF '| "The clause seems wrong here, I'"'"'ll let it go" |' "$skill"
     grep -qF '| "I'"'"'ll read the installed default for context" |' "$skill"
 }
 
 @test "review-conformance: the old name is gone, and the description names every kind" {
-    # verifies: D4, D6 (docs/plans/2026-10-13-code-guidelines.md)
-    # verifies: D7 (docs/plans/2026-10-14-architecture-guidelines.md)
+    # verifies: REQ-fmnw9y, REQ-zwxdx5
     [ ! -e "$BATS_TEST_DIRNAME/../skills/review-""guidelines" ] || { echo "the old skill directory still exists"; false; }
     description=$(grep '^description: ' "$skill")
     printf '%s\n' "$description" | grep -qF 'docs/CODE_GUIDELINES.md'
@@ -70,7 +68,7 @@ setup() {
 }
 
 @test "review-conformance: the reviewer changes nothing" {
-    # verifies: D4 (docs/plans/2026-10-13-code-guidelines.md)
+    # verifies: REQ-65z467
     preconditions=$(section_of '## Preconditions' "$skill" | tr '\n' ' ' | tr -s ' ')
     printf '%s\n' "$preconditions" | grep -qF 'Change nothing: no edit, no commit, no task worktree.'
     grep -qF '| "The fix is one line; I'"'"'ll make it" |' "$skill"

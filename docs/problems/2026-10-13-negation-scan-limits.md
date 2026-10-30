@@ -1,8 +1,7 @@
 # Problem report — limits of the bare-negation scan
 
-Recorded by change `bare-negations` (`docs/plans/2026-10-13-bare-negations.md`),
-from its third review round, whose findings were all low. `affects:` names
-files, because guardrails keeps no REQ/SDD/LLR ledger of its own.
+Recorded by change `bare-negations`, from its third review round, whose findings were all low. `affects:` names
+files.
 
 **PR-z7jq9k**: The bare-negation scan in `tests/portability.bats` reads shell one line at a time, so it silently passes some negations that errexit ignores, and rejects some compliant shapes.
 affects: tests/portability.bats, AGENTS.md.

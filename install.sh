@@ -30,7 +30,7 @@ for skill in "$src"/*/; do
     if [ "$mode" = copy ]; then
         cp -R "${skill%/}" "$target"
         # A copy has no checkout above it, so it records where it came from;
-        # `ratchet` step 0 reads it (PR-783b29).
+        # `ratchet` step 0 reads it.
         printf '%s\n' "$root" > "$target/.guardrails-source"
         echo "COPY  $name -> $target"
     else

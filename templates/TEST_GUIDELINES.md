@@ -15,10 +15,9 @@ A project that changes a clause rewrites its reason and examples with it.
 
    A test verifies the REQ, LLR or ADR stating its behavior; a regression
    test, the lowest-level item the defect broke: the LLR where one exists,
-   else the REQ (or the RC's implementing REQ). A change re-points a citation
-   of a plan decision it reverses, or a problem report the behavior no longer
-   matches. Why: an ID a test cites must outlive it: a resolved problem
-   report is deleted, a plan never reaches the base branch.
+   else the REQ (or the RC's implementing REQ). A test cites no plan
+   decision or problem report. Why: an ID a test cites must outlive it: a
+   resolved problem report is deleted, a plan never reaches the base branch.
 
 2. **A deeper interface gets a direct test only once it has an LLR**, and it
    earns one only where at least one of these holds:

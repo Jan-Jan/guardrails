@@ -9,7 +9,7 @@ setup() {
     export CLAUDE_SKILLS_DIR="$BATS_TEST_TMPDIR/skills"
 }
 
-# verifies: PR-783b29
+# verifies: REQ-x2naak
 @test "install: --copy records the checkout in every copied skill" {
     run sh "$root/install.sh" --copy
     [ "$status" -eq 0 ]
@@ -24,7 +24,7 @@ setup() {
     done
 }
 
-# verifies: PR-783b29
+# verifies: REQ-j6euez
 @test "install: a linked install writes nothing into the checkout" {
     run sh "$root/install.sh"
     [ "$status" -eq 0 ]

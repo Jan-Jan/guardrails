@@ -47,11 +47,7 @@ symlink that points outside the repository. A `doc_*` aimed at one of those is
 still accepted: `checked:` counts its items as zero. Whether any gate warns
 first depends on the location, and on whether git tracks or ignores the file.
 Some combinations are
-silent. The measured matrix is in the guardrails repository, at
-`docs/verification/2026-08-20-scan-pathspec.md`. It was measured before IDs
-became tokens, so its rows about minting describe a step that no longer
-exists; its rows about what the scans can see still hold. Do not configure a
-ledger in any of those locations.
+silent. Do not configure a ledger in any of those locations.
 
 A symlink to a directory inside the repository is scanned under the target's
 real path, so its items are counted and their placement is checked.
