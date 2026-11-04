@@ -38,7 +38,8 @@
 # exits 0.
 #
 # A trust root that is configured and present but that the process lacks
-# permission to read — a chmod'd signers file, an unreadable ~/.gnupg — is
+# permission to use — a chmod'd signers file, an unreadable ~/.gnupg, a
+# trustdb.gpg gpg cannot open read-write — is
 # exit 2 in EVERY mode, never UNVERIFIED/UNREADABLE at exit 1: exit 1 states
 # "the project is wrong", and there only the environment is.
 #
@@ -132,6 +133,21 @@ trust_root_env_guard() {
   repair a keyring the process lacks permission to open. Fix the permissions
   or run as the user who owns it. check-signing.sh --setup is the tool that
   separates configuration gaps from environment ones."
+        fi
+        # gpg opens trustdb.gpg read-write even to verify, so a keyring it can
+        # read is still unusable when that open fails. Probed by opening, not
+        # `[ -w ]`: macOS TCC denies at open() what the mode bits allow. `<>`
+        # neither truncates nor writes, and the file is known to exist. The
+        # shell's open() diagnostic is dropped because the message below
+        # names the file and the read-write open that failed, which is all
+        # that diagnostic says; its errno text (EACCES, EPERM) points to the
+        # same remedy either way.
+        if [ -f "$_tr_home/trustdb.gpg" ] &&
+            ! ( : <> "$_tr_home/trustdb.gpg" ) 2>/dev/null; then
+            gr_die "gpg cannot open its trustdb read-write: $_tr_home/trustdb.gpg
+  This is an ENVIRONMENT error, not a project one — gpg opens trustdb.gpg
+  read-write even to verify. Copy pubring.kbx and trustdb.gpg to a writable
+  directory and set GNUPGHOME to it, or run where $_tr_home is writable."
         fi
     fi
 }

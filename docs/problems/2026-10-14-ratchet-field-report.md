@@ -9,7 +9,8 @@ records all hit it.
 **PR-v6mcvt**: `ratchet` step 5 keeps the qualification log at `<tmp>/ratchet.log`, inside the temporary directory step 0 creates, which the operating system may purge, so the log the setup document's suite result rests on can disappear.
 affects: skills/ratchet/SKILL.md step 5; skills/ratchet/references/rationale.md; skills/ratchet/references/setup-checklist.md.
 opened: 2026-10-14
-status: open
+status: accepted
+disposition: ruled on 2026-10-30 — the qualification figure goes into the squash message; the log is not kept.
 Where the log should live durably is a decision about what an adopter's
 repository stores (a TAP log of about 1,500 lines beside
 `docs/plans/<date>-ratchet-setup.md`, or only its summary), and step 5 has no

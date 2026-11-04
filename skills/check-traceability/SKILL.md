@@ -27,19 +27,27 @@ description: Run and interpret the guardrails traceability checker - orphaned re
    a gate did not run. Read `references/config.md`, fix the config, and run
    again. Never work around it by removing a prefix from `id_prefixes`.
 
-3. **Read both summary lines before believing the verdict.** Every
-   `check-trace.sh` run ends with what it found and what it read:
+3. **Read the summary lines before believing the verdict.** Every
+   `check-trace.sh` run ends with what it found, its problem reports and what
+   it read:
 
    ```
    checked: REQ 90, HAZ 4, RC 7, SDD 20, LLR 23, PR 63, ADR 5
-   sources: srs 18, rmf 6, sad 4, soup 1, problems 35; strict 5, tests 3
+   problems: open 2, accepted 1, oldest 9 days; limits age 30, open 10
+   sources: srs 18, rmf 6, sad 4, soup 1, problems 35; strict 5, tests 3, examples 0
    ```
 
    *(Illustrative figures — your project's will differ.)* The document figures
-   are file counts; `strict` and `tests` count configured path entries, since
-   one entry may be a directory or a pathspec.
+   are file counts; `strict`, `tests` and `examples` count configured path
+   entries, since one entry may be a directory or a pathspec.
 
-   - Exit 0 with only these two lines is clean.
+   - A run passes at exit 0 with no violation line. Beside the `checked:`,
+     `problems:` and `sources:` summary lines (a scoped run adds `scope:`
+     and `expectations:`), a passing run may print warning lines
+     (`UNRESOLVED-PR`, `ACCEPTED-PR`, an `UNMET-EXPECTATION` inside its
+     budget) and their `fix <RULE>:` lines: read each; none fails the run.
+     A warning is not a violation. Any other `<RULE> <ID>` line is a
+     violation line, and its run exits 1.
    - `REQ 0` on a project that has requirements, or `rmf 0` on a project that
      has an RMF, means the checker found nothing and proved nothing. It is a
      config or layout problem, not a pass.
@@ -75,14 +83,16 @@ description: Run and interpret the guardrails traceability checker - orphaned re
      The label starts a new block, and annotations below it belong to no item.
    - Write annotations with no list marker. Inside a block, a bulleted
      annotation such as `- status: open` is a missing field: the item is
-     `INCOMPLETE-PROBLEM`. Drop the marker. An
+     `INCOMPLETE-PROBLEM`; a `satisfies:`, `traces:`, `implements:` or
+     `mitigates:` after a list marker, task-list box or `>` is
+     `ORPHAN-ANNOTATION`. Drop the marker. An
      annotation on the definition line is valid, as in `templates/sad.md`:
      `**SDD-…**: <software item>. traces: REQ-…`.
    - `check-ids.sh` reports `**REQ-abcdef**:` as `MALFORMED-ID`.
    - A coverage credit is read inside its owner's block. `implements: RC-…`
      credits the control only on a line inside a REQ block in `doc_srs`, and
      `mitigates: HAZ-…` credits the hazard only on a line inside an RC block
-     in `doc_rmf`, anywhere on that line, the definition line included.
+     in `doc_rmf`, at column one or on the definition line.
      `UNIMPLEMENTED-CONTROL` and `UNMITIGATED-HAZARD` fire when no such line
      names the item. A line outside every block credits nothing. At column
      one, after any list markers, it is also `ORPHAN-ANNOTATION`; in
@@ -129,7 +139,7 @@ description: Run and interpret the guardrails traceability checker - orphaned re
 
 ## Done when
 
-- Both checkers exit 0 with no violation lines.
+- Both checkers exit 0 with no violation line (step 3).
 - `checked:` and `sources:` show a non-zero figure for every document and item
   kind the project has.
 - Every violation was fixed in the artifact, never in the checker. An exit 2

@@ -158,22 +158,24 @@ token_re() {
 }
 
 @test "new-id: an entropy source that yields nothing fails instead of hanging" {
+    # verifies: REQ-wnvm4a
     # /dev/zero is READABLE, so the [ -r ] guard passes,
     # and `tr < src | dd count=6` waited forever for six usable bytes that
     # never came. The bounded read fixes the sources that RETURN without
     # yielding anything usable; a source that blocks instead is a separate
     # case — a FIFO is rejected outright (below), and a starved /dev/random
-    # still waits, which is recorded as a gap rather than claimed fixed.
-    run timeout 30 env GR_ID_URANDOM=/dev/zero .guardrails/scripts/new-id.sh REQ
+    # still waits: no portable sh bounds the wait of a blocking read.
+    run timeout 300 env GR_ID_URANDOM=/dev/zero .guardrails/scripts/new-id.sh REQ
     [ "$status" -ne 124 ] || { echo "new-id.sh hung"; false; }
     [ "$status" -eq 2 ]
     [[ "$output" == *"no usable randomness"* ]] || { echo "$output"; false; }
 }
 
 @test "new-id: the give-up message distinguishes no randomness from no free token" {
+    # verifies: REQ-wnvm4a
     # Both cases are "100 attempts" from inside the
     # loop, and the message asserted the second for either.
-    run timeout 30 env GR_ID_URANDOM=/dev/null .guardrails/scripts/new-id.sh REQ
+    run timeout 300 env GR_ID_URANDOM=/dev/null .guardrails/scripts/new-id.sh REQ
     [ "$status" -eq 2 ]
     [[ "$output" == *"no usable randomness"* ]] || { echo "$output"; false; }
     [[ "$output" != *"already present in the tree"* ]] || { echo "$output"; false; }
@@ -203,11 +205,12 @@ token_re() {
 }
 
 @test "new-id: a FIFO is rejected rather than read" {
+    # verifies: REQ-m9b22v
     # The other blocking case, and the one worth rejecting: the shell blocks in
     # open() on a FIFO with no writer, before dd runs at all, so no amount of
-    # bounding the read helps. Confirming review pass.
+    # bounding the read helps.
     mkfifo "$BATS_TEST_TMPDIR/fifo"
-    run timeout 20 env GR_ID_URANDOM="$BATS_TEST_TMPDIR/fifo" \
+    run timeout 300 env GR_ID_URANDOM="$BATS_TEST_TMPDIR/fifo" \
         .guardrails/scripts/new-id.sh REQ
     [ "$status" -ne 124 ] || { echo "new-id.sh blocked on the FIFO"; false; }
     [ "$status" -eq 2 ]

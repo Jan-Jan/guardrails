@@ -60,9 +60,13 @@
 #                              MALFORMED-ID (check-ids.sh).
 #   ORPHAN-ANNOTATION FILE:LINE — a status:/opened:/disposition:/traces:/
 #                              satisfies:/implements:/mitigates: line at
-#                              column one, or
-#                              at column one after a list marker, that
-#                              belongs to no item block. Wider than every
+#                              column one, or at column one after a run of
+#                              list markers, task-list boxes (`[x]`) and
+#                              blockquote markers (`>`), that belongs to no
+#                              item block; and a traces:/satisfies:/
+#                              implements:/mitigates: line after such a run
+#                              INSIDE its item block, which no gate reads
+#                              there (gr_annotation). Wider than every
 #                              reader on purpose: a form no reader takes is
 #                              still reported where it is orphaned.
 #                              Three cases: before the first item in the file;
@@ -70,8 +74,10 @@
 #                              block whose prefix's gate does not read the
 #                              keyword, usually the wrong item. Move a
 #                              separating heading before the item, or drop it.
-#                              Indent an illustrative line with no list marker,
-#                              or keep it inline in backticks. Reported per
+#                              Inside a block, drop the lead and start the
+#                              line at column one. Indent an illustrative
+#                              line with no lead, or keep it inline in
+#                              backticks. Reported per
 #                              ledger: status:/opened:/disposition: in
 #                              doc_problems, traces: in doc_sad, satisfies: in
 #                              doc_sad and doc_srs, implements: in doc_srs
@@ -172,8 +178,10 @@
 # Annotation rule: for verifies:/mitigates:/implements:/satisfies:/traces:/assesses:,
 # only the ID list immediately following the FIRST occurrence of the keyword
 # counts. The run ends at the first character that is not an ID, comma or
-# space, so `verifies: REQ-001 (was REQ-042)` credits REQ-001 alone. The rule
-# has exactly one definition — GR_AWK_ID_RUN in lib.sh.
+# space, so `verifies: <ID> (was <older ID>)` credits the first ID alone. The rule
+# has exactly one definition — GR_AWK_ID_RUN in lib.sh. Inside an item block,
+# where the keyword starts an annotation has one definition too —
+# gr_annotation in lib.sh: at column one, or on the item's definition line.
 #
 # Every run ends with `checked:` (items found per prefix), `problems:` (open
 # count, accepted count, oldest open item, and both triage limits — whether or
@@ -208,7 +216,7 @@ check_trace_remedy() {
         (DANGLING-FILE) echo 'Write the name the file has now: the dated name a draft-named ledger file was renamed to. Never delete the reference to pass the gate — see the script header.' ;;
         (HISTORY-CITATION) echo 'State the reason in the comment, or cite the ADR that records the trade-off; never cite a plan file or a docs/verification file (ADR-k3nkv3).' ;;
         (MISPLACED-ITEM) echo 'Move the definition into the document configured for its prefix: REQ doc_srs, HAZ and RC doc_rmf, SDD and LLR doc_sad, PR doc_problems.' ;;
-        (ORPHAN-ANNOTATION) echo 'Move the line into the item block it describes, at column one with no list marker — see the script header.' ;;
+        (ORPHAN-ANNOTATION) echo 'Start the line at column one, with no list marker, task-list box or quote marker, inside the item block it describes — see the script header.' ;;
         (SUPERSESSION-ANNOTATION) echo 'Delete the item marked superseded-by: or retired:, drop supersedes: from its successor, and record old → new or the reason under Items: in the squash message (ADR-k3nkv3).' ;;
         (UNRESOLVED-PR) echo 'Review the open item: fix it under resolve-problem, or leave it open knowingly.' ;;
         (ACCEPTED-PR) echo 'Check that the ruling in disposition: still stands; where it does not, set status: open or fix the item under resolve-problem.' ;;
@@ -243,6 +251,7 @@ cd "$gr_repo_root" || exit 2
 gr_unit_engage
 
 gr_check_config
+gr_check_examples
 
 # Read beside gr_check_config, and for its reason: every other config
 # invariant in this toolkit is settled BEFORE any gate runs, so that a typo is
@@ -283,6 +292,18 @@ soup_files=$(gr_doc_files doc_soup) || exit 2
 problems_files=$(gr_doc_files doc_problems) || exit 2
 test_paths=$(cfg_list test_paths)
 strict_paths=$(cfg_list strict_paths)
+# The example files: no definition, reference or citation is read from them,
+# except the IDs on a line-start `verifies:` line (VERIFIES_LINE_RE).
+# `example_excludes` holds one `:(exclude)` pathspec per entry, passed beside
+# the scope of each scan that skips them.
+example_paths=$(cfg_list example_paths) || exit 2
+example_excludes=$(gr_example_excludes) || exit 2
+# VERIFIES_LINE_RE — a `verifies:` keyword preceded on its line only by
+# blanks and comment leaders (`#`, `/`, `-`, `;`, `*`). In an example file this
+# is the one line form still read: a test file's own annotation is written so,
+# a heredoc that writes a fixture's annotation copies it so, and a `printf` or
+# an assertion that merely quotes the keyword does not start the line with it.
+VERIFIES_LINE_RE='^[[:blank:]#/;*-]*verifies:'
 
 # Every list above is newline-separated, so split on newlines alone: a path or
 # filename containing a space must reach git grep as one argument, and must be
@@ -302,50 +323,16 @@ IFS='
 set -f
 
 # A configured path that does not exist makes every gate that reads it a
-# silent no-op. Fail as an environment error instead of passing vacuously.
+# silent no-op: gr_require_paths fails it as an environment error instead.
 #
 # The list expansions here and at the scan sites below are deliberately
 # unquoted so the newline-separated lists split into separate arguments —
 # never so the shell can expand a pattern. `set -f` above guarantees it does
-# not: every entry reaches git verbatim as a pathspec. An entry matching no
-# file at all scans no file, and that is what must be an error.
-require_paths() {
-    _key="$1"
-    shift
-    for _d in "$@"; do
-        [ -n "$_d" ] || continue
-        # No `[ -e ] && continue` short-circuit: an empty directory exists but
-        # contains nothing to scan, and passing it here would report `strict 1`
-        # in the summary for a source that read nothing — the exact false green
-        # the summary exists to expose. Every entry must match a FILE.
-        #
-        # The entry may be a plain path or a git pathspec: `*_test.sh`
-        # matches recursively for git, and git grep — which is what actually
-        # scans these — accepts it. So ask git. Only an entry matching no file
-        # at all is an error. NB git's `*` crosses `/` where a shell glob does
-        # not, so `src/*.c` reaches into subdirectories.
-        # Counted, never parsed. git ls-files C-quotes any path with a
-        # non-ASCII byte, a quote, a tab or a newline (core.quotePath), so
-        # testing [ -e ] on each returned name rejects a directory like
-        # `tésts/` that git grep scans perfectly well. Counting lines is
-        # immune to the quoting, and a quoted embedded newline still counts
-        # as the one line it is printed as.
-        #
-        # The match must also still be present in the working tree — git grep
-        # scans the tree, so a path that is tracked but deleted on disk would
-        # pass this check while scanning nothing. cached minus deleted, plus
-        # untracked-but-not-ignored, is exactly "matches a file that is there".
-        _cached=$(git ls-files --cached -- "$_d" 2>/dev/null | grep -c .)
-        _gone=$(git ls-files --deleted -- "$_d" 2>/dev/null | grep -c .)
-        _new=$(git ls-files --others --exclude-standard -- "$_d" 2>/dev/null | grep -c .)
-        [ $((_cached - _gone + _new)) -gt 0 ] && continue
-        gr_die "$_key entry matches no file present in the working tree: $_d"
-    done
-}
+# not: every entry reaches git verbatim as a pathspec.
 # shellcheck disable=SC2086
-require_paths strict_paths $strict_paths
+gr_require_paths strict_paths $strict_paths
 # shellcheck disable=SC2086
-require_paths test_paths $test_paths
+gr_require_paths test_paths $test_paths
 
 # Every violation line from here to the summary goes through print_violations,
 # which prints it at once and adds its rule (the first word) to fired_rules.
@@ -417,9 +404,9 @@ unignored_files() {
 # A credit belongs to the block it is written in. `implements: RC-…`
 # credits the RC only on a line inside a REQ block of doc_srs, and
 # `mitigates: HAZ-…` the HAZ only on a line inside an RC block of doc_rmf. The
-# keyword may sit anywhere on that line — the inline `(implements: RC-…)` on
-# the definition line is the shipped form — and the ID run after its first
-# occurrence is read by gr_id_run, the one annotation rule. A line in no block
+# keyword starts its annotation where gr_annotation says, at column one or on
+# the definition line — the inline `(implements: RC-…)` there is the shipped
+# form — and the ID run after it is read by gr_id_run. A line in no block
 # credits nothing: before the first item, after a heading or a bold-colon line
 # that closed the item, or in front matter, which is skipped by
 # GR_AWK_FRONT_MATTER so that not even a definition line in it opens a block.
@@ -471,11 +458,14 @@ $_credit_file"
         { line = $0; sub(/\r$/, "", line) }
         # No `next`: the definition line carries the inline form.
         gr_block_closes(line) { cur = gr_block_opens(line) ? gr_block_id(line) : "" }
-        cur != "" && index(line, kw) > 0 {
-            id_count = split(gr_id_run(line, kw), named_ids, " ")
-            for (id_index = 1; id_index <= id_count; id_index++)
-                if (index(named_ids[id_index], target) == 1)
-                    print cur " " named_ids[id_index]
+        cur != "" {
+            annotation = gr_annotation(line, kw)
+            if (annotation != "") {
+                id_count = split(gr_id_run(annotation, kw), named_ids, " ")
+                for (id_index = 1; id_index <= id_count; id_index++)
+                    if (index(named_ids[id_index], target) == 1)
+                        print cur " " named_ids[id_index]
+            }
         }
     ' $_credit_twice < /dev/null
 }
@@ -593,14 +583,23 @@ fi
 # items (they neither owe MISSING-TEST here nor discharge anything —
 # obligation reverse-edge-discharges-nothing generalizes to every foreign
 # definition), and MISPLACED-ITEM must never see them at all.
+#
+# Status checked and stderr not suppressed, as ids_verified does: an errored
+# scan finds no definition, which reads as a tree with no items. Not a
+# pipeline, so $? is git's. A caller in $(...) adds `|| exit 2`.
 ids_defined() {
     if [ -n "$GR_UNIT" ]; then
-        git grep -h --untracked -oE "$(gr_def_re "$1")" -- "$GR_UNIT" 2>/dev/null \
-            | sed 's/[*:]//g' | sort -u
+        # shellcheck disable=SC2086
+        _dlines=$(git grep -h --untracked -oE "$(gr_def_re "$1")" -- "$GR_UNIT" $example_excludes)
+        _dst=$?
     else
-        git grep -h --untracked -oE "$(gr_def_re "$1")" -- . "$GR_SCAN_EXCLUDE" 2>/dev/null \
-            | sed 's/[*:]//g' | sort -u
+        # shellcheck disable=SC2086
+        _dlines=$(git grep -h --untracked -oE "$(gr_def_re "$1")" -- . "$GR_SCAN_EXCLUDE" $example_excludes)
+        _dst=$?
     fi
+    [ "$_dst" -le 1 ] || gr_die "$1 definition scan failed (git grep exit $_dst)"
+    [ -n "$_dlines" ] || return 0
+    printf '%s\n' "$_dlines" | sed 's/[*:]//g' | sort -u
 }
 
 # ids_defined_in PREFIX FILES… — definitions of PREFIX inside the given files.
@@ -620,14 +619,43 @@ ids_defined_in() {
 
 # ids_matching KEYWORD PREFIX PATHS… — IDs of PREFIX in the ID list that
 # immediately follows KEYWORD (see the annotation rule above).
+#
+# Status checked and stderr not suppressed, as ids_defined does: an errored
+# scan finds no annotation, which reads as an untested or unassessed item.
+# Not a pipeline, so $? is git's. A caller in $(...) adds `|| exit 2`.
 ids_matching() {
     _kw="$1"
     _pfx="$2"
     shift 2
     [ $# -gt 0 ] || return 0
-    git grep -hI --untracked -F "$_kw" -- "$@" 2>/dev/null \
+    _mlines=$(git grep -hI --untracked -F "$_kw" -- "$@")
+    _mst=$?
+    [ "$_mst" -le 1 ] || gr_die "$_kw annotation scan failed (git grep exit $_mst)"
+    [ -n "$_mlines" ] || return 0
+    printf '%s\n' "$_mlines" \
         | gr_id_run "$_kw" \
         | grep -xE "${_pfx}-${GR_ID_BODY}" | sort -u
+}
+
+# ids_verified PREFIX — IDs of PREFIX a `verifies:` annotation in test_paths
+# names. An example file's annotation counts only in the line-start form: a
+# printf or an assertion quoting the keyword verifies nothing. The second scan
+# reads every test file, but outside the example files its lines are a subset
+# of the first scan's, so the union adds only the example files' annotations.
+ids_verified() {
+    # shellcheck disable=SC2086
+    ids_matching 'verifies:' "$1" $test_paths $example_excludes
+    [ -n "$example_excludes" ] || return 0
+    # Status checked and stderr not suppressed, as the reference scan does:
+    # an errored scan finds no annotation, which reads as an untested item.
+    # Not a pipeline, so $? is git's.
+    # shellcheck disable=SC2086
+    _vlines=$(git grep -hI --untracked -E "$VERIFIES_LINE_RE" -- $test_paths)
+    _st=$?
+    [ "$_st" -le 1 ] || gr_die "verifies: annotation scan failed (git grep exit $_st)"
+    printf '%s\n' "$_vlines" \
+        | gr_id_run 'verifies:' \
+        | grep -xE "${1}-${GR_ID_BODY}" | sort -u
 }
 
 # --- LLR block parse: "<id> <REQ,REQ|derived|->" per LLR in the SAD files ---
@@ -656,9 +684,10 @@ parse_llr_file() {
             sat = ""; der = 0
         }
         cur != "" {
-            if ($0 ~ /satisfies:[ \t]*derived/) der = 1
+            annotation = gr_annotation($0, "satisfies:")
+            if (annotation ~ /^satisfies:[ \t]*derived/) der = 1
             else {
-                run = gr_id_run($0, "satisfies:")
+                run = gr_id_run(annotation, "satisfies:")
                 n = split(run, a, " ")
                 for (i = 1; i <= n; i++)
                     if (a[i] ~ /^REQ-/) sat = sat (sat == "" ? "" : ",") a[i]
@@ -725,7 +754,8 @@ check_placement() {
     # _inside produces. Skipping instead would be the silent exemption this
     # gate exists to remove.
     _inside=$(ids_defined_in "$_pfx" "$@")
-    for _id in $(ids_defined "$_pfx"); do
+    _defs=$(ids_defined "$_pfx") || exit 2
+    for _id in $_defs; do
         gr_contains "$_inside" "$_id" || {
             print_violations "MISPLACED-ITEM $_id (must be defined in the files $_key resolves to)"
             fail=1
@@ -747,15 +777,14 @@ done
 
 # --- MISSING-TEST: every REQ and LLR needs a verifies: reference -----------
 if [ -n "$test_paths" ]; then
-    # shellcheck disable=SC2086
-    verified_llr=$(ids_matching 'verifies:' LLR $test_paths)
-    for id in $(ids_defined LLR); do
+    verified_llr=$(ids_verified LLR) || exit 2
+    defined_llr=$(ids_defined LLR) || exit 2
+    for id in $defined_llr; do
         gr_contains "$verified_llr" "$id" || { print_violations "MISSING-TEST $id (no 'verifies:' reference in test paths)"; fail=1; }
     done
 
     # REQ coverage: direct verifies:, plus satisfies: lists of tested LLRs.
-    # shellcheck disable=SC2086
-    covered=$(ids_matching 'verifies:' REQ $test_paths)
+    covered=$(ids_verified REQ) || exit 2
     for llr in $verified_llr; do
         sats=$(printf '%s\n' "$llr_info" \
             | awk -v l="$llr" '$1 == l && $2 != "-" && $2 != "derived" { print $2 }' \
@@ -763,7 +792,8 @@ if [ -n "$test_paths" ]; then
         covered="$covered
 $sats"
     done
-    for id in $(ids_defined REQ); do
+    defined_req=$(ids_defined REQ) || exit 2
+    for id in $defined_req; do
         # A valid UNMET expectation is exempt: it cannot have a
         # verifying test yet and is already reported once, accurately, by
         # UNMET-EXPECTATION above. Met, it is an ordinary REQ again.
@@ -779,11 +809,13 @@ fi
 if [ -n "$rmf_files" ]; then
     mitigates_records=$(credit_scan 'mitigates:' RC HAZ "$rmf_files") \
         || gr_die "mitigates: scan failed"
-    defined_rc_flat=" $(ids_defined RC | tr '\n' ' ')"
+    defined_rc=$(ids_defined RC) || exit 2
+    defined_rc_flat=" $(printf '%s\n' "$defined_rc" | tr '\n' ' ')"
     mitigated=$(printf '%s\n' "$mitigates_records" \
         | awk -v defined="$defined_rc_flat" \
             'NF == 2 && index(defined, " " $1 " ") > 0 { print $2 }')
-    for id in $(ids_defined HAZ); do
+    defined_haz=$(ids_defined HAZ) || exit 2
+    for id in $defined_haz; do
         gr_contains "$mitigated" "$id" && continue
         { print_violations "UNMITIGATED-HAZARD $id (no risk control 'mitigates:' it)"; fail=1; }
     done
@@ -793,11 +825,13 @@ fi
 # Credited by credit_scan: an `implements:` inside the block of a REQ that
 # ids_defined reports. A line in no REQ block implements nothing.
 if [ -n "$srs_files" ]; then
-    defined_req_flat=" $(ids_defined REQ | tr '\n' ' ')"
+    defined_req=$(ids_defined REQ) || exit 2
+    defined_req_flat=" $(printf '%s\n' "$defined_req" | tr '\n' ' ')"
     implemented=$(printf '%s\n' "$implements_records" \
         | awk -v defined="$defined_req_flat" \
             'NF == 2 && index(defined, " " $1 " ") > 0 { print $2 }')
-    for id in $(ids_defined RC); do
+    defined_rc=$(ids_defined RC) || exit 2
+    for id in $defined_rc; do
         gr_contains "$implemented" "$id" && continue
         { print_violations "UNIMPLEMENTED-CONTROL $id (no requirement 'implements:' it)"; fail=1; }
     done
@@ -816,7 +850,7 @@ for f in $sad_files; do
             ok = 0
         }
         cur != "" {
-            run = gr_id_run($0, "traces:")
+            run = gr_id_run(gr_annotation($0, "traces:"), "traces:")
             n = split(run, a, " ")
             for (i = 1; i <= n; i++) if (a[i] ~ /^REQ-/) ok = 1
         }
@@ -841,7 +875,7 @@ for f in $srs_files; do
 $(LC_ALL=C awk -v body="$GR_ID_BODY" "$GR_AWK_ITEM_BLOCK"'
         BEGIN { gr_block_init("REQ", body) }
         gr_block_closes($0) { cur = gr_block_opens($0) ? gr_block_id($0) : "" }
-        cur != "" && /satisfies:[ \t]*derived/ { print cur; cur = "" }
+        cur != "" && gr_annotation($0, "satisfies:") ~ /^satisfies:[ \t]*derived/ { print cur; cur = "" }
     ' "$f")"
 done
 # The assessment is DECLARED, not inferred. A free-text search for a derived
@@ -861,8 +895,11 @@ done
 # Nothing here judges the assessment. It requires the author to state which
 # items a passage assesses — the standard every other annotation meets.
 # shellcheck disable=SC2086
-assessed="$(ids_matching 'assesses:' REQ $rmf_files)
-$(ids_matching 'assesses:' LLR $rmf_files)"
+assessed_req=$(ids_matching 'assesses:' REQ $rmf_files) || exit 2
+# shellcheck disable=SC2086
+assessed_llr=$(ids_matching 'assesses:' LLR $rmf_files) || exit 2
+assessed="$assessed_req
+$assessed_llr"
 for id in $derived_ids; do
     gr_contains "$assessed" "$id" && continue
     print_violations "UNANALYZED-DERIVED $id (no 'assesses:' line in the RMF names it)"
@@ -885,7 +922,12 @@ done
 # export it); a disclaimed definition never outranks either.
 classify_unresolved() {
     _cid="$1"
-    _sites=$(git grep -l --untracked -E "^\\*\\*${_cid}\\*\\*:" -- . "$GR_SCAN_EXCLUDE" 2>/dev/null)
+    # shellcheck disable=SC2086
+    _sites=$(git grep -l --untracked -E "^\\*\\*${_cid}\\*\\*:" -- . "$GR_SCAN_EXCLUDE" $example_excludes)
+    _st=$?
+    # Status checked, stderr kept: an errored scan finds no site, which
+    # classifies the ID as DANGLING-REF rather than reporting the failure.
+    [ "$_st" -le 1 ] || gr_die "definition-site scan for $_cid failed (git grep exit $_st)"
     _v=""
     _d=""
     for _sf in $_sites; do
@@ -912,22 +954,39 @@ classify_unresolved() {
 }
 if [ -n "$scope" ]; then
     # The trailing boundary is matched and then stripped: without it a mention
-    # of REQ-a3k9z2x harvests its first six characters and is reported against
-    # REQ-a3k9z2 — which, being defined, is not reported at all. A token can
-    # never end in a non-alphanumeric, so the strip cannot damage a real ID.
+    # of a defined ID with one character appended harvests its first six
+    # characters and is reported against that ID — which, being defined, is
+    # not reported at all. A token can never end in a non-alphanumeric, so the
+    # strip cannot damage a real ID.
     #
     # Status checked and stderr not suppressed: this scan is the whole input to
     # DANGLING-REF, and an errored scan finds nothing, which is exactly what a
     # tree with no bad references looks like. Not a pipeline, so $? is git's.
     # shellcheck disable=SC2086
-    _refs=$(git grep -h --untracked -oE "(${P})-${GR_ID_BODY}(${GR_ID_TAIL}|\$)" -- $scope)
+    _refs=$(git grep -h --untracked -oE "(${P})-${GR_ID_BODY}(${GR_ID_TAIL}|\$)" -- $scope $example_excludes)
     _st=$?
     [ "$_st" -le 1 ] || gr_die "reference scan failed (git grep exit $_st)"
+    # An example file's references are read from its line-start `verifies:`
+    # lines alone. The scan reads the whole scope, as ids_verified's does, for
+    # the same reason. With -o and --and git prints the matches of both
+    # patterns, so the keyword's match is dropped by the ID filter.
+    if [ -n "$example_excludes" ]; then
+        # shellcheck disable=SC2086
+        _vrefs=$(git grep -h --untracked -oE -e "(${P})-${GR_ID_BODY}(${GR_ID_TAIL}|\$)" \
+            --and -e "$VERIFIES_LINE_RE" -- $scope)
+        _st=$?
+        [ "$_st" -le 1 ] || gr_die "verifies: reference scan failed (git grep exit $_st)"
+        # grep exits 1 on no match, which means no reference, not a failure,
+        # and it cannot fail on in-memory input; its status is not read.
+        _refs="$_refs
+$(printf '%s\n' "$_vrefs" | grep -E "^(${P})-")"
+    fi
     referenced=$(printf '%s\n' "$_refs" | sed "s/${GR_ID_TAIL}\$//" | sort -u)
     defined=""
     for pfx in $prefixes; do
+        _defs=$(ids_defined "$pfx") || exit 2
         defined="$defined
-$(ids_defined "$pfx")"
+$_defs"
     done
     for id in $referenced; do
         gr_contains "$defined" "$id" && continue
@@ -1030,7 +1089,7 @@ fi
 if [ -n "$scope" ]; then
     # shellcheck disable=SC2086
     _hrefs=$(git grep -n --untracked -oE '(^|[^A-Za-z0-9_.-])docs/(plans|verification)/[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_.-]+' -- $scope \
-        ':(exclude,glob)**/docs/plans/**' ':(exclude,glob)**/docs/verification/**')
+        ':(exclude,glob)**/docs/plans/**' ':(exclude,glob)**/docs/verification/**' $example_excludes)
     _st=$?
     [ "$_st" -le 1 ] || gr_die "history citation scan failed (git grep exit $_st)"
     for _hr in $_hrefs; do
@@ -1304,8 +1363,8 @@ fi
 # is what teaches people to read past the output. `implements:` and
 # `mitigates:` are block-parsed by credit_scan, so they are covered.
 #
-# Column one, or column one after one or more list markers, bulleted or
-# ordered: gr_kw_orphan_here, which is WIDER than the gr_kw_here every reader
+# Column one, or column one after a run of list markers, task-list boxes and
+# blockquote markers: gr_kw_orphan_here, which is WIDER than the gr_kw_here every reader
 # uses, and deliberately so. The invariant is a containment — the backstop must
 # see at least what every reader sees — and never an equality. Widening the
 # readers to match this instead was tried and rejected: the readers are
@@ -1315,9 +1374,10 @@ fi
 #
 # Wider costs nothing here. This gate REPORTS; it takes no value and decides
 # no item's state, so a bulleted annotation outside every block is reported
-# whether or not a reader would take it, since gr_id_run reads
-# `- satisfies: REQ-001` inside a block and nothing else would see it outside
-# one.
+# although no reader would take it. Inside a block, gr_annotation takes an
+# ID-list keyword only at column one or on the definition line, so the same
+# lead there is reported too: `- satisfies: derived` on a REQ would otherwise
+# leave it out of UNANALYZED-DERIVED at exit 0.
 #
 # A line with NO marker is tested unchanged, and that is what keeps the
 # indented item grammar shipped in templates/problems.md inert — the property
@@ -1328,6 +1388,14 @@ check_orphans() {
     _kw="$1"
     _open="$2"
     shift 2
+    # The ID-list keywords gr_annotation reads inside a block are also
+    # reported there, where a lead hides them from it. The scalar fields are
+    # not: a quoted `- status: resolved` in a problem's prose is not a field,
+    # and INCOMPLETE-PROBLEM already reports one written that way.
+    case "$_kw" in
+        (satisfies:|traces:|implements:|mitigates:) _idlist=1 ;;
+        (*) _idlist=0 ;;
+    esac
     for _f in "$@"; do
         [ -n "$_f" ] || continue
         # LC_ALL=C: defence in depth, and honestly weak — the close and the
@@ -1337,7 +1405,7 @@ check_orphans() {
         # or busybox awk; it is kept because the escapes are byte values and
         # some awk in some locale will read them as characters.
         LC_ALL=C awk -v body="$GR_ID_BODY" -v popen="$_open" -v kw="$_kw" -v fname="$_f" \
-            "$GR_AWK_ITEM_BLOCK$GR_AWK_FRONT_MATTER"'
+            -v idlist="$_idlist" "$GR_AWK_ITEM_BLOCK$GR_AWK_FRONT_MATTER"'
             # The opening prefix is the reader of THIS keyword, never every
             # declared prefix. Opening on all of them left a third state the
             # gates do not have: inside another prefix block, where the reader
@@ -1357,13 +1425,23 @@ check_orphans() {
             # drift apart and then read one file two ways.
             FNR == NR { gr_fm_scan($0, FNR); next }
             gr_fm_skip(FNR) { next }
-            gr_block_closes($0) { inblock = gr_block_opens($0) }
+            gr_block_closes($0) {
+                inblock = gr_block_opens($0)
+                cur = inblock ? substr($0, 3, index(substr($0, 3), "**") - 1) : ""
+            }
             !inblock && gr_kw_orphan_here($0, kw) {
                 # FNR, never NR: the file is read TWICE (see the
                 # front-matter pass above), so NR is offset by the whole first
                 # pass and every reported line number would be wrong.
                 printf "ORPHAN-ANNOTATION %s:%d (%s belongs to no item)\n", \
                     fname, FNR, kw
+            }
+            # Inside the block, an ID-list keyword the backstop sees but
+            # gr_annotation does not take: the item made no annotation, and
+            # nothing else says so for satisfies: derived on a REQ.
+            inblock && idlist && gr_kw_orphan_here($0, kw) && gr_annotation($0, kw) == "" {
+                printf "ORPHAN-ANNOTATION %s:%d (%s inside %s is not at column one; no gate reads it)\n", \
+                    fname, FNR, kw, cur
             }
         ' "$_f" "$_f" || gr_die "orphan scan failed on $_f"
     done
@@ -1471,8 +1549,9 @@ count_lines() {
 
 summary=""
 for pfx in $prefixes; do
-    n=$(ids_defined "$pfx" | grep -c .) || true
-    summary="${summary}${summary:+, }${pfx} ${n}"
+    _defs=$(ids_defined "$pfx") || exit 2
+    def_count=$(count_lines "$_defs")
+    summary="${summary}${summary:+, }${pfx} ${def_count}"
 done
 
 # One remedy line per rule, in the order the rules first fired.
@@ -1517,6 +1596,6 @@ if [ -n "$GR_UNIT" ]; then
     done
     echo "expectations against this unit: $_against open"
 fi
-echo "sources: srs $(count_lines "$srs_files"), rmf $(count_lines "$rmf_files"), sad $(count_lines "$sad_files"), soup $(count_lines "$soup_files"), problems $(count_lines "$problems_files"); strict $(count_lines "$strict_paths"), tests $(count_lines "$test_paths")"
+echo "sources: srs $(count_lines "$srs_files"), rmf $(count_lines "$rmf_files"), sad $(count_lines "$sad_files"), soup $(count_lines "$soup_files"), problems $(count_lines "$problems_files"); strict $(count_lines "$strict_paths"), tests $(count_lines "$test_paths"), examples $(count_lines "$example_paths")"
 
 exit $fail

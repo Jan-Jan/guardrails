@@ -22,11 +22,11 @@
 #                   nothing, and every other gate passes over it in silence.
 #
 # There is no gate against the base branch, and no --base. IDs are minted at
-# item-creation time by new-id.sh and allocated against nothing, so two
-# branches cannot mint the same one by construction; the vanishing case where
-# random draws collide is caught by DUPLICATE-ID above, because merge-change
-# merges the base branch into the worktree (step 1) before running this script
-# (step 2). There is likewise no mint ceiling and so no UNANCHORED-DEF: a
+# item-creation time by new-id.sh from a random draw, not allocated against a
+# base branch, so two branches can mint the same one. That collision is
+# possible and improbable, and it is detected, not prevented: DUPLICATE-ID
+# above reports it, because merge-change merges the base branch into the
+# worktree (step 1) before running this script (step 2). There is likewise no mint ceiling and so no UNANCHORED-DEF: a
 # definition form in prose reserves nothing.
 #
 # Scoped runs engage only when .guardrails/units.yaml exists and GR_CONFIG
@@ -91,6 +91,26 @@ done
 P=$(gr_prefix_re) || exit 2
 [ -n "$P" ] || gr_die "id_prefixes not configured"
 
+gr_check_examples
+
+# The example_paths exclusions, one pathspec each, as the positional
+# parameters: the only list this script can pass to git grep without splitting
+# a path with a space in it. The arguments are already consumed above. Every
+# scan below reads no example file: a definition or a draft token quoted there
+# is an illustration, not an item. IFS and -f are saved and restored as
+# gr_check_examples does; the split cannot move into a lib.sh helper, whose
+# `set --` would set the helper's own positional parameters.
+_example_excludes=$(gr_example_excludes) || exit 2
+_saved_ifs=${IFS-__gr_unset__}
+IFS='
+'
+case $- in (*f*) _ex_refl=1 ;; (*) _ex_refl=0 ;; esac
+set -f
+# shellcheck disable=SC2086
+set -- $_example_excludes
+[ "$_ex_refl" -eq 1 ] || set +f
+if [ "$_saved_ifs" = "__gr_unset__" ]; then unset IFS; else IFS=$_saved_ifs; fi
+
 # Deliberately NOT limited to the configured prefixes: a draft whose prefix is
 # absent from id_prefixes is one nothing was ever going to mint, which is
 # exactly the case that must not reach the base branch.
@@ -114,9 +134,9 @@ fired_rules=""
 # disclaimed path is then scanned by NO unit run — check-units.sh convicts
 # DISCLAIMED-DRAFT there at the repository level instead.
 if [ -n "$GR_UNIT" ]; then
-    drafts=$(git grep -In --untracked -E "$draft_re" -- "$GR_UNIT")
+    drafts=$(git grep -In --untracked -E "$draft_re" -- "$GR_UNIT" "$@")
 else
-    drafts=$(git grep -In --untracked -E "$draft_re" -- . "$GR_SCAN_EXCLUDE")
+    drafts=$(git grep -In --untracked -E "$draft_re" -- . "$GR_SCAN_EXCLUDE" "$@")
 fi
 _st=$?
 [ "$_st" -le 1 ] || gr_die "scanning for draft IDs failed (git grep exit $_st)"
@@ -174,11 +194,11 @@ def_re_loose=$(gr_def_re_loose "$P") || exit 2
 if [ -n "$GR_UNIT" ]; then
     malformed=$(git grep -nI --untracked -E \
         -e "$def_re_loose" --and --not -e "$def_re" \
-        -- "$GR_UNIT")
+        -- "$GR_UNIT" "$@")
 else
     malformed=$(git grep -nI --untracked -E \
         -e "$def_re_loose" --and --not -e "$def_re" \
-        -- . "$GR_SCAN_EXCLUDE")
+        -- . "$GR_SCAN_EXCLUDE" "$@")
 fi
 _st=$?
 [ "$_st" -le 1 ] || gr_die "MALFORMED-ID scan failed (git grep exit $_st)"
@@ -202,7 +222,7 @@ fi
 # even when neither unit depends on the other. This is the only gate that
 # sees it, the scan is read-only over definitions, and no false green rides
 # on it — a disclaimed path included.
-_defs=$(git grep -h --untracked -oE "$def_re" -- . "$GR_SCAN_EXCLUDE")
+_defs=$(git grep -h --untracked -oE "$def_re" -- . "$GR_SCAN_EXCLUDE" "$@")
 _st=$?
 [ "$_st" -le 1 ] || gr_die "duplicate scan failed (git grep exit $_st)"
 dups=$(printf '%s\n' "$_defs" | sed 's/[*:]//g' | sort | uniq -d)

@@ -32,8 +32,6 @@
 
 **REQ-c3d8yk**: The software shall report no ORPHAN-ANNOTATION for an opened: line outside a problem ledger.
 
-**REQ-745rsc**: The software shall read a satisfies: or traces: annotation at any position on a line inside its item's block, after a list marker included.
-
 **REQ-czp8dt**: The software shall report UNANALYZED-DERIVED for a derived REQ or LLR that no assesses: line in the risk ledger names, reading an assesses: line's IDs only up to the first character that is not an ID, comma or space.
 
 **REQ-3gzxr3**: The software shall report DANGLING-FILE, stating where it looked, for a draft-named file a ledger file names that exists neither at the repository root nor beside the naming file.

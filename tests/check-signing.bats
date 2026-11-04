@@ -457,6 +457,7 @@ setup_proved_signing() {
 }
 
 @test "check-signing: --setup names every missing piece of the configuration" {
+    # verifies: REQ-ycwkd5, REQ-mf8nxj, REQ-vzja7g
     # The fixture repo has no signing configuration at all. One verdict for
     # three separate gaps is two more runs than the operator needs.
     #
@@ -466,7 +467,12 @@ setup_proved_signing() {
     # with gpg.format unset. The two gaps that really do
     # stop this repository signing anything, the key and commit.gpgsign, are
     # still asserted, along with the exit status.
-    run sh .guardrails/scripts/check-signing.sh --setup
+    #
+    # GNUPGHOME names a keyring that does not exist: with gpg.format unset,
+    # the openpgp trust-root guard reads the caller's keyring, and a ~/.gnupg
+    # this process cannot use would turn the verdict into exit 2.
+    run env GNUPGHOME="$BATS_TEST_TMPDIR/no-gnupg" \
+        sh .guardrails/scripts/check-signing.sh --setup
     [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
     [[ "$output" != *"MISSING gpg.format"* ]] || { echo "$output"; false; }
     [[ "$output" == *"MISSING user.signingkey"* ]] || { echo "$output"; false; }
@@ -582,6 +588,77 @@ setup_proved_signing() {
         sh .guardrails/scripts/check-signing.sh --setup
     chmod 700 "$BATS_TEST_TMPDIR/gnupg"
     [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+}
+
+# A keyring gpg can read but not open read-write: gpg opens trustdb.gpg
+# O_RDWR even to verify, so it dies before verifying anything. The gpg on
+# PATH here is a fault injector: it reads its input and exits 2 with no
+# output, so git computes no good verdict for a commit that is signed.
+gpg_with_readonly_trustdb() {
+    mkdir "$BATS_TEST_TMPDIR/gnupg"
+    : > "$BATS_TEST_TMPDIR/gnupg/pubring.kbx"
+    : > "$BATS_TEST_TMPDIR/gnupg/trustdb.gpg"
+    chmod 444 "$BATS_TEST_TMPDIR/gnupg/trustdb.gpg"
+    printf '#!/bin/sh\ncat > /dev/null\nexit 2\n' > "$BATS_TEST_TMPDIR/stub_gpg"
+    chmod +x "$BATS_TEST_TMPDIR/stub_gpg"
+    git config gpg.format openpgp
+    git config gpg.program "$BATS_TEST_TMPDIR/stub_gpg"
+    git config user.signingkey ABCDEF0123456789
+}
+
+# A commit carrying a gpgsig header, written as a commit object directly so
+# that no signer runs: the header is git's commit format, not gpg output.
+gpgsig_commit() {
+    printf '%s\n' "$1" > "src/$1.txt"
+    git add -A
+    git -c commit.gpgsign=false commit -qm "signed $1"
+    _signed_commit=$(git cat-file commit HEAD | awk '
+        !done && /^$/ {
+            print "gpgsig -----BEGIN PGP SIGNATURE-----"
+            print " "
+            print " c3R1Yg=="
+            print " -----END PGP SIGNATURE-----"
+            done = 1
+        }
+        { print }' | git hash-object -t commit -w --stdin)
+    git update-ref HEAD "$_signed_commit"
+}
+
+@test "check-signing: a trustdb that cannot be opened read-write exits 2" {
+    # verifies: REQ-ptg7rd
+    [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
+    gpg_with_readonly_trustdb
+    gpgsig_commit a
+    run env GNUPGHOME="$BATS_TEST_TMPDIR/gnupg" \
+        sh .guardrails/scripts/check-signing.sh
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    output_has "GNUPGHOME"
+    output_has "pubring.kbx"
+    output_has "trustdb.gpg"
+    output_lacks "UNVERIFIED"
+}
+
+@test "check-signing: --setup exits 2 when trustdb.gpg cannot be opened read-write" {
+    # verifies: REQ-ptg7rd
+    [ "$(id -u)" -ne 0 ] || skip "permission bits do not bind root"
+    gpg_with_readonly_trustdb
+    git config commit.gpgsign true
+    run env GNUPGHOME="$BATS_TEST_TMPDIR/gnupg" \
+        sh .guardrails/scripts/check-signing.sh --setup
+    [ "$status" -eq 2 ] || { echo "expected exit 2, got $status: $output"; false; }
+    output_has "GNUPGHOME"
+    output_has "pubring.kbx"
+}
+
+@test "check-signing: a writable trustdb leaves a failed verification a project verdict" {
+    # verifies: REQ-ptg7rd
+    gpg_with_readonly_trustdb
+    chmod 644 "$BATS_TEST_TMPDIR/gnupg/trustdb.gpg"
+    gpgsig_commit a
+    run env GNUPGHOME="$BATS_TEST_TMPDIR/gnupg" \
+        sh .guardrails/scripts/check-signing.sh --strict
+    [ "$status" -eq 1 ] || { echo "expected exit 1, got $status: $output"; false; }
+    output_has "UNVERIFIED"
 }
 
 @test "check-signing: --setup ignores a worktree-scoped commit.gpgsign false" {

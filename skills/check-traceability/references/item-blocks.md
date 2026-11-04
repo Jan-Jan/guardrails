@@ -21,19 +21,22 @@ behaves the same under every awk and every locale.
 
 ## List markers
 
-`ORPHAN-ANNOTATION` steps over one or more leading list markers before it tests
-the keyword: a bullet (`-`, `*` or `+`) or an ordered marker (a run of digits
-closed by `.` or `)`), each followed by whitespace, indented or not. So a
-list-item annotation outside every block is reported.
+`ORPHAN-ANNOTATION` steps over a run of leads before it tests the keyword: a
+bullet (`-`, `*` or `+`) or an ordered marker (a run of digits closed by `.`
+or `)`), each followed by whitespace; a task-list box (`[ ]` or `[x]`)
+followed by whitespace; and a blockquote marker (`>`), indented or not. So a
+list-item, task-list or quoted annotation outside every block is reported,
+and so is a `satisfies:`, `traces:`, `implements:` or `mitigates:` after such
+a lead inside its item's block, where no reader takes it.
 
 No column-one reader steps over a list marker. The fields read at column one
 (`status:`, `opened:`, `disposition:`, `expects:`, `exported:`) are never
 taken from a list item,
 which is why a bulleted one inside a block is reported as a missing field
 (`INCOMPLETE-PROBLEM`). The ID-list keywords `satisfies:`,
-`traces:`, `implements:` and `mitigates:` are read anywhere on a line inside
-the block, so a bulleted one there still credits (see "Keywords read anywhere
-on the line" below).
+`traces:`, `implements:` and `mitigates:` are not taken from a list item
+either, and the backstop reports one written that way inside the block (see
+"Where an ID-list annotation starts" below).
 
 - Bare indentation declares nothing. With no marker present the line is tested
   unchanged, which keeps the indented item grammar in the ledger templates
@@ -54,44 +57,37 @@ open.
 A backstop wider than the readers can only over-report. A reader wider than
 intended answers with confidence and is wrong.
 
-## Keywords read anywhere on the line
+## Where an ID-list annotation starts
 
-`gr_id_run` reads `traces:` and `satisfies:` anywhere on their line.
-`templates/sad.md` puts the annotation on the definition line, so requiring
-column one of this reader would reject the documented primary form and every
-SAD written to it.
+`satisfies:`, `traces:`, `implements:` and `mitigates:` start an annotation in
+two places inside the owner's block: at column one, or anywhere on the item's
+definition line, the inline form the templates ship
+(`**LLR-…**: <behavior>. satisfies: REQ-…`). One rule, `gr_annotation` in
+`lib.sh`, decides it for every reader. Nowhere else credits: not a list item,
+a task-list item (`- [x] satisfies: REQ-…`), a blockquote, a table cell, an
+indented line or a mention inside a sentence. Those forms are not listed by
+the rule; they are outside it.
 
-`implements:` and `mitigates:` are read anywhere on their line for the same
-reason: `templates/srs.md` ships `(implements: RC-…)` and `templates/rmf.md`
-ships `mitigates: HAZ-…` on the definition line. Like `status:`,
-`satisfies:` and `traces:`, they credit only from a line inside
-the owner's block: a REQ block in `doc_srs` for `implements:`, an RC block in
-`doc_rmf` for `mitigates:`. A line outside every block credits nothing,
-wherever the keyword sits on it. The
-backstop reports it at column one; a mid-sentence one is reported only by the
-coverage gate it fails to satisfy, `UNIMPLEMENTED-CONTROL` or
-`UNMITIGATED-HAZARD`.
+The owner's block is a REQ block for `satisfies: derived` and `implements:` in
+`doc_srs`, an LLR block for `satisfies:` and an SDD block for `traces:` in
+`doc_sad`, and an RC block for `mitigates:` in `doc_rmf`. A line outside every
+block credits nothing. The backstop reports it at column one or after the
+leads above; a table cell, emphasis or a mid-sentence mention outside a block
+is read by nothing and reported by nothing.
 
-## Forms still not covered
-
-The backstop steps over bullets and ordered markers, in runs, and nothing else,
-while the gates match a keyword anywhere on its line. Every other form is
-presumed live until measured. The forms known to be credited inside a block and
-unreported outside one:
-
-- a GFM task-list item, `- [x] satisfies: REQ-…`;
-- a blockquote, `> satisfies: REQ-…`;
-- a table cell;
-- a mention inside a sentence;
-- a `satisfies:` indented with no marker, which satisfies an LLR while the
-  backstop does not read it.
-
-`PR-h3wujj` is open for these. Until it is resolved, write every annotation
-with no list marker, quote marker or indentation: at column one, or on the
-item's definition line in the inline form the templates ship.
+Inside the owner's block, the backstop reports the keyword after any of the
+leads above as `ORPHAN-ANNOTATION` (`<keyword> inside <ID> is not at column
+one; no gate reads it`). That covers `satisfies: derived` on a REQ, which no
+other gate requires: written as `- satisfies: derived` it would otherwise
+leave the REQ an ordinary one, owed a test but never assessed as derived.
+Where the item needs the annotation it also fails loudly at its own gate:
+`UNSATISFIED-LLR`, `UNTRACED-DESIGN`, `UNIMPLEMENTED-CONTROL`,
+`UNMITIGATED-HAZARD` or an unmet expectation. A table cell, emphasis or a
+mid-sentence mention inside a block is reported by neither. Write every
+annotation at column one or on the definition line.
 
 ## Supersession keywords
 
 `supersedes:`, `superseded-by:` and `retired:` are read by no gate as a
-field. Each, at column one or after list markers, in or out of an item block,
+field. Each, at column one or after the leads above, in or out of an item block,
 is `SUPERSESSION-ANNOTATION`: delete the item it marks (ADR-k3nkv3).

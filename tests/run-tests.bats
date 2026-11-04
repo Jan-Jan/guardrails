@@ -52,6 +52,55 @@ make_gnu_parallel_stub() {
     make_stub parallel '[ "$1" = --version ] && echo "GNU parallel 20260822"; exit 0'
 }
 
+# make_getconf_stub COUNT: a stub getconf that answers _NPROCESSORS_ONLN with
+# COUNT, as getconf does.
+make_getconf_stub() {
+    make_stub getconf "[ \"\$*\" = _NPROCESSORS_ONLN ] && echo $1"
+}
+
+# make_sysctl_stub COUNT: a stub sysctl that answers -n hw.ncpu with COUNT, as
+# a BSD sysctl does.
+make_sysctl_stub() {
+    make_stub sysctl "[ \"\$*\" = '-n hw.ncpu' ] && echo $1"
+}
+
+# The contract the fakes above share with the real tools: the shape
+# run-tests.sh parses. Each assertion runs the command as the runner does,
+# standard input closed and standard error discarded.
+run_as_runner() {
+    run sh -c '"$@" </dev/null 2>/dev/null' contract "$@"
+}
+
+# assert_gnu_parallel_shape PROGRAM: PROGRAM --version exits 0 and says
+# GNU parallel, which gnu_parallel_installed matches.
+assert_gnu_parallel_shape() {
+    run_as_runner "$1" --version
+    [ "$status" -eq 0 ] || { echo "$1 --version exited $status"; false; }
+    [[ "$output" == *'GNU parallel'* ]] || { echo "$output"; false; }
+}
+
+# assert_cpu_count_shape PROGRAM ARGUMENT...: PROGRAM ARGUMENT... exits 0 and
+# prints a whole number above 0 and nothing else, which the runner takes as
+# the CPU count.
+assert_cpu_count_shape() {
+    run_as_runner "$@"
+    [ "$status" -eq 0 ] || { echo "$* exited $status"; false; }
+    [[ "$output" =~ ^[1-9][0-9]*$ ]] || { echo "$* printed: $output"; false; }
+}
+
+# real_tool NAME: the host's NAME, or a skip where it is absent. getconf and
+# sysctl ship with macOS, so their absence there fails instead.
+real_tool() {
+    if real_path=$(command -v "$1"); then
+        return 0
+    fi
+    if [ "$(uname -s)" = Darwin ] && [ "$1" != parallel ]; then
+        echo "no $1 on macOS, which ships it"
+        false
+    fi
+    skip "no $1 on this machine"
+}
+
 # run_runner ARGUMENT...: runs run-tests.sh with ARGUMENTs and the stub and
 # tools directories as the whole PATH. RUN_TESTS_JOBS is unset unless the
 # caller sets runner_jobs, which becomes its value. The runner's standard
@@ -320,7 +369,7 @@ assert_rejected() {
     # verifies: REQ-au82tb
     make_gnu_parallel_stub
     make_stub getconf 'exit 1'
-    make_stub sysctl '[ "$*" = "-n hw.ncpu" ] && echo 3'
+    make_sysctl_stub 3
     run_runner "$named_file"
     [ "$status" -eq 0 ]
     [ "$output" = "$(printf -- '--jobs\n3\n%s' "$named_file")" ] || { echo "$output"; false; }
@@ -329,7 +378,7 @@ assert_rejected() {
 @test "run-tests: a CPU count of 1 passes no --jobs" {
     # verifies: REQ-au82tb
     make_gnu_parallel_stub
-    make_stub getconf 'echo 1'
+    make_getconf_stub 1
     run_runner "$named_file"
     [ "$status" -eq 0 ]
     [ "$output" = "$named_file" ] || { echo "$output"; false; }
@@ -352,6 +401,50 @@ assert_rejected() {
     run_runner "$named_file"
     [ "$status" -eq 0 ]
     [ "$output" = "$named_file" ] || { echo "$output"; false; }
+}
+
+@test "run-tests: contract: the stub parallel answers --version as the runner parses it" {
+    # verifies: REQ-au82tb
+    make_gnu_parallel_stub
+    assert_gnu_parallel_shape "$stub_dir/parallel"
+}
+
+@test "run-tests: contract: the real GNU parallel answers --version as the runner parses it" {
+    # verifies: REQ-au82tb
+    real_tool parallel
+    # moreutils installs a different program under the same name. Tell them
+    # apart by an option only GNU parallel has, not by the --version text this
+    # test asserts on, so a GNU parallel that changed that text still fails.
+    "$real_path" --minversion 0 </dev/null >/dev/null 2>&1 \
+        || skip "the parallel on PATH is not GNU parallel"
+    assert_gnu_parallel_shape "$real_path"
+}
+
+@test "run-tests: contract: the stub getconf answers _NPROCESSORS_ONLN as the runner parses it" {
+    # verifies: REQ-au82tb
+    make_getconf_stub 4
+    assert_cpu_count_shape "$stub_dir/getconf" _NPROCESSORS_ONLN
+}
+
+@test "run-tests: contract: the real getconf answers _NPROCESSORS_ONLN as the runner parses it" {
+    # verifies: REQ-au82tb
+    real_tool getconf
+    assert_cpu_count_shape "$real_path" _NPROCESSORS_ONLN
+}
+
+@test "run-tests: contract: the stub sysctl answers -n hw.ncpu as the runner parses it" {
+    # verifies: REQ-au82tb
+    make_sysctl_stub 3
+    assert_cpu_count_shape "$stub_dir/sysctl" -n hw.ncpu
+}
+
+@test "run-tests: contract: the real sysctl answers -n hw.ncpu as the runner parses it" {
+    # verifies: REQ-au82tb
+    # Linux's sysctl has no hw.ncpu and exits non-zero, which the runner
+    # treats as no answer; the stub imitates the BSD and macOS sysctl.
+    [ "$(uname -s)" != Linux ] || skip "Linux sysctl has no hw.ncpu"
+    real_tool sysctl
+    assert_cpu_count_shape "$real_path" -n hw.ncpu
 }
 
 @test "run-tests: a caller's own --jobs N passes through, and no second one is added" {

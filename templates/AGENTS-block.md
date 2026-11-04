@@ -21,9 +21,10 @@ check scripts in `.guardrails/scripts/`. Configuration: `.guardrails/config.yaml
 3. **Traceability is mechanical.** A new requirement/hazard/control/design/
    problem item gets its ID the moment it is written: run
    `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The ID
-   is a random six-character token — `a3k9z2`, say — allocated against nothing,
-   so two worktrees and two GitHub PRs never contend for one and nothing is
-   renumbered at merge. Never invent an ID by hand. A change names each ledger
+   is a random six-character token — `a3k9z2`, say — and nothing is
+   renumbered at merge. Two worktrees or two GitHub PRs can mint the same one;
+   that is improbable, and `DUPLICATE-ID` detects it at merge rather than
+   preventing it. Never invent an ID by hand. A change names each ledger
    file it creates `docs/<area>/<YYYY-MM-DD>-<slug>.md`, dated the day it
    creates it, and nothing renames it; existing items are edited in the dated
    file that defines them. Every new test declares

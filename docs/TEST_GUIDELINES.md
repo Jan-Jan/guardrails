@@ -112,7 +112,7 @@ A project that changes a clause rewrites its reason and examples with it.
      content the code interprets, such as an HTTP 409 with an error body, a
      database constraint error, or a tool error message the code parses. Here:
      a stub `parallel` whose version line `tests/run-tests.sh` reads is this
-     kind, and its missing contract test is recorded as PR-dfndh4.
+     kind, and `tests/run-tests.bats` holds its contract test.
    - **A fault injector**, with none: a transport- or OS-level failure, such as
      a connection refused or reset, a timeout, a full disk, or an exit status
      with no output the code reads. Nothing in it belongs to one service, so

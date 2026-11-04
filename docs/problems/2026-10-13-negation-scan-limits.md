@@ -6,7 +6,8 @@ files.
 **PR-z7jq9k**: The bare-negation scan in `tests/portability.bats` reads shell one line at a time, so it silently passes some negations that errexit ignores, and rejects some compliant shapes.
 affects: tests/portability.bats, AGENTS.md.
 opened: 2026-10-13
-status: open
+status: accepted
+disposition: ruled on 2026-10-30 — the scan is a line scan, not a shell parser; review catches the shapes it misses.
 
 Silently passed, each confirmed under `/bin/bash -e` 3.2.57:
 - a `!` after a case-arm pattern, `(a) ! grep -q x f ;;`;

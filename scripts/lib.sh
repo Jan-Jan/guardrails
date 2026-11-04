@@ -46,6 +46,7 @@ PR'
 # the form an adopter reaches for.
 GR_LIST_KEYS='strict_paths
 test_paths
+example_paths
 verify_commands
 coverage_command
 depends_on
@@ -67,6 +68,7 @@ doc_soup
 doc_problems
 strict_paths
 test_paths
+example_paths
 verify_commands
 coverage_command
 problem_age_days
@@ -121,11 +123,12 @@ ${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_ID_LETTER}${GR_
 GR_ID_BODY="(${GR_ID_TOKEN}|[0-9][0-9][0-9]+)"
 
 # What may NOT follow an ID: any alphanumeric. A token is exactly six
-# characters, so REQ-a3k9z2x is not a longer ID — it is not an ID at all — and
-# a scan without this boundary reads its first six characters and credits
-# REQ-a3k9z2 for a reference nobody wrote. Sequential IDs never had that
-# problem: [0-9]{3,} is greedy, so REQ-0012 harvested whole and showed up as
-# the dangling reference it was.
+# characters, so `<PREFIX>-` followed by seven token characters is not a longer
+# ID — it is not an ID at all — and a scan without this boundary reads its
+# first six characters and credits the six-character ID they spell for a
+# reference nobody wrote. Sequential IDs never had that problem: [0-9]{3,} is
+# greedy, so a mistyped four-digit number harvested whole and showed up as the
+# dangling reference it was.
 #
 # Deliberately wider than the body alphabet — `i`, `l`, `o` and the uppercase
 # letters cannot appear in a token, but a reference containing one is still a
@@ -137,7 +140,7 @@ GR_ID_TAIL='[^0-9A-Za-z]'
 # every awk program that needs it. gr_id_run(line, kw) returns the space-
 # separated IDs of the list immediately following the FIRST occurrence of kw on
 # line; the run ends at the first character that is not an ID, comma or space,
-# so `verifies: REQ-001 (was REQ-042)` yields REQ-001 alone — prose after the
+# so `verifies: <ID> (was <older ID>)` yields the first ID alone — prose after the
 # list is commentary, never coverage.
 #
 # One definition is the point. Three near-copies of this rule is how `traces:`
@@ -165,9 +168,10 @@ function gr_id_run(line, kw,   p, rest, out, tok, nxt) {
         #
         # The rest of the bad token is consumed with it. Leaving the stray
         # characters made the next `^`-anchored match fail, so ONE mistyped ID
-        # discarded every ID after it in the list: `verifies: REQ-a3k9z2x,
-        # REQ-b4m8p3` credited neither, and MISSING-TEST then named the
-        # correctly spelled item too, pointing the reader at the wrong line.
+        # discarded every ID after it in the list: a `verifies:` list of a
+        # seven-character token followed by a valid ID credited neither, and
+        # MISSING-TEST then named the correctly spelled item too, pointing the
+        # reader at the wrong line.
         # `rest` advances either way, so the loop still terminates.
         if (nxt != "" && nxt !~ /'"${GR_ID_TAIL}"'/) {
             sub(/^[0-9A-Za-z]+/, "", rest)
@@ -246,44 +250,36 @@ function gr_block_closes(line) {
     if (substr(line, 1, 1) == "#") return 1
     return (substr(line, 1, 2) == "**" && index(line, ":") > 0)
 }
-# Leading list markers, stepped over. Used by the ORPHAN-ANNOTATION backstop
-# alone — see gr_kw_orphan_here — and by NO reader. The invariant stated at
-# gr_kw_here below is what forbids a reader from calling this.
+# Leading list markers, task-list boxes and blockquote markers, stepped over.
+# Used by the backstops alone —
+# gr_kw_orphan_here — and by NO reader. The invariant stated at gr_kw_here
+# below is what forbids a reader from calling this.
 #
-# TWO MARKER FORMS, AND NOT ALL OF MARKDOWN LIST SYNTAX: a bullet marker, `-`,
-# `*` or `+`, and an ordered marker, a run of digits closed by `.` or `)`. Say
-# two forms and not both halves: a GFM task-list item is list syntax this rule
-# does not reach — `- [x] satisfies:` is stepped over as far as the `-`, and
-# `[x] satisfies:` does not match, so it is credited inside a block and
-# reported by nothing outside one. That gap is open.
+# Four lead forms: a bullet, `-`, `*` or `+`; an ordered marker, a run of
+# digits closed by `.` or `)`; a task-list box, `[ ]` or `[x]`; and a
+# blockquote marker, `>`. No reader takes a keyword after any lead
+# (gr_annotation), so a lead this steps over is a line the backstop reports,
+# inside a block for the ID-list keywords and outside every block for all of
+# them: `- [x] satisfies: derived` on a REQ is reported, never dropped.
+# Table cells, emphasis and mid-sentence mentions are not leads: no reader
+# takes them and no backstop reports them.
 #
-# The ordered marker is needed as much as the bullets: without it,
-# `1. satisfies:` outside every block is reported by nothing while gr_id_run
-# credits the same line inside one.
-#
-# A RUN of them, not one: `- 1. status:` is a one-line nested list, and depth
-# is no reason to lose an orphan. The loop terminates because every pass
-# consumes at least two characters.
+# A RUN of them, not one: `- 1. status:` is a one-line nested list, and
+# `- [x] status:` a task-list item. The loop terminates because every pass
+# consumes at least one character.
 #
 # A MARKER, never bare indentation, and never a bare number. The leading [ \t]*
 # admits an indented item; a line with no marker is returned unchanged,
 # which is what keeps the indented item grammar in the ledger templates inert,
 # and requiring the `.` or `)` is what keeps `1 status: of the bus` prose. The
-# trailing [ \t]+ is required too, as it always was: markdown needs whitespace
-# after a list marker, so `1.status:` is not a list item and is not stepped
-# over. Inside the bracket expression the `-` comes first, where it is a
-# literal and not a range; `*` and `+` are literal at any position in one.
-#
-# WHAT THIS STILL DOES NOT REACH, stated exactly, because the last statement of
-# it overclaimed. This steps over LIST MARKERS and nothing else. gr_id_run
-# finds its keyword anywhere on the line, so every other decoration it accepts
-# is still invisible to the backstop: a blockquote `> satisfies:`, a table
-# cell, a mention inside a sentence. Those are credited inside a block and
-# unreported outside one, exactly as the ordered form was. See the note at
-# gr_kw_orphan_here for why the reader is not narrowed to close the class.
+# trailing [ \t]+ is required too: markdown needs whitespace after a list
+# marker, so `1.status:` is not a list item and is not stepped over; a
+# blockquote needs none, so `>status:` is stepped over. Inside the
+# bracket expression the `-` comes first, where it is a literal and not a
+# range; `*` and `+` are literal at any position in one.
 function gr_kw_lead(line,   s) {
     s = line
-    while (sub(/^[ \t]*([-*+]|[0-9]+[.)])[ \t]+/, "", s) > 0) { }
+    while (sub(/^[ \t]*(([-*+]|[0-9]+[.)]|\[[ xX]\])[ \t]+|>[ \t]*)/, "", s) > 0) { }
     return s
 }
 # Is KW the annotation this line contains? Column one, and only column one. THE
@@ -318,36 +314,37 @@ function gr_kw_lead(line,   s) {
 function gr_kw_here(line, kw) {
     return (index(line, kw) == 1)
 }
+# THE ANNOTATION RULE for an ID-list keyword (satisfies:, traces:,
+# implements:, mitigates:): where KW starts an annotation on this line. It
+# starts at column one, or anywhere on the definition line of a block this gate
+# collects, which carries the inline form the templates ship
+# (`**SDD-…**: … traces: REQ-…`). Nowhere else: not after a list marker, a
+# task-list box, a blockquote or a word of prose. Returns the line from the
+# keyword on, ready for gr_id_run, or "" where the line starts no annotation.
+#
+# Every block reader of those keywords takes its text from here, so one rule
+# decides where an annotation starts, and nothing is left to enumerate: a lead
+# the rule does not name is outside it. That is what lets the ORPHAN-ANNOTATION
+# backstop contain the readers. Outside every block no definition line exists,
+# so the reader position there is column one, which gr_kw_orphan_here covers.
+function gr_annotation(line, kw,   kw_pos) {
+    if (gr_kw_here(line, kw)) return line
+    if (!gr_block_opens(line)) return ""
+    kw_pos = index(line, kw)
+    return (kw_pos > 0 ? substr(line, kw_pos) : "")
+}
 # Could KW be READ from this line by anything? Column one, or column one after
-# one or more list markers, bulleted or ordered. THE BACKSTOP form, and
-# deliberately wider than gr_kw_here per the invariant above. One caller, a
-# backstop: check_orphans in check-trace.sh. No reader may call it.
+# a run of the leads gr_kw_lead steps over. THE BACKSTOP form, and
+# deliberately wider than gr_kw_here per the invariant above. Callers are
+# backstops — check_orphans and the supersession scan in check-trace.sh — and
+# no reader may call it.
 #
-# What the width buys: gr_id_run finds its keyword ANYWHERE on the line, so
-# `- satisfies: REQ-001` is credited to an item inside a block, and the same
-# line outside every block, unreported, would be exit 0 with a derived item
-# never checked against the RMF. The list form is reported wherever it belongs
-# to no item, whether or not a reader would take it, and
-# `1. satisfies: REQ-001` with it — see gr_kw_lead.
-#
-# What this does NOT cover is NOT ENUMERATED HERE, and that omission is the
-# point. gr_id_run finds its keyword ANYWHERE on the line; gr_kw_lead steps
-# over the two marker forms above, in runs, and over nothing else. Every other
-# position gr_id_run accepts is still credited to an item inside a block and
-# still invisible to the backstop.
-#
-# An enumeration of the remainder would rest on no more than that nobody has
-# yet found the next form, so what is written down is what this rule DOES, and
-# the remainder is declared open-ended and presumed live.
-#
-# Leaving that residue is deliberate, and the reason is the SAD. templates/
-# sad.md ships the annotation ON the definition line, and check-trace.sh states
-# so at both readers, so requiring column one of gr_id_run would reject the
-# documented primary form and every SAD written against it. No lead-stripper
-# closes the class either — a prefix regex cannot decide what a markdown line
-# is — which is why this one claims two marker forms and not closure, and why
-# closing the gap needs either a reader the backstop can contain without
-# enumerating anything, or a markdown-aware line classifier.
+# The containment holds by construction. Outside every block no definition
+# line exists, so a reader would take a keyword there only at column one
+# (gr_annotation), and this sees column one. The lead width is extra: a
+# bulleted orphan is reported although no reader would take it, which is
+# noise at worst, never a false green. Inside a block, check_orphans reports
+# an ID-list keyword this sees and gr_annotation does not take.
 #
 # gr_kw_here carries no list-marker rule because such a rule fires on
 # `- status: resolved only in the same change that merges the fix.`, prose in
@@ -356,10 +353,11 @@ function gr_kw_here(line, kw) {
 # same reason, so both lines give the illustrative form inline in backticks,
 # which is the convention those templates already state for their own
 # examples. An extended-regex grep over docs/, templates/ and
-# skills/ for the WIDENED marker rule followed by a block-parsed keyword —
-# ^[[:space:]]*(([-*+]|[0-9]+[.)])[[:space:]]+)+ — returns nothing at all. That
-# is the sizing grep in skills/ratchet/references/upgrade-notes.md, and it is
-# this function written out, so what it prints is what this steps over.
+# skills/ for the WIDENED lead rule followed by a block-parsed keyword —
+# ^[[:space:]]*(([-*+]|[0-9]+[.)]|\[[ xX]\])[[:space:]]+|>[[:space:]]*)+ —
+# returns nothing at all. That is the sizing grep in the newest section of
+# skills/ratchet/references/upgrade-notes.md, and it is gr_kw_lead written
+# out, so what it prints is what this steps over.
 function gr_kw_orphan_here(line, kw) {
     return (index(gr_kw_lead(line), kw) == 1)
 }
@@ -658,13 +656,13 @@ gr_prefix_re() {
 # by having been typed the same way fifteen times.
 #
 # It names `.guardrails/scripts`, NOT `.guardrails`. The exclusion exists so the
-# installed scripts do not report themselves — their comments contain a literal
-# `REQ-DRAFT-b-1` and definition-form examples — and the scripts are the only
+# installed scripts do not report themselves — their comments can contain a
+# literal draft token and definition-form examples — and the scripts are the only
 # thing under `.guardrails/` that matches any gate's pattern; config.yaml
 # matches none. Excluding the whole directory would also hide the project's own
 # files: with `doc_srs: .guardrails/docs/requirements`, the ledger would be
 # invisible to every gate, and both check scripts would pass a tree with a
-# live `REQ-DRAFT-x-1` in it.
+# live draft token in it.
 # Narrowing cannot reach one case: a doc_* configured INSIDE this directory is
 # still accepted, and checked: counts its items as zero. Whether any gate
 # complains first depends on whether git tracks or ignores the ledger, and on
@@ -679,6 +677,124 @@ gr_prefix_re() {
 # inherited from the environment could widen it to `:(exclude).` and blind
 # every gate in the toolkit while each one still exited 0.
 GR_SCAN_EXCLUDE=':(exclude).guardrails/scripts'
+
+# gr_example_excludes — one `:(exclude)<entry>` pathspec per example_paths
+# entry, one per line, and nothing when the key is absent. example_paths names
+# the files that hold example and fixture text: an item definition, a draft
+# token or a history citation quoted there is an illustration, and a gate that
+# read it would convict the illustration. The pathspecs go beside
+# GR_SCAN_EXCLUDE at each scan that skips those files. The caller splits the
+# lines on newlines alone, with globbing off, so a path with a space or a
+# glob character reaches git as the one pathspec the config wrote.
+gr_example_excludes() {
+    _gee_entries=$(cfg_list example_paths) || exit 2
+    [ -n "$_gee_entries" ] || return 0
+    printf '%s\n' "$_gee_entries" | sed 's/^/:(exclude)/'
+}
+
+# gr_require_paths KEY ENTRIES… — exit 2 for an entry that matches no file
+# present in the working tree. A configured path that does not exist makes
+# every gate that reads it a silent no-op, so it fails as an environment error
+# instead of passing vacuously. An entry matching no file at all scans no
+# file, and that is what must be an error.
+gr_require_paths() {
+    _grp_key="$1"
+    shift
+    for _grp_entry in "$@"; do
+        [ -n "$_grp_entry" ] || continue
+        # No `[ -e ] && continue` short-circuit: an empty directory exists but
+        # contains nothing to scan, and passing it here would report `strict 1`
+        # in the summary for a source that read nothing — the exact false green
+        # the summary exists to expose. Every entry must match a FILE.
+        #
+        # The entry may be a plain path or a git pathspec: `*_test.sh`
+        # matches recursively for git, and git grep — which is what actually
+        # scans these — accepts it. So ask git. Only an entry matching no file
+        # at all is an error. NB git's `*` crosses `/` where a shell glob does
+        # not, so `src/*.c` reaches into subdirectories.
+        # Counted, never parsed. git ls-files C-quotes any path with a
+        # non-ASCII byte, a quote, a tab or a newline (core.quotePath), so
+        # testing [ -e ] on each returned name rejects a directory like
+        # `tésts/` that git grep scans perfectly well. Counting lines is
+        # immune to the quoting, and a quoted embedded newline still counts
+        # as the one line it is printed as.
+        #
+        # The match must also still be present in the working tree — git grep
+        # scans the tree, so a path that is tracked but deleted on disk would
+        # pass this check while scanning nothing. cached minus deleted, plus
+        # untracked-but-not-ignored, is exactly "matches a file that is there".
+        #
+        # Each listing is taken apart from its count, so a git failure is
+        # reported as one rather than read as "matches no file".
+        _grp_cached=$(git ls-files --cached -- "$_grp_entry") \
+            || gr_die "$_grp_key entry: git ls-files --cached failed on $_grp_entry"
+        _grp_gone=$(git ls-files --deleted -- "$_grp_entry") \
+            || gr_die "$_grp_key entry: git ls-files --deleted failed on $_grp_entry"
+        _grp_new=$(git ls-files --others --exclude-standard -- "$_grp_entry") \
+            || gr_die "$_grp_key entry: git ls-files --others failed on $_grp_entry"
+        # grep -c exits 1 on a count of zero, which is an answer, not a
+        # failure; the pipeline's status is grep's and is not read.
+        _grp_cached=$(printf '%s' "$_grp_cached" | grep -c .)
+        _grp_gone=$(printf '%s' "$_grp_gone" | grep -c .)
+        _grp_new=$(printf '%s' "$_grp_new" | grep -c .)
+        if [ $((_grp_cached - _grp_gone + _grp_new)) -le 0 ]; then
+            gr_die "$_grp_key entry matches no file present in the working tree: $_grp_entry"
+        fi
+    done
+}
+
+# gr_check_examples — exit 2 for an example_paths entry that matches no file
+# present in the working tree, or one that matches a file a doc_* key resolves
+# to. A ledger is never example text: excluded, its items would be defined
+# nowhere any gate reads. Called after gr_check_config and with pathname
+# expansion on, which gr_doc_files needs for its *.md.
+gr_check_examples() {
+    _gce_entries=$(cfg_list example_paths) || exit 2
+    [ -n "$_gce_entries" ] || return 0
+    _gce_docs=""
+    for _gce_key in doc_srs doc_rmf doc_sad doc_soup doc_problems; do
+        _gce_files=$(gr_doc_files "$_gce_key") || exit 2
+        if [ -n "$_gce_files" ]; then
+            _gce_docs="${_gce_docs}${_gce_docs:+
+}$_gce_files"
+        fi
+    done
+    # Newline splitting and no globbing, restored on return as gr_prefixes
+    # does: an entry is one pathspec, whatever it contains.
+    _gce_saved_ifs=${IFS-__gr_unset__}
+    IFS='
+'
+    case $- in (*f*) _gce_refl=1 ;; (*) _gce_refl=0 ;; esac
+    set -f
+    # shellcheck disable=SC2086
+    gr_require_paths example_paths $_gce_entries
+    # Each ledger file as git names it, so `docs/requirements//a.md` from a
+    # doc_* value with a trailing slash compares equal to what an entry
+    # matches. `:(literal)` because a ledger file name is a name, not a
+    # pattern.
+    # A listing that fails lists nothing, and an entry would then pass this
+    # check against no ledger at all.
+    _gce_ledger=""
+    for _gce_doc in $_gce_docs; do
+        _gce_named=$(git -c core.quotePath=false ls-files --cached --others --exclude-standard -- ":(literal)$_gce_doc") \
+            || gr_die "ledger file listing failed for $_gce_doc"
+        _gce_ledger="${_gce_ledger}
+$_gce_named"
+    done
+    for _gce_entry in $_gce_entries; do
+        _gce_hits=$(git -c core.quotePath=false ls-files --cached --others --exclude-standard -- "$_gce_entry") \
+            || gr_die "example_paths file listing failed for $_gce_entry"
+        for _gce_hit in $_gce_hits; do
+            gr_contains "$_gce_ledger" "$_gce_hit" || continue
+            gr_die "example_paths entry matches a ledger file: $_gce_entry matches $_gce_hit
+  A ledger is never example text: listed, its items would be defined nowhere a
+  gate reads. Narrow the entry to the example files."
+        done
+    done
+    [ "$_gce_refl" -eq 1 ] || set +f
+    if [ "$_gce_saved_ifs" = "__gr_unset__" ]; then unset IFS; else IFS=$_gce_saved_ifs; fi
+    return 0
+}
 
 # GR_DRAFT_TOKEN_RE — a draft ID token (<PREFIX>-DRAFT-<slug>-<n>), the shape
 # check-ids.sh convicts as DRAFT-ID and check-units.sh as DISCLAIMED-DRAFT.
@@ -711,9 +827,8 @@ GR_DRAFT_FILE_RE='(^|/)DRAFT-[^/]*$'
 # the empty string to match the token anywhere on a line. Do NOT express that
 # last case as '^.+': git's matcher backtracks on a leading .+ and costs tens
 # of seconds per prefix on a few hundred documents, against tenths of a second
-# for the unanchored form. The verification record contains the measurement and
-# the corpus commit it was taken on; a bare number here could not be re-derived
-# and drifted into three different values.
+# for the unanchored form. No figure is given for that cost: a bare number here
+# could not be re-derived and drifted into three different values.
 #
 # Two behavioural tests hold every gate to this one form: "poisoning gr_def_re"
 # (tests/check-ids.bats) and "widening GR_ID_BODY" (tests/check-trace.bats).
@@ -730,9 +845,10 @@ gr_def_re() {
 # gr_def_re does not is a definition form whose ID cannot be read, and there is
 # no third possibility — which is what makes "loose minus strict" a total
 # classification of DEFINITION-SHAPED lines. It is not a classification of
-# header-shaped ones, and that distinction matters: where ADR is not declared, `**ADR-0007**:` is a header this
-# pattern does not match. Where it is declared, as in the shipped config, both
-# this pattern and gr_def_re match it, and it is a valid item.
+# header-shaped ones, and that distinction matters: where ADR is not declared,
+# a bold four-digit ADR ID followed by a colon is a header this pattern does
+# not match. Where it is declared, as in the shipped config, both this pattern
+# and gr_def_re match it, and it is a valid item.
 #
 # ONE consumer: the MALFORMED-ID scan in check-ids.sh. There such a line is a
 # document defect
@@ -1962,6 +2078,7 @@ gr_unit_engage() {
 # reader, so the expectation severity and UNIMPLEMENTED-CONTROL agree.
 # Column one only, first occurrence per keyword per block — the same rules
 # the PR status reader follows, so ORPHAN-ANNOTATION sees what this sees.
+# satisfies: starts where gr_annotation says, as at every block reader of it.
 # Blocks open on every gated prefix, so exported: on an LLR is ATTRIBUTED and
 # convicted (MISEXPORTED-ITEM), never dropped.
 gr_req_scan() {
@@ -1990,7 +2107,7 @@ gr_req_scan() {
                 printf "%s\t%s\tOPENED\t%s\n", cur, fname, gr_value(line, "opened:")
             }
             {
-                run = gr_id_run(line, "satisfies:")
+                run = gr_id_run(gr_annotation(line, "satisfies:"), "satisfies:")
                 n = split(run, a, " ")
                 for (i = 1; i <= n; i++)
                     if (a[i] ~ /^REQ-/) printf "%s\t%s\tSAT\t%s\n", cur, fname, a[i]

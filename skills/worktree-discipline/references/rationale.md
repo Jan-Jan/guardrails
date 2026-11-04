@@ -63,9 +63,11 @@ both routes.
 
 ## Step 5: IDs are minted, not chosen
 
-The token is random, minted once, and allocated against nothing, so two
-worktrees, or two pull requests, never contend for it and nothing is
-renumbered at merge. The alphabet drops the characters that are read wrong
+The token is random and minted once, and nothing is renumbered at merge. It
+is not allocated against a base branch, so two worktrees, or two pull
+requests, can mint the same one: a collision is possible and improbable, and
+`DUPLICATE-ID` detects it once `merge-change` has merged the base branch in.
+It is detected, not prevented. The alphabet drops the characters that are read wrong
 (`0`/`o`, `1`/`l`/`i`), and every token contains a digit, which is what stops
 `REQ-argued` in prose from reading as an ID. A hand-typed token can break
 either property.

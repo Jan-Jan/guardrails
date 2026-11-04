@@ -64,7 +64,8 @@ for it.
 
 1. Every command in `verify_commands` (`.guardrails/config.yaml`): full test
    suite, type checks, linters. Zero failures, pristine output.
-2. `.guardrails/scripts/check-trace.sh`: clean.
+2. `.guardrails/scripts/check-trace.sh`: passes, as `check-traceability`
+   step 3 defines a passing run; warning lines are reported, not failed.
 3. `.guardrails/scripts/check-ids.sh`: no draft ID, no draft-named file, no
    duplicate and no malformed ID. A `DRAFT-FILE` is answered by the rename its
    fix line gives, never passed.

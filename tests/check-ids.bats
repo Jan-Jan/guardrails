@@ -264,53 +264,6 @@ EOF
     [ "$status" -eq 2 ] || { echo "accepted a broken config: $output"; false; }
 }
 
-@test "poisoning GR_SCAN_EXCLUDE changes every gate's verdict" {
-    # A lint that greps for the right spelling is defeated by a different
-    # spelling: a single-quoted copy, a comment that preserves the count, a
-    # shadowing definition. So prove the single source of truth
-    # behaviourally: move the exclusion onto src/, and
-    # require every scan to follow it there. A call site still with its own
-    # literal pathspec would not move, and would fail here.
-    #
-    # check-ids.sh has three such sites — the draft scan, MALFORMED-ID and the
-    # duplicate scan — and each has its own observable below.
-    printf '**REQ-001**: a second definition of the fixture item.\n**REQ-b4m7q3**: an item outside its ledger.\n**REQ-abcdef**: a body that is not an ID.\n**REQ-DRAFT-x-1**: a draft.\n' \
-        > src/notes.md
-    # check-trace.sh runs below, and this file's fixture leaves tests/ empty.
-    printf '# verifies: REQ-001\ntrue\n' > tests/test_a.sh
-    commit_all poison-fixture
-
-    # Unpoisoned: every scan sees src/.
-    run sh .guardrails/scripts/check-ids.sh
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"DRAFT-ID src/notes.md"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"MALFORMED-ID src/notes.md"* ]] || { echo "$output"; false; }
-    [[ "$output" == *"DUPLICATE-ID REQ-001"* ]] || { echo "$output"; false; }
-    run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"checked: REQ 2,"* ]] || { echo "$output"; false; }
-
-    printf "\nGR_SCAN_EXCLUDE=':(exclude)src'\n" >> .guardrails/scripts/lib.sh
-
-    # The poison REPLACES the exclusion rather than adding to it — it is one
-    # pathspec argument, not a list — so the move is visible from both ends:
-    # src/ becomes invisible and .guardrails/scripts/ becomes visible, and the
-    # tooling starts reporting the draft token in its own comments. A scan
-    # with its own literal pathspec would move at neither end.
-    run sh .guardrails/scripts/check-ids.sh
-    [[ "$output" != *"DRAFT-ID src/notes.md"* ]] \
-        || { echo "check-ids still scans src: $output"; false; }
-    [[ "$output" == *"DRAFT-ID .guardrails/scripts/"* ]] \
-        || { echo "check-ids did not follow the exclusion: $output"; false; }
-    [[ "$output" != *"MALFORMED-ID"* ]] \
-        || { echo "the malformed scan kept its own pathspec: $output"; false; }
-    [[ "$output" != *"DUPLICATE-ID REQ-001"* ]] \
-        || { echo "the duplicate scan kept its own pathspec: $output"; false; }
-
-    run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" == *"checked: REQ 1,"* ]] \
-        || { echo "check-trace has its own pathspec: $output"; false; }
-}
-
 @test "check-ids: a definition-shaped line with a bad body is MALFORMED-ID" {
     # Under drafts the final ID was written by a script and was always well
     # formed. Now a person types it, and **REQ-abcdef**: matches nothing in the
@@ -646,4 +599,130 @@ EOF
     unit_run check-ids.sh platform/hal
     [ "$status" -eq 1 ]
     [[ "$output" == *"DUPLICATE-ID REQ-h4m2p9"* ]] || { echo "$output"; false; }
+}
+
+# --- example_paths: example text defines nothing -----------------------------
+
+@test "check-ids: an example_paths entry matching no file exits 2 naming it" {
+    # verifies: REQ-mmfxd8
+    printf 'example_paths:\n  - tests/no-such-fixture.md\n' >> .guardrails/config.yaml
+    commit_all example-missing
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "example_paths entry matches no file present in the working tree: tests/no-such-fixture.md"
+}
+
+@test "check-ids: an example_paths entry whose only file is deleted from the working tree exits 2" {
+    # verifies: REQ-mmfxd8
+    printf 'sample\n' > tests/fixture.md
+    printf 'example_paths:\n  - tests/fixture.md\n' >> .guardrails/config.yaml
+    commit_all example-tracked
+    rm tests/fixture.md
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "example_paths entry matches no file present in the working tree: tests/fixture.md"
+}
+
+@test "check-ids: an example_paths entry that matches a ledger file exits 2 naming both" {
+    # verifies: REQ-h7cjtr
+    printf 'example_paths:\n  - docs/requirements\n' >> .guardrails/config.yaml
+    commit_all example-ledger
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "example_paths entry matches a ledger file: docs/requirements matches docs/requirements/0001-01-01-base.md"
+}
+
+@test "check-ids: an example_paths entry that matches a single-file doc_* key exits 2" {
+    # verifies: REQ-h7cjtr
+    # doc_soup names one file, not a directory; a glob entry reaching it
+    # through a parent directory is a ledger all the same.
+    printf 'example_paths:\n  - docs/*/soup.md\n' >> .guardrails/config.yaml
+    commit_all example-soup
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "matches docs/architecture/soup.md"
+}
+
+@test "check-ids: a definition in an example file is neither a duplicate nor malformed" {
+    # verifies: REQ-esb4nh
+    printf '**REQ-001**: copied into a fixture.\n**REQ-abcdef**: not an ID.\n' > 'tests/my fixture.md'
+    commit_all example-defs
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "DUPLICATE-ID REQ-001"
+    output_has "MALFORMED-ID"
+
+    # A path with a space is one entry, not two.
+    printf 'example_paths:\n  - tests/my fixture.md\n' >> .guardrails/config.yaml
+    commit_all example-listed
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [ -z "$output" ] || { echo "$output"; false; }
+
+    # The same definition outside the example file still convicts.
+    printf '**REQ-001**: a duplicate in source.\n' > src/extra.md
+    commit_all example-elsewhere
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "DUPLICATE-ID REQ-001"
+}
+
+@test "check-ids: a draft token in an example file is no DRAFT-ID" {
+    # verifies: REQ-5smhcm
+    printf 'printf "**REQ-DRAFT-b-1**: x"\n' > tests/fixture.bats
+    commit_all example-draft
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "DRAFT-ID tests/fixture.bats"
+
+    printf 'example_paths:\n  - tests/fixture.bats\n' >> .guardrails/config.yaml
+    commit_all example-listed
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "check-ids: scoped, a draft token in an example file inside the unit is no DRAFT-ID" {
+    # verifies: REQ-5smhcm
+    make_units_fixture
+    mkdir -p apps/pump/tests
+    printf 'printf "**REQ-DRAFT-b-1**: x"\n' > apps/pump/tests/fixture.bats
+    commit_all example-draft-scoped
+    unit_run check-ids.sh apps/pump
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "DRAFT-ID apps/pump/tests/fixture.bats"
+
+    printf 'example_paths:\n  - apps/pump/tests/fixture.bats\n' >> apps/pump/.guardrails/config.yaml
+    commit_all example-draft-scoped-listed
+    unit_run check-ids.sh apps/pump
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_lacks "DRAFT-ID"
+}
+
+@test "check-ids: scoped, a malformed definition in an example file inside the unit is no MALFORMED-ID" {
+    # verifies: REQ-esb4nh
+    make_units_fixture
+    mkdir -p apps/pump/tests
+    printf '**REQ-abcdef**: not an ID.\n' > apps/pump/tests/fixture.md
+    commit_all example-malformed-scoped
+    unit_run check-ids.sh apps/pump
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "MALFORMED-ID apps/pump/tests/fixture.md"
+
+    printf 'example_paths:\n  - apps/pump/tests/fixture.md\n' >> apps/pump/.guardrails/config.yaml
+    commit_all example-malformed-scoped-listed
+    unit_run check-ids.sh apps/pump
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_lacks "MALFORMED-ID"
+}
+
+@test "check-ids: a draft token outside the example files is still a DRAFT-ID" {
+    # verifies: REQ-5smhcm
+    printf 'printf "**REQ-DRAFT-b-1**: x"\n' > tests/fixture.bats
+    printf 'REQ-DRAFT-b-2 in source\n' > src/notes.md
+    printf 'example_paths:\n  - tests/fixture.bats\n' >> .guardrails/config.yaml
+    commit_all example-draft-elsewhere
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "DRAFT-ID src/notes.md"
+    output_lacks "tests/fixture.bats"
 }

@@ -98,6 +98,24 @@ EOF
     [ "$output" = "docs/architecture/soup.md" ]
 }
 
+@test "check-ids.sh and check-trace.sh exit 2 naming the listing when an example_paths entry's git ls-files fails" {
+    # verifies: REQ-6vfb6a, REQ-mmfxd8
+    # A discarded listing failure reads as "matches no file", or, for the
+    # deleted listing, as a file that is there.
+    printf 'sample\n' > src/sample.txt
+    printf 'example_paths:\n  - src/sample.txt\n' >> .guardrails/config.yaml
+    commit_all require-paths-listing
+    for listing in "--cached" "--deleted" "--others --exclude-standard"; do
+        stub_directory=$(make_git_failing_on "*\" ls-files $listing -- src/sample.txt \"*")
+        for script in check-ids.sh check-trace.sh; do
+            PATH="$stub_directory:$PATH" run sh ".guardrails/scripts/$script"
+            [ "$status" -eq 2 ] || { echo "$script $listing: $status: $output"; false; }
+            output_has "example_paths entry: git ls-files ${listing%% *} failed on src/sample.txt"
+            output_has "fatal: stub failure of git"
+        done
+    done
+}
+
 @test "gr_doc_files on a missing key prints nothing, exit 0" {
     run sh -c '. .guardrails/scripts/lib.sh && gr_doc_files doc_nonexistent'
     [ "$status" -eq 0 ]
@@ -1177,7 +1195,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here accepts a list marker before the keyword" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # The asymmetry this closes: gr_id_run finds `satisfies:` anywhere on the
     # line, so a bulleted annotation is credited inside a block while the
     # backstop could not see the same line outside one. The BACKSTOP is the
@@ -1185,6 +1203,20 @@ item_block_probe() {
     # would read is still reported where it belongs to no item.
     run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
         '- status: open'
+    [ "$status" -eq 0 ]
+    [ "$output" = "HERE" ]
+}
+
+@test "gr_kw_orphan_here steps over a task-list box and a blockquote marker" {
+    # verifies: REQ-ae3zr8
+    # The leads no reader takes inside a block: the backstop must see them,
+    # or the line is dropped in silence there.
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "satisfies:") ? "HERE" : "ABSENT") }' \
+        '- [x] satisfies: derived'
+    [ "$status" -eq 0 ]
+    [ "$output" = "HERE" ]
+    run item_block_probe '{ print (gr_kw_orphan_here($0, "satisfies:") ? "HERE" : "ABSENT") }' \
+        '> satisfies: derived'
     [ "$status" -eq 0 ]
     [ "$output" = "HERE" ]
 }
@@ -1205,7 +1237,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here still rejects bare indentation" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # SCOPE CONTROL, not a widening. A MARKER is required; indentation alone
     # changes nothing. This is what keeps the indented grammar comments in the
     # ledger templates inert, and it is the property the backstop is built
@@ -1244,7 +1276,7 @@ item_block_probe() {
 # bulleted OR ordered; a rule that knows only half of that closes half a hole.
 
 @test "gr_kw_orphan_here accepts an ordered list marker before the keyword" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
         '1. status: open'
     [ "$status" -eq 0 ]
@@ -1252,7 +1284,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here accepts the paren form of an ordered marker" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # Both delimiters markdown allows, and a multi-digit number with them: the
     # tenth item of a list is no less an item than the first.
     run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
@@ -1262,7 +1294,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here steps over a run of markers, not just one" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # A one-line nested list. Depth is not a reason to lose an orphan, so the
     # stripper consumes a RUN of markers rather than exactly one.
     run item_block_probe '{ print (gr_kw_orphan_here($0, "status:") ? "HERE" : "ABSENT") }' \
@@ -1285,7 +1317,7 @@ item_block_probe() {
 }
 
 @test "gr_kw_orphan_here still rejects a bare number with no delimiter" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # SCOPE CONTROL, the ordered twin of "still rejects bare indentation". A
     # MARKER is required, and a run of digits alone is not one — `1 status: of
     # the bus is open` is prose, and a rule that stepped over it would report
@@ -1924,4 +1956,54 @@ RESOLVES (Resolves: names PR-cde456, which this change does not delete)" ] \
         "$(git rev-parse 'HEAD^{tree}')"
     [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
     [[ "$output" == *"gr_message_check"*"5 arguments"* ]] || { echo "$output"; false; }
+}
+
+@test "check-ids.sh accepts example_paths as a list key and reads its entries as pathspecs" {
+    # verifies: REQ-v2wmnh
+    # A pathspec entry, as strict_paths takes: `*.txt` reaches git verbatim
+    # and matches recursively, so the duplicate below in src/sample.txt is
+    # example text, while a root-level a.txt the shell would expand it to is
+    # there to catch a shell glob.
+    printf '**REQ-001**: The system shall exist.\n' > docs/requirements/0001-01-01-base.md
+    printf '**REQ-001**: an example definition.\n' > src/sample.txt
+    : > a.txt
+    printf 'example_paths:\n  - *.txt\n' >> .guardrails/config.yaml
+    commit_all example-list
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "check-ids.sh rejects example_paths written as a scalar" {
+    # verifies: REQ-v2wmnh
+    printf 'sample\n' > src/sample.txt
+    printf 'example_paths: src/sample.txt\n' >> .guardrails/config.yaml
+    commit_all example-scalar
+    run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "wrong form"
+    output_has "example_paths"
+}
+
+@test "check-ids.sh exits 2 when the ledger listing for the example_paths overlap check fails" {
+    # verifies: REQ-6vfb6a, REQ-h7cjtr
+    # An unchecked listing reads as no ledger file, and every entry then
+    # passes the overlap check.
+    printf 'sample\n' > src/sample.txt
+    printf 'example_paths:\n  - src/sample.txt\n' >> .guardrails/config.yaml
+    commit_all example-ledger-listing
+    stub_directory=$(make_git_failing_on '*" ls-files --cached --others --exclude-standard -- :(literal)"*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "fatal: stub failure of git"
+}
+
+@test "check-ids.sh exits 2 when the entry listing for the example_paths overlap check fails" {
+    # verifies: REQ-6vfb6a, REQ-h7cjtr
+    printf 'sample\n' > src/sample.txt
+    printf 'example_paths:\n  - src/sample.txt\n' >> .guardrails/config.yaml
+    commit_all example-entry-listing
+    stub_directory=$(make_git_failing_on '*" ls-files --cached --others --exclude-standard -- src/sample.txt "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-ids.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "fatal: stub failure of git"
 }

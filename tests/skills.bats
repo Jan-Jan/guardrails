@@ -3848,3 +3848,37 @@ adr_file_is_named_by_its_item() {
             || { echo "templates/$readme.md does not say an item is terse"; false; }
     done
 }
+
+@test "check-traceability: one definition of a passing check-trace run, cited by the gate" {
+    # verifies: REQ-6p7jz3
+    # Every run prints `problems:` and may print warnings, so a definition
+    # of "clean" as exit 0 with two summary lines is met by no run.
+    skill="$BATS_TEST_DIRNAME/../skills/check-traceability/SKILL.md"
+    gate="$BATS_TEST_DIRNAME/../skills/verify-before-merge/SKILL.md"
+    step3=$(step_of "$skill" 3 | tr '\n' ' ' | tr -s ' ')
+    grep -qF 'passes at exit 0 with no violation line' <<< "$step3" \
+        || { echo "step 3 does not define a passing run: $step3"; false; }
+    for allowed in '`checked:`' '`problems:`' '`sources:`' 'UNRESOLVED-PR' 'ACCEPTED-PR' 'fix <RULE>:'; do
+        grep -qF -- "$allowed" <<< "$step3" \
+            || { echo "step 3 does not allow $allowed"; false; }
+    done
+    grep -qE '^ *sources: .*, examples [0-9]+$' "$skill" \
+        || { echo "the sources: example lacks the examples figure"; false; }
+    run grep -qF 'with only these two lines' "$skill"
+    [ "$status" -ne 0 ] || { echo "step 3 still defines clean as two lines"; false; }
+    check2=$(grep -m 1 -A3 '^2\. `\.guardrails/scripts/check-trace\.sh`' "$gate" | tr '\n' ' ' | tr -s ' ')
+    grep -qF 'check-traceability' <<< "$check2" \
+        || { echo "check 2 does not cite check-traceability: $check2"; false; }
+    grep -qF 'step 3' <<< "$check2" \
+        || { echo "check 2 does not cite step 3: $check2"; false; }
+}
+
+@test "develop-refactor: a duplication fix leaves each test checking what it claims" {
+    # verifies: REQ-8kag74
+    # A duplication fix that drops a test's assertions because a sweep covers
+    # them leaves a test named for a behavior it no longer checks.
+    skill="$BATS_TEST_DIRNAME/../skills/develop-refactor/SKILL.md"
+    step3=$(step_of "$skill" 3 | tr '\n' ' ' | tr -s ' ')
+    grep -qF 'A duplication fix leaves each test asserting what its name and `verifies:` claim.' <<< "$step3" \
+        || { echo "step 3 does not keep a test's assertions through a duplication fix: $step3"; false; }
+}

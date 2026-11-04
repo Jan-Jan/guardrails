@@ -6,8 +6,6 @@
 
 **REQ-k6mtxa**: The software shall check a configuration that names no requirements or architecture ledger, reading no items from either.
 
-**REQ-x7m2sy**: The software shall report ORPHAN-ANNOTATION for an annotation keyword at column one, or after list markers, that lies in no item block, skipping only YAML front matter: a `---` line on line 1 followed by a key.
-
 **REQ-k773kh**: The software shall credit a column-one annotation to an item only inside that item's block, which ends at the next heading or bold line containing a colon; a line opens a block only when it starts with `**<ID>**:`.
 
 **REQ-qw3aze**: The software shall count an implements: only inside a REQ block of the requirements ledger, and a mitigates: only inside an RC block of the risk ledger.

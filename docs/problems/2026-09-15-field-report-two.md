@@ -1,6 +1,6 @@
 # Problem reports — the second field report from a class B adopter
 
-The open items from the second field report, which arrived on 2026-09-13
+The items from the second field report, which arrived on 2026-09-13
 from a downstream SvelteKit project, IEC 62304 class B, measured that day
 against its `dev` branch at `b574fac2` with a vendored copy of 0.5.1.
 `PR-8ucezf` (the foreign-draft verdict) and `PR-9xxz3b` (the gate-scope
@@ -18,7 +18,8 @@ distinguishing whose; skills/merge-change/SKILL.md step 4, which lists the
 verdict among the things the merging change must answer for, and which now states
 plainly that the verdict cannot tell the two apart.
 opened: 2026-09-15
-status: open
+status: accepted
+disposition: ruled on 2026-10-30 — draft names are no longer minted (ADR-cy7ahd); merge-change step 3 rules on a draft path this change did not add.
 Recorded downstream in the adopter's verification record of 2026-09-07:
 commit `4deb0248` merged with a draft problems-ledger file (their
 flake-cluster-inert-isvisible-timeout item) unfinalized, "which was blocking
@@ -52,7 +53,7 @@ fixtures use. The change was shipping in one script the rule it argued against i
 the other, and both could not stand. Round 2 stated it in those terms; the
 project owner ruled on 2026-09-16 to cut the work rather than defend it.
 
-So this item is **open**, and what it needs is a discriminator that is right in
+So this item stayed **open**: what it needs is a discriminator that is right in
 both scripts. Presence on the base branch is the candidate: a draft this change
 did not create is one that already exists in the base, which depends on no naming
 convention and matches the reported case exactly. It costs a base-branch
@@ -86,7 +87,8 @@ finding reruns the sequence whatever its tag, and states so explicitly so the
 saving is not inferred; templates/verification.md, whose field-grammar block
 states what the tag is for and states no boundary.
 opened: 2026-09-16
-status: open
+status: accepted
+disposition: ruled on 2026-10-30 — every finding reruns from step 1, as merge-change step 4 states.
 The ask is the reporting project's §6.1 and it is a real one: three of their
 changes spent 27 review rounds between them, the later ones correcting prose with
 prose. What defeats it is stating the boundary. **Five formulations were written
@@ -122,9 +124,8 @@ rather than a sixth attempt.
 650 s, over the five minutes below which a cheaper `record` lane would not pay for
 itself. Since this item was opened, step 6a dispatches no further reviewer
 after the first round with nothing above `low`, so what a later `record`
-finding still costs is the rerun from step 1, the suite included. Both
-candidates come from the parallel-session proposals of 2026-09-18, which
-never merged.
+finding still costs is the rerun from step 1, the suite included. Neither
+candidate is adopted in any skill or script.
 
 * **P8, per gate, by running the gates.** After that converging round, a
   `record` disposition is checked by `check-ids.sh`, `check-trace.sh`,
@@ -151,7 +152,8 @@ the whole ledger; skills/merge-change/SKILL.md step 5 and
 skills/check-traceability/SKILL.md, which present every verdict as a property of
 the change under merge.
 opened: 2026-09-15
-status: open
+status: accepted
+disposition: ruled on 2026-10-30 — the limits stay merge-time, the only thing that forces triage; `status: accepted` with a disposition is the route for a problem not the author's.
 Recorded, not fixed, and the scope is stated so the next reader does not
 re-derive it. The mechanism the report asks for — `check-trace.sh --scope=change`
 for the gates that are properties of the diff and `--scope=ledger` for the

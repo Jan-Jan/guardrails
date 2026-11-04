@@ -20,9 +20,9 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 - An item is terse: no rationale, history or implementation detail.
 - Every hazard must have at least one risk control that `mitigates:` it.
   `mitigates:` is read only inside the RC's block: on the definition line, as
-  above, or on a line below it before the block closes. A block closes at the
-  next markdown heading, the next bold line that contains an ASCII colon, or
-  the end of the file. A `mitigates:` anywhere else mitigates nothing, so the
+  above, or at the start of a line below it before the block closes. A block
+  closes at the next markdown heading, the next bold line that contains an
+  ASCII colon, or the end of the file. A `mitigates:` anywhere else mitigates nothing, so the
   hazard reports UNMITIGATED-HAZARD; at column one, after any list markers,
   the line also reports ORPHAN-ANNOTATION.
 - Every risk control must be implemented by at least one requirement containing

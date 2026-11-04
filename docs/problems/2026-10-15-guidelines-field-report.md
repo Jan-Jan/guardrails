@@ -16,7 +16,8 @@ recorded again here.
 **PR-pk3xy5**: Existing suites 1 says correcting a citation alone does not edit a test, which also covers repointing a test's `# verifies:` comment to a successor ID, so a test inherited as evidence for a new item escapes the Seams and Doubles clauses.
 affects: templates/TEST_GUIDELINES.md (Existing suites 1); docs/TEST_GUIDELINES.md (Existing suites 1).
 opened: 2026-10-15
-status: open
+status: accepted
+disposition: ruled on 2026-10-30 — re-pointing `verifies:` to a successor ID is a citation fix; the test floor still binds every test.
 
 The review checklist reviews an inherited test as an edited test, but applies
 only the floor to it. A sentence such as "a change to a test's `verifies:`

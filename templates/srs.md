@@ -18,9 +18,9 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
 - An item is terse: no rationale, history or implementation detail.
 - `(implements: RC-...)` is required when the requirement realizes a risk
   control from the risk management file. It is read only inside the REQ's
-  block: on the definition line, as above, or on a line below it before the
-  block closes. A block closes at the next markdown heading, the next bold
-  line that contains an ASCII colon, or the end of the file. An
+  block: on the definition line, as above, or at the start of a line below it
+  before the block closes. A block closes at the next markdown heading, the
+  next bold line that contains an ASCII colon, or the end of the file. An
   `implements:` anywhere else implements nothing, so the control reports
   UNIMPLEMENTED-CONTROL; at column one, after any list markers, the line
   also reports ORPHAN-ANNOTATION.
@@ -28,8 +28,10 @@ Item grammar (enforced by .guardrails/scripts/check-trace.sh):
   and must be assessed in the risk ledger, where an `assesses:` line names it.
 - Mint the ID when you write the item: run
   `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The token
-  is random and is allocated against nothing, so two worktrees and two GitHub
-  PRs never contend for it. Never invent one by hand — the digit rule and the
+  is random and is not allocated against a base branch, so two worktrees or
+  two GitHub PRs can mint the same one. That collision is improbable, and
+  `DUPLICATE-ID` detects it at merge rather than preventing it. Never invent
+  one by hand — the digit rule and the
   alphabet are what keep an ID from matching ordinary English.
 - Every requirement must be verified by at least one test containing a
   `verifies:` annotation (directly, or transitively via a tested LLR).

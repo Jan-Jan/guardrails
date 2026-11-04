@@ -17,7 +17,8 @@
 #   * a key is written in ITS OWN FORM. A LIST key takes indented `  - item`
 #     lines and nothing after its colon; a SCALAR key takes a value after its
 #     colon and no items. The list keys are strict_paths, test_paths,
-#     verify_commands and coverage_command; everything else here is a scalar.
+#     example_paths, verify_commands and coverage_command; everything else
+#     here is a scalar.
 #     `strict_paths: src` looks right — `id_prefixes: REQ HAZ` above is a
 #     space-separated scalar — and is read by NOBODY: cfg_list finds no items,
 #     every traceability scan walks no path, and a merge over an undefined-ID
@@ -117,6 +118,15 @@ strict_paths:
 # Paths searched for `verifies:` test annotations.
 test_paths:
   - tests
+
+# Optional: paths holding example or fixture text, such as test fixtures
+# or skill examples. In a file these match, check-ids.sh and check-trace.sh
+# read no item definition, draft token, reference or history citation; only
+# a `verifies:` line whose keyword is preceded by nothing but blanks and
+# `#`, `/`, `-`, `;` or `*` counts, as a reference and as test coverage.
+# Each entry must match a file, and never a `doc_*` ledger file (exit 2).
+# example_paths:
+#   - tests/fixtures
 
 # Commands merge-change and verify-before-merge must run and pass.
 verify_commands:

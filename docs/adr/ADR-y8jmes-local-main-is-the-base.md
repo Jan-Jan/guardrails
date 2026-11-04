@@ -19,8 +19,7 @@ exists only on another branch cannot be seen from the worktree, and
 `DUPLICATE-ID` reports it after the base merge. At a thousand items the
 probability of one is under 0.1%. An ID is six characters from the 31-symbol
 alphabet that `GR_ID_ANY` in `scripts/lib.sh` defines: 23 letters with the
-confusable ones dropped, plus 8 digits. The header of `scripts/check-ids.sh`
-overstates the scheme, as PR-2jr4pj records.
+confusable ones dropped, plus 8 digits.
 
 `AGENTS.md`'s non-negotiable 4 states the rule and points to this file for
 the argument.

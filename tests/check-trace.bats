@@ -1155,6 +1155,21 @@ EOF
     [[ "$output" == *"UNANALYZED-DERIVED LLR-q7w4zb"* ]] || { echo "$output"; false; }
 }
 
+@test "check-trace: a token derived REQ absent from the RMF fails" {
+    # verifies: REQ-czp8dt
+    # The REQ half of the token case: the derived-REQ collector reads the
+    # SRS by the shared ID body, and every other derived-REQ fixture uses a
+    # numeric ID, so a collector narrowed to digits would pass them all.
+    token_fixture
+    printf '\n**REQ-m2v8xk**: The software shall retry the bus handshake. satisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-m2v8xk\ntrue\n' > tests/test_c.sh
+    commit_all derived-req-token
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    [[ "$output" == *"UNANALYZED-DERIVED REQ-m2v8xk"* ]] || { echo "$output"; false; }
+}
+
 @test "check-trace: an undefined token reference is DANGLING-REF" {
     # verifies: REQ-x3rb2m
     # The test-file half: a verifies: line in a test names an ID no ledger
@@ -1386,7 +1401,7 @@ LEDGER
 # one — an unreadable header ends an item without starting one.
 
 @test "check-trace: an unreadable definition form still closes the block above" {
-    # verifies: REQ-k773kh, REQ-x7m2sy
+    # verifies: REQ-k773kh, REQ-ae3zr8
     printf '**PR-001**: Crash on empty input.\naffects: REQ-001\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n**PR-abcdef**: Hand-typed ID with no digit.\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all malformed-closes
     run sh .guardrails/scripts/check-trace.sh
@@ -1422,7 +1437,7 @@ LEDGER
 # rule above exists to remove.
 
 @test "check-trace: a status: line before the first item is an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     printf 'status: open\n\n**PR-001**: Crash on empty input.\naffects: REQ-001\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n' > docs/problems/0001-01-01-base.md
     commit_all orphan-status
     run sh .guardrails/scripts/check-trace.sh
@@ -1459,7 +1474,7 @@ LEDGER
 }
 
 @test "check-trace: an indented annotation in a grammar comment is not an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # The shape templates/problems.md ships: the item grammar inside an HTML
     # comment, indented and with no list marker, which is what keeps it
     # inert: the backstop steps over a MARKER, never over bare indentation.
@@ -1479,7 +1494,7 @@ LEDGER
 # widened reader demonstrated.
 
 @test "check-trace: a bullet satisfies: outside every block is an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # The measured silent case: the heading closes the LLR block, so the
     # annotation below it belongs to nothing under any rule. gr_id_run reads
     # it, and so does the backstop.
@@ -1491,7 +1506,7 @@ LEDGER
 }
 
 @test "check-trace: an ordered-list satisfies: outside every block is an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # Bullets alone are not enough: THIS line — the same annotation in the
     # other half of markdown list syntax — is credited by gr_id_run inside a
     # block, so outside every block it must be reported too.
@@ -1503,21 +1518,155 @@ LEDGER
         || { echo "$output"; false; }
 }
 
-@test "check-trace: an ordered-list satisfies: inside a block is still credited" {
-    # verifies: REQ-745rsc
-    # THE OTHER HALF OF THE MEASURED PAIR, and it is a pin of what does NOT
-    # move. gr_id_run reads `1. satisfies: derived` at any position, so the
-    # derived REQ was credited here before the widening and is credited after
-    # it — the asymmetry was never that this line went unread, it was that the
-    # same line outside every block went unreported. The backstop reports only
-    # what belongs to no item, so this one is nobody orphan and the RMF verdict
-    # on it is what must be loud.
+@test "check-trace: an ordered-list satisfies: inside a block is not read" {
+    # verifies: REQ-smh4jf
+    # An annotation starts where its keyword starts the line, or on the
+    # item's definition line. `1. satisfies: derived` is neither, so REQ-002
+    # is an ordinary REQ: owed a test, never a derived item.
     printf '\n**REQ-002**: The software shall retry the bus handshake.\n1. satisfies: derived\n' \
         >> docs/requirements/0001-01-01-base.md
     commit_all ordered-derived
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 1 ] || { echo "$output"; false; }
-    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] || { echo "$output"; false; }
+    output_has "MISSING-TEST REQ-002"
+    output_lacks "UNANALYZED-DERIVED"
+}
+
+@test "check-trace: a task-list satisfies: is read in no block, and reported in a block and out of one" {
+    # verifies: REQ-smh4jf, REQ-ae3zr8
+    # The same line in both places, and one answer: no reader takes it, and
+    # the backstop reports it in the REQ block and under the heading alike.
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\n- [x] satisfies: derived\n\n## Notes\n- [x] satisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    commit_all task-list-derived
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "MISSING-TEST REQ-002"
+    output_lacks "UNANALYZED-DERIVED"
+    output_has "ORPHAN-ANNOTATION docs/requirements/0001-01-01-base.md:6 (satisfies: inside REQ-002 is not at column one; no gate reads it)"
+    output_has "ORPHAN-ANNOTATION docs/requirements/0001-01-01-base.md:9 (satisfies: belongs to no item)"
+}
+
+@test "check-trace: a task-list satisfies: in an LLR block satisfies nothing" {
+    # verifies: REQ-smh4jf
+    printf '\n**LLR-002**: Debounce the dose button.\n- [x] satisfies: REQ-001\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all task-list-llr
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNSATISFIED-LLR LLR-002"
+}
+
+@test "check-trace: a blockquoted satisfies: in an LLR block satisfies nothing" {
+    # verifies: REQ-smh4jf
+    # No list syntax at all: the rule names where an annotation starts, so
+    # every other lead is outside it without being listed.
+    printf '\n**LLR-002**: Debounce the dose button.\n> satisfies: REQ-001\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all quoted-llr
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNSATISFIED-LLR LLR-002"
+}
+
+@test "check-trace: a satisfies: starting a body line of an LLR block is read" {
+    # verifies: REQ-smh4jf
+    printf '\n**LLR-002**: Debounce the dose button.\nsatisfies: REQ-001\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all column-one-llr
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "check-trace: a task-list traces: in an SDD block traces nothing" {
+    # verifies: REQ-smh4jf
+    printf '\n**SDD-002**: Button debouncer.\n- [x] traces: REQ-001\n' \
+        >> docs/architecture/0001-01-01-base.md
+    commit_all task-list-sdd
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNTRACED-DESIGN SDD-002"
+}
+
+@test "check-trace: a task-list implements: in a REQ block implements nothing" {
+    # verifies: REQ-smh4jf, REQ-ae3zr8
+    printf '\n**RC-002**: Software rejects a dose above the limit. mitigates: HAZ-001\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-002**: The software shall reject a dose above the limit.\n- [x] implements: RC-002\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all task-list-implements
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNIMPLEMENTED-CONTROL RC-002"
+    output_has "(implements: inside REQ-002 is not at column one; no gate reads it)"
+}
+
+@test "check-trace: a task-list mitigates: in an RC block mitigates nothing" {
+    # verifies: REQ-smh4jf, REQ-ae3zr8
+    printf '\n**HAZ-002**: Dose delivered twice.\n\n**RC-002**: Software rejects a repeated dose.\n- [x] mitigates: HAZ-002\n' \
+        >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-002**: The software shall reject a repeated dose. (implements: RC-002)\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all task-list-mitigates
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "UNMITIGATED-HAZARD HAZ-002"
+    output_has "(mitigates: inside RC-002 is not at column one; no gate reads it)"
+}
+
+# --- an ID-list keyword after a lead inside its block ----------------------
+# No reader takes it (gr_annotation), so without a report the line is dropped
+# in silence: on a REQ, `- satisfies: derived` leaves the REQ escaping
+# UNANALYZED-DERIVED at exit 0. The backstop reports it inside the block too.
+
+@test "check-trace: a list-form satisfies: derived in a REQ block is reported" {
+    # verifies: REQ-ae3zr8
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\n- satisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all list-derived
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "ORPHAN-ANNOTATION docs/requirements/0001-01-01-base.md:6 (satisfies: inside REQ-002 is not at column one; no gate reads it)"
+    output_has "fix ORPHAN-ANNOTATION:"
+}
+
+@test "check-trace: a task-list traces: in an SDD block is reported" {
+    # verifies: REQ-ae3zr8
+    printf '\n**SDD-002**: Button debouncer. traces: REQ-001\n- [x] traces: REQ-001\n' \
+        >> docs/architecture/0001-01-01-base.md
+    commit_all task-list-traces
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "(traces: inside SDD-002 is not at column one; no gate reads it)"
+    output_lacks "UNTRACED-DESIGN"
+}
+
+@test "check-trace: a blockquoted satisfies: in an LLR block is reported" {
+    # verifies: REQ-ae3zr8
+    printf '\n**LLR-002**: Debounce the dose button. satisfies: REQ-001\n> satisfies: REQ-001\n' \
+        >> docs/architecture/0001-01-01-base.md
+    printf '# verifies: LLR-002\ntrue\n' > tests/test_b.sh
+    commit_all quoted-llr-reported
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$output"; false; }
+    output_has "(satisfies: inside LLR-002 is not at column one; no gate reads it)"
+}
+
+@test "check-trace: a column-one satisfies: derived in a REQ block is not reported" {
+    # verifies: REQ-ae3zr8
+    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
+        >> docs/requirements/0001-01-01-base.md
+    printf '# verifies: REQ-002\ntrue\n' > tests/test_b.sh
+    commit_all column-one-derived
+    run sh .guardrails/scripts/check-trace.sh
+    output_has "UNANALYZED-DERIVED REQ-002"
+    output_lacks "ORPHAN-ANNOTATION"
 }
 
 @test "check-trace: a bullet status: is not read as the problem status" {
@@ -1547,7 +1696,7 @@ LEDGER
 }
 
 @test "check-trace: an indented grammar comment is still inert" {
-    # verifies: REQ-x7m2sy, REQ-k773kh
+    # verifies: REQ-ae3zr8, REQ-k773kh
     # SCOPE CONTROL, pinned rather than asserted: the widening admits a list
     # MARKER, never bare indentation, and that is the property it is built
     # around. Both halves are checked, because only the pair rules out a
@@ -1704,81 +1853,6 @@ LEDGER
     [[ "$output" != *"DANGLING-FILE"* ]] || { echo "$output"; false; }
 }
 
-@test "poisoning GR_AWK_ITEM_BLOCK changes every block gate's verdict" {
-    # The behavioural pin for the shared block rule, and the companion to
-    # "poisoning gr_def_re" and "widening GR_ID_BODY". A textual count of
-    # interpolation sites is defeated by a copy spelled differently — that
-    # happened three rounds running to the gr_def_re pin — so make the shared
-    # definition inert instead and require all five consumers to go quiet.
-    #
-    # Reassigning at the END of lib.sh wins by shell rules, so every consumer
-    # that really reads the library's fragment is poisoned. One that contains
-    # its own copy of "where does an item end" keeps working, which is the
-    # failure this catches. The orphan gate moves the OTHER way — with no
-    # block ever open, every annotation belongs to nothing — so a fifth copy
-    # is caught by its silence where the first four are caught by their noise.
-    printf '**PR-001**: Crash on empty input.\nstatus: open\n' \
-        > docs/problems/0001-01-01-base.md
-    printf '\n**SDD-002**: Logging module.\n' >> docs/architecture/0001-01-01-base.md
-    printf '\n**LLR-002**: Debounce sensor input.\n' >> docs/architecture/0001-01-01-base.md
-    printf '\n**REQ-002**: The software shall retry the bus handshake.\nsatisfies: derived\n' \
-        >> docs/requirements/0001-01-01-base.md
-    printf '# verifies: LLR-002 REQ-002\ntrue\n' > tests/test_b.sh
-    commit_all block-poison-fixture
-
-    run sh .guardrails/scripts/check-trace.sh
-    [ "$status" -eq 1 ] || { echo "baseline wrong: $output"; false; }
-    [[ "$output" == *"UNTRACED-DESIGN SDD-002"* ]] \
-        || { echo "baseline wrong: $output"; false; }
-    [[ "$output" == *"UNSATISFIED-LLR LLR-002"* ]] \
-        || { echo "baseline wrong: $output"; false; }
-    [[ "$output" == *"UNANALYZED-DERIVED REQ-002"* ]] \
-        || { echo "baseline wrong: $output"; false; }
-    [[ "$output" == *"UNRESOLVED-PR PR-001"* ]] \
-        || { echo "baseline wrong: $output"; false; }
-    [[ "$output" != *"ORPHAN-ANNOTATION"* ]] \
-        || { echo "baseline wrong: $output"; false; }
-
-    cat >> .guardrails/scripts/lib.sh <<'POISON'
-
-GR_AWK_ITEM_BLOCK='
-function gr_block_init(pfx_open, body) { }
-function gr_block_opens(line) { return 0 }
-function gr_block_closes(line) { return 0 }
-function gr_block_id(line) { return "ZZ-NO-SUCH-ITEM-ZZ" }
-function gr_kw_here(line, kw) { return 1 }
-function gr_kw_lead(line) { return line }
-function gr_kw_orphan_here(line, kw) { return 1 }
-function gr_value(line, kw,   v) {
-    v = substr(line, length(kw) + 1)
-    sub(/^[ \t]+/, "", v)
-    sub(/[ \t]+$/, "", v)
-    return v
-}
-'
-POISON
-
-    run sh .guardrails/scripts/check-trace.sh
-    [[ "$output" != *"UNTRACED-DESIGN"* ]] \
-        || { echo "the SDD parser kept its own block rule: $output"; false; }
-    [[ "$output" != *"UNSATISFIED-LLR"* ]] \
-        || { echo "the LLR parser kept its own block rule: $output"; false; }
-    [[ "$output" != *"UNANALYZED-DERIVED"* ]] \
-        || { echo "the derived scan kept its own block rule: $output"; false; }
-    [[ "$output" != *"UNRESOLVED-PR"* ]] \
-        || { echo "the problem parser kept its own block rule: $output"; false; }
-    [[ "$output" == *"ORPHAN-ANNOTATION"* ]] \
-        || { echo "the orphan gate kept its own block rule: $output"; false; }
-    # gr_kw_here is poisoned to fire on EVERY line, so a gate reading the
-    # library reports lines containing no keyword at all. A faithful stub would
-    # let check-trace.sh keep a private `index($0, kw) == 1` with the suite
-    # green, which is the drift the whole fragment exists to prevent.
-    [[ "$output" == *"(status: belongs to no item)"* ]] \
-        || { echo "the orphan gate kept its own keyword rule: $output"; false; }
-    [[ "$output" == *"0001-01-01-base.md:1"* ]] \
-        || { echo "the orphan gate kept its own keyword rule: $output"; false; }
-}
-
 # --- what closes a block: header SHAPE, not the loose definition form ------
 # Closing on the loose definition
 # form (`**<declared prefix>-<anything>**:`) is not enough. Three shapes that a
@@ -1858,7 +1932,7 @@ CFG
 }
 
 @test "check-trace: YAML front matter is not an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     printf -- '---\nstatus: draft\ntitle: Problem reports\n---\n\n**PR-001**: Crash.\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n' \
         > docs/problems/0001-01-01-base.md
     commit_all front-matter
@@ -1961,7 +2035,7 @@ SAD
 }
 
 @test "check-trace: a mid-file thematic break is not front matter" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # Only line 1 may open front matter. Without that anchor a `---` rule
     # anywhere in the document starts a skip region and swallows every
     # annotation up to the next one.
@@ -1981,7 +2055,7 @@ SAD
 # are that difference, made visible.
 
 @test "check-trace: a header with text between the bold and the colon closes" {
-    # verifies: REQ-k773kh, REQ-x7m2sy
+    # verifies: REQ-k773kh, REQ-ae3zr8
     printf '**PR-001**: Crash on empty dose input.\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n\n**PR-b4m8p3** (duplicate of PR-001):\nstatus: open\n' > docs/problems/0001-01-01-base.md
     commit_all trailing-text-header
     run sh .guardrails/scripts/check-trace.sh
@@ -2031,7 +2105,7 @@ SAD
 }
 
 @test "check-trace: front matter closed by ... is skipped" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     printf -- '---\nstatus: draft\n...\n\n**PR-001**: Crash.\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n' > docs/problems/0001-01-01-base.md
     commit_all dots-terminator
     run sh .guardrails/scripts/check-trace.sh
@@ -2040,7 +2114,7 @@ SAD
 }
 
 @test "check-trace: CRLF front matter is skipped" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     printf -- '---\r\nstatus: draft\r\n---\r\n\r\n**PR-001**: Crash.\r\nstatus: accepted\r\nopened: 2026-01-01\r\ndisposition: ruled on 2026-01-02\r\n' > docs/problems/0001-01-01-base.md
     commit_all crlf-front-matter
     run sh .guardrails/scripts/check-trace.sh
@@ -2246,7 +2320,7 @@ STUB
 }
 
 @test "check-trace: a UTF-8 BOM does not defeat the front-matter skip" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # lib.sh already knows a BOM makes a column-one scan miss its first line —
     # gr_check_config rejects one in config.yaml for exactly that reason. The
     # lesson had not been applied here, so a BOM turned a title-page
@@ -2259,7 +2333,7 @@ STUB
 }
 
 @test "check-trace: a definition form inside a closing line opens no block" {
-    # verifies: REQ-k773kh, REQ-x7m2sy
+    # verifies: REQ-k773kh, REQ-ae3zr8
     # gr_block_opens is consulted only on lines that CLOSE, so an unanchored
     # opening pattern is invisible unless the closing line also contains a
     # definition form somewhere in it. This is that line.
@@ -3052,7 +3126,7 @@ CFG
 }
 
 @test "check-trace: an orphaned disposition: in a problem ledger is reported" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # Block-parsed now, so the backstop must cover it: otherwise an orphaned
     # ruling is read, matched and dropped while the item above it reads as
     # undisposed.
@@ -3066,7 +3140,7 @@ CFG
 }
 
 @test "check-trace: an owner: outside any item is inert, not an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # The backstop covers what the reader reads, and the reader no longer
     # reads owner: — a leftover line outside any item is prose, like any
     # other word the grammar does not know.
@@ -3079,7 +3153,7 @@ CFG
 }
 
 @test "check-trace: an opened: belonging to no item is an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     printf '# Notes\n\nopened: 2026-01-01\n\n**PR-001**: Crash.\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n' \
         > docs/problems/0001-01-01-base.md
     commit_all orphan-opened
@@ -3101,7 +3175,7 @@ CFG
 }
 
 @test "check-trace: an indented opened: in a grammar comment is not an orphan" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # Column one, like every definition form here — which is what keeps the
     # grammar comment shipped in templates/problems.md inert.
     printf '<!--\n  **PR-NNNNNN**: <symptom>.\n  opened: YYYY-MM-DD\n  status: open|accepted\n-->\n\n**PR-001**: Crash.\nstatus: accepted\nopened: 2026-01-01\ndisposition: ruled on 2026-01-02\n' \
@@ -3422,7 +3496,7 @@ CFG
 }
 
 @test "check-trace: a leading --- does not switch the orphan backstop off either" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     #
     # The READER has no front-matter skip; the BACKSTOP must tell a header
     # from a horizontal rule, or a leading `---` silently drops every
@@ -3441,7 +3515,7 @@ CFG
 }
 
 @test "check-trace: real front matter is still skipped by the backstop" {
-    # verifies: REQ-x7m2sy
+    # verifies: REQ-ae3zr8
     # The other side of the bound above: a header block with a key on line 2
     # is still a header block, and a `status: draft` in it is a title-page
     # field, not an orphan. Without this the backstop would trade one false green
@@ -3674,6 +3748,23 @@ EOF
     [ "$status" -eq 0 ]
 }
 
+@test "check-trace: a task-list satisfies: in an exported provider REQ meets no expectation" {
+    # verifies: REQ-smh4jf
+    make_units_fixture
+    add_expectation
+    # satisfy_expectation, with the satisfies: moved to a task-list item.
+    cat >> platform/hal/docs/requirements/0001-01-01-base.md <<'EOF'
+
+**REQ-h8s3t2**: The software shall bound actuator slew rate.
+- [x] satisfies: REQ-e7x2m4
+exported: yes
+EOF
+    printf '# verifies: REQ-h8s3t2\ntrue\n' > platform/hal/tests/test_b.sh
+    commit_all task-list-met
+    unit_run check-trace.sh apps/pump
+    output_has "UNMET-EXPECTATION platform/hal: REQ-e7x2m4"
+}
+
 @test "check-trace: reverse-edge-is-exactly-expects — the provider resolves the expectation and nothing else" {
     make_units_fixture
     add_expectation
@@ -3752,7 +3843,7 @@ EOF
     [[ "$output" == *"only accepted value is yes"* ]] || { echo "$output"; false; }
 }
 
-# verifies: REQ-x7m2sy
+# verifies: REQ-ae3zr8
 @test "check-trace: orphan exported: and expects: outside any block convict ORPHAN-ANNOTATION in a scoped run" {
     make_units_fixture
     cat > apps/pump/docs/requirements/0002-01-01-orphan.md <<'ORPHAN'
@@ -3834,7 +3925,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: before the first item of the SRS credits nothing and is reported" {
-    # verifies: REQ-qw3aze, REQ-x7m2sy
+    # verifies: REQ-qw3aze, REQ-ae3zr8
     add_unimplemented_control
     printf '# SRS\n\nimplements: RC-002\n\n**REQ-001**: The system shall limit the dose. (implements: RC-001)\n' \
         > docs/requirements/0001-01-01-base.md
@@ -3847,7 +3938,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: under a heading after the last REQ credits nothing and is reported" {
-    # verifies: REQ-qw3aze, REQ-x7m2sy
+    # verifies: REQ-qw3aze, REQ-ae3zr8
     add_unimplemented_control
     printf '\n## Notes\n\nimplements: RC-002\n' >> docs/requirements/0001-01-01-base.md
     commit_all implements-after-last-item
@@ -3859,7 +3950,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: mid-sentence in SRS prose credits nothing and is not an orphan" {
-    # verifies: REQ-qw3aze, REQ-x7m2sy
+    # verifies: REQ-qw3aze, REQ-ae3zr8
     # The backstop's rule is column one, so prose is not reported; the
     # coverage gate the line would have satisfied is.
     add_unimplemented_control
@@ -3872,7 +3963,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an implements: under a sub-heading inside a REQ credits nothing and is reported" {
-    # verifies: REQ-qw3aze, REQ-x7m2sy
+    # verifies: REQ-qw3aze, REQ-ae3zr8
     # The heading closes REQ-002's block, so the line below it is no REQ's.
     add_unimplemented_control
     printf '\n**REQ-002**: The system shall raise the stuck-sensor alarm.\n\n### Why\n\nimplements: RC-002\n' \
@@ -3897,7 +3988,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: a column-one mitigates: under a heading after the last RC mitigates nothing and is reported" {
-    # verifies: REQ-qw3aze, REQ-x7m2sy
+    # verifies: REQ-qw3aze, REQ-ae3zr8
     printf '\n**HAZ-002**: Stuck sensor.\n\n## Notes\n\nmitigates: HAZ-002\n' >> docs/risk/0001-01-01-base.md
     commit_all mitigates-after-last-item
     run sh .guardrails/scripts/check-trace.sh
@@ -3939,7 +4030,7 @@ add_unimplemented_control() {
 }
 
 @test "check-trace: an expecting REQ's implements: after a bold-colon line is reported and claims no risk control" {
-    # verifies: REQ-qw3aze, REQ-k773kh, REQ-x7m2sy
+    # verifies: REQ-qw3aze, REQ-k773kh, REQ-ae3zr8
     # The **Note:** line closes REQ-e7x2m4's block. The expectation severity
     # reads the same block records UNIMPLEMENTED-CONTROL reads, so the stray
     # line neither makes the expectation risk-linked nor passes silently.
@@ -4031,16 +4122,16 @@ add_unimplemented_control() {
     [[ "$output" == *"UNMITIGATED-HAZARD HAZ-002"* ]] || { echo "$output"; false; }
 }
 
-@test "check-trace: inline and bulleted credits inside a block still credit" {
-    # verifies: REQ-qw3aze
-    # Scope control: the shipped definition-line forms and a bulleted line
-    # inside the block are all inside the block.
+@test "check-trace: inline and column-one credits inside a block still credit" {
+    # verifies: REQ-qw3aze, REQ-smh4jf
+    # Scope control: the shipped definition-line form and a column-one line
+    # below it are both inside the block, and both start an annotation.
     add_unimplemented_control
-    printf '\n**RC-003**: Alarm on sensor drift.\n- mitigates: HAZ-002\n' >> docs/risk/0001-01-01-base.md
-    printf '\n**REQ-002**: The system shall raise the stuck-sensor alarm. (implements: RC-002)\n\n**REQ-003**: The system shall raise the drift alarm.\n- implements: RC-003\n' \
+    printf '\n**RC-003**: Alarm on sensor drift.\nmitigates: HAZ-002\n' >> docs/risk/0001-01-01-base.md
+    printf '\n**REQ-002**: The system shall raise the stuck-sensor alarm. (implements: RC-002)\n\n**REQ-003**: The system shall raise the drift alarm.\nimplements: RC-003\n' \
         >> docs/requirements/0001-01-01-base.md
     printf '# verifies: REQ-002\n# verifies: REQ-003\ntrue\n' > tests/test_b.sh
-    commit_all inline-and-bulleted
+    commit_all inline-and-column-one
     run sh .guardrails/scripts/check-trace.sh
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
@@ -4090,4 +4181,228 @@ add_unimplemented_control() {
     unit_run check-trace.sh apps/pump
     [[ "$output" == *"UNMET-EXPECTATION platform/hal: REQ-e7x2m4 (open 3 days)"* ]] || { echo "$output"; false; }
     [[ "$output" != *"implements a risk control"* ]] || { echo "$output"; false; }
+}
+
+# --- example_paths: example text is read only for its line-start verifies: --
+
+@test "check-trace: an example_paths entry matching no file exits 2 naming it" {
+    # verifies: REQ-mmfxd8
+    printf 'example_paths:\n  - tests/no-such-fixture.md\n' >> .guardrails/config.yaml
+    commit_all example-missing
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "example_paths entry matches no file present in the working tree: tests/no-such-fixture.md"
+}
+
+@test "check-trace: an example_paths entry whose only file is deleted from the working tree exits 2" {
+    # verifies: REQ-mmfxd8
+    printf 'sample\n' > tests/fixture.md
+    printf 'example_paths:\n  - tests/fixture.md\n' >> .guardrails/config.yaml
+    commit_all example-tracked
+    rm tests/fixture.md
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "example_paths entry matches no file present in the working tree: tests/fixture.md"
+}
+
+@test "check-trace: an example_paths entry that matches a ledger file exits 2 naming both" {
+    # verifies: REQ-h7cjtr
+    printf 'example_paths:\n  - docs/risk\n' >> .guardrails/config.yaml
+    commit_all example-ledger
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "example_paths entry matches a ledger file: docs/risk matches docs/risk/0001-01-01-base.md"
+}
+
+@test "check-trace: a definition in an example file is no item: not misplaced, not owed a test" {
+    # verifies: REQ-esb4nh
+    printf '**REQ-a3k9z2**: an example item.\n' > tests/fixture.md
+    commit_all example-def
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "MISPLACED-ITEM REQ-a3k9z2"
+
+    printf 'example_paths:\n  - tests/fixture.md\n' >> .guardrails/config.yaml
+    commit_all example-listed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    output_has "checked: REQ 1,"
+}
+
+@test "check-trace: scoped, a definition in an example file inside the unit is no item" {
+    # verifies: REQ-esb4nh
+    make_units_fixture
+    mkdir -p apps/pump/tests
+    printf '**REQ-a3k9z2**: an example item.\n' > apps/pump/tests/fixture.md
+    commit_all example-def-scoped
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "MISPLACED-ITEM REQ-a3k9z2"
+
+    printf 'example_paths:\n  - apps/pump/tests/fixture.md\n' >> apps/pump/.guardrails/config.yaml
+    commit_all example-def-scoped-listed
+    unit_run check-trace.sh apps/pump
+    output_lacks "REQ-a3k9z2"
+    output_has "checked: REQ 1,"
+}
+
+@test "check-trace: a reference to an ID defined only in an example file dangles" {
+    # verifies: REQ-esb4nh
+    printf '**REQ-a3k9z2**: an example item.\n' > tests/fixture.md
+    printf '// limits per REQ-a3k9z2\n' > src/main.c
+    printf 'example_paths:\n  - tests/fixture.md\n' >> .guardrails/config.yaml
+    commit_all example-ref
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "DANGLING-REF REQ-a3k9z2 (referenced but never defined)"
+}
+
+@test "check-trace: a scoped reference to an ID defined only in an example file is not classified by it" {
+    # verifies: REQ-esb4nh
+    make_units_fixture
+    printf '**REQ-b4m8p3**: an example item.\n' > platform/hal/tests/fixture.md
+    printf '// see REQ-b4m8p3\n' > apps/pump/src/main.c
+    commit_all example-scoped
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "NON-EXPORTED-REF REQ-b4m8p3"
+
+    printf 'example_paths:\n  - platform/hal/tests/fixture.md\n' >> apps/pump/.guardrails/config.yaml
+    commit_all example-scoped-listed
+    unit_run check-trace.sh apps/pump
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "DANGLING-REF REQ-b4m8p3 (referenced but never defined)"
+    output_lacks "NON-EXPORTED-REF"
+}
+
+@test "check-trace: an example file's references are read only from its line-start verifies: lines" {
+    # verifies: REQ-3e7gxt
+    cat > tests/fixture.bats <<'BATS'
+@test "quoted" {
+    printf '# verifies: REQ-zzz9zz\n' > tests/x.sh
+    run echo "see REQ-zzz8zz"
+}
+BATS
+    commit_all example-quoted
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "DANGLING-REF REQ-zzz9zz"
+    output_has "DANGLING-REF REQ-zzz8zz"
+
+    printf 'example_paths:\n  - tests/fixture.bats\n' >> .guardrails/config.yaml
+    commit_all example-listed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+
+    # A heredoc writing a fixture's annotation starts its line with the
+    # keyword, and so does each comment leader; those IDs are still read.
+    # Built at run time, so this file holds no line-start annotation itself.
+    printf '%s\n' '@test "heredoc" {' "    cat > tests/x.sh <<'EOF'" \
+        '# verifies: REQ-zzz7zz' '  * verifies: REQ-zzz6zz' \
+        '// verifies: REQ-zzz5zz' '-- verifies: REQ-zzz4zz' \
+        ';; verifies: REQ-zzz3zz' 'EOF' '}' >> tests/fixture.bats
+    commit_all example-heredoc
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    for id in REQ-zzz7zz REQ-zzz6zz REQ-zzz5zz REQ-zzz4zz REQ-zzz3zz; do
+        output_has "DANGLING-REF $id"
+    done
+    output_lacks "REQ-zzz9zz"
+    output_lacks "REQ-zzz8zz"
+}
+
+@test "check-trace: a history citation in an example file is no HISTORY-CITATION" {
+    # verifies: REQ-3e7gxt
+    printf 'run grep docs/plans/2026-01-01-topic.md\n' > tests/fixture.bats
+    commit_all example-citation
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "control did not fail: $status $output"; false; }
+    output_has "HISTORY-CITATION tests/fixture.bats:1"
+
+    printf 'example_paths:\n  - tests/fixture.bats\n' >> .guardrails/config.yaml
+    commit_all example-listed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "check-trace: an example file's verifies: counts toward MISSING-TEST only at line start" {
+    # verifies: REQ-7tdvfe
+    printf 'printf "# verifies: LLR-001\\n" > out\n' > tests/test_a.sh
+    commit_all example-printf
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "control failed: $status $output"; false; }
+
+    printf 'example_paths:\n  - tests/test_a.sh\n' >> .guardrails/config.yaml
+    commit_all example-listed
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 1 ] || { echo "$status: $output"; false; }
+    output_has "MISSING-TEST LLR-001"
+
+    # A heredoc-shaped annotation in the same file still counts.
+    printf 'cat > out <<EOF\n# verifies: LLR-001\nEOF\n' >> tests/test_a.sh
+    commit_all example-heredoc
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+}
+
+@test "check-trace: the sources: line ends with the number of example_paths entries" {
+    # verifies: REQ-6pnt2j
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [[ "${lines[${#lines[@]}-1]}" == "sources: "*", examples 0" ]] || { echo "$output"; false; }
+
+    printf 'sample\n' > tests/fixture.md
+    printf 'sample\n' > 'src/my example.md'
+    printf 'example_paths:\n  - tests/fixture.md\n  - src/my example.md\n' >> .guardrails/config.yaml
+    commit_all example-two
+    run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 0 ] || { echo "$status: $output"; false; }
+    [[ "${lines[${#lines[@]}-1]}" == "sources: "*", examples 2" ]] || { echo "$output"; false; }
+}
+
+# --- each scan's git status is read ------------------------------------------
+# An errored git grep prints nothing, and nothing is what a tree with no
+# definitions, annotations or definition sites looks like. Each test fails one
+# scan alone, keyed on arguments only that scan passes.
+
+@test "check-trace: exits 2 naming the definition scan when its git grep fails" {
+    # verifies: REQ-6vfb6a
+    stub_directory=$(make_git_failing_on '*" grep -h --untracked -oE ^"*" -- . "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "definition scan failed (git grep exit 128)"
+}
+
+@test "check-trace: exits 2 naming the annotation scan when its git grep fails" {
+    # verifies: REQ-6vfb6a
+    stub_directory=$(make_git_failing_on '*" grep -hI --untracked -F assesses: "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "assesses: annotation scan failed (git grep exit 128)"
+}
+
+@test "check-trace: exits 2 naming the example verifies: scan when its git grep fails" {
+    # verifies: REQ-6vfb6a
+    # The line-start scan runs only with example_paths set, and is the only
+    # git grep -hI -E call.
+    printf 'sample\n' > src/sample.txt
+    printf 'example_paths:\n  - src/sample.txt\n' >> .guardrails/config.yaml
+    commit_all example-verifies-scan
+    stub_directory=$(make_git_failing_on '*" grep -hI --untracked -E "*')
+    PATH="$stub_directory:$PATH" run sh .guardrails/scripts/check-trace.sh
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "verifies: annotation scan failed (git grep exit 128)"
+}
+
+@test "check-trace: exits 2 naming the definition-site scan when its git grep fails" {
+    # verifies: REQ-6vfb6a
+    # An errored site scan would classify the reference DANGLING-REF.
+    make_units_fixture
+    printf '\nSee REQ-p2m4k7.\n' >> platform/hal/docs/architecture/0001-01-01-base.md
+    commit_all ref
+    stub_directory=$(make_git_failing_on '*" grep -l --untracked -E "*')
+    PATH="$stub_directory:$PATH" unit_run check-trace.sh platform/hal
+    [ "$status" -eq 2 ] || { echo "$status: $output"; false; }
+    output_has "definition-site scan for REQ-p2m4k7 failed (git grep exit 128)"
+    output_lacks "DANGLING-REF"
 }

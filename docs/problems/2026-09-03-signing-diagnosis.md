@@ -1,10 +1,9 @@
 # Problem reports — check-signing.sh reports causes it did not measure
 
-Two open items and one accepted (PR-2scmvn) from an investigation, begun on 2026-09-01, into a
+Two accepted items from an investigation, begun on 2026-09-01, into a
 `check-signing.sh` that stated a cause it never read: PR-2scmvn, found by a
-task subagent running the suite four times; PR-r8q9m7, split out once the ssh
-half of the history was measured; and PR-k4t9k2, found while merging bd41d7a,
-whose new environment guard misses the state the investigation began from.
+task subagent running the suite four times; and PR-r8q9m7, split out once the
+ssh half of the history was measured.
 
 **PR-2scmvn**: The verification suite fails intermittently in
 `tests/check-ids.bats`, on a different test each time, with git unable to
@@ -76,7 +75,8 @@ affects: scripts/check-signing.sh, whose default scope is HEAD alone;
 scripts/finish-merge.sh guard 1, which therefore attests the squash commit and
 nothing beneath it.
 opened: 2026-09-01
-status: open
+status: accepted
+disposition: ruled on 2026-10-30 — the merge gate attests the commit it creates; history is checked on demand with `check-signing.sh <range>`.
 The ssh commits stay unverifiable while no
 `allowed_signers` file exists, and the flow never needs them verified because
 `finish-merge.sh` checks the new HEAD only. That is an accepted gap (817156c)
@@ -90,27 +90,3 @@ are contiguous rather than interleaved, and every ssh commit predates it. An
 earlier draft of this item stated "17 of the last 20", which was true of that
 window and wrong as a description of the history; the whole-history figure is
 the one that belongs in a ledger.
-
-**PR-k4t9k2**: `trust_root_env_guard` treats a keyring it can READ as a working
-one, so an unwritable `~/.gnupg` is still reported as a project fault.
-affects: scripts/check-signing.sh, the openpgp branch of
-`trust_root_env_guard` added by bd41d7a.
-opened: 2026-09-02
-status: open
-Found on 2026-09-02 while merging bd41d7a into this change, by running its new
-guard against the machine state the investigation began from.
-The guard fires on `[ ! -r "$_tr_home" ] || [ ! -x "$_tr_home" ]`. Here
-`~/.gnupg` is both readable and executable; what it is not is WRITABLE, and
-gpg opens `trustdb.gpg` read-write even when only reading it — measured, the
-same file opens `O_RDONLY` and is denied `O_RDWR`. So gpg dies
-`Fatal: can't open ... Operation not permitted`, `%G?` reads `N`, and the
-verdict is `UNVERIFIED` at exit 1 — "the project is wrong" — for a fault that
-is purely environmental. That is the case the guard exists to catch, and it is
-the single most likely one to be hit, because it is what a sandboxed agent
-sees. Not folded into the change that found it: extending the guard changes
-which exit code a state produces, which is a decision belonging to the design
-bd41d7a introduced rather than to this change, whose fix is orthogonal — it
-makes the state DIAGNOSABLE by printing gpg's own words under the verdict,
-without reclassifying it. A test for it must assert on writability, not on
-`-r`/`-x`, and cannot simply chmod the directory, since removing `w` from a
-directory the test user owns is exactly what the current guard already misses.

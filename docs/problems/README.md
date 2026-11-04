@@ -87,8 +87,10 @@ Item grammar (surfaced by .guardrails/scripts/check-trace.sh):
 - Delete a problem's item only in the same change that merges the fix.
 - Mint the ID when you write the item: run
   `.guardrails/scripts/new-id.sh <PREFIX>` and paste what it prints. The token
-  is random and is allocated against nothing, so two worktrees and two GitHub
-  PRs never contend for it. Never invent one by hand — the digit rule and the
+  is random and is not allocated against a base branch, so two worktrees or
+  two GitHub PRs can mint the same one. That collision is improbable, and
+  `DUPLICATE-ID` detects it at merge rather than preventing it. Never invent
+  one by hand — the digit rule and the
   alphabet are what keep an ID from matching ordinary English.
 - IDs in the examples above use `NNNNNN` as a placeholder, and the examples
   are indented. Both matter. A real ID here would be a reference to an item

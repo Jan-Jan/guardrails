@@ -9,7 +9,8 @@
 # break every `verifies:` and `traces:` reference pointing at it.
 #
 # Nothing allocates these against a base branch, which is the whole point:
-# two worktrees, or two GitHub PRs, mint independently and never contend.
+# two worktrees, or two GitHub PRs, mint independently and wait on nothing.
+# They can mint the same ID; that is improbable.
 #
 # Collisions are DETECTED, not prevented. A candidate already present anywhere
 # in this tree — tracked or untracked, definition or reference — is discarded
@@ -153,7 +154,7 @@ draw() {
     # returning short — /dev/random on an entropy-starved host — still waits
     # here, because one dd is still one blocking read(). That is the documented
     # behaviour of such a device and not something to work around without a
-    # portable timeout; it is recorded as a gap in the verification record. A
+    # portable timeout, so it is a known gap: no portable sh bounds the wait. A
     # FIFO, the other blocking case, is rejected above.
     #
     # One 4 KiB

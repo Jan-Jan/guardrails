@@ -178,9 +178,11 @@ toolkit accepts both forms, and nothing renumbers an SRS.
   from `new-id.sh`.
 * **`check-ids.sh --allow-drafts` and `--base` are rejected, not ignored.**
   So is `--allow-draft-files` ("Ledger files are named at creation" below).
-  `--base` referred to a gate that no longer exists: IDs are
-  allocated against nothing, and the in-tree duplicate scan sees everything
-  once `merge-change` step 1 has merged the base branch in. `UNANCHORED-DEF`
+  `--base` referred to a gate that no longer exists: IDs are not
+  allocated against a base branch, so two branches can mint the same one.
+  That collision is improbable, and it is detected, not prevented: the in-tree
+  duplicate scan (`DUPLICATE-ID`) sees everything once `merge-change` step 1
+  has merged the base branch in. `UNANCHORED-DEF`
   and `SKIPPED-DUPLICATE-BASE` are gone with it.
 * **`MALFORMED-ID` is new, and is exit 1.** It reports a line opening with a
   definition form whose body is not a valid ID, including a legacy
@@ -351,8 +353,8 @@ keyword this backstop reads.
 credited inside a block and reported by nothing outside one. Every other
 position `gr_id_run` accepts — task-list items, blockquote prefixes, table
 cells, emphasis, a mid-sentence mention — is not enumerated and should be
-presumed unreported. If your ledgers use a list form beyond the two named, the
-gate stays silent on it as before.
+presumed unreported. A later version stops reading those forms inside a block:
+see "ID-list annotations start at column one or on the definition line".
 
 ## Coverage credits are read by block
 
@@ -803,3 +805,39 @@ directory is not scanned, and a bare directory or a `<date>-<slug>`
 placeholder names no file. Rewrite each citation: drop it where the comment
 already states the reason, write the reason in one line where it does not,
 or cite the ADR that records the trade-off.
+
+## ID-list annotations start at column one or on the definition line
+
+`satisfies:`, `traces:`, `implements:` and `mitigates:` are now read inside
+an item's block only at column one or on the item's definition line. The older
+`check-trace.sh` read them anywhere on any line of the block, so a list item
+(`- satisfies: REQ-…`, `1. satisfies: …`), a task-list item
+(`- [x] satisfies: REQ-…`), a blockquote, an indented line or a mention in a
+sentence credited the item, while the same line outside every block was
+reported by nothing.
+
+This can go red on an existing ledger: an LLR, SDD or RC whose only
+annotation is in such a form reports `UNSATISFIED-LLR`, `UNTRACED-DESIGN` or
+`UNMITIGATED-HAZARD`, a REQ whose only `implements:` is in such a form leaves
+its RC `UNIMPLEMENTED-CONTROL`, and a provider's exported REQ
+stops meeting an expectation. A REQ whose only `satisfies: derived` is such a
+form stops being derived: it is owed a test and is no longer reported
+`UNANALYZED-DERIVED`.
+
+`ORPHAN-ANNOTATION` reports such a line inside the block where it follows a
+list marker, a task-list box (`[ ]` or `[x]`) or a blockquote marker (`>`):
+`<keyword> inside <ID> is not at column one; no gate reads it`. So a
+list-form `satisfies: derived` goes red rather than silent. The same leads are
+now stepped over outside every block too, for every keyword the backstop
+reads, and for `supersedes:`, `superseded-by:` and `retired:`. An indented
+line, a table cell or a mention in a sentence is reported by nothing; only
+the item's own gate fails, where it needs the annotation.
+
+**Size it with one grep before you upgrade.** It prints every line with one of
+the keywords that neither starts the line nor sits on a definition line:
+
+    grep -rnE '(satisfies|traces|implements|mitigates):' docs/ | grep -vE ':[0-9]+:((satisfies|traces|implements|mitigates):|\*\*[A-Z]+-[^*]+\*\*:)'
+
+**The fix:** move the annotation to column one, or onto the definition line,
+and drop the marker. A line that is prose about the form keeps it inline in
+backticks.

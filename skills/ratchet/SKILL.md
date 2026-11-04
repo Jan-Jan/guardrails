@@ -160,7 +160,7 @@ Work in a worktree, as a change of its own.
 ### Step 3 (retrofit): Gap analysis first, then tighten
 
 1. **Inventory** (read only): AGENTS.md/CLAUDE.md content and rules that
-   conflict with guardrails ("commit to the base branch directly"); existing
+   conflict with guardrails; existing
    requirement, risk and architecture docs; a bug tracker or problem log;
    existing verification evidence; test
    layout and command; CI config; signing of recent commits
@@ -178,8 +178,9 @@ Work in a worktree, as a change of its own.
    - If `<!-- guardrails:begin -->` exists, replace only the block between the
      markers. Otherwise append `templates/AGENTS-block.md` whole. Report
      conflicting rules to the user; do not delete them.
-   - Set `strict_paths` to a SMALL list of paths that are already clean or
-     new. Existing untraced code is grandfathered.
+   - Set `strict_paths` to a SMALL list of clean or new paths. Existing
+     untraced code is grandfathered. List example or fixture files tripping
+     gates in `example_paths:`.
 4. **Later teeth** (separate changes, listed in the retrofit's
    squash message): migrate legacy requirement and risk docs via
    `grill-requirements` / `analyze-risks`; run `tailor-guidelines` for each

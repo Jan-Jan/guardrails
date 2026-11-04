@@ -30,7 +30,8 @@ description: Fix the findings of one CODE or ARCHITECTURE conformance review in 
    verify what it changes, and those it adds or edits. Where the runner
    cannot select, run `verify_commands`. Commit each fix unsigned
    (`git -c commit.gpgsign=false commit`). Never delete, skip or
-   loosen a test to keep those tests green.
+   loosen a test to keep those tests green. A duplication fix leaves each
+   test asserting what its name and `verifies:` claim.
 4. **Report a finding you cannot fix as `no change`, with the reason:** a fix
    that would change behavior, a finding the code does not bear out, a
    clause that contradicts the floor, which is a finding against the clause,
